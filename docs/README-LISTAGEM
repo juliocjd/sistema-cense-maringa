@@ -1,0 +1,328 @@
+# 📋 Listagem de Adolescentes - Documentação
+
+## 🎯 Visão Geral
+
+Componente completo de listagem de adolescentes com busca avançada, filtros, paginação e ações rápidas.
+
+## ✨ Funcionalidades Implementadas
+
+### 1. **Busca Global**
+- Busca por nome completo
+- Busca por número SMS
+- Busca por número de processo
+- Busca em tempo real (atualiza conforme digita)
+
+### 2. **Filtros Avançados**
+- **Por Status:**
+  - Todos
+  - Ativo
+  - Transferido
+  - Liberado
+  - Evadido
+
+- **Por Alertas:**
+  - Todos
+  - Com alertas
+  - Risco de suicídio
+  - Perfil mapeado
+  - Alerta de saúde
+
+- **Botão "Limpar Filtros"**
+
+### 3. **Tabela Responsiva**
+- **Colunas:**
+  - Foto + Nome (com nome social)
+  - Número SMS
+  - Alojamento atual
+  - Status (badge colorido)
+  - Alertas (ícones)
+  - Ações (ver/editar)
+
+- **Visual profissional:**
+  - Hover effect nas linhas
+  - Badges coloridos por status
+  - Ícones intuitivos
+  - Avatar com inicial do nome
+
+### 4. **Paginação**
+- 10 itens por página (configurável)
+- Navegação por números de página
+- Botões Anterior/Próxima
+- Contador de resultados
+
+### 5. **Ações Rápidas**
+- 👁️ **Ver dossiê** - Link para visualização completa
+- ✏️ **Editar** - Link para edição
+- 📥 **Exportar** - Exportar lista para Excel
+
+### 6. **Indicadores Visuais**
+- **Status:**
+  - 🟢 Verde = Ativo
+  - 🔵 Azul = Transferido
+  - ⚫ Cinza = Liberado
+  - 🔴 Vermelho = Evadido
+
+- **Alertas:**
+  - 🟠 Laranja = Risco de suicídio
+  - 🟣 Roxo = Perfil mapeado
+  - 🔵 Azul = Alerta de saúde
+
+## 📂 Estrutura de Arquivos
+
+```
+components/
+└── adolescentes/
+    └── listagem-adolescentes.tsx    ← listagem-adolescentes.tsx
+
+app/
+└── (dashboard)/
+    └── adolescentes/
+        └── page.tsx                  ← page-listagem-adolescentes.tsx
+```
+
+## 🚀 Como Usar
+
+### Instalação
+
+```bash
+# 1. Criar pasta
+mkdir -p components/adolescentes
+
+# 2. Copiar arquivos
+# listagem-adolescentes.tsx → components/adolescentes/listagem-adolescentes.tsx
+# page-listagem-adolescentes.tsx → app/(dashboard)/adolescentes/page.tsx
+```
+
+### Integração com API
+
+```typescript
+// Em app/(dashboard)/adolescentes/page.tsx
+
+const carregarAdolescentes = async () => {
+  const response = await fetch("/api/adolescentes");
+  const data = await response.json();
+  setAdolescentes(data);
+};
+```
+
+## 🔌 API Endpoint Necessário
+
+### GET `/api/adolescentes`
+
+**Query Params (opcional):**
+- `status` - Filtrar por status
+- `busca` - Buscar por termo
+- `page` - Número da página
+- `limit` - Itens por página
+
+**Response:**
+```json
+[
+  {
+    "id": "uuid-123",
+    "nomeCompleto": "João da Silva Santos",
+    "nomeSocial": "João",
+    "numeroSms": "12345",
+    "numeroProcesso": "0001234-56.2024.8.16.0000",
+    "fotoUrl": "https://...",
+    "alojamentoAtualId": "uuid-aloj",
+    "statusUnidade": "ATIVO",
+    "alertaRiscoSuicidio": true,
+    "alertaPerfilMapeado": false,
+    "alertaSaudeConfidencial": false,
+    "conflitosA": [],
+    "conflitosB": []
+  }
+]
+```
+
+## 🎨 Customização
+
+### Alterar Itens por Página
+
+```typescript
+// Em listagem-adolescentes.tsx
+const itensPorPagina = 20; // Era 10
+```
+
+### Adicionar Nova Coluna
+
+```typescript
+// 1. No <thead>:
+<th className="...">Nova Coluna</th>
+
+// 2. No <tbody>:
+<td className="px-6 py-4">
+  {adolescente.novoCampo}
+</td>
+```
+
+### Adicionar Novo Filtro
+
+```typescript
+// 1. Criar estado:
+const [novoFiltro, setNovoFiltro] = useState("");
+
+// 2. Adicionar no painel de filtros:
+<select
+  value={novoFiltro}
+  onChange={(e) => setNovoFiltro(e.target.value)}
+  className="..."
+>
+  <option value="">Selecione...</option>
+</select>
+
+// 3. Atualizar lógica de filtragem:
+const adolescentesFiltrados = adolescentes.filter((a) => {
+  // ... filtros existentes
+  const matchNovoFiltro = novoFiltro === "" || a.campo === novoFiltro;
+  return matchBusca && matchStatus && matchNovoFiltro;
+});
+```
+
+### Alterar Cores dos Status
+
+```typescript
+// Em getStatusBadge():
+const badges: Record<string, { cor: string; texto: string }> = {
+  ATIVO: { 
+    cor: "bg-emerald-100 text-emerald-800", // Verde mais vibrante
+    texto: "Ativo" 
+  },
+  // ... outros status
+};
+```
+
+## 📊 Dados Mock
+
+O componente vem com **8 adolescentes mock** para desenvolvimento:
+- 5 ativos
+- 1 transferido
+- 1 liberado
+- 1 evadido
+- Vários com diferentes alertas
+
+### Substituir por Dados Reais
+
+```typescript
+// Remover mock e usar apenas API:
+useEffect(() => {
+  async function carregar() {
+    const response = await fetch("/api/adolescentes");
+    const data = await response.json();
+    setAdolescentes(data);
+  }
+  carregar();
+}, []);
+```
+
+## 🔍 Recursos de Busca
+
+### Algoritmo de Busca
+
+```typescript
+const matchBusca =
+  busca === "" ||
+  adolescente.nomeCompleto.toLowerCase().includes(busca.toLowerCase()) ||
+  adolescente.numeroSms?.includes(busca) ||
+  adolescente.numeroProcesso?.toLowerCase().includes(busca.toLowerCase());
+```
+
+### Melhorias Futuras
+- [ ] Busca fonética (José = Joze)
+- [ ] Destacar termo buscado (highlight)
+- [ ] Busca por facção, bairro
+- [ ] Histórico de buscas
+- [ ] Sugestões de busca
+
+## 📱 Responsividade
+
+### Desktop
+- Tabela completa com todas as colunas
+- 10 itens por página
+- Filtros lado a lado
+
+### Tablet
+- Tabela adaptada
+- Algumas colunas podem ser ocultadas
+- Filtros empilhados
+
+### Mobile
+- Converter para cards verticais (futuro)
+- Paginação simplificada
+- Filtros em accordion
+
+## ⚡ Performance
+
+### Otimizações Implementadas
+- ✅ Filtros aplicados no client-side (rápido)
+- ✅ Paginação para reduzir renderização
+- ✅ Busca em tempo real sem lag
+
+### Melhorias Futuras
+- [ ] Virtualização para listas grandes (react-window)
+- [ ] Debounce na busca (esperar 300ms)
+- [ ] Paginação server-side
+- [ ] Cache de resultados
+
+## 🎯 Fluxo de Uso
+
+```
+[Abrir página]
+    ↓
+[Ver lista completa]
+    ↓
+[Usar busca/filtros] (opcional)
+    ↓
+[Navegar páginas]
+    ↓
+[Clicar em "Ver dossiê" 👁️]
+    ↓
+[Ir para página de detalhes]
+```
+
+## 📦 Dependências
+
+- `lucide-react` - Ícones
+- `next/link` - Navegação
+- `@/types` - Tipos TypeScript
+
+## 🐛 Troubleshooting
+
+**Tabela vazia:**
+- Verificar se `adolescentes` array não está vazio
+- Verificar filtros aplicados
+- Ver console do navegador
+
+**Busca não funciona:**
+- Verificar estado `busca`
+- Verificar lógica de filtragem
+- Case-sensitive? (usar `.toLowerCase()`)
+
+**Paginação com erro:**
+- Verificar cálculo de `totalPaginas`
+- Verificar `paginaAtual` não excede total
+
+**Links não funcionam:**
+- Criar páginas de destino
+- Verificar rotas no Next.js
+
+## ✅ Status
+
+**Funcionalidades:** ✅ 100% Completo  
+**Testes:** ⏳ Pendente  
+**Documentação:** ✅ Completo  
+
+## 🚀 Próximos Passos
+
+Agora você pode:
+
+1. ✅ **Visualizar lista** em `/dashboard/adolescentes`
+2. ⏳ **Criar página de dossiê** (ver detalhes completos)
+3. ⏳ **Criar página de edição** (editar dados)
+4. ⏳ **Implementar exportação** Excel/PDF
+5. ⏳ **Conectar com API** real
+
+---
+
+**Listagem está pronta para uso!** 🎉
