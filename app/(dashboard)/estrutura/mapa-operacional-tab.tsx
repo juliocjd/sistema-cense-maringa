@@ -146,9 +146,9 @@ export function MapaOperacionalTab() {
         body: JSON.stringify({
           adolescenteId: adolescenteId,
           alojamentoId: alojamentoId,
-          operadorId: user?.id || "temp-operador-id",
           justificativa: justificativa,
           medidas_adicionais: [],
+          ...(user?.id ? { operadorId: user.id } : {}),
         }),
       });
 

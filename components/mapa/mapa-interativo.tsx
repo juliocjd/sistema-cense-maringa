@@ -31,6 +31,23 @@ export function MapaInterativo({
       return "bg-gray-400 border-gray-600";
     }
 
+    if (alojamento.corRisco) {
+      switch (alojamento.corRisco) {
+        case "perigo":
+          return "bg-red-100 border-red-400 shadow-lg shadow-red-200";
+        case "atencao":
+          return "bg-yellow-100 border-yellow-400 shadow-lg shadow-yellow-200";
+        case "seguro":
+          return "bg-green-100 border-green-400 shadow-lg shadow-green-200";
+        case "livre":
+          return "bg-gray-50 border-gray-300 hover:bg-gray-100";
+        case "interditado":
+          return "bg-gray-400 border-gray-600";
+        default:
+          break;
+      }
+    }
+
     const ocupante = alojamento.adolescentes[0];
     if (!ocupante) {
       return "bg-gray-50 border-gray-300 hover:bg-gray-100";

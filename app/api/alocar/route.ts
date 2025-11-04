@@ -3,6 +3,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/auth";
 
 /**
  * POST /api/alocar
@@ -25,6 +26,10 @@ import { prisma } from "@/lib/prisma";
  */
 export async function POST(request: NextRequest) {
   try {
+    const session = await auth().catch((error) => {
+      console.error("Erro ao obter sessão do auth:", error);
+      return null;
+    });
     const body = await request.json();
 
     // 1. VALIDAÇÕES
@@ -39,7 +44,13 @@ export async function POST(request: NextRequest) {
 
     // 2. VERIFICAR RISCOS (chama a API de verificação internamente)
     const verificacao = await fetch(
-      `${request.nextUrl.origin}/api/verificar-alocacao?adolescenteId=${body.adolescenteId}&alojamentoId=${body.alojamentoId}`
+      `${request.nextUrl.origin}/api/verificar-alocacao?adolescenteId=${body.adolescenteId}&alojamentoId=${body.alojamentoId}`,
+      {
+        headers: {
+          cookie: request.headers.get("cookie") ?? "",
+        },
+        cache: "no-store",
+      }
     );
 
     if (!verificacao.ok) {
@@ -110,6 +121,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const operadorIdSession = session?.user?.id ?? null;
+    const operadorIdBody =
+      body.operadorId && body.operadorId !== "temp-operador-id"
+        ? body.operadorId
+        : null;
+    const operadorId = operadorIdBody || operadorIdSession;
+
     // 6. EXECUTAR ALOCAÇÃO (Transaction para garantir atomicidade)
     const resultado = await prisma.$transaction(async (tx) => {
       // 6.1. Atualizar adolescente
@@ -130,16 +148,16 @@ export async function POST(request: NextRequest) {
 
       // 6.2. Se houve risco E há operador válido, registrar decisão operacional
       let decisao = null;
-      if (dadosVerificacao.requer_justificativa && body.operadorId && body.operadorId !== "temp-operador-id") {
+      if (dadosVerificacao.requer_justificativa && operadorId) {
         // Verificar se operador existe
         const operadorExiste = await tx.operador.findUnique({
-          where: { id: body.operadorId },
+          where: { id: operadorId },
         });
 
         if (operadorExiste) {
           decisao = await tx.decisaoOperacional.create({
             data: {
-              operadorId: body.operadorId,
+              operadorId: operadorId,
               tipoOperacao: "ALOCAR_ALOJAMENTO",
               adolescenteId: body.adolescenteId,
               alojamentoId: body.alojamentoId,
@@ -156,15 +174,15 @@ export async function POST(request: NextRequest) {
       }
 
       // 6.3. Registrar log de auditoria APENAS se houver operador válido
-      if (body.operadorId && body.operadorId !== "temp-operador-id") {
+      if (operadorId) {
         const operadorExiste = await tx.operador.findUnique({
-          where: { id: body.operadorId },
+          where: { id: operadorId },
         });
 
         if (operadorExiste) {
           await tx.logAuditoria.create({
             data: {
-              operadorId: body.operadorId,
+              operadorId: operadorId,
               acao: "ALOCACAO",
               tabelaAfetada: "adolescentes",
               registroIdAfetado: body.adolescenteId,
@@ -227,9 +245,35 @@ export async function POST(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
+    const session = await auth().catch((error) => {
+      console.error("Erro ao obter sessão do auth:", error);
+      return null;
+    });
     const searchParams = request.nextUrl.searchParams;
-    const adolescenteId = searchParams.get("adolescenteId");
-    const operadorId = searchParams.get("operadorId");
+    let adolescenteId = searchParams.get("adolescenteId");
+    let operadorId = searchParams.get("operadorId");
+    let motivo: string | null = null;
+
+    const contentType = request.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      const body = await request.json().catch(() => null);
+      if (body && typeof body === "object") {
+        const payload = body as Record<string, unknown>;
+        adolescenteId =
+          adolescenteId ?? (payload.adolescenteId as string | undefined) ?? null;
+        operadorId =
+          operadorId ?? (payload.operadorId as string | undefined) ?? null;
+        motivo =
+          typeof payload.motivo === "string"
+            ? payload.motivo
+            : motivo;
+      }
+    }
+
+    const operadorIdSession = session?.user?.id ?? null;
+    if (!operadorId || operadorId === "temp-operador-id") {
+      operadorId = operadorIdSession;
+    }
 
     if (!adolescenteId) {
       return NextResponse.json(
@@ -275,7 +319,7 @@ export async function DELETE(request: NextRequest) {
       });
 
       // Registrar log apenas se houver operador válido
-      if (operadorId && operadorId !== "temp-operador-id") {
+      if (operadorId) {
         const operadorExiste = await tx.operador.findUnique({
           where: { id: operadorId },
         });
@@ -291,6 +335,7 @@ export async function DELETE(request: NextRequest) {
                 alojamento_removido: alojamentoAnterior?.id,
                 casa: alojamentoAnterior?.casa.nome,
                 numero: alojamentoAnterior?.numeroAlojamento,
+                motivo,
               },
               ipOrigem: request.headers.get("x-forwarded-for") || "unknown",
             },

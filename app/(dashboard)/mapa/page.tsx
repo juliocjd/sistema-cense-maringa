@@ -4,38 +4,7 @@ import { useState, useEffect } from "react";
 import { MapaInterativo } from "@/components/mapa/mapa-interativo";
 import { useAuth } from "@/hooks/useAuth";
 
-// Definir tipos corretamente
-type Adolescente = {
-  id: string;
-  nomeCompleto: string;
-  numeroSms: string;
-  fotoUrl: string | null;
-  alojamentoAtualId: string | null;
-  statusUnidade: "ATIVO" | "TRANSFERIDO" | "LIBERADO" | "EVADIDO";
-  alertaRiscoSuicidio: boolean;
-  alertaPerfilMapeado: boolean;
-  alertaSaudeConfidencial: boolean;
-  conflitosA: any[];
-  conflitosB: any[];
-};
-
-type Alojamento = {
-  id: string;
-  casaId: string;
-  numeroAlojamento: string;
-  ala: "A" | "B" | null;
-  statusManutencao: "LIVRE" | "INTERDITADO";
-  alojamentoFrontalId?: string | null;
-  adolescentes: Adolescente[];
-};
-
-type Casa = {
-  id: string;
-  numero: number;
-  nome: string;
-  isolada: boolean;
-  alojamentos: Alojamento[];
-};
+import type { Casa, Adolescente, Conflito } from "@/types";
 
 export default function MapaPage() {
   // Autenticação
@@ -71,15 +40,16 @@ export default function MapaPage() {
         (a: any) => ({
           id: a.id,
           nomeCompleto: a.nomeCompleto,
-          numeroSms: a.numeroSms,
-          fotoUrl: a.fotoUrl,
-          alojamentoAtualId: a.alojamentoAtualId,
+          nomeSocial: a.nomeSocial ?? undefined,
+          numeroSms: a.numeroSms ?? undefined,
+          fotoUrl: a.fotoUrl ?? null,
+          alojamentoAtualId: a.alojamentoAtualId ?? null,
           statusUnidade: a.statusUnidade,
           alertaRiscoSuicidio: a.alertaRiscoSuicidio,
           alertaPerfilMapeado: a.alertaPerfilMapeado,
           alertaSaudeConfidencial: a.alertaSaudeConfidencial,
-          conflitosA: a.conflitosA || [],
-          conflitosB: a.conflitosB || [],
+          conflitosA: (a.conflitosA || []) as Conflito[],
+          conflitosB: (a.conflitosB || []) as Conflito[],
         })
       );
 
@@ -101,13 +71,38 @@ export default function MapaPage() {
         nome: casa.nome,
         isolada: casa.isolada,
         alojamentos: casa.alojamentos.map((aloj: any) => {
+          const ocupanteBruto = aloj.ocupante;
+
           // Se tem ocupante, buscar dados completos do adolescente
           let adolescenteCompleto = null;
-          if (aloj.ocupante) {
+          if (ocupanteBruto) {
             adolescenteCompleto = adolescentesFormatados.find(
-              (a) => a.id === aloj.ocupante.id
+              (a) => a.id === ocupanteBruto.id
             );
           }
+
+          const adolescenteFallback =
+            !adolescenteCompleto && ocupanteBruto
+              ? ({
+                  id: ocupanteBruto.id,
+                  nomeCompleto: ocupanteBruto.nome_completo,
+                nomeSocial: ocupanteBruto.nome_social ?? undefined,
+                numeroSms: ocupanteBruto.numero_sms ?? undefined,
+                fotoUrl: ocupanteBruto.foto_url ?? null,
+                alojamentoAtualId: aloj.id,
+                statusUnidade: ocupanteBruto.status_unidade ?? "ATIVO",
+                alertaRiscoSuicidio:
+                  ocupanteBruto.alerta_risco_suicidio ?? false,
+                alertaPerfilMapeado:
+                  ocupanteBruto.alerta_perfil_mapeado ?? false,
+                alertaSaudeConfidencial:
+                  ocupanteBruto.alerta_saude_confidencial ?? false,
+                conflitosA: (ocupanteBruto.conflitosA ?? []) as Conflito[],
+                conflitosB: (ocupanteBruto.conflitosB ?? []) as Conflito[],
+              } satisfies Adolescente)
+              : null;
+
+          const adolescenteParaMapa = adolescenteCompleto || adolescenteFallback;
 
           return {
             id: aloj.id,
@@ -116,8 +111,12 @@ export default function MapaPage() {
             ala: aloj.ala,
             statusManutencao: aloj.status_manutencao,
             alojamentoFrontalId: aloj.alojamento_frontal_id,
-            // CRITICAL: Usar SOMENTE dados completos com conflitos
-            adolescentes: adolescenteCompleto ? [adolescenteCompleto] : [],
+            corRisco: aloj.cor_risco,
+            nivelRisco: aloj.nivel_risco,
+            icones: aloj.icones || [],
+            alertas: aloj.alertas || [],
+            // Usar dados completos com conflitos; fallback com dados da API de casas
+            adolescentes: adolescenteParaMapa ? [adolescenteParaMapa] : [],
           };
         }),
       }));
@@ -149,11 +148,11 @@ export default function MapaPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          adolescenteId: adolescenteId, // ✅ Correto
-          alojamentoId: alojamentoId, // ✅ Correto
-          operadorId: user?.id || "temp-operador-id", // ✅ Pega do contexto de auth
-          justificativa: justificativa,
-          medidas_adicionais: [], // Opcional
+          adolescenteId,
+          alojamentoId,
+          justificativa,
+          medidas_adicionais: [],
+          ...(user?.id ? { operadorId: user.id } : {}),
         }),
       });
 

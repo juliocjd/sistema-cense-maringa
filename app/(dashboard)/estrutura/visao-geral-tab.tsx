@@ -87,6 +87,10 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
               ala: aloj.ala,
               alojamentoFrontalId: aloj.alojamento_frontal_id,
               casaId: casa.id,
+              corRisco: aloj.cor_risco,
+              nivelRisco: aloj.nivel_risco,
+              alertas: aloj.alertas || [],
+              icones: aloj.icones || [],
               // Sempre usar os dados completos do adolescente se existir
               ocupante: adolescenteCompleto,
               adolescentes: adolescenteCompleto ? [adolescenteCompleto] : [],
@@ -103,60 +107,34 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
     }
   };
 
-  // ==================== FUNÇÃO DE COR (MESMA DO MAPA) ====================
-  function getCorAlojamento(alojamento: any, casa: any) {
-    // Interditado = cinza
-    if (alojamento.statusManutencao === "INTERDITADO") {
+  // ==================== FUN��O DE COR ALINHADA AO BACKEND ====================
+  function getCorAlojamento(alojamento: any) {
+    const corRisco: string | undefined = alojamento.corRisco;
+
+    if (alojamento.statusManutencao === "INTERDITADO" || corRisco === "interditado") {
       return "bg-gray-400 border-gray-600 text-gray-800";
     }
 
-    const ocupante = alojamento.adolescentes?.[0] || alojamento.ocupante;
-
-    // Livre = cinza claro
-    if (!ocupante) {
-      return "bg-gray-50 border-gray-300 hover:bg-gray-100 text-gray-700";
-    }
-
-    // Buscar conflitos do ocupante
-    const conflitos = [...(ocupante.conflitosA || []), ...(ocupante.conflitosB || [])];
-
-    // Verificar se há conflito crítico (frontal ou mesma ala)
-    const temConflitoCritico = conflitos.some((c) => {
-      const outroId = c.adolescenteAId === ocupante.id ? c.adolescenteBId : c.adolescenteAId;
-
-      // Verificar alojamento frontal
-      if (alojamento.alojamentoFrontalId) {
-        const frontal = casa.alojamentos.find((a: any) => a.id === alojamento.alojamentoFrontalId);
-        const ocupanteFrontal = frontal?.adolescentes?.[0] || frontal?.ocupante;
-        if (ocupanteFrontal?.id === outroId) return true;
+    switch (corRisco) {
+      case "perigo":
+        return "bg-red-100 border-red-400 shadow-lg shadow-red-200 text-red-800";
+      case "atencao":
+        return "bg-yellow-100 border-yellow-400 shadow-lg shadow-yellow-200 text-yellow-800";
+      case "seguro":
+        return "bg-green-100 border-green-400 shadow-lg shadow-green-200 text-green-800";
+      case "livre":
+        return "bg-gray-50 border-gray-300 hover:bg-gray-100 text-gray-700";
+      default: {
+        const ocupante = alojamento.adolescentes?.[0] || alojamento.ocupante;
+        if (!ocupante) {
+          return "bg-gray-50 border-gray-300 hover:bg-gray-100 text-gray-700";
+        }
+        return "bg-green-100 border-green-400 shadow-lg shadow-green-200 text-green-800";
       }
-
-      // Verificar mesma ala
-      const mesmaAla = casa.alojamentos.filter((a: any) => a.ala === alojamento.ala);
-      for (const aloj of mesmaAla) {
-        const ocupanteAla = aloj.adolescentes?.[0] || aloj.ocupante;
-        if (ocupanteAla?.id === outroId) return true;
-      }
-
-      return false;
-    });
-
-    // PERIGO = vermelho
-    if (temConflitoCritico) {
-      return "bg-red-100 border-red-400 shadow-lg shadow-red-200 text-red-800";
     }
-
-    // Verificar se tem conflitos (mas não críticos) = amarelo
-    const temConflito = conflitos.length > 0;
-    if (temConflito) {
-      return "bg-yellow-100 border-yellow-400 shadow-lg shadow-yellow-200 text-yellow-800";
-    }
-
-    // SEGURO = verde
-    return "bg-green-100 border-green-400 shadow-lg shadow-green-200 text-green-800";
   }
 
-  // ==================== ÍCONES DE ALERTA (MESMOS DO MAPA) ====================
+// ==================== ÍCONES DE ALERTA (MESMOS DO MAPA) ====================
   function getIconesAlerta(alojamento: any) {
     const ocupante = alojamento.adolescentes?.[0] || alojamento.ocupante;
     if (!ocupante) return null;
@@ -236,9 +214,9 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
         body: JSON.stringify({
           adolescenteId,
           alojamentoId,
-          operadorId: user?.id || "temp-operador-id",
           justificativa,
           medidas_adicionais: [],
+          ...(user?.id ? { operadorId: user.id } : {}),
         }),
       });
 
@@ -275,7 +253,7 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
         body: JSON.stringify({
           adolescenteId,
           alojamentoId,
-          operadorId: user?.id || "temp-operador-id",
+          ...(user?.id ? { operadorId: user.id } : {}),
           motivo: "Desalocação manual via interface",
         }),
       });
@@ -430,7 +408,7 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
                 {/* Grid de Alojamentos */}
                 <div className="grid grid-cols-5 sm:grid-cols-10 gap-2">
                   {casa.alojamentos.map((aloj: any) => {
-                    const corClasse = getCorAlojamento(aloj, casa);
+                    const corClasse = getCorAlojamento(aloj);
                     const ocupante = aloj.adolescentes?.[0] || aloj.ocupante;
                     const interditado = aloj.statusManutencao === "INTERDITADO";
 

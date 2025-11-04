@@ -274,7 +274,82 @@ export async function GET(request: NextRequest) {
     }
 
     // NÍVEL 2 - MÉDIO: Zona de Risco (janelas)
-    // TODO: Implementar lógica de zonas de risco quando estiverem cadastradas
+    if (alojamentoAlvo.zonasRiscoAloj?.length) {
+      const zonasProcessadas = new Set<string>();
+
+      const processarVinculosZona = (
+        vinculos: any[],
+        zonaOrigem: any,
+        direcao: "A" | "B"
+      ) => {
+        if (!vinculos?.length) {
+          return;
+        }
+
+        for (const vinculo of vinculos) {
+          const zonaRelacionada =
+            direcao === "A" ? vinculo.zonaB : vinculo.zonaA;
+
+          if (!zonaRelacionada?.alojamentosLink?.length) {
+            continue;
+          }
+
+          for (const link of zonaRelacionada.alojamentosLink) {
+            const alojamentoRelacionado = link.alojamento;
+            if (!alojamentoRelacionado?.adolescentes?.length) {
+              continue;
+            }
+
+            for (const ocupanteZona of alojamentoRelacionado.adolescentes) {
+              if (ocupanteZona.id === adolescenteId) {
+                continue;
+              }
+
+              const conflito = todosConflitos.find(
+                (c) => c.adversario.id === ocupanteZona.id
+              );
+
+              if (conflito && nivelRiscoMaximo < 3) {
+                const chaveAlerta = `${zonaOrigem.id}:${alojamentoRelacionado.id}:${ocupanteZona.id}`;
+                if (zonasProcessadas.has(chaveAlerta)) {
+                  continue;
+                }
+                zonasProcessadas.add(chaveAlerta);
+
+                alertas.push({
+                  tipo: "CONFLITO_ZONA_RISCO",
+                  nivel: 2,
+                  mensagem: `⚠️ CONFLITO NÍVEL 2 (ZONA DE RISCO) com ${conflito.adversario.nomeCompleto} na zona de risco ${zonaRelacionada.nomeZona || zonaOrigem.nomeZona || "vinculada"} (alojamento ${alojamentoRelacionado.numeroAlojamento}).`,
+                  adolescente_conflitante: {
+                    id: conflito.adversario.id,
+                    nome: conflito.adversario.nomeCompleto,
+                    alojamento: alojamentoRelacionado.numeroAlojamento,
+                  },
+                  tipo_conflito: conflito.conflito.tipoConflito,
+                  origem: "ZONA_RISCO",
+                  zona_risco: {
+                    origem: zonaOrigem.nomeZona || null,
+                    relacionada: zonaRelacionada.nomeZona || null,
+                  },
+                });
+                nivelRiscoMaximo = Math.max(nivelRiscoMaximo, 2);
+                requerJustificativa = true;
+              }
+            }
+          }
+        }
+      };
+
+      for (const zonaRel of alojamentoAlvo.zonasRiscoAloj) {
+        const zonaOrigem = zonaRel.zona;
+        if (!zonaOrigem) {
+          continue;
+        }
+
+        processarVinculosZona(zonaOrigem.zonasVinculoA, zonaOrigem, "A");
+        processarVinculosZona(zonaOrigem.zonasVinculoB, zonaOrigem, "B");
+      }
+    }
 
     // ALERTAS ESPECIAIS
     if (adolescente.alertaRiscoSuicidio) {

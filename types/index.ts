@@ -9,10 +9,10 @@ export type Conflito = {
   id: string;
   adolescenteAId: string;
   adolescenteBId: string;
-  tipoConflito: string;
-  status: "ATIVO" | "RESOLVIDO";
-  descricao?: string;
-  criadoEm: Date | string;
+  tipoConflito?: string | null;
+  status: "ATIVO" | "RESOLVIDO" | string;
+  descricao?: string | null;
+  criadoEm?: Date | string;
 };
 
 export type Adolescente = {
@@ -75,6 +75,10 @@ export type Alojamento = {
   statusManutencao: StatusManutencao;
   alojamentoFrontalId?: string | null;
   localizacaoPreferencial?: boolean;
+  corRisco?: "livre" | "interditado" | "perigo" | "atencao" | "seguro";
+  nivelRisco?: number;
+  icones?: string[];
+  alertas?: string[];
   adolescentes: Adolescente[];
 };
 
