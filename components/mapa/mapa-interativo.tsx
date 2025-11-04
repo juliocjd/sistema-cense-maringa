@@ -36,21 +36,45 @@ export function MapaInterativo({
       return "bg-gray-50 border-gray-300 hover:bg-gray-100";
     }
 
-    const conflitos = [...ocupante.conflitosA, ...ocupante.conflitosB];
+    const conflitos = [...(ocupante.conflitosA || []), ...(ocupante.conflitosB || [])];
+
+    // DEBUG
+    if (conflitos.length > 0) {
+      console.log(`🔍 Alojamento ${alojamento.numeroAlojamento}:`, {
+        ocupante: ocupante.nomeCompleto,
+        numConflitos: conflitos.length,
+        conflitos: conflitos.map(c => ({ id: c.id, adolescenteA: c.adolescenteAId, adolescenteB: c.adolescenteBId })),
+        ala: alojamento.ala,
+        alojamentoFrontalId: alojamento.alojamentoFrontalId
+      });
+    }
+
     const temConflitoCritico = conflitos.some((c) => {
       const outro =
         c.adolescenteAId === ocupante.id ? c.adolescenteBId : c.adolescenteAId;
+
+      // Verificar frontal
       if (alojamento.alojamentoFrontalId) {
         const frontal = casas
           .flatMap((casa) => casa.alojamentos)
           .find((a) => a.id === alojamento.alojamentoFrontalId);
-        if (frontal?.adolescentes[0]?.id === outro) return true;
+        if (frontal?.adolescentes[0]?.id === outro) {
+          console.log(`🔴 CONFLITO FRONTAL: ${ocupante.nomeCompleto} vs ${frontal.adolescentes[0].nomeCompleto}`);
+          return true;
+        }
       }
-      return casas
+
+      // Verificar mesma ala
+      const mesmaAla = casas
         .find((c) => c.id === alojamento.casaId)
-        ?.alojamentos.some(
-          (a) => a.ala === alojamento.ala && a.adolescentes[0]?.id === outro
-        );
+        ?.alojamentos.filter((a) => a.ala === alojamento.ala && a.adolescentes[0]?.id === outro);
+
+      if (mesmaAla && mesmaAla.length > 0) {
+        console.log(`🔴 CONFLITO MESMA ALA: ${ocupante.nomeCompleto} vs ${mesmaAla[0].adolescentes[0].nomeCompleto}`);
+        return true;
+      }
+
+      return false;
     });
 
     if (temConflitoCritico) {
@@ -59,6 +83,7 @@ export function MapaInterativo({
 
     const temConflito = conflitos.length > 0;
     if (temConflito) {
+      console.log(`🟡 Conflito não-crítico para ${ocupante.nomeCompleto}`);
       return "bg-yellow-100 border-yellow-400 shadow-lg shadow-yellow-200";
     }
 
@@ -105,20 +130,70 @@ export function MapaInterativo({
     const estaLivre = !ocupante && aloj.statusManutencao !== "INTERDITADO";
 
     const handleClick = () => {
-      if (estaLivre) {
-        setAlojamentoSelecionado({ ...aloj, casa } as any);
-        setModalAberto(true);
+      // Se está interditado, não faz nada
+      if (aloj.statusManutencao === "INTERDITADO") {
+        return;
+      }
+
+      // Se tem ocupante, perguntar se quer remover
+      if (ocupante) {
+        const confirmar = confirm(
+          `Alojamento ocupado por:\n${ocupante.nomeCompleto}\nSMS: ${ocupante.numeroSms}\n\nDeseja REMOVER este adolescente do alojamento?`
+        );
+
+        if (confirmar) {
+          handleDesalocar(aloj.id, ocupante.id);
+        }
+        return;
+      }
+
+      // Se está livre, abrir modal de alocação
+      setAlojamentoSelecionado({ ...aloj, casa } as any);
+      setModalAberto(true);
+    };
+
+    const handleDesalocar = async (alojamentoId: string, adolescenteId: string) => {
+      try {
+        const response = await fetch("/api/alocar", {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            adolescenteId,
+            alojamentoId,
+            operadorId: "temp-operador-id",
+            motivo: "Desalocação manual via mapa operacional",
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.erro || "Erro ao desalocar adolescente");
+        }
+
+        alert("✅ Adolescente removido do alojamento com sucesso!");
+
+        // Recarregar página para atualizar o mapa
+        window.location.reload();
+      } catch (error) {
+        console.error("Erro ao desalocar:", error);
+        const errorMessage =
+          error instanceof Error ? error.message : "Erro desconhecido";
+        alert(`❌ Erro ao remover adolescente:\n${errorMessage}`);
       }
     };
 
     return (
       <button
         onClick={handleClick}
-        className={`${corClass} relative rounded-lg border-2 p-3 flex flex-col items-center justify-center hover:scale-105 transition-all group ${
-          estaLivre ? "cursor-pointer" : "cursor-default"
-        }`}
+        className={`${corClass} relative rounded-lg border-2 p-3 flex flex-col items-center justify-center hover:scale-105 transition-all group cursor-pointer`}
         title={
-          ocupante?.nomeCompleto || "Alojamento Livre - Clique para alocar"
+          aloj.statusManutencao === "INTERDITADO"
+            ? "Alojamento Interditado"
+            : ocupante
+            ? `${ocupante.nomeCompleto} - Clique para remover`
+            : "Alojamento Livre - Clique para alocar"
         }
       >
         {getIconesAlerta(aloj)}
@@ -159,12 +234,9 @@ export function MapaInterativo({
             <div className="text-center text-xs font-bold text-orange-600 bg-orange-50 rounded-lg py-1 px-3">
               Ala B
             </div>
-            <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-2">
               <Alojamento numero="08" casa={casa} />
               <Alojamento numero="07" casa={casa} />
-              <div className="h-8 flex items-center justify-center">
-                <div className="w-full h-1 bg-orange-300 rounded-full"></div>
-              </div>
               <Alojamento numero="09" casa={casa} />
               <Alojamento numero="10" casa={casa} />
             </div>

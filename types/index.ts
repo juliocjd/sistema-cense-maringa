@@ -29,6 +29,29 @@ export type Adolescente = {
 
   // Alocação atual
   alojamentoAtualId?: string | null;
+  alojamentoAtual?: {
+    id: string;
+    casa: string;
+    numero: string;
+    ala?: string;
+  } | null;
+
+  // Vinculações
+  faccao?: {
+    id: string;
+    nome: string;
+  } | null;
+  bairroOrigem?: {
+    id: string;
+    nome: string;
+    cidade: string;
+  } | null;
+
+  // Grupos
+  grupos?: Array<{
+    id: string;
+    nome: string;
+  }>;
 
   // Alertas
   alertaRiscoSuicidio: boolean;
@@ -36,8 +59,8 @@ export type Adolescente = {
   alertaSaudeConfidencial: boolean;
 
   // Conflitos
-  conflitosA: Conflito[];
-  conflitosB: Conflito[];
+  conflitosA?: Conflito[];
+  conflitosB?: Conflito[];
 
   // Timestamps
   criadoEm?: Date | string;

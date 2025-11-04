@@ -82,7 +82,7 @@ export default function DossieAdolescentePage() {
             O adolescente com ID {adolescenteId} não foi encontrado no sistema.
           </p>
           <a
-            href="/dashboard/adolescentes"
+            href="/adolescentes"
             className="inline-block px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-semibold"
           >
             Voltar para lista

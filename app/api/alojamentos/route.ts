@@ -36,22 +36,22 @@ export async function GET(request: NextRequest) {
       where,
       include: {
         casa: true,
-        adolescente_ocupante: {
+        adolescentes: {
           select: {
             id: true,
-            nome_completo: true,
-            nome_social: true,
-            numero_sms: true,
-            foto_url: true,
-            alerta_risco_suicidio: true,
-            alerta_perfil_mapeado: true,
-            alerta_saude_confidencial: true,
+            nomeCompleto: true,
+            nomeSocial: true,
+            numeroSms: true,
+            fotoUrl: true,
+            alertaRiscoSuicidio: true,
+            alertaPerfilMapeado: true,
+            alertaSaudeConfidencial: true,
           },
         },
-        alojamento_frontal: {
+        alojamentoFrontal: {
           select: {
             id: true,
-            numero_alojamento: true,
+            numeroAlojamento: true,
             ala: true,
           },
         },
@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
       orderBy: [
         { casa: { numero: "asc" } },
         { ala: "asc" },
-        { numero_alojamento: "asc" },
+        { numeroAlojamento: "asc" },
       ],
     });
 
@@ -68,13 +68,13 @@ export async function GET(request: NextRequest) {
     if (apenas_livres) {
       alojamentosFiltrados = alojamentos.filter(
         (a) =>
-          a.adolescente_ocupante.length === 0 && a.status_manutencao === "LIVRE"
+          a.adolescentes.length === 0 && a.statusManutencao === "LIVRE"
       );
     }
 
     // Formatar resposta
     const alojamentosFormatados = alojamentosFiltrados.map((alojamento) => {
-      const ocupante = alojamento.adolescente_ocupante[0];
+      const ocupante = alojamento.adolescentes[0];
 
       return {
         id: alojamento.id,
@@ -83,29 +83,29 @@ export async function GET(request: NextRequest) {
           nome: alojamento.casa.nome,
           numero: alojamento.casa.numero,
         },
-        numero_alojamento: alojamento.numero_alojamento,
+        numero_alojamento: alojamento.numeroAlojamento,
         ala: alojamento.ala,
-        status_manutencao: alojamento.status_manutencao,
-        localizacao_preferencial: alojamento.localizacao_preferencial,
-        alojamento_frontal: alojamento.alojamento_frontal
+        status_manutencao: alojamento.statusManutencao,
+        localizacao_preferencial: alojamento.localizacaoPreferencial,
+        alojamento_frontal: alojamento.alojamentoFrontal
           ? {
-              id: alojamento.alojamento_frontal.id,
-              numero: alojamento.alojamento_frontal.numero_alojamento,
-              ala: alojamento.alojamento_frontal.ala,
+              id: alojamento.alojamentoFrontal.id,
+              numero: alojamento.alojamentoFrontal.numeroAlojamento,
+              ala: alojamento.alojamentoFrontal.ala,
             }
           : null,
         ocupado: !!ocupante,
         ocupante: ocupante
           ? {
               id: ocupante.id,
-              nome_completo: ocupante.nome_completo,
-              nome_social: ocupante.nome_social,
-              numero_sms: ocupante.numero_sms,
-              foto_url: ocupante.foto_url,
+              nome_completo: ocupante.nomeCompleto,
+              nome_social: ocupante.nomeSocial,
+              numero_sms: ocupante.numeroSms,
+              foto_url: ocupante.fotoUrl,
               alertas: [
-                ocupante.alerta_risco_suicidio && "risco_suicidio",
-                ocupante.alerta_perfil_mapeado && "perfil_mapeado",
-                ocupante.alerta_saude_confidencial && "saude_confidencial",
+                ocupante.alertaRiscoSuicidio && "risco_suicidio",
+                ocupante.alertaPerfilMapeado && "perfil_mapeado",
+                ocupante.alertaSaudeConfidencial && "saude_confidencial",
               ].filter(Boolean),
             }
           : null,
@@ -133,9 +133,20 @@ export async function POST(request: NextRequest) {
     // Validar dados
     const validatedData = createAlojamentoSchema.parse(body);
 
+    // Converter para camelCase para o Prisma
+    const data = {
+      casaId: validatedData.casa_id,
+      numeroAlojamento: validatedData.numero_alojamento,
+      ala: validatedData.ala,
+      statusManutencao: validatedData.status_manutencao,
+      alojamentoFrontalId: validatedData.alojamento_frontal_id,
+      zonaRiscoId: validatedData.zona_risco_id,
+      localizacaoPreferencial: validatedData.localizacao_preferencial,
+    };
+
     // Verificar se casa existe
     const casa = await prisma.casa.findUnique({
-      where: { id: validatedData.casa_id },
+      where: { id: data.casaId },
     });
 
     if (!casa) {
@@ -148,15 +159,15 @@ export async function POST(request: NextRequest) {
     // Verificar se alojamento já existe nessa casa
     const alojamentoExistente = await prisma.alojamento.findFirst({
       where: {
-        casa_id: validatedData.casa_id,
-        numero_alojamento: validatedData.numero_alojamento,
+        casaId: data.casaId,
+        numeroAlojamento: data.numeroAlojamento,
       },
     });
 
     if (alojamentoExistente) {
       return NextResponse.json(
         {
-          erro: `Alojamento ${validatedData.numero_alojamento} já existe na ${casa.nome}`,
+          erro: `Alojamento ${data.numeroAlojamento} já existe na ${casa.nome}`,
         },
         { status: 409 }
       );
@@ -164,7 +175,7 @@ export async function POST(request: NextRequest) {
 
     // Criar alojamento
     const alojamento = await prisma.alojamento.create({
-      data: validatedData,
+      data,
       include: {
         casa: true,
       },

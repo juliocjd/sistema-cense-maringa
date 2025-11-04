@@ -6,7 +6,7 @@ import {
   AlertTriangle,
   CheckCircle,
   TrendingUp,
-  Map,
+  Building2,
   FileText,
   UserPlus,
   Swords,
@@ -42,7 +42,7 @@ export default function DashboardPage() {
       subtitulo: `${ocupacaoPercentual}% da capacidade`,
       icone: CheckCircle,
       cor: "green",
-      link: "/mapa",
+      link: "/estrutura",
     },
     {
       titulo: "Alertas Ativos",
@@ -64,10 +64,10 @@ export default function DashboardPage() {
 
   const acoesRapidas = [
     {
-      titulo: "Mapa Operacional",
-      descricao: "Visualizar ocupação e alocar adolescentes",
-      icone: Map,
-      link: "/mapa",
+      titulo: "Estrutura & Mapa",
+      descricao: "Visualizar estrutura e gerenciar alocações",
+      icone: Building2,
+      link: "/estrutura",
       cor: "indigo",
     },
     {

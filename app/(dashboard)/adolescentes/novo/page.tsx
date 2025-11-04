@@ -32,8 +32,8 @@ export default function CadastroAdolescentePage() {
       const data = await response.json();
       console.log("Adolescente cadastrado:", data);
 
-      // Redirecionar para lista ou dossiê
-      router.push(`/dashboard/adolescentes/${data.id}`);
+      // Redirecionar para dossiê
+      router.push(`/adolescentes/${data.id}`);
     } catch (error) {
       console.error("Erro:", error);
       throw error;
@@ -46,7 +46,7 @@ export default function CadastroAdolescentePage() {
         "Deseja realmente cancelar o cadastro? Os dados não salvos serão perdidos."
       )
     ) {
-      router.push("/dashboard/adolescentes");
+      router.push("/adolescentes");
     }
   };
 

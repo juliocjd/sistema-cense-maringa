@@ -66,103 +66,19 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
     );
   };
 
-  // Mock de dados adicionais - substituir por dados reais da API
+  // Dados que virão da API (atualmente vazios até serem cadastrados)
   const dadosAdicionais = {
-    alojamento: {
-      casa: "Casa 02",
-      numero: "05",
-      ala: "A",
-      dataAlocacao: "2025-10-15",
-    },
-    faccao: {
-      nome: "Grupo A",
-      numero: "123",
-    },
-    bairro: {
-      nome: "Zona 7",
-      cidade: "Maringá",
-    },
-    historicoInfracional: [
-      {
-        id: "1",
-        descricao: "Análogo a tráfico de drogas",
-        unidade: "CENSE Londrina",
-        ano: "2023",
-      },
-      {
-        id: "2",
-        descricao: "Análogo a roubo",
-        unidade: "CENSE Curitiba",
-        ano: "2022",
-      },
-    ],
-    tatuagens: [
-      {
-        id: "1",
-        simbolo: "Cruz",
-        localCorpo: "Braço direito",
-        significado: "Religioso",
-        observacoes: "Tatuagem recente",
-      },
-      {
-        id: "2",
-        simbolo: "Estrela",
-        localCorpo: "Pescoço",
-        significado: "Hierarquia",
-        observacoes: "Já estava ao entrar",
-      },
-    ],
+    alojamento: adolescente.alojamentoAtual || null,
+    faccao: adolescente.faccao || null,
+    bairro: adolescente.bairroOrigem || null,
+    historicoInfracional: [] as any[], // TODO: Implementar quando tiver API
+    tatuagens: [] as any[], // TODO: Implementar quando tiver API
     conflitos: [
-      {
-        id: "1",
-        comQuem: "Pedro Santos",
-        tipo: "Facções rivais",
-        origem: "CI 145/2025",
-        status: "ATIVO",
-        dataRegistro: "2025-10-20",
-      },
-      {
-        id: "2",
-        comQuem: "Carlos Mendes",
-        tipo: "Territorial",
-        origem: "Observação direta",
-        status: "RESOLVIDO",
-        dataRegistro: "2025-09-10",
-        dataResolucao: "2025-10-01",
-      },
+      ...(adolescente.conflitosA || []),
+      ...(adolescente.conflitosB || []),
     ],
-    grupos: [
-      {
-        id: "1",
-        nome: "Grupo 2A",
-        casa: "Casa 02",
-        dataEntrada: "2025-10-15",
-        dataSaida: null,
-      },
-    ],
-    historico: [
-      {
-        id: "1",
-        tipo: "ALOCAÇÃO",
-        descricao: "Alocado no Alojamento 05 - Casa 02",
-        data: "2025-10-15T14:30:00",
-        operador: "José Silva",
-      },
-      {
-        id: "2",
-        tipo: "CI",
-        descricao: "Registrado CI 145/2025 - Conflito com Pedro Santos",
-        data: "2025-10-20T10:15:00",
-        operador: "Maria Santos",
-      },
-      {
-        id: "3",
-        tipo: "ALERTA",
-        descricao: "Ativado alerta de risco de suicídio",
-        data: "2025-10-22T16:45:00",
-        operador: "Ana Costa",
-      },
-    ],
+    grupos: adolescente.grupos || [],
+    historico: [] as any[], // TODO: Implementar quando tiver API de auditoria
   };
 
   return (
@@ -192,13 +108,14 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
               <Download size={18} />
               Exportar PDF
             </button>
-            <Link
-              href={`/adolescentes/${adolescente.id}/editar`}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2 font-semibold"
+            <button
+              onClick={() => alert("Funcionalidade de edição em desenvolvimento")}
+              className="px-4 py-2 bg-gray-400 text-white rounded-lg cursor-not-allowed flex items-center gap-2 font-semibold opacity-60"
+              title="Em desenvolvimento"
             >
               <Edit size={18} />
               Editar
-            </Link>
+            </button>
           </div>
         </div>
 
@@ -408,15 +325,15 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                     <div className="flex justify-between">
                       <span className="text-gray-600">Facção/Grupo:</span>
                       <span className="font-semibold text-gray-800">
-                        {dadosAdicionais.faccao.nome} (Nº{" "}
-                        {dadosAdicionais.faccao.numero})
+                        {dadosAdicionais.faccao?.nome || "-"}
                       </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Bairro de Origem:</span>
                       <span className="font-semibold text-gray-800">
-                        {dadosAdicionais.bairro.nome} -{" "}
-                        {dadosAdicionais.bairro.cidade}
+                        {dadosAdicionais.bairro
+                          ? `${dadosAdicionais.bairro.nome} - ${dadosAdicionais.bairro.cidade}`
+                          : "-"}
                       </span>
                     </div>
                   </div>
@@ -441,7 +358,7 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                 Alocação Atual
               </h2>
 
-              {adolescente.alojamentoAtualId ? (
+              {adolescente.alojamentoAtualId && dadosAdicionais.alojamento ? (
                 <div className="bg-indigo-50 border-2 border-indigo-200 rounded-xl p-6">
                   <div className="flex items-center gap-4 mb-4">
                     <div className="w-16 h-16 bg-indigo-600 rounded-xl flex items-center justify-center">
@@ -452,27 +369,11 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                         {dadosAdicionais.alojamento.casa} - Alojamento{" "}
                         {dadosAdicionais.alojamento.numero}
                       </h3>
-                      <p className="text-gray-600">
-                        Ala {dadosAdicionais.alojamento.ala}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4 mt-4">
-                    <div className="bg-white rounded-lg p-3">
-                      <p className="text-xs text-gray-600 mb-1">
-                        Data de Alocação
-                      </p>
-                      <p className="font-bold text-gray-800">
-                        {new Date(
-                          dadosAdicionais.alojamento.dataAlocacao
-                        ).toLocaleDateString("pt-BR")}
-                      </p>
-                    </div>
-                    <div className="bg-white rounded-lg p-3">
-                      <p className="text-xs text-gray-600 mb-1">
-                        Tempo no Alojamento
-                      </p>
-                      <p className="font-bold text-gray-800">15 dias</p>
+                      {dadosAdicionais.alojamento.ala && (
+                        <p className="text-gray-600">
+                          Ala {dadosAdicionais.alojamento.ala}
+                        </p>
+                      )}
                     </div>
                   </div>
                   <div className="mt-4">
@@ -701,7 +602,7 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
 
               {dadosAdicionais.conflitos.length > 0 ? (
                 <div className="space-y-3">
-                  {dadosAdicionais.conflitos.map((conflito) => (
+                  {dadosAdicionais.conflitos.map((conflito: any) => (
                     <div
                       key={conflito.id}
                       className={`rounded-lg p-4 border-l-4 ${
@@ -714,7 +615,7 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-2">
                             <h4 className="font-bold text-gray-800">
-                              Conflito com {conflito.comQuem}
+                              Conflito com {conflito.adversario?.nomeCompleto || "Não identificado"}
                             </h4>
                             <span
                               className={`px-2 py-1 rounded-full text-xs font-bold ${
@@ -726,24 +627,12 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                               {conflito.status}
                             </span>
                           </div>
-                          <p className="text-sm text-gray-600 mb-1">
-                            <span className="font-semibold">Tipo:</span>{" "}
-                            {conflito.tipo}
-                          </p>
-                          <p className="text-sm text-gray-600 mb-1">
-                            <span className="font-semibold">Origem:</span>{" "}
-                            {conflito.origem}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            Registrado em{" "}
-                            {new Date(conflito.dataRegistro).toLocaleDateString(
-                              "pt-BR"
-                            )}
-                            {conflito.dataResolucao &&
-                              ` • Resolvido em ${new Date(
-                                conflito.dataResolucao
-                              ).toLocaleDateString("pt-BR")}`}
-                          </p>
+                          {conflito.tipo && (
+                            <p className="text-sm text-gray-600 mb-1">
+                              <span className="font-semibold">Tipo:</span>{" "}
+                              {conflito.tipo}
+                            </p>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -765,7 +654,7 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
 
               {dadosAdicionais.grupos.length > 0 ? (
                 <div className="space-y-3">
-                  {dadosAdicionais.grupos.map((grupo) => (
+                  {dadosAdicionais.grupos.map((grupo: any) => (
                     <div
                       key={grupo.id}
                       className="bg-indigo-50 rounded-lg p-4 border-2 border-indigo-200"
@@ -775,29 +664,10 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                           <h4 className="font-bold text-gray-800 text-lg">
                             {grupo.nome}
                           </h4>
-                          <p className="text-sm text-gray-600">{grupo.casa}</p>
                         </div>
-                        {!grupo.dataSaida && (
-                          <span className="bg-green-200 text-green-800 px-3 py-1 rounded-full text-xs font-bold">
-                            ATIVO
-                          </span>
-                        )}
-                      </div>
-                      <div className="mt-3 text-sm text-gray-600">
-                        <p>
-                          <span className="font-semibold">Entrada:</span>{" "}
-                          {new Date(grupo.dataEntrada).toLocaleDateString(
-                            "pt-BR"
-                          )}
-                        </p>
-                        {grupo.dataSaida && (
-                          <p>
-                            <span className="font-semibold">Saída:</span>{" "}
-                            {new Date(grupo.dataSaida).toLocaleDateString(
-                              "pt-BR"
-                            )}
-                          </p>
-                        )}
+                        <span className="bg-green-200 text-green-800 px-3 py-1 rounded-full text-xs font-bold">
+                          ATIVO
+                        </span>
                       </div>
                     </div>
                   ))}
@@ -818,39 +688,50 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                 Histórico de Movimentações
               </h2>
 
-              <div className="relative">
-                {/* Timeline */}
-                <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-gray-300"></div>
+              {dadosAdicionais.historico.length > 0 ? (
+                <div className="relative">
+                  {/* Timeline */}
+                  <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-gray-300"></div>
 
-                <div className="space-y-6">
-                  {dadosAdicionais.historico.map((item, index) => (
-                    <div
-                      key={item.id}
-                      className="relative flex items-start gap-4 ml-12"
-                    >
-                      {/* Bolinha da timeline */}
-                      <div className="absolute -left-9 w-4 h-4 bg-indigo-600 rounded-full border-4 border-white"></div>
+                  <div className="space-y-6">
+                    {dadosAdicionais.historico.map((item: any, index: number) => (
+                      <div
+                        key={item.id}
+                        className="relative flex items-start gap-4 ml-12"
+                      >
+                        {/* Bolinha da timeline */}
+                        <div className="absolute -left-9 w-4 h-4 bg-indigo-600 rounded-full border-4 border-white"></div>
 
-                      <div className="flex-1 bg-gray-50 rounded-lg p-4 border border-gray-200">
-                        <div className="flex items-start justify-between mb-2">
-                          <div>
-                            <span className="bg-indigo-100 text-indigo-800 px-2 py-1 rounded text-xs font-bold">
-                              {item.tipo}
+                        <div className="flex-1 bg-gray-50 rounded-lg p-4 border border-gray-200">
+                          <div className="flex items-start justify-between mb-2">
+                            <div>
+                              <span className="bg-indigo-100 text-indigo-800 px-2 py-1 rounded text-xs font-bold">
+                                {item.tipo}
+                              </span>
+                            </div>
+                            <span className="text-xs text-gray-500">
+                              {new Date(item.data).toLocaleString("pt-BR")}
                             </span>
                           </div>
-                          <span className="text-xs text-gray-500">
-                            {new Date(item.data).toLocaleString("pt-BR")}
-                          </span>
+                          <p className="text-gray-800 mb-1">{item.descricao}</p>
+                          <p className="text-xs text-gray-600">
+                            Operador: {item.operador}
+                          </p>
                         </div>
-                        <p className="text-gray-800 mb-1">{item.descricao}</p>
-                        <p className="text-xs text-gray-600">
-                          Operador: {item.operador}
-                        </p>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="text-center py-12 text-gray-500">
+                  <History size={48} className="mx-auto mb-2 text-gray-400" />
+                  <p>Nenhum registro de histórico disponível</p>
+                  <p className="text-sm mt-2">
+                    O histórico de movimentações será registrado conforme as
+                    ações forem realizadas
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </div>

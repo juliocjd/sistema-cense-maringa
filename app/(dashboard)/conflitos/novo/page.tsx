@@ -104,7 +104,7 @@ export default function NovoConflitoPage() {
       }
 
       // Redirecionar para lista de conflitos
-      router.push("/dashboard/conflitos");
+      router.push("/conflitos");
     } catch (error) {
       console.error("Erro:", error);
       throw error; // Re-throw para o componente tratar

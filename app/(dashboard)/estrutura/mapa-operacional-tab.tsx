@@ -3,8 +3,9 @@
 import { useState, useEffect } from "react";
 import { MapaInterativo } from "@/components/mapa/mapa-interativo";
 import { useAuth } from "@/hooks/useAuth";
+import { Loader2, AlertCircle } from "lucide-react";
 
-// Definir tipos corretamente
+// Tipos
 type Adolescente = {
   id: string;
   nomeCompleto: string;
@@ -25,7 +26,6 @@ type Alojamento = {
   numeroAlojamento: string;
   ala: "A" | "B" | null;
   statusManutencao: "LIVRE" | "INTERDITADO";
-  alojamentoFrontalId?: string | null;
   adolescentes: Adolescente[];
 };
 
@@ -37,17 +37,13 @@ type Casa = {
   alojamentos: Alojamento[];
 };
 
-export default function MapaPage() {
-  // Autenticação
+export function MapaOperacionalTab() {
   const { user } = useAuth();
-
-  // Estados
   const [casas, setCasas] = useState<Casa[]>([]);
   const [adolescentes, setAdolescentes] = useState<Adolescente[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Carregar dados do banco
   useEffect(() => {
     carregarDados();
   }, []);
@@ -57,7 +53,50 @@ export default function MapaPage() {
     setError(null);
 
     try {
-      // PASSO 1: Carregar TODOS os adolescentes com conflitos primeiro
+      // Carregar casas e alojamentos com ocupantes
+      const casasResponse = await fetch("/api/casas/status");
+
+      if (!casasResponse.ok) {
+        throw new Error("Erro ao carregar dados das casas");
+      }
+
+      const casasData = await casasResponse.json();
+
+      // Transformar dados da API
+      const casasFormatadas: Casa[] = casasData.casas.map((casa: any) => ({
+        id: casa.id,
+        numero: casa.numero,
+        nome: casa.nome,
+        isolada: casa.isolada,
+        alojamentos: casa.alojamentos.map((aloj: any) => ({
+          id: aloj.id,
+          casaId: casa.id,
+          numeroAlojamento: aloj.numero,
+          ala: aloj.ala,
+          statusManutencao: aloj.status_manutencao,
+          adolescentes: aloj.ocupante
+            ? [
+                {
+                  id: aloj.ocupante.id,
+                  nomeCompleto: aloj.ocupante.nome_completo,
+                  numeroSms: aloj.ocupante.numero_sms,
+                  fotoUrl: aloj.ocupante.foto_url || null,
+                  alojamentoAtualId: aloj.id,
+                  statusUnidade: "ATIVO",
+                  alertaRiscoSuicidio: false,
+                  alertaPerfilMapeado: false,
+                  alertaSaudeConfidencial: false,
+                  conflitosA: [],
+                  conflitosB: [],
+                },
+              ]
+            : [],
+        })),
+      }));
+
+      setCasas(casasFormatadas);
+
+      // Carregar todos os adolescentes
       const adolescentesResponse = await fetch("/api/adolescentes");
 
       if (!adolescentesResponse.ok) {
@@ -66,7 +105,6 @@ export default function MapaPage() {
 
       const adolescentesData = await adolescentesResponse.json();
 
-      // Transformar dados dos adolescentes
       const adolescentesFormatados: Adolescente[] = adolescentesData.map(
         (a: any) => ({
           id: a.id,
@@ -84,45 +122,6 @@ export default function MapaPage() {
       );
 
       setAdolescentes(adolescentesFormatados);
-
-      // PASSO 2: Carregar casas e alojamentos
-      const casasResponse = await fetch("/api/casas/status");
-
-      if (!casasResponse.ok) {
-        throw new Error("Erro ao carregar dados das casas");
-      }
-
-      const casasData = await casasResponse.json();
-
-      // PASSO 3: Transformar dados das casas USANDO os adolescentes completos com conflitos
-      const casasFormatadas: Casa[] = casasData.casas.map((casa: any) => ({
-        id: casa.id,
-        numero: casa.numero,
-        nome: casa.nome,
-        isolada: casa.isolada,
-        alojamentos: casa.alojamentos.map((aloj: any) => {
-          // Se tem ocupante, buscar dados completos do adolescente
-          let adolescenteCompleto = null;
-          if (aloj.ocupante) {
-            adolescenteCompleto = adolescentesFormatados.find(
-              (a) => a.id === aloj.ocupante.id
-            );
-          }
-
-          return {
-            id: aloj.id,
-            casaId: casa.id,
-            numeroAlojamento: aloj.numero,
-            ala: aloj.ala,
-            statusManutencao: aloj.status_manutencao,
-            alojamentoFrontalId: aloj.alojamento_frontal_id,
-            // CRITICAL: Usar SOMENTE dados completos com conflitos
-            adolescentes: adolescenteCompleto ? [adolescenteCompleto] : [],
-          };
-        }),
-      }));
-
-      setCasas(casasFormatadas);
     } catch (error) {
       console.error("Erro ao carregar dados:", error);
       setError(
@@ -133,27 +132,23 @@ export default function MapaPage() {
     }
   };
 
-  // Handler de alocação com tipos corretos
   const handleAlocar = async (
     adolescenteId: string,
     alojamentoId: string,
     justificativa?: string
   ): Promise<void> => {
-    console.log("Alocando:", { adolescenteId, alojamentoId, justificativa });
-
     try {
-      // Chamar API com campos CORRETOS
       const response = await fetch("/api/alocar", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          adolescenteId: adolescenteId, // ✅ Correto
-          alojamentoId: alojamentoId, // ✅ Correto
-          operadorId: user?.id || "temp-operador-id", // ✅ Pega do contexto de auth
+          adolescenteId: adolescenteId,
+          alojamentoId: alojamentoId,
+          operadorId: user?.id || "temp-operador-id",
           justificativa: justificativa,
-          medidas_adicionais: [], // Opcional
+          medidas_adicionais: [],
         }),
       });
 
@@ -163,14 +158,11 @@ export default function MapaPage() {
       }
 
       const data = await response.json();
-      console.log("Alocação realizada:", data);
 
-      // Mostrar notificação de sucesso com detalhes
       alert(
         `✅ Adolescente alocado com sucesso!\n\nNível de risco: ${data.nivel_risco || "BAIXO"}\nAlertas processados: ${data.alertas_processados || 0}`
       );
 
-      // ✅ Recarregar dados do banco para atualizar o mapa
       await carregarDados();
     } catch (error) {
       console.error("Erro ao alocar:", error);
@@ -180,64 +172,48 @@ export default function MapaPage() {
     }
   };
 
-  // Loading state
+  // Loading
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 flex items-center justify-center">
+      <div className="flex items-center justify-center py-20">
         <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-16 w-16 border-4 border-rose-200 border-t-rose-600 mb-4"></div>
+          <Loader2 className="inline-block animate-spin text-indigo-600 mb-4" size={48} />
           <p className="text-xl font-semibold text-gray-700">
-            Carregando dados do mapa...
+            Carregando mapa operacional...
           </p>
           <p className="text-sm text-gray-500 mt-2">
-            Buscando informações das casas e adolescentes
+            Buscando dados de casas e adolescentes
           </p>
         </div>
       </div>
     );
   }
 
-  // Error state
+  // Error
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 flex items-center justify-center p-8">
-        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full border-l-4 border-red-500">
-          <div className="flex items-center gap-4 mb-4">
-            <div className="bg-red-100 rounded-full p-3">
-              <svg
-                className="w-6 h-6 text-red-600"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-            </div>
-            <h2 className="text-xl font-bold text-gray-800">
-              Erro ao Carregar Dados
-            </h2>
+      <div className="bg-white rounded-xl shadow-md border-2 border-red-200 p-8">
+        <div className="flex items-start gap-4">
+          <div className="bg-red-100 rounded-full p-3">
+            <AlertCircle className="text-red-600" size={32} />
           </div>
-          <p className="text-gray-600 mb-6">{error}</p>
-          <div className="space-y-3">
+          <div className="flex-1">
+            <h2 className="text-xl font-bold text-gray-800 mb-2">
+              Erro ao Carregar Mapa
+            </h2>
+            <p className="text-gray-600 mb-4">{error}</p>
             <button
               onClick={carregarDados}
-              className="w-full bg-rose-600 text-white rounded-lg px-4 py-3 font-semibold hover:bg-rose-700 transition-colors"
+              className="bg-red-600 text-white rounded-lg px-6 py-3 font-semibold hover:bg-red-700 transition-colors"
             >
               Tentar Novamente
             </button>
-            <div className="text-sm text-gray-500 space-y-1">
-              <p className="font-semibold">Possíveis causas:</p>
-              <ul className="list-disc list-inside pl-2 space-y-1">
-                <li>Banco de dados não está rodando</li>
+            <div className="mt-4 text-sm text-gray-500">
+              <p className="font-semibold mb-2">Possíveis causas:</p>
+              <ul className="list-disc list-inside space-y-1">
+                <li>Banco de dados não conectado</li>
                 <li>Execute: npx prisma db push</li>
-                <li>
-                  Execute: POST /api/estrutura/inicializar (para criar casas)
-                </li>
+                <li>Inicialize a estrutura na aba "Visão Geral"</li>
               </ul>
             </div>
           </div>
@@ -246,7 +222,6 @@ export default function MapaPage() {
     );
   }
 
-  // Mapa normal
   return (
     <div>
       <MapaInterativo

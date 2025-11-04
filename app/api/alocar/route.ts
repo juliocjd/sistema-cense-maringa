@@ -28,10 +28,10 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
 
     // 1. VALIDAÇÕES
-    if (!body.adolescenteId || !body.alojamentoId || !body.operadorId) {
+    if (!body.adolescenteId || !body.alojamentoId) {
       return NextResponse.json(
         {
-          erro: "adolescenteId, alojamentoId e operadorId são obrigatórios",
+          erro: "adolescenteId e alojamentoId são obrigatórios",
         },
         { status: 400 }
       );
@@ -128,43 +128,58 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // 6.2. Se houve risco, registrar decisão operacional
+      // 6.2. Se houve risco E há operador válido, registrar decisão operacional
       let decisao = null;
-      if (dadosVerificacao.requer_justificativa) {
-        decisao = await tx.decisaoOperacional.create({
-          data: {
-            operadorId: body.operadorId,
-            tipoOperacao: "ALOCAR_ALOJAMENTO",
-            adolescenteId: body.adolescenteId,
-            alojamentoId: body.alojamentoId,
-            nivelAlerta: dadosVerificacao.nivel_risco,
-            conflitosDetectados: dadosVerificacao.alertas.filter((a: any) =>
-              a.tipo.includes("CONFLITO")
-            ),
-            justificativaOperador: body.justificativa || "",
-            medidasAdicionais: body.medidas_adicionais || [],
-            status: "EXECUTADO",
-          },
+      if (dadosVerificacao.requer_justificativa && body.operadorId && body.operadorId !== "temp-operador-id") {
+        // Verificar se operador existe
+        const operadorExiste = await tx.operador.findUnique({
+          where: { id: body.operadorId },
         });
+
+        if (operadorExiste) {
+          decisao = await tx.decisaoOperacional.create({
+            data: {
+              operadorId: body.operadorId,
+              tipoOperacao: "ALOCAR_ALOJAMENTO",
+              adolescenteId: body.adolescenteId,
+              alojamentoId: body.alojamentoId,
+              nivelAlerta: dadosVerificacao.nivel_risco,
+              conflitosDetectados: dadosVerificacao.alertas.filter((a: any) =>
+                a.tipo.includes("CONFLITO")
+              ),
+              justificativaOperador: body.justificativa || "",
+              medidasAdicionais: body.medidas_adicionais || [],
+              status: "EXECUTADO",
+            },
+          });
+        }
       }
 
-      // 6.3. Registrar log de auditoria
-      await tx.logAuditoria.create({
-        data: {
-          operadorId: body.operadorId,
-          acao: "ALOCACAO",
-          tabelaAfetada: "adolescentes",
-          registroIdAfetado: body.adolescenteId,
-          detalhesAlteracao: {
-            alojamento_anterior: adolescente.alojamentoAtualId,
-            alojamento_novo: body.alojamentoId,
-            nivel_risco: dadosVerificacao.nivel_risco,
-            alertas_count: dadosVerificacao.alertas.length,
-            justificativa: body.justificativa || null,
-          },
-          ipOrigem: request.headers.get("x-forwarded-for") || "unknown",
-        },
-      });
+      // 6.3. Registrar log de auditoria APENAS se houver operador válido
+      if (body.operadorId && body.operadorId !== "temp-operador-id") {
+        const operadorExiste = await tx.operador.findUnique({
+          where: { id: body.operadorId },
+        });
+
+        if (operadorExiste) {
+          await tx.logAuditoria.create({
+            data: {
+              operadorId: body.operadorId,
+              acao: "ALOCACAO",
+              tabelaAfetada: "adolescentes",
+              registroIdAfetado: body.adolescenteId,
+              detalhesAlteracao: {
+                alojamento_anterior: adolescente.alojamentoAtualId,
+                alojamento_novo: body.alojamentoId,
+                nivel_risco: dadosVerificacao.nivel_risco,
+                alertas_count: dadosVerificacao.alertas.length,
+                justificativa: body.justificativa || null,
+              },
+              ipOrigem: request.headers.get("x-forwarded-for") || "unknown",
+            },
+          });
+        }
+      }
 
       return {
         adolescente: adolescenteAtualizado,
@@ -216,9 +231,9 @@ export async function DELETE(request: NextRequest) {
     const adolescenteId = searchParams.get("adolescenteId");
     const operadorId = searchParams.get("operadorId");
 
-    if (!adolescenteId || !operadorId) {
+    if (!adolescenteId) {
       return NextResponse.json(
-        { erro: "adolescenteId e operadorId são obrigatórios" },
+        { erro: "adolescenteId é obrigatório" },
         { status: 400 }
       );
     }
@@ -259,20 +274,29 @@ export async function DELETE(request: NextRequest) {
         },
       });
 
-      await tx.logAuditoria.create({
-        data: {
-          operadorId: operadorId,
-          acao: "REMOCAO_ALOCACAO",
-          tabelaAfetada: "adolescentes",
-          registroIdAfetado: adolescenteId,
-          detalhesAlteracao: {
-            alojamento_removido: alojamentoAnterior?.id,
-            casa: alojamentoAnterior?.casa.nome,
-            numero: alojamentoAnterior?.numeroAlojamento,
-          },
-          ipOrigem: request.headers.get("x-forwarded-for") || "unknown",
-        },
-      });
+      // Registrar log apenas se houver operador válido
+      if (operadorId && operadorId !== "temp-operador-id") {
+        const operadorExiste = await tx.operador.findUnique({
+          where: { id: operadorId },
+        });
+
+        if (operadorExiste) {
+          await tx.logAuditoria.create({
+            data: {
+              operadorId: operadorId,
+              acao: "REMOCAO_ALOCACAO",
+              tabelaAfetada: "adolescentes",
+              registroIdAfetado: adolescenteId,
+              detalhesAlteracao: {
+                alojamento_removido: alojamentoAnterior?.id,
+                casa: alojamentoAnterior?.casa.nome,
+                numero: alojamentoAnterior?.numeroAlojamento,
+              },
+              ipOrigem: request.headers.get("x-forwarded-for") || "unknown",
+            },
+          });
+        }
+      }
     });
 
     return NextResponse.json({

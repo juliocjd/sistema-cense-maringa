@@ -190,7 +190,7 @@ export default function ConflitoPorIdPage() {
             O conflito com ID {conflitoId} não foi encontrado no sistema.
           </p>
           <button
-            onClick={() => router.push("/dashboard/conflitos")}
+            onClick={() => router.push("/conflitos")}
             className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-semibold"
           >
             Voltar para lista
