@@ -35,10 +35,10 @@ const updateAdolescenteSchema = z.object({
 // GET /api/adolescentes/[id] - Buscar adolescente por ID
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
 
     const adolescente = await prisma.adolescente.findUnique({
       where: { id },
@@ -171,10 +171,10 @@ export async function GET(
 // PUT /api/adolescentes/[id] - Atualizar adolescente
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
     const body = await request.json();
 
     // Validar dados

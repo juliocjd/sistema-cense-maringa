@@ -5,10 +5,10 @@ import { prisma } from "@/lib/prisma";
 // GET /api/conflitos/[id] - Buscar detalhes de um conflito específico
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
 
     const conflito = await prisma.conflito.findUnique({
       where: { id },

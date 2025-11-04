@@ -67,9 +67,21 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async jwt({ token, user }) {
       // Quando user existe, é o primeiro login
       if (user) {
-        token.id = user.id;
-        token.cargo = user.cargo;
-        token.setor = user.setor;
+        const typedUser = user as typeof user & {
+          id?: string;
+          cargo?: string;
+          setor?: string;
+        };
+
+        if (typedUser.id) {
+          token.id = typedUser.id;
+        }
+        if (typedUser.cargo) {
+          token.cargo = typedUser.cargo;
+        }
+        if (typedUser.setor) {
+          token.setor = typedUser.setor;
+        }
       }
       return token;
     },

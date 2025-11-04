@@ -5,10 +5,10 @@ import { prisma } from "@/lib/prisma";
 // DELETE /api/grupos/[id]/membros/[membroId] - Remover membro do grupo
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string; membroId: string } }
+  { params }: { params: Promise<{ id: string; membroId: string }> }
 ) {
   try {
-    const { id: grupoId, membroId } = params;
+    const { id: grupoId, membroId } = await params;
 
     // Verificar se membro existe
     const membro = await prisma.grupoMembro.findUnique({
