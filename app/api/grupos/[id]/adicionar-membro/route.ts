@@ -1,49 +1,107 @@
-// app/api/grupos/[id]/adicionar-membro/route.ts
-// API: Adiciona membro a um grupo com verificação de conflitos
-
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 
-/**
- * POST /api/grupos/:id/adicionar-membro
- *
- * Adiciona adolescente a um grupo, verificando:
- * 1. Conflitos diretos com membros do mesmo grupo (CRÍTICO)
- * 2. Conflitos com membros de outros grupos da mesma casa (ALTO)
- * 3. Se já pertence a outro grupo ativo
- *
- * Body:
- * {
- *   adolescenteId: string,
- *   operadorId: string,
- *   justificativa?: string  // Obrigatória se houver conflito
- * }
- */
+type AlertItem = {
+  tipo: string;
+  nivel: number;
+  mensagem: string;
+  adolescente?: {
+    id: string;
+    nome: string;
+    grupo?: string;
+  };
+};
+
+const ensureString = (value: unknown): string => {
+  if (typeof value !== "string") {
+    return "";
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : "";
+};
+
+const normalizeMedidas = (value: unknown): string[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map((item) => ensureString(item))
+    .filter((item): item is string => item.length > 0);
+};
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id: grupoId } = await params;
-    const body = await request.json();
 
-    // 1. VALIDAÇÕES
-    if (!body.adolescenteId || !body.operadorId) {
+    const session = await auth().catch(() => null);
+    const operadorId = ensureString(session?.user?.id);
+    if (!operadorId) {
       return NextResponse.json(
-        { erro: "adolescenteId e operadorId são obrigatórios" },
+        { erro: "Operador nao autenticado" },
+        { status: 401 }
+      );
+    }
+
+    const operadorExiste = await prisma.operador.findUnique({
+      where: { id: operadorId },
+    });
+    if (!operadorExiste) {
+      return NextResponse.json(
+        { erro: "Operador nao encontrado" },
+        { status: 403 }
+      );
+    }
+
+    let payload: unknown;
+    try {
+      payload = await request.json();
+    } catch {
+      return NextResponse.json(
+        { erro: "Payload invalido: esperado JSON" },
         { status: 400 }
       );
     }
 
-    // 2. BUSCAR DADOS DO GRUPO
+    const adolescenteId = ensureString(
+      (payload as Record<string, unknown>)?.adolescenteId
+    );
+    const justificativa = ensureString(
+      (payload as Record<string, unknown>)?.justificativa
+    );
+    const medidasAdicionais = normalizeMedidas(
+      (payload as Record<string, unknown>)?.medidas_adicionais
+    );
+
+    if (!adolescenteId) {
+      return NextResponse.json(
+        { erro: "adolescenteId e obrigatorio" },
+        { status: 400 }
+      );
+    }
+
     const grupo = await prisma.grupo.findUnique({
       where: { id: grupoId },
       include: {
         casa: true,
         membros: {
-          where: { dataSaida: null }, // Apenas membros ativos
+          where: { dataSaida: null },
           include: {
-            adolescente: true,
+            adolescente: {
+              include: {
+                conflitosA: {
+                  where: { status: "ATIVO" },
+                  select: { adolescenteBId: true },
+                },
+                conflitosB: {
+                  where: { status: "ATIVO" },
+                  select: { adolescenteAId: true },
+                },
+              },
+            },
           },
         },
       },
@@ -51,14 +109,13 @@ export async function POST(
 
     if (!grupo) {
       return NextResponse.json(
-        { erro: "Grupo não encontrado" },
+        { erro: "Grupo nao encontrado" },
         { status: 404 }
       );
     }
 
-    // 3. BUSCAR ADOLESCENTE
     const adolescente = await prisma.adolescente.findUnique({
-      where: { id: body.adolescenteId },
+      where: { id: adolescenteId },
       include: {
         conflitosA: {
           where: { status: "ATIVO" },
@@ -83,192 +140,194 @@ export async function POST(
 
     if (!adolescente) {
       return NextResponse.json(
-        { erro: "Adolescente não encontrado" },
+        { erro: "Adolescente nao encontrado" },
         { status: 404 }
       );
     }
 
-    // 4. VERIFICAR SE JÁ PERTENCE A GRUPO ATIVO
     if (adolescente.gruposMembros.length > 0) {
       const grupoAtual = adolescente.gruposMembros[0].grupo;
       return NextResponse.json(
         {
-          erro: "Adolescente já pertence a um grupo ativo",
+          erro: "Adolescente ja pertence a um grupo ativo",
           grupo_atual: {
             id: grupoAtual.id,
             nome: grupoAtual.nomeGrupo,
             casa: grupoAtual.casa.nome,
           },
-          sugestao: "Remova o adolescente do grupo atual primeiro",
         },
         { status: 400 }
       );
     }
 
-    // 5. VERIFICAR SE JÁ FOI MEMBRO DESTE GRUPO (E SAIU)
-    const membroExistente = await prisma.grupoMembro.findFirst({
+    const membroAnterior = await prisma.grupoMembro.findFirst({
       where: {
-        grupoId: grupoId,
-        adolescenteId: body.adolescenteId,
+        grupoId,
+        adolescenteId,
       },
     });
-
-    if (membroExistente && !membroExistente.dataSaida) {
+    if (membroAnterior && membroAnterior.dataSaida === null) {
       return NextResponse.json(
-        { erro: "Adolescente já é membro ativo deste grupo" },
+        { erro: "Adolescente ja e membro ativo deste grupo" },
         { status: 400 }
       );
     }
 
-    // 6. COMBINAR CONFLITOS DO ADOLESCENTE
     const conflitos = [
-      ...adolescente.conflitosA.map((c) => ({
-        conflito: c,
-        adversario: c.adolescenteB,
+      ...adolescente.conflitosA.map((conflito) => ({
+        id: conflito.id,
+        tipo: ensureString(conflito.tipoConflito),
+        adversario: conflito.adolescenteB,
       })),
-      ...adolescente.conflitosB.map((c) => ({
-        conflito: c,
-        adversario: c.adolescenteA,
+      ...adolescente.conflitosB.map((conflito) => ({
+        id: conflito.id,
+        tipo: ensureString(conflito.tipoConflito),
+        adversario: conflito.adolescenteA,
       })),
     ];
 
-    // 7. BUSCAR OUTROS GRUPOS DA MESMA CASA
-    const gruposMesmaCasa = await prisma.grupo.findMany({
+    const alertas: AlertItem[] = [];
+    let nivelRiscoMaximo = 0;
+    let requerJustificativa = false;
+
+    const membrosAtivos = grupo.membros.map((membro) => membro.adolescente);
+
+    const membrosOutrosGrupos = await prisma.grupoMembro.findMany({
       where: {
-        casaId: grupo.casaId,
-        id: { not: grupoId },
-        status: "ATIVO",
+        dataSaida: null,
+        grupo: {
+          casaId: grupo.casaId,
+          id: { not: grupo.id },
+        },
       },
       include: {
-        membros: {
-          where: { dataSaida: null },
-          include: { adolescente: true },
-        },
+        grupo: { include: { casa: true } },
+        adolescente: true,
       },
     });
 
-    // 8. ANÁLISE DE CONFLITOS
-    const alertas: any[] = [];
-    let nivelRiscoMaximo = 1;
-    let requerJustificativa = false;
+    const adversariosMesmaCasa = new Map<string, string>();
+    for (const membro of membrosOutrosGrupos) {
+      adversariosMesmaCasa.set(
+        membro.adolescenteId,
+        membro.grupo.nomeGrupo
+      );
+    }
 
-    // NÍVEL CRÍTICO: Conflito direto com membro do mesmo grupo
-    for (const membro of grupo.membros) {
-      const conflito = conflitos.find(
-        (c) => c.adversario.id === membro.adolescente.id
+    for (const conflito of conflitos) {
+      const adversario = conflito.adversario;
+      if (!adversario) {
+        continue;
+      }
+
+      const estaNoGrupo = membrosAtivos.some(
+        (membro) => membro.id === adversario.id
       );
 
-      if (conflito) {
+      const conflitoGrupoAtual = estaNoGrupo;
+      const conflitoOutrosGrupos = adversariosMesmaCasa.has(adversario.id);
+
+      if (conflitoGrupoAtual) {
+        nivelRiscoMaximo = Math.max(nivelRiscoMaximo, 5);
         alertas.push({
-          tipo: "CONFLITO_MESMO_GRUPO",
-          nivel: "CRÍTICO",
-          mensagem: `⚠️ CONFLITO DIRETO com ${conflito.adversario.nomeCompleto} que está no mesmo grupo "${grupo.nomeGrupo}"`,
-          adolescente_conflitante: {
-            id: conflito.adversario.id,
-            nome: conflito.adversario.nomeCompleto,
+          tipo: "CONFLITO_INTERNO",
+          nivel: 5,
+          mensagem: `Conflito ativo com ${adversario.nomeCompleto} no mesmo grupo`,
+          adolescente: {
+            id: adversario.id,
+            nome: adversario.nomeCompleto,
           },
-          tipo_conflito: conflito.conflito.tipoConflito,
-          impacto:
-            "Os dois adolescentes estarão JUNTOS em todas as atividades do grupo",
         });
-        nivelRiscoMaximo = 5;
         requerJustificativa = true;
+        continue;
+      }
+
+      if (conflitoOutrosGrupos) {
+        nivelRiscoMaximo = Math.max(nivelRiscoMaximo, 4);
+        alertas.push({
+          tipo: "CONFLITO_GRUPO_CASA",
+          nivel: 4,
+          mensagem: `Conflito ativo com ${adversario.nomeCompleto} em outro grupo da mesma casa`,
+          adolescente: {
+            id: adversario.id,
+            nome: adversario.nomeCompleto,
+            grupo: adversariosMesmaCasa.get(adversario.id) ?? "Outro grupo",
+          },
+        });
+        requerJustificativa = true;
+        continue;
+      }
+
+      if (alertas.length === 0) {
+        alertas.push({
+          tipo: "CONFLITO_REGISTRADO",
+          nivel: 2,
+          mensagem: `Conflito registrado com ${adversario.nomeCompleto}`,
+          adolescente: {
+            id: adversario.id,
+            nome: adversario.nomeCompleto,
+          },
+        });
       }
     }
 
-    // NÍVEL ALTO: Conflito com membro de outro grupo da mesma casa
-    for (const outroGrupo of gruposMesmaCasa) {
-      for (const membro of outroGrupo.membros) {
-        const conflito = conflitos.find(
-          (c) => c.adversario.id === membro.adolescente.id
-        );
-
-        if (conflito) {
-          alertas.push({
-            tipo: "CONFLITO_OUTRO_GRUPO_MESMA_CASA",
-            nivel: "ALTO",
-            mensagem: `⚠️ CONFLITO com ${conflito.adversario.nomeCompleto} do grupo "${outroGrupo.nomeGrupo}" (mesma casa)`,
-            adolescente_conflitante: {
-              id: conflito.adversario.id,
-              nome: conflito.adversario.nomeCompleto,
-            },
-            grupo_conflitante: outroGrupo.nomeGrupo,
-            tipo_conflito: conflito.conflito.tipoConflito,
-            impacto:
-              "Podem se cruzar nos corredores da casa durante movimentações",
-          });
-          nivelRiscoMaximo = Math.max(nivelRiscoMaximo, 4);
-          requerJustificativa = true;
-        }
-      }
-    }
-
-    // 9. SE REQUER JUSTIFICATIVA E NÃO FOI FORNECIDA
-    if (requerJustificativa && !body.justificativa) {
+    if (requerJustificativa && !justificativa) {
       return NextResponse.json(
         {
           status: "REQUER_JUSTIFICATIVA",
           nivel:
-            nivelRiscoMaximo === 5
-              ? "CRÍTICO"
-              : nivelRiscoMaximo === 4
-              ? "ALTO"
-              : "MÉDIO",
+            nivelRiscoMaximo === 5 ? "CRITICO" : nivelRiscoMaximo === 4 ? "ALTO" : "MEDIO",
           conflitos: alertas,
           mensagem:
-            "Conflitos detectados. Justificativa obrigatória para prosseguir.",
+            "Conflitos detectados. Justificativa obrigatoria para continuar.",
         },
         { status: 400 }
       );
     }
 
-    // 10. EXECUTAR ADIÇÃO (Transaction)
     const resultado = await prisma.$transaction(async (tx) => {
-      // 10.1. Criar membro
       const novoMembro = await tx.grupoMembro.create({
         data: {
-          grupoId: grupoId,
-          adolescenteId: body.adolescenteId,
+          grupoId,
+          adolescenteId,
           dataEntrada: new Date(),
         },
         include: {
           adolescente: true,
           grupo: {
-            include: {
-              casa: true,
-            },
+            include: { casa: true },
           },
         },
       });
 
-      // 10.2. Se houve conflito, registrar decisão
-      let decisao = null;
+      let decisaoId: string | null = null;
       if (requerJustificativa) {
-        decisao = await tx.decisaoOperacional.create({
+        const decisao = await tx.decisaoOperacional.create({
           data: {
-            operadorId: body.operadorId,
-            tipoOperacao: "ADICIONAR_MEMBRO_GRUPO",
-            adolescenteId: body.adolescenteId,
-            grupoId: grupoId,
+            operadorId,
+            tipoOperacao: "GRUPO_ADICIONAR_MEMBRO",
+            adolescenteId,
+            grupoId,
             nivelAlerta:
               nivelRiscoMaximo === 5
-                ? "CRÍTICO"
+                ? "CRITICO"
                 : nivelRiscoMaximo === 4
                 ? "ALTO"
-                : "MÉDIO",
+                : "MEDIO",
             conflitosDetectados: alertas,
-            justificativaOperador: body.justificativa || "",
-            medidasAdicionais: body.medidas_adicionais || [],
+            justificativaOperador: justificativa,
+            medidasAdicionais: medidasAdicionais,
             status: "EXECUTADO",
           },
+          select: { id: true },
         });
+        decisaoId = decisao.id;
       }
 
-      // 10.3. Log de auditoria
       await tx.logAuditoria.create({
         data: {
-          operadorId: body.operadorId,
-          acao: "ADICIONAR_MEMBRO_GRUPO",
+          operadorId,
+          acao: "GRUPO_ADICIONAR_MEMBRO",
           tabelaAfetada: "grupos_membros",
           registroIdAfetado: novoMembro.id,
           detalhesAlteracao: {
@@ -276,16 +335,15 @@ export async function POST(
             adolescente: adolescente.nomeCompleto,
             conflitos_detectados: alertas.length,
             nivel_risco: nivelRiscoMaximo,
-            justificativa: body.justificativa || null,
+            justificativa: justificativa || null,
           },
-          ipOrigem: request.headers.get("x-forwarded-for") || "unknown",
+          ipOrigem: request.headers.get("x-forwarded-for") ?? "unknown",
         },
       });
 
-      return { novoMembro, decisao };
+      return { novoMembro, decisaoId };
     });
 
-    // 11. RESPOSTA DE SUCESSO
     return NextResponse.json(
       {
         sucesso: true,
@@ -304,11 +362,11 @@ export async function POST(
           },
           data_entrada: resultado.novoMembro.dataEntrada,
         },
-        decisao_id: resultado.decisao?.id,
+        decisao_id: resultado.decisaoId,
         alertas_processados: alertas.length,
         nivel_risco:
           nivelRiscoMaximo === 5
-            ? "CRÍTICO"
+            ? "CRITICO"
             : nivelRiscoMaximo === 4
             ? "ALTO"
             : "BAIXO",
@@ -320,7 +378,7 @@ export async function POST(
     return NextResponse.json(
       {
         erro: "Erro ao adicionar membro ao grupo",
-        detalhes: error instanceof Error ? error.message : String(error),
+        detalhes: error instanceof Error ? error.message : "Erro desconhecido",
       },
       { status: 500 }
     );

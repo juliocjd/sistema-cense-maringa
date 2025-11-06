@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { DossieAdolescente } from "@/components/adolescentes/dossie-adolescente";
 import type { Adolescente } from "@/types";
@@ -11,60 +11,47 @@ export default function DossieAdolescentePage() {
 
   const [adolescente, setAdolescente] = useState<Adolescente | null>(null);
   const [loading, setLoading] = useState(true);
-  const [erro, setErro] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
 
-  useEffect(() => {
-    carregarAdolescente();
-  }, [adolescenteId]);
+  const carregarAdolescente = useCallback(async () => {
+    setLoading(true);
+    setErro(null);
 
-  const carregarAdolescente = async () => {
     try {
-      // Chamar API
       const response = await fetch(`/api/adolescentes/${adolescenteId}`);
+      const payload = await response.json();
 
       if (!response.ok) {
-        throw new Error("Erro ao carregar adolescente");
+        const mensagem =
+          payload?.erro || "Erro ao carregar dados do adolescente.";
+        throw new Error(mensagem);
       }
 
-      const data = await response.json();
-      setAdolescente(data);
+      setAdolescente(payload);
     } catch (error) {
-      console.error("Erro:", error);
-      setErro(true);
-
-      // Mock de dados para desenvolvimento
-      // Simular adolescente baseado no ID
-      const mockAdolescente: Adolescente = {
-        id: adolescenteId,
-        nomeCompleto: "João da Silva Santos",
-        nomeSocial: "João",
-        numeroSms: "12345",
-        fotoUrl: null,
-        numeroProcesso: "0001234-56.2024.8.16.0000",
-        dataNascimento: "2008-05-15",
-        dataEntrada: "2025-10-15",
-        atoInfracionalAtual: "Análogo a roubo qualificado (art. 157, §2º, CP)",
-        alojamentoAtualId: "aloj-02-05",
-        statusUnidade: "ATIVO",
-        alertaRiscoSuicidio: true,
-        alertaPerfilMapeado: false,
-        alertaSaudeConfidencial: false,
-        conflitosA: [],
-        conflitosB: [],
-      };
-
-      setAdolescente(mockAdolescente);
+      console.error("Erro ao carregar adolescente:", error);
+      setAdolescente(null);
+      setErro(
+        error instanceof Error
+          ? error.message
+          : "Erro ao carregar dados do adolescente."
+      );
     } finally {
       setLoading(false);
     }
-  };
+  }, [adolescenteId]);
+
+  useEffect(() => {
+    if (!adolescenteId) return;
+    carregarAdolescente();
+  }, [adolescenteId, carregarAdolescente]);
 
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-4 border-indigo-200 border-t-indigo-600 mx-auto mb-4"></div>
-          <p className="text-gray-600 font-semibold">Carregando dossiê...</p>
+          <p className="text-gray-600 font-semibold">Carregando dossie...</p>
         </div>
       </div>
     );
@@ -74,13 +61,11 @@ export default function DossieAdolescentePage() {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <div className="text-6xl mb-4">❌</div>
+          <div className="text-6xl mb-4">:/</div>
           <h2 className="text-2xl font-bold text-gray-800 mb-2">
-            Adolescente não encontrado
+            Nao foi possivel carregar o adolescente
           </h2>
-          <p className="text-gray-600 mb-4">
-            O adolescente com ID {adolescenteId} não foi encontrado no sistema.
-          </p>
+          <p className="text-gray-600 mb-4">{erro}</p>
           <a
             href="/adolescentes"
             className="inline-block px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-semibold"

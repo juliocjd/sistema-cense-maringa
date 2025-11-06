@@ -1,8 +1,9 @@
 // app/api/conflitos/[id]/resolver/route.ts
 // API: Marca conflito como resolvido
 
-import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { NextRequest, NextResponse } from "next/server"
+import { prisma } from "@/lib/prisma"
+import { auth } from "@/auth";
 
 /**
  * PUT /api/conflitos/:id/resolver
@@ -11,7 +12,6 @@ import { prisma } from "@/lib/prisma";
  *
  * Body (opcional):
  * {
- *   operadorId?: string,
  *   observacao?: string
  * }
  */
@@ -22,6 +22,30 @@ export async function PUT(
   try {
     const { id: conflitoId } = await params;
     const body = await request.json().catch(() => ({}));
+    const session = await auth().catch((error) => {
+      console.error("Erro ao obter sessao do auth:", error);
+      return null;
+    });
+    const operadorId = session?.user?.id ?? null;
+
+    if (!operadorId) {
+      return NextResponse.json(
+        { erro: "Operador nao autenticado" },
+        { status: 401 }
+      );
+    }
+
+    const operadorExiste = await prisma.operador.findUnique({
+      where: { id: operadorId },
+    });
+
+    if (!operadorExiste) {
+      return NextResponse.json(
+        { erro: "Operador nao encontrado" },
+        { status: 403 }
+      );
+    }
+
 
     // Buscar conflito
     const conflito = await prisma.conflito.findUnique({
@@ -75,25 +99,23 @@ export async function PUT(
         },
       });
 
-      // Se houver operador e observação, criar log de auditoria
-      if (body.operadorId) {
-        await tx.logAuditoria.create({
-          data: {
-            operadorId: body.operadorId,
-            acao: "RESOLVER_CONFLITO",
-            tabelaAfetada: "conflitos",
-            registroIdAfetado: conflitoId,
-            detalhesAlteracao: {
-              adolescente_a: conflito.adolescenteA.nomeCompleto,
-              adolescente_b: conflito.adolescenteB.nomeCompleto,
-              tipo_conflito: conflito.tipoConflito,
-              total_mediacoes: conflito.tentativasMediacao.length,
-              observacao: body.observacao || null,
-            },
-            ipOrigem: request.headers.get("x-forwarded-for") || "unknown",
+      // Registrar log de auditoria
+      await tx.logAuditoria.create({
+        data: {
+          operadorId: operadorId,
+          acao: "RESOLVER_CONFLITO",
+          tabelaAfetada: "conflitos",
+          registroIdAfetado: conflitoId,
+          detalhesAlteracao: {
+            adolescente_a: conflito.adolescenteA.nomeCompleto,
+            adolescente_b: conflito.adolescenteB.nomeCompleto,
+            tipo_conflito: conflito.tipoConflito,
+            total_mediacoes: conflito.tentativasMediacao.length,
+            observacao: body.observacao || null,
           },
-        });
-      }
+          ipOrigem: request.headers.get("x-forwarded-for") || "unknown",
+        },
+      });
 
       return updated;
     });
@@ -151,6 +173,30 @@ export async function DELETE(
   try {
     const { id: conflitoId } = await params;
     const body = await request.json().catch(() => ({}));
+    const session = await auth().catch((error) => {
+      console.error("Erro ao obter sessao do auth:", error);
+      return null;
+    });
+    const operadorId = session?.user?.id ?? null;
+
+    if (!operadorId) {
+      return NextResponse.json(
+        { erro: "Operador nao autenticado" },
+        { status: 401 }
+      );
+    }
+
+    const operadorExiste = await prisma.operador.findUnique({
+      where: { id: operadorId },
+    });
+
+    if (!operadorExiste) {
+      return NextResponse.json(
+        { erro: "Operador nao encontrado" },
+        { status: 403 }
+      );
+    }
+
 
     // Buscar conflito
     const conflito = await prisma.conflito.findUnique({
@@ -182,21 +228,19 @@ export async function DELETE(
         },
       });
 
-      // Log de auditoria
-      if (body.operadorId) {
-        await tx.logAuditoria.create({
-          data: {
-            operadorId: body.operadorId,
-            acao: "REVERTER_RESOLUCAO_CONFLITO",
-            tabelaAfetada: "conflitos",
-            registroIdAfetado: conflitoId,
-            detalhesAlteracao: {
-              motivo: body.motivo || "Não especificado",
-            },
-            ipOrigem: request.headers.get("x-forwarded-for") || "unknown",
+      // Registrar log de auditoria
+      await tx.logAuditoria.create({
+        data: {
+          operadorId: operadorId,
+          acao: "REVERTER_RESOLUCAO_CONFLITO",
+          tabelaAfetada: "conflitos",
+          registroIdAfetado: conflitoId,
+          detalhesAlteracao: {
+            motivo: body.motivo || "Nao especificado",
           },
-        });
-      }
+          ipOrigem: request.headers.get("x-forwarded-for") || "unknown",
+        },
+      });
 
       return updated;
     });
@@ -220,3 +264,10 @@ export async function DELETE(
     );
   }
 }
+
+
+
+
+
+
+

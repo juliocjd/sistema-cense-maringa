@@ -1,8 +1,9 @@
 // app/api/conflitos/[id]/mediacoes/route.ts
 // API: Gestão de tentativas de mediação de conflitos
 
-import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { NextRequest, NextResponse } from "next/server"
+import { prisma } from "@/lib/prisma"
+import { auth } from "@/auth";
 
 /**
  * GET /api/conflitos/:id/mediacoes
@@ -97,6 +98,30 @@ export async function POST(
   try {
     const { id: conflitoId } = await params;
     const body = await request.json();
+    const session = await auth().catch((error) => {
+      console.error("Erro ao obter sessao do auth:", error);
+      return null;
+    });
+    const operadorId = session?.user?.id ?? null;
+
+    if (!operadorId) {
+      return NextResponse.json(
+        { erro: "Operador nao autenticado" },
+        { status: 401 }
+      );
+    }
+
+    const operadorExiste = await prisma.operador.findUnique({
+      where: { id: operadorId },
+    });
+
+    if (!operadorExiste) {
+      return NextResponse.json(
+        { erro: "Operador nao encontrado" },
+        { status: 403 }
+      );
+    }
+
 
     // Validações
     if (!body.dataTentativa) {
@@ -175,6 +200,7 @@ export async function POST(
       }
     }
 
+    const marcouResolucaoAutomatica = body.resultado === "RESOLVIDO";
     // Criar mediação
     const mediacao = await prisma.tentativaMediacao.create({
       data: {
@@ -189,21 +215,56 @@ export async function POST(
       },
     });
 
-    // Se resultado foi RESOLVIDO, marcar conflito como resolvido automaticamente
-    if (body.resultado === "RESOLVIDO") {
-      await prisma.conflito.update({
+    let conflitoAtualizado = conflito;
+    if (marcouResolucaoAutomatica) {
+      conflitoAtualizado = await prisma.conflito.update({
         where: { id: conflitoId },
         data: {
           status: "RESOLVIDO",
           resolvidoEm: new Date(),
         },
+        include: {
+          adolescenteA: true,
+          adolescenteB: true,
+        },
       });
     }
 
+    await prisma.logAuditoria.create({
+      data: {
+        operadorId: operadorId,
+        acao: "INSERT",
+        tabelaAfetada: "tentativas_mediacao",
+        registroIdAfetado: mediacao.id,
+        detalhesAlteracao: {
+          conflitoId,
+          resultado: mediacao.resultado,
+          profissionalResponsavel: mediacao.profissionalResponsavel,
+          marcouResolucaoAutomatica,
+        },
+        ipOrigem: request.headers.get("x-forwarded-for") || "unknown",
+      },
+    });
+
+    if (marcouResolucaoAutomatica) {
+      await prisma.logAuditoria.create({
+        data: {
+          operadorId: operadorId,
+          acao: "UPDATE",
+          tabelaAfetada: "conflitos",
+          registroIdAfetado: conflitoId,
+          detalhesAlteracao: {
+            status: "RESOLVIDO",
+            resolvidoEm: conflitoAtualizado.resolvidoEm,
+          },
+          ipOrigem: request.headers.get("x-forwarded-for") || "unknown",
+        },
+      });
+    }
     return NextResponse.json(
       {
         sucesso: true,
-        mensagem: "Tentativa de mediação registrada com sucesso",
+        mensagem: "Tentativa de media??uo registrada com sucesso",
         mediacao: {
           id: mediacao.id,
           data_tentativa: mediacao.dataTentativa,
@@ -214,10 +275,10 @@ export async function POST(
         conflito: {
           id: conflito.id,
           adolescentes: `${conflito.adolescenteA.nomeCompleto} vs ${conflito.adolescenteB.nomeCompleto}`,
-          status: body.resultado === "RESOLVIDO" ? "RESOLVIDO" : conflito.status,
+          status: marcouResolucaoAutomatica ? "RESOLVIDO" : conflito.status,
         },
         acao_automatica:
-          body.resultado === "RESOLVIDO"
+          marcouResolucaoAutomatica
             ? "Conflito marcado como resolvido automaticamente"
             : null,
       },
@@ -234,3 +295,8 @@ export async function POST(
     );
   }
 }
+
+
+
+
+

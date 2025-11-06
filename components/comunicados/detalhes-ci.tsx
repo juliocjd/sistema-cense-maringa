@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import Link from "next/link";
@@ -85,11 +85,11 @@ export function DetalhesCI({
       },
       AUTORIZACAO_ESPECIAL: {
         cor: "bg-blue-100 text-blue-800 border-blue-300",
-        texto: "Autorização",
+        texto: "AutorizaÃ§Ã£o",
       },
       SAUDE: {
         cor: "bg-purple-100 text-purple-800 border-purple-300",
-        texto: "Saúde",
+        texto: "SaÃºde",
       },
       OUTROS: {
         cor: "bg-gray-100 text-gray-800 border-gray-300",
@@ -120,13 +120,12 @@ export function DetalhesCI({
         descricao: descricaoConflito,
       });
 
-      alert("✅ Conflito criado com sucesso!");
+      alert("âœ… Conflito criado com sucesso!");
       setMostrarModalConflito(false);
-      // Recarregar página ou atualizar dados
+      // Recarregar pÃ¡gina ou atualizar dados
       window.location.reload();
     } catch (error) {
-      console.error("Erro:", error);
-      alert("❌ Erro ao criar conflito.");
+      alert("âŒ Erro ao criar conflito.");
     } finally {
       setLoading(false);
     }
@@ -147,12 +146,11 @@ export function DetalhesCI({
         ciOrigemId: ci.id,
       });
 
-      alert("✅ Alerta criado com sucesso!");
+      alert("âœ… Alerta criado com sucesso!");
       setMostrarModalAlerta(false);
       window.location.reload();
     } catch (error) {
-      console.error("Erro:", error);
-      alert("❌ Erro ao criar alerta.");
+      alert("âŒ Erro ao criar alerta.");
     } finally {
       setLoading(false);
     }
@@ -200,15 +198,15 @@ export function DetalhesCI({
         </div>
       </div>
 
-      {/* Informações Principais */}
+      {/* InformaÃ§Ãµes Principais */}
       <div className="bg-white rounded-2xl shadow-lg p-6">
         <h2 className="text-xl font-bold text-gray-800 mb-4">
-          Informações do CI
+          InformaÃ§Ãµes do CI
         </h2>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div className="bg-gray-50 rounded-lg p-4">
-            <p className="text-sm text-gray-600 mb-1">Número</p>
+            <p className="text-sm text-gray-600 mb-1">NÃºmero</p>
             <p className="text-2xl font-bold text-gray-800">
               {ci.numero}/{ci.ano}
             </p>
@@ -227,7 +225,7 @@ export function DetalhesCI({
           <div className="bg-gray-50 rounded-lg p-4">
             <p className="text-sm text-gray-600 mb-1 flex items-center gap-1">
               <User size={14} />
-              Operador Responsável
+              Operador ResponsÃ¡vel
             </p>
             <p className="font-bold text-gray-800">{ci.operador.nome}</p>
           </div>
@@ -265,7 +263,7 @@ export function DetalhesCI({
               </p>
               {adolescente.alojamento && (
                 <p className="text-sm text-gray-600">
-                  📍 {adolescente.alojamento}
+                  ðŸ“ {adolescente.alojamento}
                 </p>
               )}
             </Link>
@@ -273,10 +271,10 @@ export function DetalhesCI({
         </div>
       </div>
 
-      {/* Gatilhos Automáticos */}
+      {/* Gatilhos AutomÃ¡ticos */}
       <div className="bg-white rounded-2xl shadow-lg p-6">
         <h2 className="text-xl font-bold text-gray-800 mb-4">
-          Gatilhos Automáticos
+          Gatilhos AutomÃ¡ticos
         </h2>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -301,7 +299,7 @@ export function DetalhesCI({
                 </p>
                 {ci.conflitosGerados.map((conflito) => (
                   <p key={conflito.id} className="text-sm text-gray-600">
-                    • {conflito.adolescenteA} × {conflito.adolescenteB}
+                    â€¢ {conflito.adolescenteA} Ã— {conflito.adolescenteB}
                   </p>
                 ))}
               </div>
@@ -337,7 +335,7 @@ export function DetalhesCI({
                 </p>
                 {ci.alertasGerados.map((alerta) => (
                   <p key={alerta.id} className="text-sm text-gray-600">
-                    • {alerta.adolescente} - {alerta.tipo}
+                    â€¢ {alerta.adolescente} - {alerta.tipo}
                   </p>
                 ))}
               </div>
@@ -354,7 +352,7 @@ export function DetalhesCI({
         </div>
       </div>
 
-      {/* Visualização do PDF */}
+      {/* VisualizaÃ§Ã£o do PDF */}
       {ci.caminhoPdf && (
         <div className="bg-white rounded-2xl shadow-lg p-6">
           <h2 className="text-xl font-bold text-gray-800 mb-4">
@@ -442,7 +440,7 @@ export function DetalhesCI({
                     className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-orange-500 outline-none"
                   >
                     <option value="">Selecione...</option>
-                    <option value="FACCAO">Facções rivais</option>
+                    <option value="FACCAO">FacÃ§Ãµes rivais</option>
                     <option value="TERRITORIAL">Territorial</option>
                     <option value="PESSOAL">Pessoal</option>
                     <option value="OUTROS">Outros</option>
@@ -451,7 +449,7 @@ export function DetalhesCI({
 
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Descrição
+                    DescriÃ§Ã£o
                   </label>
                   <textarea
                     value={descricaoConflito}
@@ -526,14 +524,14 @@ export function DetalhesCI({
                   >
                     <option value="">Selecione...</option>
                     <option value="MANUSEIO">Alerta de Manuseio</option>
-                    <option value="SAUDE">Alerta de Saúde</option>
+                    <option value="SAUDE">Alerta de SaÃºde</option>
                     <option value="COMPORTAMENTAL">Comportamental</option>
                   </select>
                 </div>
 
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Descrição *
+                    DescriÃ§Ã£o *
                   </label>
                   <textarea
                     value={descricaoAlerta}

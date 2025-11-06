@@ -1,35 +1,49 @@
-// app/api/alojamentos/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { auth } from "@/auth";
+import { prisma } from "@/lib/prisma";
 
-// Schema de validação
-const createAlojamentoSchema = z.object({
-  casa_id: z.string().uuid("Casa ID inválido"),
-  numero_alojamento: z.string().min(1, "Número do alojamento é obrigatório"),
-  ala: z.string().optional(),
+const createSchema = z.object({
+  casa_id: z.string().uuid("Casa ID invalido"),
+  numero_alojamento: z.string().min(1, "Numero do alojamento e obrigatorio"),
+  ala: z.string().max(2).optional(),
   status_manutencao: z.enum(["LIVRE", "INTERDITADO"]).default("LIVRE"),
   alojamento_frontal_id: z.string().uuid().optional(),
   zona_risco_id: z.string().uuid().optional(),
   localizacao_preferencial: z.boolean().default(false),
 });
 
-// GET /api/alojamentos - Listar alojamentos
+const updateSchema = z.object({
+  statusManutencao: z.enum(["LIVRE", "INTERDITADO"]).optional(),
+  localizacaoPreferencial: z.boolean().optional(),
+});
+
+const ensureString = (value: unknown): string => {
+  if (typeof value !== "string") {
+    return "";
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : "";
+};
+
+const getIp = (request: NextRequest) =>
+  request.headers.get("x-forwarded-for") ?? "unknown";
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const casa_id = searchParams.get("casa_id");
+    const casaId = searchParams.get("casa_id");
     const status = searchParams.get("status");
-    const apenas_livres = searchParams.get("apenas_livres") === "true";
+    const somenteLivres = searchParams.get("apenas_livres") === "true";
 
-    const where: any = {};
+    const where: Record<string, unknown> = {};
 
-    if (casa_id) {
-      where.casa_id = casa_id;
+    if (casaId) {
+      where.casaId = casaId;
     }
 
     if (status) {
-      where.status_manutencao = status;
+      where.statusManutencao = status;
     }
 
     const alojamentos = await prisma.alojamento.findMany({
@@ -63,19 +77,16 @@ export async function GET(request: NextRequest) {
       ],
     });
 
-    // Filtrar apenas livres se solicitado
-    let alojamentosFiltrados = alojamentos;
-    if (apenas_livres) {
-      alojamentosFiltrados = alojamentos.filter(
-        (a) =>
-          a.adolescentes.length === 0 && a.statusManutencao === "LIVRE"
-      );
-    }
+    const filtrados = somenteLivres
+      ? alojamentos.filter(
+          (alojamento) =>
+            alojamento.statusManutencao === "LIVRE" &&
+            alojamento.adolescentes.length === 0
+        )
+      : alojamentos;
 
-    // Formatar resposta
-    const alojamentosFormatados = alojamentosFiltrados.map((alojamento) => {
+    const resposta = filtrados.map((alojamento) => {
       const ocupante = alojamento.adolescentes[0];
-
       return {
         id: alojamento.id,
         casa: {
@@ -94,7 +105,7 @@ export async function GET(request: NextRequest) {
               ala: alojamento.alojamentoFrontal.ala,
             }
           : null,
-        ocupado: !!ocupante,
+        ocupado: Boolean(ocupante),
         ocupante: ocupante
           ? {
               id: ocupante.id,
@@ -103,9 +114,9 @@ export async function GET(request: NextRequest) {
               numero_sms: ocupante.numeroSms,
               foto_url: ocupante.fotoUrl,
               alertas: [
-                ocupante.alertaRiscoSuicidio && "risco_suicidio",
-                ocupante.alertaPerfilMapeado && "perfil_mapeado",
-                ocupante.alertaSaudeConfidencial && "saude_confidencial",
+                ocupante.alertaRiscoSuicidio ? "risco_suicidio" : null,
+                ocupante.alertaPerfilMapeado ? "perfil_mapeado" : null,
+                ocupante.alertaSaudeConfidencial ? "saude_confidencial" : null,
               ].filter(Boolean),
             }
           : null,
@@ -113,8 +124,8 @@ export async function GET(request: NextRequest) {
     });
 
     return NextResponse.json({
-      total: alojamentosFormatados.length,
-      alojamentos: alojamentosFormatados,
+      total: resposta.length,
+      alojamentos: resposta,
     });
   } catch (error) {
     console.error("Erro ao buscar alojamentos:", error);
@@ -125,74 +136,79 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/alojamentos - Criar novo alojamento
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const session = await auth().catch(() => null);
+    const operadorId = ensureString(session?.user?.id);
 
-    // Validar dados
-    const validatedData = createAlojamentoSchema.parse(body);
+    if (!operadorId) {
+      return NextResponse.json(
+        { erro: "Operador nao autenticado" },
+        { status: 401 }
+      );
+    }
 
-    // Converter para camelCase para o Prisma
-    const data = {
-      casaId: validatedData.casa_id,
-      numeroAlojamento: validatedData.numero_alojamento,
-      ala: validatedData.ala,
-      statusManutencao: validatedData.status_manutencao,
-      alojamentoFrontalId: validatedData.alojamento_frontal_id,
-      zonaRiscoId: validatedData.zona_risco_id,
-      localizacaoPreferencial: validatedData.localizacao_preferencial,
-    };
+    const operadorExiste = await prisma.operador.findUnique({
+      where: { id: operadorId },
+    });
 
-    // Verificar se casa existe
+    if (!operadorExiste) {
+      return NextResponse.json(
+        { erro: "Operador nao encontrado" },
+        { status: 403 }
+      );
+    }
+
+    let payload: unknown;
+    try {
+      payload = await request.json();
+    } catch {
+      return NextResponse.json(
+        { erro: "Payload invalido: esperado JSON" },
+        { status: 400 }
+      );
+    }
+
+    const dados = createSchema.parse(payload);
+
     const casa = await prisma.casa.findUnique({
-      where: { id: data.casaId },
+      where: { id: dados.casa_id },
     });
 
     if (!casa) {
       return NextResponse.json(
-        { erro: "Casa não encontrada" },
+        { erro: "Casa nao encontrada" },
         { status: 404 }
       );
     }
 
-    // Verificar se alojamento já existe nessa casa
-    const alojamentoExistente = await prisma.alojamento.findFirst({
-      where: {
-        casaId: data.casaId,
-        numeroAlojamento: data.numeroAlojamento,
-      },
-    });
-
-    if (alojamentoExistente) {
-      return NextResponse.json(
-        {
-          erro: `Alojamento ${data.numeroAlojamento} já existe na ${casa.nome}`,
-        },
-        { status: 409 }
-      );
-    }
-
-    // Criar alojamento
     const alojamento = await prisma.alojamento.create({
-      data,
+      data: {
+        casaId: dados.casa_id,
+        numeroAlojamento: dados.numero_alojamento,
+        ala: dados.ala ?? null,
+        statusManutencao: dados.status_manutencao,
+        alojamentoFrontalId: dados.alojamento_frontal_id ?? null,
+        zonaRiscoId: dados.zona_risco_id ?? null,
+        localizacaoPreferencial: dados.localizacao_preferencial,
+      },
       include: {
         casa: true,
       },
     });
 
-    // Log de auditoria
     await prisma.logAuditoria.create({
       data: {
-        // operadorId: request.user?.id,
-        acao: "INSERT",
-        tabelaAfetada: "Alojamentos",
+        operadorId,
+        acao: "ALOJAMENTO_CRIAR",
+        tabelaAfetada: "alojamentos",
         registroIdAfetado: alojamento.id,
         detalhesAlteracao: {
           casa: casa.nome,
           numeroAlojamento: alojamento.numeroAlojamento,
           ala: alojamento.ala,
         },
+        ipOrigem: getIp(request),
       },
     });
 
@@ -209,7 +225,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { erro: "Dados inválidos", detalhes: error.errors },
+        { erro: "Dados invalidos", detalhes: error.errors },
         { status: 400 }
       );
     }
@@ -222,45 +238,67 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// PATCH /api/alojamentos/:id - Atualizar status do alojamento
 export async function PATCH(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const id = searchParams.get("id");
+    const id = ensureString(searchParams.get("id"));
 
     if (!id) {
       return NextResponse.json(
-        { erro: "ID do alojamento é obrigatório" },
+        { erro: "ID do alojamento e obrigatorio" },
         { status: 400 }
       );
     }
 
-    const body = await request.json();
+    let payload: unknown;
+    try {
+      payload = await request.json();
+    } catch {
+      return NextResponse.json(
+        { erro: "Payload invalido: esperado JSON" },
+        { status: 400 }
+      );
+    }
 
-    const updateSchema = z.object({
-      statusManutencao: z.enum(["LIVRE", "INTERDITADO"]).optional(),
-      localizacaoPreferencial: z.boolean().optional(),
+    const session = await auth().catch(() => null);
+    const operadorId = ensureString(session?.user?.id);
+
+    if (!operadorId) {
+      return NextResponse.json(
+        { erro: "Operador nao autenticado" },
+        { status: 401 }
+      );
+    }
+
+    const operadorExiste = await prisma.operador.findUnique({
+      where: { id: operadorId },
     });
 
-    const validatedData = updateSchema.parse(body);
+    if (!operadorExiste) {
+      return NextResponse.json(
+        { erro: "Operador nao encontrado" },
+        { status: 403 }
+      );
+    }
 
-    // Atualizar alojamento
+    const dados = updateSchema.parse(payload);
+
     const alojamento = await prisma.alojamento.update({
       where: { id },
-      data: validatedData,
+      data: dados,
       include: {
         casa: true,
       },
     });
 
-    // Log de auditoria
     await prisma.logAuditoria.create({
       data: {
-        // operadorId: request.user?.id,
-        acao: "UPDATE",
-        tabelaAfetada: "Alojamentos",
+        operadorId,
+        acao: "ALOJAMENTO_ATUALIZAR",
+        tabelaAfetada: "alojamentos",
         registroIdAfetado: alojamento.id,
-        detalhesAlteracao: validatedData,
+        detalhesAlteracao: dados,
+        ipOrigem: getIp(request),
       },
     });
 
@@ -275,7 +313,7 @@ export async function PATCH(request: NextRequest) {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { erro: "Dados inválidos", detalhes: error.errors },
+        { erro: "Dados invalidos", detalhes: error.errors },
         { status: 400 }
       );
     }

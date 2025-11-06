@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { X, AlertTriangle, Search, CheckCircle, XCircle } from "lucide-react";
@@ -9,7 +9,7 @@ type Alojamento = any;
 type VerificacaoConflito = {
   permite_alocacao: boolean;
   requer_justificativa: boolean;
-  nivel_risco: "CRÍTICO" | "ALTO" | "MÉDIO" | "BAIXO" | null;
+  nivel_risco: "CRÃTICO" | "ALTO" | "MÃ‰DIO" | "BAIXO" | null;
   alertas: {
     tipo: string;
     nivel: number;
@@ -55,7 +55,7 @@ export function ModalAlocacao({
 
   if (!isOpen || !alojamento) return null;
 
-  // Filtrar adolescentes disponíveis (sem alojamento atual)
+  // Filtrar adolescentes disponÃ­veis (sem alojamento atual)
   const adolescentesDisponiveis = adolescentes.filter(
     (a) => !a.alojamentoAtualId && a.statusUnidade === "ATIVO"
   );
@@ -66,18 +66,18 @@ export function ModalAlocacao({
       a.numeroSms?.includes(busca)
   );
 
-  // Verificação de conflitos com API REAL
+  // VerificaÃ§Ã£o de conflitos com API REAL
   const verificarConflitos = async (adolescente: Adolescente) => {
     setLoading(true);
 
     try {
-      // Chamar API de verificação de alocação
+      // Chamar API de verificaÃ§Ã£o de alocaÃ§Ã£o
       const response = await fetch(
         `/api/verificar-alocacao?adolescenteId=${adolescente.id}&alojamentoId=${alojamento.id}`
       );
 
       if (!response.ok) {
-        throw new Error("Erro ao verificar alocação");
+        throw new Error("Erro ao verificar alocaÃ§Ã£o");
       }
 
       const data = await response.json();
@@ -92,12 +92,11 @@ export function ModalAlocacao({
 
       setVerificacao(verificacaoAPI);
     } catch (error) {
-      console.error("Erro ao verificar conflitos:", error);
       alert(
-        "Erro ao verificar conflitos. Verifique se o banco de dados está configurado."
+        "Erro ao verificar conflitos. Verifique se o banco de dados estÃ¡ configurado."
       );
 
-      // Em caso de erro, permitir alocação mas avisar
+      // Em caso de erro, permitir alocaÃ§Ã£o mas avisar
       setVerificacao({
         permite_alocacao: true,
         requer_justificativa: false,
@@ -107,7 +106,7 @@ export function ModalAlocacao({
             tipo: "ERRO_VERIFICACAO",
             nivel: 0,
             mensagem:
-              "⚠️ Não foi possível verificar conflitos. Prossiga com cautela.",
+              "âš ï¸ NÃ£o foi possÃ­vel verificar conflitos. Prossiga com cautela.",
           },
         ],
       });
@@ -127,7 +126,7 @@ export function ModalAlocacao({
     if (!adolescenteSelecionado) return;
 
     if (verificacao?.requer_justificativa && !justificativa.trim()) {
-      alert("Justificativa obrigatória para este nível de risco!");
+      alert("Justificativa obrigatÃ³ria para este nÃ­vel de risco!");
       return;
     }
 
@@ -146,8 +145,7 @@ export function ModalAlocacao({
       setBusca("");
       onClose();
     } catch (error) {
-      console.error("Erro ao alocar:", error);
-      alert("Erro ao realizar alocação. Tente novamente.");
+      alert("Erro ao realizar alocaÃ§Ã£o. Tente novamente.");
     } finally {
       setLoading(false);
     }
@@ -155,11 +153,11 @@ export function ModalAlocacao({
 
   const getNivelCorClass = (nivel: string | null) => {
     switch (nivel) {
-      case "CRÍTICO":
+      case "CRÃTICO":
         return "text-red-600 bg-red-50 border-red-200";
       case "ALTO":
         return "text-orange-600 bg-orange-50 border-orange-200";
-      case "MÉDIO":
+      case "MÃ‰DIO":
         return "text-yellow-600 bg-yellow-50 border-yellow-200";
       default:
         return "text-green-600 bg-green-50 border-green-200";
@@ -169,7 +167,7 @@ export function ModalAlocacao({
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-        {/* Cabeçalho */}
+        {/* CabeÃ§alho */}
         <div className="bg-gradient-to-r from-rose-600 to-rose-700 text-white p-6 flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold">Alocar Adolescente</h2>
@@ -185,10 +183,10 @@ export function ModalAlocacao({
           </button>
         </div>
 
-        {/* Conteúdo */}
+        {/* ConteÃºdo */}
         <div className="flex-1 overflow-y-auto p-6">
           {!adolescenteSelecionado ? (
-            // ETAPA 1: Seleção de Adolescente
+            // ETAPA 1: SeleÃ§Ã£o de Adolescente
             <div>
               <div className="mb-4">
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -203,7 +201,7 @@ export function ModalAlocacao({
                     type="text"
                     value={busca}
                     onChange={(e) => setBusca(e.target.value)}
-                    placeholder="Nome ou número SMS..."
+                    placeholder="Nome ou nÃºmero SMS..."
                     className="w-full pl-10 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:border-rose-500 focus:ring-2 focus:ring-rose-200 outline-none transition-all"
                   />
                 </div>
@@ -213,7 +211,7 @@ export function ModalAlocacao({
               <div className="space-y-2 max-h-96 overflow-y-auto">
                 {adolescentesFiltrados.length === 0 ? (
                   <div className="text-center py-8 text-gray-500">
-                    <p>Nenhum adolescente disponível</p>
+                    <p>Nenhum adolescente disponÃ­vel</p>
                   </div>
                 ) : (
                   adolescentesFiltrados.map((adolescente) => (
@@ -235,7 +233,7 @@ export function ModalAlocacao({
                         )}
                       </div>
 
-                      {/* Informações */}
+                      {/* InformaÃ§Ãµes */}
                       <div className="flex-1 text-left">
                         <p className="font-semibold text-gray-800 group-hover:text-rose-700">
                           {adolescente.nomeCompleto}
@@ -262,7 +260,7 @@ export function ModalAlocacao({
               </div>
             </div>
           ) : (
-            // ETAPA 2: Verificação e Confirmação
+            // ETAPA 2: VerificaÃ§Ã£o e ConfirmaÃ§Ã£o
             <div>
               {/* Adolescente Selecionado */}
               <div className="mb-6 p-4 bg-gray-50 rounded-lg border-2 border-gray-200">
@@ -306,7 +304,7 @@ export function ModalAlocacao({
                 </div>
               )}
 
-              {/* Resultado da Verificação */}
+              {/* Resultado da VerificaÃ§Ã£o */}
               {verificacao && !loading && (
                 <div>
                   {/* Status Geral */}
@@ -325,12 +323,12 @@ export function ModalAlocacao({
                         <p className="font-bold text-lg">
                           {verificacao.nivel_risco
                             ? `Risco ${verificacao.nivel_risco} Detectado`
-                            : "Alocação Segura"}
+                            : "AlocaÃ§Ã£o Segura"}
                         </p>
                         <p className="text-sm opacity-80">
                           {verificacao.requer_justificativa
-                            ? "Justificativa obrigatória"
-                            : "Nenhum conflito crítico detectado"}
+                            ? "Justificativa obrigatÃ³ria"
+                            : "Nenhum conflito crÃ­tico detectado"}
                         </p>
                       </div>
                     </div>
@@ -354,7 +352,7 @@ export function ModalAlocacao({
                             />
                             <div className="flex-1">
                               <p className="font-semibold text-red-900">
-                                {alerta.tipo.replace(/_/g, " ")} - Nível{" "}
+                                {alerta.tipo.replace(/_/g, " ")} - NÃ­vel{" "}
                                 {alerta.nivel}
                               </p>
                               <p className="text-sm text-red-800 mt-1">
@@ -377,7 +375,7 @@ export function ModalAlocacao({
                               )}
                               {alerta.recomendacao && (
                                 <p className="text-sm text-red-700 mt-2 bg-red-100 p-2 rounded">
-                                  💡 {alerta.recomendacao}
+                                  ðŸ’¡ {alerta.recomendacao}
                                 </p>
                               )}
                             </div>
@@ -391,17 +389,17 @@ export function ModalAlocacao({
                   {verificacao.requer_justificativa && (
                     <div className="mb-6">
                       <label className="block text-sm font-semibold text-gray-800 mb-2">
-                        Justificativa Obrigatória *
+                        Justificativa ObrigatÃ³ria *
                       </label>
                       <textarea
                         value={justificativa}
                         onChange={(e) => setJustificativa(e.target.value)}
-                        placeholder="Explique os motivos da decisão de alocar mesmo com os riscos detectados..."
+                        placeholder="Explique os motivos da decisÃ£o de alocar mesmo com os riscos detectados..."
                         rows={4}
                         className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-rose-500 focus:ring-2 focus:ring-rose-200 outline-none transition-all resize-none"
                       />
                       <p className="text-xs text-gray-600 mt-1">
-                        A justificativa será registrada permanentemente no
+                        A justificativa serÃ¡ registrada permanentemente no
                         sistema.
                       </p>
                     </div>
@@ -412,7 +410,7 @@ export function ModalAlocacao({
           )}
         </div>
 
-        {/* Rodapé */}
+        {/* RodapÃ© */}
         <div className="border-t-2 border-gray-200 p-6 bg-gray-50 flex gap-3 justify-end">
           <button
             onClick={onClose}
@@ -437,7 +435,7 @@ export function ModalAlocacao({
               ) : (
                 <>
                   <CheckCircle size={20} />
-                  Confirmar Alocação
+                  Confirmar AlocaÃ§Ã£o
                 </>
               )}
             </button>

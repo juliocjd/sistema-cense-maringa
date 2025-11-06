@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import Link from "next/link";
@@ -56,14 +56,15 @@ interface DetalhesConflitoProps {
 
 export function DetalhesConflito({
   conflito,
-  mediacoes,
+  mediacoes = [],
   onAdicionarMediacao,
   onResolverConflito,
 }: DetalhesConflitoProps) {
+  const listaMediacoes = Array.isArray(mediacoes) ? mediacoes : [];
   const [mostrarFormMediacao, setMostrarFormMediacao] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Form de mediação
+  // Form de mediaÃ§Ã£o
   const [formData, setFormData] = useState({
     dataTentativa: new Date().toISOString().split("T")[0],
     profissionalResponsavel: "",
@@ -80,7 +81,7 @@ export function DetalhesConflito({
       !formData.tipoIntervencao ||
       !formData.resultado
     ) {
-      alert("Preencha os campos obrigatórios!");
+      alert("Preencha os campos obrigatÃ³rios!");
       return;
     }
 
@@ -88,7 +89,7 @@ export function DetalhesConflito({
     try {
       await onAdicionarMediacao(formData);
 
-      // Limpar formulário
+      // Limpar formulÃ¡rio
       setFormData({
         dataTentativa: new Date().toISOString().split("T")[0],
         profissionalResponsavel: "",
@@ -100,10 +101,9 @@ export function DetalhesConflito({
       });
 
       setMostrarFormMediacao(false);
-      alert("✅ Mediação registrada com sucesso!");
+      alert("âœ… MediaÃ§Ã£o registrada com sucesso!");
     } catch (error) {
-      console.error("Erro:", error);
-      alert("❌ Erro ao registrar mediação. Tente novamente.");
+      alert("âŒ Erro ao registrar mediaÃ§Ã£o. Tente novamente.");
     } finally {
       setLoading(false);
     }
@@ -119,10 +119,9 @@ export function DetalhesConflito({
     setLoading(true);
     try {
       await onResolverConflito();
-      alert("✅ Conflito marcado como resolvido!");
+      alert("âœ… Conflito marcado como resolvido!");
     } catch (error) {
-      console.error("Erro:", error);
-      alert("❌ Erro ao resolver conflito. Tente novamente.");
+      alert("âŒ Erro ao resolver conflito. Tente novamente.");
     } finally {
       setLoading(false);
     }
@@ -200,10 +199,10 @@ export function DetalhesConflito({
         </div>
       </div>
 
-      {/* Informações do Conflito */}
+      {/* InformaÃ§Ãµes do Conflito */}
       <div className="bg-white rounded-2xl shadow-lg p-6">
         <h2 className="text-xl font-bold text-gray-800 mb-4">
-          Informações do Conflito
+          InformaÃ§Ãµes do Conflito
         </h2>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -221,14 +220,14 @@ export function DetalhesConflito({
             </p>
             {conflito.adolescenteA.alojamento && (
               <p className="text-sm text-gray-600">
-                📍 {conflito.adolescenteA.alojamento}
+                ðŸ“ {conflito.adolescenteA.alojamento}
               </p>
             )}
             <Link
               href={`/adolescentes/${conflito.adolescenteA.id}`}
               className="text-indigo-600 hover:text-indigo-700 text-sm font-semibold mt-2 inline-block"
             >
-              Ver dossiê →
+              Ver dossiÃª â†’
             </Link>
           </div>
 
@@ -246,14 +245,14 @@ export function DetalhesConflito({
             </p>
             {conflito.adolescenteB.alojamento && (
               <p className="text-sm text-gray-600">
-                📍 {conflito.adolescenteB.alojamento}
+                ðŸ“ {conflito.adolescenteB.alojamento}
               </p>
             )}
             <Link
               href={`/adolescentes/${conflito.adolescenteB.id}`}
               className="text-indigo-600 hover:text-indigo-700 text-sm font-semibold mt-2 inline-block"
             >
-              Ver dossiê →
+              Ver dossiÃª â†’
             </Link>
           </div>
         </div>
@@ -274,7 +273,7 @@ export function DetalhesConflito({
         {conflito.descricao && (
           <div className="mt-4 bg-gray-50 rounded-lg p-4">
             <p className="text-sm font-semibold text-gray-700 mb-2">
-              Descrição:
+              DescriÃ§Ã£o:
             </p>
             <p className="text-gray-800">{conflito.descricao}</p>
           </div>
@@ -283,19 +282,19 @@ export function DetalhesConflito({
         {conflito.resolvidoEm && (
           <div className="mt-4 bg-green-50 border-l-4 border-green-500 rounded-r-lg p-4">
             <p className="font-semibold text-green-900">
-              ✅ Conflito resolvido em{" "}
+              âœ… Conflito resolvido em{" "}
               {new Date(conflito.resolvidoEm).toLocaleString("pt-BR")}
             </p>
           </div>
         )}
       </div>
 
-      {/* Histórico de Mediações */}
+      {/* HistÃ³rico de MediaÃ§Ãµes */}
       <div className="bg-white rounded-2xl shadow-lg p-6">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
             <FileText size={24} />
-            Histórico de Mediações ({mediacoes.length})
+            HistÃ³rico de MediaÃ§Ãµes ({listaMediacoes.length})
           </h2>
           {conflito.status === "ATIVO" && !mostrarFormMediacao && (
             <button
@@ -303,16 +302,16 @@ export function DetalhesConflito({
               className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2 font-semibold"
             >
               <Plus size={18} />
-              Registrar Mediação
+              Registrar MediaÃ§Ã£o
             </button>
           )}
         </div>
 
-        {/* Formulário de Nova Mediação */}
+        {/* FormulÃ¡rio de Nova MediaÃ§Ã£o */}
         {mostrarFormMediacao && (
           <div className="bg-indigo-50 border-2 border-indigo-200 rounded-xl p-6 mb-6">
             <h3 className="font-bold text-gray-800 mb-4">
-              Registrar Nova Tentativa de Mediação
+              Registrar Nova Tentativa de MediaÃ§Ã£o
             </h3>
 
             <div className="space-y-4">
@@ -335,7 +334,7 @@ export function DetalhesConflito({
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Profissional Responsável *
+                    Profissional ResponsÃ¡vel *
                   </label>
                   <input
                     type="text"
@@ -346,7 +345,7 @@ export function DetalhesConflito({
                         profissionalResponsavel: e.target.value,
                       })
                     }
-                    placeholder="Ex: Maria Santos - Psicóloga"
+                    placeholder="Ex: Maria Santos - PsicÃ³loga"
                     className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-indigo-500 outline-none"
                   />
                 </div>
@@ -355,7 +354,7 @@ export function DetalhesConflito({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Tipo de Intervenção *
+                    Tipo de IntervenÃ§Ã£o *
                   </label>
                   <select
                     value={formData.tipoIntervencao}
@@ -368,11 +367,11 @@ export function DetalhesConflito({
                     className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-indigo-500 outline-none"
                   >
                     <option value="">Selecione...</option>
-                    <option value="MEDIACAO">Mediação</option>
+                    <option value="MEDIACAO">MediaÃ§Ã£o</option>
                     <option value="ATENDIMENTO_INDIVIDUAL">
                       Atendimento Individual
                     </option>
-                    <option value="GRUPO_TERAPEUTICO">Grupo Terapêutico</option>
+                    <option value="GRUPO_TERAPEUTICO">Grupo TerapÃªutico</option>
                     <option value="OUTROS">Outros</option>
                   </select>
                 </div>
@@ -397,7 +396,7 @@ export function DetalhesConflito({
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Observações *
+                  ObservaÃ§Ãµes *
                 </label>
                 <textarea
                   value={formData.observacoes}
@@ -405,7 +404,7 @@ export function DetalhesConflito({
                     setFormData({ ...formData, observacoes: e.target.value })
                   }
                   rows={3}
-                  placeholder="Descreva o que foi feito, reações dos adolescentes, etc..."
+                  placeholder="Descreva o que foi feito, reaÃ§Ãµes dos adolescentes, etc..."
                   className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-indigo-500 outline-none resize-none"
                 />
               </div>
@@ -413,7 +412,7 @@ export function DetalhesConflito({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Próxima Ação Recomendada
+                    PrÃ³xima AÃ§Ã£o Recomendada
                   </label>
                   <input
                     type="text"
@@ -430,7 +429,7 @@ export function DetalhesConflito({
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Data da Próxima Avaliação
+                    Data da PrÃ³xima AvaliaÃ§Ã£o
                   </label>
                   <input
                     type="date"
@@ -459,21 +458,21 @@ export function DetalhesConflito({
                 disabled={loading}
                 className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 disabled:bg-gray-400 transition-colors"
               >
-                {loading ? "Salvando..." : "Salvar Mediação"}
+                {loading ? "Salvando..." : "Salvar MediaÃ§Ã£o"}
               </button>
             </div>
           </div>
         )}
 
-        {/* Lista de Mediações */}
-        {mediacoes.length === 0 ? (
+        {/* Lista de MediaÃ§Ãµes */}
+        {listaMediacoes.length === 0 ? (
           <div className="text-center py-12 text-gray-500">
             <Clock size={48} className="mx-auto mb-2 text-gray-400" />
-            <p>Nenhuma tentativa de mediação registrada</p>
+            <p>Nenhuma tentativa de mediaÃ§Ã£o registrada</p>
           </div>
         ) : (
           <div className="space-y-4">
-            {mediacoes.map((mediacao, index) => (
+            {listaMediacoes.map((mediacao, index) => (
               <div
                 key={mediacao.id}
                 className="bg-gray-50 rounded-lg p-4 border-l-4 border-indigo-500"
@@ -481,7 +480,7 @@ export function DetalhesConflito({
                 <div className="flex items-start justify-between mb-3">
                   <div>
                     <h4 className="font-bold text-gray-800">
-                      Tentativa #{mediacoes.length - index}
+                      Tentativa #{listaMediacoes.length - index}
                     </h4>
                     <p className="text-sm text-gray-600 flex items-center gap-1 mt-1">
                       <Calendar size={14} />
@@ -513,7 +512,7 @@ export function DetalhesConflito({
                   <p className="text-gray-800">{mediacao.observacoes}</p>
                   {mediacao.proximaAcaoRecomendada && (
                     <p className="text-indigo-700">
-                      <span className="font-semibold">Próxima ação:</span>{" "}
+                      <span className="font-semibold">PrÃ³xima aÃ§Ã£o:</span>{" "}
                       {mediacao.proximaAcaoRecomendada}
                       {mediacao.dataProximaAvaliacao && (
                         <>

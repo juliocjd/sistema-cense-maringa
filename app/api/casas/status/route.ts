@@ -42,11 +42,20 @@ export async function GET(request: NextRequest) {
           corRisco = "interditado";
           nivelRisco = 0;
         } else if (ocupante) {
-          // Verificar conflitos críticos
+          // Conflitos do adolescente
           const conflitos = [
             ...(ocupante.conflitosA || []),
             ...(ocupante.conflitosB || []),
           ];
+          const conflitoIds = new Set(
+            conflitos.map((conflito) =>
+              conflito.adolescenteAId === ocupante.id
+                ? conflito.adolescenteBId
+                : conflito.adolescenteAId
+            )
+          );
+
+          let temConflitoZona = false;
 
           // Verificar conflitos na mesma ala ou frontal
           const temConflitoCritico = conflitos.some((conflito) => {
@@ -75,11 +84,53 @@ export async function GET(request: NextRequest) {
             corRisco = "perigo";
             nivelRisco = 4;
             alertas.push("Conflito crítico detectado");
-          } else if (conflitos.length > 0) {
+          }
+
+          if (!temConflitoCritico) {
+            const processarZona = (
+              vinculos: any[] | undefined,
+              obterZonaRelacionada: (v: any) => any
+            ) => {
+              if (!vinculos) return;
+              for (const vinculo of vinculos) {
+                const zonaRelacionada = obterZonaRelacionada(vinculo);
+                if (!zonaRelacionada?.alojamentosLink) continue;
+                for (const link of zonaRelacionada.alojamentosLink) {
+                  const alojamentoRelacionado = link.alojamento;
+                  const ocupanteZona =
+                    alojamentoRelacionado?.adolescentes?.[0];
+                  if (
+                    ocupanteZona &&
+                    conflitoIds.has(ocupanteZona.id) &&
+                    ocupanteZona.id !== ocupante.id
+                  ) {
+                    temConflitoZona = true;
+                    return;
+                  }
+                }
+              }
+            };
+
+            const zonasRisco = (alojamento as any).zonasRiscoAloj || [];
+            for (const zonaRel of zonasRisco) {
+              const zonaOrigem = zonaRel.zona;
+              if (!zonaOrigem) continue;
+              processarZona(zonaOrigem.zonasVinculoA, (v) => v.zonaB);
+              if (temConflitoZona) break;
+              processarZona(zonaOrigem.zonasVinculoB, (v) => v.zonaA);
+              if (temConflitoZona) break;
+            }
+          }
+
+          if (!temConflitoCritico && temConflitoZona) {
             corRisco = "atencao";
-            nivelRisco = 3;
+            nivelRisco = Math.max(nivelRisco, 3);
+            alertas.push("Conflito em zona de risco");
+          } else if (!temConflitoCritico && conflitos.length > 0) {
+            corRisco = "atencao";
+            nivelRisco = Math.max(nivelRisco, 3);
             alertas.push("Adolescente possui conflitos registrados");
-          } else {
+          } else if (!temConflitoCritico && !temConflitoZona) {
             corRisco = "seguro";
             nivelRisco = 2;
           }

@@ -1,6 +1,7 @@
 // app/api/grupos/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/auth";
 import { z } from "zod";
 
 // Schema de validação para criar grupo
@@ -128,6 +129,30 @@ export async function GET(request: NextRequest) {
 // POST /api/grupos - Criar novo grupo
 export async function POST(request: NextRequest) {
   try {
+    const session = await auth().catch((error) => {
+      console.error("Erro ao obter sessao do auth:", error);
+      return null;
+    });
+    const operadorId = session?.user?.id ?? null;
+
+    if (!operadorId) {
+      return NextResponse.json(
+        { erro: "Operador nao autenticado" },
+        { status: 401 }
+      );
+    }
+
+    const operadorExiste = await prisma.operador.findUnique({
+      where: { id: operadorId },
+      select: { id: true },
+    });
+
+    if (!operadorExiste) {
+      return NextResponse.json(
+        { erro: "Operador nao encontrado" },
+        { status: 403 }
+      );
+    }
     const body = await request.json();
 
     // Validar dados
@@ -184,7 +209,7 @@ export async function POST(request: NextRequest) {
     // Log de auditoria
     await prisma.logAuditoria.create({
       data: {
-        // operadorId: request.user?.id, // TODO: Adicionar após implementar auth
+        operadorId: operadorId,
         acao: "INSERT",
         tabelaAfetada: "Grupos",
         registroIdAfetado: grupo.id,
@@ -192,7 +217,7 @@ export async function POST(request: NextRequest) {
           nomeGrupo: grupo.nomeGrupo,
           casa: casa.nome,
         },
-        // ipOrigem: request.ip,
+        ipOrigem: request.headers.get("x-forwarded-for") || "unknown",
       },
     });
 
@@ -228,3 +253,8 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+
+
+
+

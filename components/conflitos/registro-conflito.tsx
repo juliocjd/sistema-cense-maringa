@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import Link from "next/link";
@@ -48,7 +48,7 @@ export function RegistroConflito({
   );
 
   const handleSalvar = async () => {
-    // Validações
+    // ValidaÃ§Ãµes
     if (!adolescenteA || !adolescenteB) {
       alert("Selecione os dois adolescentes envolvidos!");
       return;
@@ -75,11 +75,10 @@ export function RegistroConflito({
         descricao: descricao || undefined,
       });
 
-      alert("✅ Conflito registrado com sucesso!");
-      // Limpar formulário ou redirecionar
+      alert("âœ… Conflito registrado com sucesso!");
+      // Limpar formulÃ¡rio ou redirecionar
     } catch (error) {
-      console.error("Erro:", error);
-      alert("❌ Erro ao registrar conflito. Tente novamente.");
+      alert("âŒ Erro ao registrar conflito. Tente novamente.");
     } finally {
       setLoading(false);
     }
@@ -100,11 +99,11 @@ export function RegistroConflito({
           Registrar Novo Conflito
         </h1>
         <p className="text-gray-600 mt-2">
-          Preencha as informações sobre o conflito entre os adolescentes
+          Preencha as informaÃ§Ãµes sobre o conflito entre os adolescentes
         </p>
       </div>
 
-      {/* Formulário */}
+      {/* FormulÃ¡rio */}
       <div className="bg-white rounded-2xl shadow-lg p-8">
         <div className="space-y-6">
           {/* Alerta */}
@@ -113,18 +112,18 @@ export function RegistroConflito({
               <AlertTriangle size={20} className="text-orange-600 mt-0.5" />
               <div className="flex-1">
                 <p className="font-semibold text-orange-900 mb-1">
-                  Atenção ao registrar conflitos
+                  AtenÃ§Ã£o ao registrar conflitos
                 </p>
                 <p className="text-sm text-orange-800">
-                  O registro de conflito ativará alertas automáticos no sistema
-                  de alocação e impedirá que os adolescentes sejam colocados em
+                  O registro de conflito ativarÃ¡ alertas automÃ¡ticos no sistema
+                  de alocaÃ§Ã£o e impedirÃ¡ que os adolescentes sejam colocados em
                   alojamentos frontais ou mesma ala.
                 </p>
               </div>
             </div>
           </div>
 
-          {/* Seleção de Adolescentes */}
+          {/* SeleÃ§Ã£o de Adolescentes */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Adolescente A */}
             <div>
@@ -177,7 +176,7 @@ export function RegistroConflito({
                               <p className="text-sm text-gray-600">
                                 SMS: {adolescente.numeroSms}
                                 {adolescente.alojamento && (
-                                  <> • {adolescente.alojamento}</>
+                                  <> â€¢ {adolescente.alojamento}</>
                                 )}
                               </p>
                             </button>
@@ -194,7 +193,7 @@ export function RegistroConflito({
                   <p className="text-sm text-gray-600">
                     SMS: {adolescenteA.numeroSms}
                     {adolescenteA.alojamento && (
-                      <> • {adolescenteA.alojamento}</>
+                      <> â€¢ {adolescenteA.alojamento}</>
                     )}
                   </p>
                 </div>
@@ -252,7 +251,7 @@ export function RegistroConflito({
                               <p className="text-sm text-gray-600">
                                 SMS: {adolescente.numeroSms}
                                 {adolescente.alojamento && (
-                                  <> • {adolescente.alojamento}</>
+                                  <> â€¢ {adolescente.alojamento}</>
                                 )}
                               </p>
                             </button>
@@ -269,7 +268,7 @@ export function RegistroConflito({
                   <p className="text-sm text-gray-600">
                     SMS: {adolescenteB.numeroSms}
                     {adolescenteB.alojamento && (
-                      <> • {adolescenteB.alojamento}</>
+                      <> â€¢ {adolescenteB.alojamento}</>
                     )}
                   </p>
                 </div>
@@ -288,7 +287,7 @@ export function RegistroConflito({
               className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none transition-all"
             >
               <option value="">Selecione o tipo...</option>
-              <option value="FACCAO">Facções rivais</option>
+              <option value="FACCAO">FacÃ§Ãµes rivais</option>
               <option value="TERRITORIAL">
                 Territorial (bairros em conflito)
               </option>
@@ -310,8 +309,8 @@ export function RegistroConflito({
               >
                 <option value="">Selecione...</option>
                 <option value="CI">Comunicado Interno (CI)</option>
-                <option value="OBSERVACAO">Observação direta</option>
-                <option value="DENUNCIA">Denúncia</option>
+                <option value="OBSERVACAO">ObservaÃ§Ã£o direta</option>
+                <option value="DENUNCIA">DenÃºncia</option>
                 <option value="OUTROS">Outros</option>
               </select>
             </div>
@@ -319,7 +318,7 @@ export function RegistroConflito({
             {origem === "CI" && (
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Número do CI
+                  NÃºmero do CI
                 </label>
                 <input
                   type="text"
@@ -332,22 +331,22 @@ export function RegistroConflito({
             )}
           </div>
 
-          {/* Descrição */}
+          {/* DescriÃ§Ã£o */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Descrição do Conflito
+              DescriÃ§Ã£o do Conflito
             </label>
             <textarea
               value={descricao}
               onChange={(e) => setDescricao(e.target.value)}
               rows={4}
-              placeholder="Descreva os detalhes do conflito, como foi identificado, circunstâncias, etc..."
+              placeholder="Descreva os detalhes do conflito, como foi identificado, circunstÃ¢ncias, etc..."
               className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none transition-all resize-none"
             />
           </div>
         </div>
 
-        {/* Botões */}
+        {/* BotÃµes */}
         <div className="flex items-center justify-end gap-3 mt-8 pt-6 border-t-2 border-gray-200">
           <Link
             href="/conflitos"

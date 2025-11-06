@@ -28,11 +28,10 @@ export default function NovoConflitoPage() {
         throw new Error("Erro ao carregar adolescentes");
       }
 
-      const data = await response.json();
-      setAdolescentes(data);
+      const payload = await response.json();
+      const lista = Array.isArray(payload?.data) ? payload.data : [];
+      setAdolescentes(lista);
     } catch (error) {
-      console.error("Erro:", error);
-
       // Mock de dados para desenvolvimento
       setAdolescentes([
         {
@@ -106,7 +105,6 @@ export default function NovoConflitoPage() {
       // Redirecionar para lista de conflitos
       router.push("/conflitos");
     } catch (error) {
-      console.error("Erro:", error);
       throw error; // Re-throw para o componente tratar
     }
   };

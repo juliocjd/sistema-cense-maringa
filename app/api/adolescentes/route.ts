@@ -1,11 +1,22 @@
-// app/api/adolescentes/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import type { Prisma } from "@prisma/client";
+import {
+  INCLUDE_ADOLESCENTE_DEFAULT,
+  mapPrismaAdolescente,
+} from "@/lib/adolescentes/transformers";
+import type {
+  Adolescente,
+  ListaAdolescentesMeta,
+  ListaAdolescentesResponse,
+} from "@/types";
 
-// Schema de validação para criar adolescente
+const LIST_LIMIT_MAX = 100;
+
 const createAdolescenteSchema = z.object({
-  nomeCompleto: z.string().min(3, "Nome deve ter no mínimo 3 caracteres"),
+  nomeCompleto: z.string().min(3, "Nome deve ter no minimo 3 caracteres"),
   nomeSocial: z.string().optional().nullable(),
   fotoUrl: z.string().url().optional().nullable(),
   numeroSms: z.string().optional().nullable(),
@@ -16,228 +27,220 @@ const createAdolescenteSchema = z.object({
   statusUnidade: z
     .enum(["ATIVO", "TRANSFERIDO", "LIBERADO", "EVADIDO"])
     .default("ATIVO"),
-
-  // Perfil de Risco
   faccaoGrupoId: z.string().uuid().optional().nullable(),
   faccaoNumeroMembro: z.string().optional().nullable(),
   bairroOrigemId: z.string().uuid().optional().nullable(),
   riscoFuga: z.enum(["BAIXO", "MEDIO", "ALTO"]).optional().nullable(),
-
-  // Alertas
   alertaRiscoSuicidio: z.boolean().default(false),
   alertaPerfilMapeado: z.boolean().default(false),
   alertaSaudeConfidencial: z.boolean().default(false),
   alertaSaudeDetalhes: z.string().optional().nullable(),
-
-  // Alocação
   alojamentoAtualId: z.string().uuid().optional().nullable(),
   faseInternacaoAtualId: z.string().uuid().optional().nullable(),
-
-  // Campos que podem vir do formulário mas não são salvos diretamente
-  conflitosA: z.array(z.any()).optional(),
-  conflitosB: z.array(z.any()).optional(),
 });
 
-// GET /api/adolescentes - Listar adolescentes com filtros
-export async function GET(request: NextRequest) {
+const sanitizeNullableString = (value: string | null | undefined) => {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+};
+
+const toDateOrUndefined = (value?: string | null) => {
+  const sanitized = sanitizeNullableString(value ?? undefined);
+  if (!sanitized) {
+    return undefined;
+  }
+
+  const parsed = new Date(sanitized);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+};
+
+const buildWhere = (params: URLSearchParams): Prisma.AdolescenteWhereInput => {
+  const status = sanitizeNullableString(params.get("status"));
+  const busca = sanitizeNullableString(params.get("busca"));
+  const casaId = sanitizeNullableString(params.get("casa_id"));
+  const grupoId = sanitizeNullableString(params.get("grupo_id"));
+
+  const where: Prisma.AdolescenteWhereInput = {};
+
+  if (
+    status &&
+    ["ATIVO", "TRANSFERIDO", "LIBERADO", "EVADIDO"].includes(status)
+  ) {
+    where.statusUnidade = status;
+  }
+
+  if (busca) {
+    where.OR = [
+      { nomeCompleto: { contains: busca, mode: "insensitive" } },
+      { numeroSms: { contains: busca } },
+      { numeroProcesso: { contains: busca, mode: "insensitive" } },
+    ];
+  }
+
+  if (casaId) {
+    where.alojamentoAtual = { is: { casaId } };
+  }
+
+  if (grupoId) {
+    where.gruposMembros = {
+      some: {
+        grupoId,
+        dataSaida: null,
+      },
+    };
+  }
+
+  return where;
+};
+
+const parsePagination = (params: URLSearchParams) => {
+  const pageRaw = Number.parseInt(params.get("page") ?? "1", 10);
+  const limitRaw = Number.parseInt(params.get("limit") ?? "50", 10);
+
+  const page = Number.isFinite(pageRaw) && pageRaw > 0 ? pageRaw : 1;
+  const limitCandidate =
+    Number.isFinite(limitRaw) && limitRaw > 0 ? limitRaw : 50;
+  const limit = Math.min(limitCandidate, LIST_LIMIT_MAX);
+
+  return { page, limit };
+};
+
+export async function GET(
+  request: NextRequest
+): Promise<NextResponse<ListaAdolescentesResponse | { erro: string }>> {
   try {
     const { searchParams } = new URL(request.url);
+    const where = buildWhere(searchParams);
+    const { page, limit } = parsePagination(searchParams);
 
-    // Filtros disponíveis
-    const status = searchParams.get("status");
-    const busca = searchParams.get("busca");
-    const casa_id = searchParams.get("casa_id");
-    const grupo_id = searchParams.get("grupo_id");
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "50");
-
-    // Construir query dinâmica
-    const where: any = {};
-
-    if (status) {
-      where.statusUnidade = status;
-    }
-
-    if (busca) {
-      where.OR = [
-        { nomeCompleto: { contains: busca, mode: "insensitive" } },
-        { numeroSms: { contains: busca } },
-      ];
-    }
-
-    if (casa_id) {
-      where.alojamentoAtual = {
-        casaId: casa_id,
-      };
-    }
-
-    if (grupo_id) {
-      where.gruposMembros = {
-        some: {
-          grupoId: grupo_id,
-          dataSaida: null, // Apenas membros ativos
-        },
-      };
-    }
-
-    // Buscar adolescentes
-    const [adolescentes, total] = await Promise.all([
+    const [records, total] = await Promise.all([
       prisma.adolescente.findMany({
         where,
         skip: (page - 1) * limit,
         take: limit,
-        include: {
-          alojamentoAtual: {
-            include: {
-              casa: true,
-            },
-          },
-          faccao: true,
-          bairroOrigem: true,
-          gruposMembros: {
-            where: { dataSaida: null },
-            include: {
-              grupo: true,
-            },
-          },
-          conflitosA: true,
-          conflitosB: true,
-        },
-        orderBy: {
-          nomeCompleto: "asc",
-        },
+        include: INCLUDE_ADOLESCENTE_DEFAULT,
+        orderBy: { nomeCompleto: "asc" },
       }),
       prisma.adolescente.count({ where }),
     ]);
 
-    // Formatar resposta em camelCase para o frontend
-    const adolescentesFormatados = adolescentes.map((adolescente) => ({
-      id: adolescente.id,
-      nomeCompleto: adolescente.nomeCompleto,
-      nomeSocial: adolescente.nomeSocial,
-      fotoUrl: adolescente.fotoUrl,
-      numeroSms: adolescente.numeroSms,
-      statusUnidade: adolescente.statusUnidade,
-      alojamentoAtualId: adolescente.alojamentoAtualId,
+    const data = records.map<Adolescente>(mapPrismaAdolescente);
+    const meta: ListaAdolescentesMeta = {
+      total,
+      page,
+      limit,
+      hasMore: page * limit < total,
+    };
 
-      // Alocação atual
-      alojamentoAtual: adolescente.alojamentoAtual
-        ? {
-            id: adolescente.alojamentoAtual.id,
-            casa: adolescente.alojamentoAtual.casa.nome,
-            numero: adolescente.alojamentoAtual.numeroAlojamento,
-            ala: adolescente.alojamentoAtual.ala,
-          }
-        : null,
-
-      // Facção
-      faccao: adolescente.faccao?.nomeFaccao || null,
-
-      // Bairro
-      bairro: adolescente.bairroOrigem
-        ? `${adolescente.bairroOrigem.nomeBairro} - ${adolescente.bairroOrigem.cidade}`
-        : null,
-
-      // Grupos ativos
-      grupos: adolescente.gruposMembros.map((gm) => gm.grupo.nomeGrupo),
-
-      // Alertas
-      alertaRiscoSuicidio: adolescente.alertaRiscoSuicidio,
-      alertaPerfilMapeado: adolescente.alertaPerfilMapeado,
-      alertaSaudeConfidencial: adolescente.alertaSaudeConfidencial,
-
-      // Conflitos
-      conflitosA: adolescente.conflitosA || [],
-      conflitosB: adolescente.conflitosB || [],
-    }));
-
-    return NextResponse.json(adolescentesFormatados);
+    return NextResponse.json({ data, meta });
   } catch (error) {
     console.error("Erro ao buscar adolescentes:", error);
     return NextResponse.json(
-      { erro: "Erro ao buscar adolescentes", detalhes: error instanceof Error ? error.message : "Erro desconhecido" },
+      { erro: "Erro ao buscar adolescentes" },
       { status: 500 }
     );
   }
 }
 
-// POST /api/adolescentes - Cadastrar novo adolescente
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    let payload: unknown;
+    try {
+      payload = await request.json();
+    } catch {
+      return NextResponse.json(
+        { erro: "Payload invalido, esperado JSON" },
+        { status: 400 }
+      );
+    }
 
-    // Validar dados
-    const validatedData = createAdolescenteSchema.parse(body);
+    const validated = createAdolescenteSchema.parse(payload);
 
-    // Remover campos que não devem ser salvos diretamente
-    const { conflitosA, conflitosB, ...dadosParaSalvar } = validatedData;
+    const session = await auth().catch(() => null);
+    const operadorId = sanitizeNullableString(session?.user?.id);
 
-    // Converter strings de data para Date e null para undefined
-    const data = {
-      ...dadosParaSalvar,
-      nomeSocial: dadosParaSalvar.nomeSocial || undefined,
-      fotoUrl: dadosParaSalvar.fotoUrl || undefined,
-      numeroSms: dadosParaSalvar.numeroSms || undefined,
-      numeroProcesso: dadosParaSalvar.numeroProcesso || undefined,
-      atoInfracionalAtual: dadosParaSalvar.atoInfracionalAtual || undefined,
-      faccaoGrupoId: dadosParaSalvar.faccaoGrupoId || undefined,
-      faccaoNumeroMembro: dadosParaSalvar.faccaoNumeroMembro || undefined,
-      bairroOrigemId: dadosParaSalvar.bairroOrigemId || undefined,
-      riscoFuga: dadosParaSalvar.riscoFuga || undefined,
-      alertaSaudeDetalhes: dadosParaSalvar.alertaSaudeDetalhes || undefined,
-      alojamentoAtualId: dadosParaSalvar.alojamentoAtualId || undefined,
-      faseInternacaoAtualId: dadosParaSalvar.faseInternacaoAtualId || undefined,
-      dataNascimento: dadosParaSalvar.dataNascimento
-        ? new Date(dadosParaSalvar.dataNascimento)
-        : undefined,
-      dataEntrada: dadosParaSalvar.dataEntrada
-        ? new Date(dadosParaSalvar.dataEntrada)
-        : new Date(),
-    };
+    if (!operadorId) {
+      return NextResponse.json(
+        { erro: "Operador nao autenticado" },
+        { status: 401 }
+      );
+    }
 
-    // Criar adolescente
-    const adolescente = await prisma.adolescente.create({
-      data,
-      include: {
-        alojamentoAtual: {
-          include: {
-            casa: true,
-          },
-        },
-        faccao: true,
-        bairroOrigem: true,
-      },
+    const operadorExiste = await prisma.operador.findUnique({
+      where: { id: operadorId },
+      select: { id: true },
     });
 
-    // Log de auditoria
+    if (!operadorExiste) {
+      return NextResponse.json(
+        { erro: "Operador sem permissao" },
+        { status: 403 }
+      );
+    }
+
+    const data: Prisma.AdolescenteCreateInput = {
+      nomeCompleto: validated.nomeCompleto,
+      nomeSocial: validated.nomeSocial ?? undefined,
+      fotoUrl: validated.fotoUrl ?? undefined,
+      numeroSms: validated.numeroSms ?? undefined,
+      dataNascimento: toDateOrUndefined(validated.dataNascimento),
+      dataEntrada: toDateOrUndefined(validated.dataEntrada) ?? new Date(),
+      numeroProcesso: validated.numeroProcesso ?? undefined,
+      atoInfracionalAtual: validated.atoInfracionalAtual ?? undefined,
+      statusUnidade: validated.statusUnidade,
+      faccao: validated.faccaoGrupoId
+        ? { connect: { id: validated.faccaoGrupoId } }
+        : undefined,
+      faccaoNumeroMembro: validated.faccaoNumeroMembro ?? undefined,
+      bairroOrigem: validated.bairroOrigemId
+        ? { connect: { id: validated.bairroOrigemId } }
+        : undefined,
+      riscoFuga: validated.riscoFuga ?? undefined,
+      alertaRiscoSuicidio: validated.alertaRiscoSuicidio,
+      alertaPerfilMapeado: validated.alertaPerfilMapeado,
+      alertaSaudeConfidencial: validated.alertaSaudeConfidencial,
+      alertaSaudeDetalhes: validated.alertaSaudeDetalhes ?? undefined,
+      alojamentoAtual: validated.alojamentoAtualId
+        ? { connect: { id: validated.alojamentoAtualId } }
+        : undefined,
+      faseInternacaoAtual: validated.faseInternacaoAtualId
+        ? { connect: { id: validated.faseInternacaoAtualId } }
+        : undefined,
+    };
+
+    const criado = await prisma.adolescente.create({
+      data,
+      include: INCLUDE_ADOLESCENTE_DEFAULT,
+    });
+
     await prisma.logAuditoria.create({
       data: {
-        // operadorId: request.user?.id, // TODO: Adicionar após implementar auth
+        operadorId,
         acao: "INSERT",
-        tabelaAfetada: "Adolescentes",
-        registroIdAfetado: adolescente.id,
+        tabelaAfetada: "adolescentes",
+        registroIdAfetado: criado.id,
         detalhesAlteracao: {
-          nomeCompleto: adolescente.nomeCompleto,
-          numeroSms: adolescente.numeroSms,
+          nomeCompleto: criado.nomeCompleto,
+          numeroSms: criado.numeroSms,
         },
-        // ipOrigem: request.ip,
+        ipOrigem: request.headers.get("x-forwarded-for") ?? "unknown",
       },
     });
 
     return NextResponse.json(
       {
-        id: adolescente.id,
-        nomeCompleto: adolescente.nomeCompleto,
-        numeroSms: adolescente.numeroSms,
-        statusUnidade: adolescente.statusUnidade,
         mensagem: "Adolescente cadastrado com sucesso",
+        adolescente: mapPrismaAdolescente(criado),
       },
       { status: 201 }
     );
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { erro: "Dados inválidos", detalhes: error.errors },
+        { erro: "Dados invalidos", detalhes: error.errors },
         { status: 400 }
       );
     }

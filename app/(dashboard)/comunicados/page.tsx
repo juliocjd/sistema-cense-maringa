@@ -44,8 +44,6 @@ export default function ComunicadosPage() {
       const data = await response.json();
       setComunicados(data);
     } catch (error) {
-      console.error("Erro:", error);
-
       // Mock de dados para desenvolvimento
       setComunicados([
         {

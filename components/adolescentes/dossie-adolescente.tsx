@@ -17,7 +17,13 @@ import {
   Download,
   Printer,
 } from "lucide-react";
-import type { Adolescente } from "@/types";
+import type {
+  Adolescente,
+  AdolescenteAlojamentoResumo,
+  AdolescenteGrupoResumo,
+  AdolescenteTatuagemResumo,
+  Conflito,
+} from "@/types";
 
 interface DossieAdolescenteProps {
   adolescente: Adolescente;
@@ -67,18 +73,52 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
   };
 
   // Dados que virão da API (atualmente vazios até serem cadastrados)
-  const dadosAdicionais = {
-    alojamento: adolescente.alojamentoAtual || null,
-    faccao: adolescente.faccao || null,
-    bairro: adolescente.bairroOrigem || null,
-    historicoInfracional: [] as any[], // TODO: Implementar quando tiver API
-    tatuagens: [] as any[], // TODO: Implementar quando tiver API
+  const dadosAdicionais: {
+    alojamento: AdolescenteAlojamentoResumo | null;
+    faccao: Adolescente["faccao"];
+    bairro: Adolescente["bairroOrigem"];
+    historicoInfracional: any[];
+    tatuagens: AdolescenteTatuagemResumo[];
+    conflitos: Conflito[];
+    grupos: AdolescenteGrupoResumo[];
+    historico: any[];
+  } = {
+    alojamento: adolescente.alojamentoAtual ?? null,
+    faccao: adolescente.faccao ?? null,
+    bairro: adolescente.bairroOrigem ?? null,
+    historicoInfracional: [],
+    tatuagens: (adolescente.tatuagens ?? []) as AdolescenteTatuagemResumo[],
     conflitos: [
-      ...(adolescente.conflitosA || []),
-      ...(adolescente.conflitosB || []),
+      ...((adolescente.conflitosA ?? []) as Conflito[]),
+      ...((adolescente.conflitosB ?? []) as Conflito[]),
     ],
-    grupos: adolescente.grupos || [],
-    historico: [] as any[], // TODO: Implementar quando tiver API de auditoria
+    grupos: (adolescente.grupos ?? []) as AdolescenteGrupoResumo[],
+    historico: [],
+  };
+
+  const obterDescricaoCasa = (
+    alojamento: AdolescenteAlojamentoResumo | null
+  ) => {
+    const casa = alojamento?.casa;
+    if (!casa) {
+      return "Casa nao identificada";
+    }
+
+    if (casa.nome) {
+      return casa.nome;
+    }
+
+    if (casa.numero !== null && casa.numero !== undefined) {
+      const numeroFormatado = String(casa.numero).padStart(2, "0");
+      return `Casa ${numeroFormatado}`;
+    }
+
+    return "Casa nao identificada";
+  };
+
+  const obterNumeroAlojamento = (numero?: string) => {
+    if (!numero) return "-";
+    return numero.padStart(2, "0");
   };
 
   return (
@@ -366,8 +406,11 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                     </div>
                     <div>
                       <h3 className="text-2xl font-bold text-gray-800">
-                        {dadosAdicionais.alojamento.casa} - Alojamento{" "}
-                        {dadosAdicionais.alojamento.numero}
+                        {obterDescricaoCasa(dadosAdicionais.alojamento)} -
+                        Alojamento{" "}
+                        {obterNumeroAlojamento(
+                          dadosAdicionais.alojamento.numero
+                        )}
                       </h3>
                       {dadosAdicionais.alojamento.ala && (
                         <p className="text-gray-600">
@@ -553,7 +596,8 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
 
               {dadosAdicionais.tatuagens.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {dadosAdicionais.tatuagens.map((tatuagem) => (
+                  {dadosAdicionais.tatuagens.map(
+                    (tatuagem: AdolescenteTatuagemResumo) => (
                     <div
                       key={tatuagem.id}
                       className="bg-gray-50 rounded-lg p-4 border-2 border-gray-200"
@@ -568,11 +612,11 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                           </h4>
                           <p className="text-sm text-gray-600 mb-2">
                             <span className="font-semibold">Local:</span>{" "}
-                            {tatuagem.localCorpo}
+                            {tatuagem.localCorpo || "Nao informado"}
                           </p>
                           <p className="text-sm text-gray-600 mb-2">
                             <span className="font-semibold">Significado:</span>{" "}
-                            {tatuagem.significado}
+                            {tatuagem.significado || "Nao informado"}
                           </p>
                           {tatuagem.observacoes && (
                             <p className="text-xs text-gray-500 bg-gray-100 rounded p-2">
@@ -602,7 +646,7 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
 
               {dadosAdicionais.conflitos.length > 0 ? (
                 <div className="space-y-3">
-                  {dadosAdicionais.conflitos.map((conflito: any) => (
+                  {dadosAdicionais.conflitos.map((conflito: Conflito) => (
                     <div
                       key={conflito.id}
                       className={`rounded-lg p-4 border-l-4 ${
@@ -627,10 +671,10 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                               {conflito.status}
                             </span>
                           </div>
-                          {conflito.tipo && (
+                          {conflito.tipoConflito && (
                             <p className="text-sm text-gray-600 mb-1">
                               <span className="font-semibold">Tipo:</span>{" "}
-                              {conflito.tipo}
+                              {conflito.tipoConflito}
                             </p>
                           )}
                         </div>
@@ -654,7 +698,8 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
 
               {dadosAdicionais.grupos.length > 0 ? (
                 <div className="space-y-3">
-                  {dadosAdicionais.grupos.map((grupo: any) => (
+                  {dadosAdicionais.grupos.map(
+                    (grupo: AdolescenteGrupoResumo) => (
                     <div
                       key={grupo.id}
                       className="bg-indigo-50 rounded-lg p-4 border-2 border-indigo-200"

@@ -4,13 +4,18 @@ import { useState } from "react";
 import { CadastroAdolescente } from "@/components/cadastro/cadastro-adolescente";
 import { useRouter } from "next/navigation";
 import type { Adolescente } from "@/types";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function CadastroAdolescentePage() {
   const router = useRouter();
   const [mostrarFormulario, setMostrarFormulario] = useState(true);
+  const { user } = useAuth();
 
   const handleSalvar = async (adolescente: Partial<Adolescente>) => {
-    console.log("Salvando adolescente:", adolescente);
+    if (!user?.id) {
+      alert("Operador não autenticado. Faça login novamente para cadastrar.");
+      throw new Error("Operador não autenticado");
+    }
 
     try {
       // Chamar API
@@ -19,10 +24,7 @@ export default function CadastroAdolescentePage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          ...adolescente,
-          operador_id: "uuid-operador-logado", // TODO: Pegar do contexto de auth
-        }),
+        body: JSON.stringify(adolescente),
       });
 
       if (!response.ok) {
@@ -30,12 +32,9 @@ export default function CadastroAdolescentePage() {
       }
 
       const data = await response.json();
-      console.log("Adolescente cadastrado:", data);
-
       // Redirecionar para dossiê
       router.push(`/adolescentes/${data.id}`);
     } catch (error) {
-      console.error("Erro:", error);
       throw error;
     }
   };

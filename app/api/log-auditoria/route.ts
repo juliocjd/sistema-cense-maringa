@@ -1,14 +1,42 @@
 // app/api/log-auditoria/route.ts
-import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { NextRequest, NextResponse } from "next/server"
+import { prisma } from "@/lib/prisma"
+import { auth } from "@/auth";
 
 // GET /api/log-auditoria - Listar logs de auditoria
 export async function GET(request: NextRequest) {
   try {
+    const session = await auth().catch((error) => {
+      console.error("Erro ao obter sessao do auth:", error);
+      return null;
+    });
+    const operadorId = session?.user?.id ?? null;
+    const roleSessao = session?.user?.cargo ?? null;
+
+    if (!operadorId) {
+      return NextResponse.json(
+        { erro: "Operador nao autenticado" },
+        { status: 401 }
+      );
+    }
+
+    const operador = await prisma.operador.findUnique({
+      where: { id: operadorId },
+      select: { funcaoRole: true },
+    });
+
+    const roleEfetiva = operador?.funcaoRole ?? roleSessao;
+    if (roleEfetiva !== "ADMIN") {
+      return NextResponse.json(
+        { erro: "Acesso restrito a administradores" },
+        { status: 403 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
 
     // Filtros disponíveis
-    const operadorId = searchParams.get("operador_id");
+    const operadorIdFiltro = searchParams.get("operador_id");
     const acao = searchParams.get("acao"); // INSERT, UPDATE, DELETE
     const tabela = searchParams.get("tabela");
     const registroId = searchParams.get("registro_id");
@@ -20,8 +48,8 @@ export async function GET(request: NextRequest) {
     // Construir query dinâmica
     const where: any = {};
 
-    if (operadorId) {
-      where.operadorId = operadorId;
+    if (operadorIdFiltro) {
+      where.operadorId = operadorIdFiltro
     }
 
     if (acao) {
@@ -107,3 +135,7 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+
+
+
+

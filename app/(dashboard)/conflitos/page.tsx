@@ -46,8 +46,6 @@ export default function ConflitosPage() {
       const data = await response.json();
       setConflitos(data);
     } catch (error) {
-      console.error("Erro:", error);
-
       // Mock de dados para desenvolvimento
       setConflitos([
         {

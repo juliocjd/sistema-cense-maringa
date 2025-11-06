@@ -1,9 +1,29 @@
-// types/index.ts
-// Tipos compartilhados do sistema CENSE Maringá
+// Shared domain types for the CENSE Maringa system
 
 export type StatusUnidade = "ATIVO" | "TRANSFERIDO" | "LIBERADO" | "EVADIDO";
 export type StatusManutencao = "LIVRE" | "INTERDITADO";
 export type Ala = "A" | "B" | null;
+export type RiscoFuga = "BAIXO" | "MEDIO" | "ALTO";
+
+export type CasaResumo = {
+  id: string;
+  nome: string;
+  numero: number | string | null;
+};
+
+export type AdolescenteAlojamentoResumo = {
+  id: string;
+  numero: string;
+  ala?: Ala;
+  casa?: CasaResumo | null;
+  localizacaoPreferencial?: boolean;
+};
+
+export type AdolescenteGrupoResumo = {
+  id: string;
+  nome: string;
+  casa?: CasaResumo | null;
+};
 
 export type Conflito = {
   id: string;
@@ -13,6 +33,21 @@ export type Conflito = {
   status: "ATIVO" | "RESOLVIDO" | string;
   descricao?: string | null;
   criadoEm?: Date | string;
+  adversario?: {
+    id: string;
+    nomeCompleto: string;
+    numeroSms?: string | null;
+  } | null;
+};
+
+export type AdolescenteTatuagemResumo = {
+  id: string;
+  catalogoId: string;
+  simbolo: string;
+  significado?: string | null;
+  nivelRisco?: string | null;
+  localCorpo?: string | null;
+  observacoes?: string | null;
 };
 
 export type Adolescente = {
@@ -27,44 +62,51 @@ export type Adolescente = {
   atoInfracionalAtual?: string;
   statusUnidade: StatusUnidade;
 
-  // Alocação atual
+  // Alocacao atual
   alojamentoAtualId?: string | null;
-  alojamentoAtual?: {
-    id: string;
-    casa: string;
-    numero: string;
-    ala?: string;
-  } | null;
+  alojamentoAtual?: AdolescenteAlojamentoResumo | null;
 
-  // Vinculações
+  // Vinculacoes e perfil
   faccao?: {
     id: string;
     nome: string;
+    numeroMembro?: string | null;
   } | null;
   bairroOrigem?: {
     id: string;
     nome: string;
     cidade: string;
   } | null;
+  riscoFuga?: RiscoFuga | string | null;
 
-  // Grupos
-  grupos?: Array<{
-    id: string;
-    nome: string;
-  }>;
+  grupos?: AdolescenteGrupoResumo[];
+
+  tatuagens?: AdolescenteTatuagemResumo[];
 
   // Alertas
   alertaRiscoSuicidio: boolean;
   alertaPerfilMapeado: boolean;
   alertaSaudeConfidencial: boolean;
+  alertaSaudeDetalhes?: string | null;
 
-  // Conflitos
+  // Conflitos (origem e adversarios completos)
   conflitosA?: Conflito[];
   conflitosB?: Conflito[];
 
-  // Timestamps
   criadoEm?: Date | string;
   atualizadoEm?: Date | string;
+};
+
+export type ListaAdolescentesMeta = {
+  total: number;
+  page: number;
+  limit: number;
+  hasMore: boolean;
+};
+
+export type ListaAdolescentesResponse = {
+  data: Adolescente[];
+  meta: ListaAdolescentesMeta;
 };
 
 export type Alojamento = {
@@ -94,7 +136,7 @@ export type Casa = {
 export type VerificacaoConflito = {
   permite_alocacao: boolean;
   requer_justificativa: boolean;
-  nivel_risco: "CRÍTICO" | "ALTO" | "MÉDIO" | "BAIXO" | null;
+  nivel_risco: "CRITICO" | "ALTO" | "MEDIO" | "BAIXO" | null;
   alertas: AlertaConflito[];
 };
 

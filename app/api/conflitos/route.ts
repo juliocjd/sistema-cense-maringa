@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { NextResponse } from "next/server"
+import { prisma } from "@/lib/prisma"
+import { auth } from "@/auth";
 
 // GET /api/conflitos
 export async function GET(request: Request) {
@@ -132,6 +133,30 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
+    const session = await auth().catch((error) => {
+      console.error("Erro ao obter sessao do auth:", error);
+      return null;
+    });
+    const operadorId = session?.user?.id ?? null;
+
+    if (!operadorId) {
+      return NextResponse.json(
+        { error: "Operador nao autenticado" },
+        { status: 401 }
+      );
+    }
+
+    const operadorExiste = await prisma.operador.findUnique({
+      where: { id: operadorId },
+    });
+
+    if (!operadorExiste) {
+      return NextResponse.json(
+        { error: "Operador nao encontrado" },
+        { status: 403 }
+      );
+    }
+
 
     // Validações
     if (!body.adolescenteAId || !body.adolescenteBId) {
@@ -210,6 +235,22 @@ export async function POST(request: Request) {
       },
     });
 
+    await prisma.logAuditoria.create({
+      data: {
+        operadorId: operadorId,
+        acao: "INSERT",
+        tabelaAfetada: "conflitos",
+        registroIdAfetado: conflito.id,
+        detalhesAlteracao: {
+          tipoConflito: conflito.tipoConflito,
+          adolescenteA: conflito.adolescenteA.nomeCompleto,
+          adolescenteB: conflito.adolescenteB.nomeCompleto,
+          ciOrigemId: body.ciOrigemId ?? null,
+        },
+        ipOrigem: request.headers.get("x-forwarded-for") || "unknown",
+      },
+    });
+
     return NextResponse.json(conflito, { status: 201 });
   } catch (error) {
     console.error("Erro ao criar conflito:", error);
@@ -219,3 +260,6 @@ export async function POST(request: Request) {
     );
   }
 }
+
+
+

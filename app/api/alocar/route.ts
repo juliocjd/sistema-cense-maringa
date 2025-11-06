@@ -1,83 +1,121 @@
-// app/api/alocar/route.ts
-// API CRÍTICA: Executa a alocação de adolescente em alojamento
-
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
+import { prisma } from "@/lib/prisma";
+import { emitMapaEvent } from "@/lib/mapa-event-bus";
 
-/**
- * POST /api/alocar
- *
- * Executa a alocação de um adolescente em um alojamento:
- * 1. Valida se alocação pode ser feita
- * 2. Se houver risco, exige justificativa
- * 3. Atualiza adolescente
- * 4. Registra decisão operacional
- * 5. Cria log de auditoria
- *
- * Body:
- * {
- *   adolescenteId: string,
- *   alojamentoId: string,
- *   operadorId: string,
- *   justificativa?: string,  // Obrigatória se houver risco
- *   medidas_adicionais?: string[]
- * }
- */
+type VerificacaoPayload = {
+  requer_justificativa?: boolean;
+  nivel_risco?: number | null;
+  alertas?: Array<{ tipo?: string }>;
+};
+
+const ensureString = (value: unknown): string => {
+  if (typeof value !== "string") {
+    return "";
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : "";
+};
+
+const normalizeArrayOfStrings = (value: unknown): string[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map((item) => ensureString(item))
+    .filter((item): item is string => item.length > 0);
+};
+
 export async function POST(request: NextRequest) {
   try {
-    const session = await auth().catch((error) => {
-      console.error("Erro ao obter sessão do auth:", error);
-      return null;
-    });
-    const body = await request.json();
+    const session = await auth().catch(() => null);
+    const operadorId = ensureString(session?.user?.id);
 
-    // 1. VALIDAÇÕES
-    if (!body.adolescenteId || !body.alojamentoId) {
+    if (!operadorId) {
       return NextResponse.json(
-        {
-          erro: "adolescenteId e alojamentoId são obrigatórios",
-        },
+        { erro: "Operador nao autenticado" },
+        { status: 401 }
+      );
+    }
+
+    const operadorValido = await prisma.operador.findUnique({
+      where: { id: operadorId },
+      select: { id: true },
+    });
+
+    if (!operadorValido) {
+      return NextResponse.json(
+        { erro: "Operador nao encontrado" },
+        { status: 403 }
+      );
+    }
+
+    let body: Record<string, unknown>;
+    try {
+      body = (await request.json()) as Record<string, unknown>;
+    } catch {
+      return NextResponse.json(
+        { erro: "Payload invalido: esperado JSON" },
         { status: 400 }
       );
     }
 
-    // 2. VERIFICAR RISCOS (chama a API de verificação internamente)
-    const verificacao = await fetch(
-      `${request.nextUrl.origin}/api/verificar-alocacao?adolescenteId=${body.adolescenteId}&alojamentoId=${body.alojamentoId}`,
-      {
-        headers: {
-          cookie: request.headers.get("cookie") ?? "",
-        },
-        cache: "no-store",
-      }
+    const adolescenteId = ensureString(body.adolescenteId);
+    const alojamentoId = ensureString(body.alojamentoId);
+    const justificativa = ensureString(body.justificativa);
+    const medidasAdicionais = normalizeArrayOfStrings(body.medidas_adicionais);
+
+    if (!adolescenteId || !alojamentoId) {
+      return NextResponse.json(
+        { erro: "adolescenteId e alojamentoId sao obrigatorios" },
+        { status: 400 }
+      );
+    }
+
+    const verificarUrl = new URL(
+      "/api/verificar-alocacao",
+      request.nextUrl.origin
     );
+    verificarUrl.searchParams.set("adolescenteId", adolescenteId);
+    verificarUrl.searchParams.set("alojamentoId", alojamentoId);
+
+    const verificacao = await fetch(verificarUrl, {
+      headers: {
+        cookie: request.headers.get("cookie") ?? "",
+      },
+      cache: "no-store",
+    });
 
     if (!verificacao.ok) {
       return NextResponse.json(
-        { erro: "Erro ao verificar alocação" },
+        { erro: "Nao foi possivel verificar a alocacao" },
         { status: 500 }
       );
     }
 
-    const dadosVerificacao = await verificacao.json();
+    const dadosVerificacao = (await verificacao.json()) as VerificacaoPayload;
+    const requerJustificativa = Boolean(
+      dadosVerificacao?.requer_justificativa
+    );
+    const nivelRisco = dadosVerificacao?.nivel_risco ?? null;
+    const alertas = Array.isArray(dadosVerificacao?.alertas)
+      ? dadosVerificacao.alertas
+      : [];
 
-    // 3. SE REQUER JUSTIFICATIVA E NÃO FOI FORNECIDA
-    if (dadosVerificacao.requer_justificativa && !body.justificativa) {
+    if (requerJustificativa && !justificativa) {
       return NextResponse.json(
         {
-          erro: "Esta alocação requer justificativa obrigatória",
-          nivel_risco: dadosVerificacao.nivel_risco,
-          alertas: dadosVerificacao.alertas,
+          erro: "Esta alocacao exige justificativa",
+          nivel_risco: nivelRisco,
+          alertas,
           requer_justificativa: true,
         },
         { status: 400 }
       );
     }
 
-    // 4. VERIFICAR SE ALOJAMENTO ESTÁ LIVRE
     const alojamento = await prisma.alojamento.findUnique({
-      where: { id: body.alojamentoId },
+      where: { id: alojamentoId },
       include: {
         adolescentes: {
           where: { statusUnidade: "ATIVO" },
@@ -87,54 +125,44 @@ export async function POST(request: NextRequest) {
 
     if (!alojamento) {
       return NextResponse.json(
-        { erro: "Alojamento não encontrado" },
+        { erro: "Alojamento nao encontrado" },
         { status: 404 }
+      );
+    }
+
+    if (alojamento.statusManutencao === "INTERDITADO") {
+      return NextResponse.json(
+        { erro: "Alojamento esta interditado" },
+        { status: 400 }
       );
     }
 
     if (alojamento.adolescentes.length > 0) {
       return NextResponse.json(
         {
-          erro: "Alojamento já está ocupado",
+          erro: "Alojamento ja esta ocupado",
           ocupante: alojamento.adolescentes[0].nomeCompleto,
         },
         { status: 400 }
       );
     }
 
-    if (alojamento.statusManutencao === "INTERDITADO") {
-      return NextResponse.json(
-        { erro: "Alojamento está interditado" },
-        { status: 400 }
-      );
-    }
-
-    // 5. VERIFICAR SE ADOLESCENTE EXISTE
     const adolescente = await prisma.adolescente.findUnique({
-      where: { id: body.adolescenteId },
+      where: { id: adolescenteId },
     });
 
     if (!adolescente) {
       return NextResponse.json(
-        { erro: "Adolescente não encontrado" },
+        { erro: "Adolescente nao encontrado" },
         { status: 404 }
       );
     }
 
-    const operadorIdSession = session?.user?.id ?? null;
-    const operadorIdBody =
-      body.operadorId && body.operadorId !== "temp-operador-id"
-        ? body.operadorId
-        : null;
-    const operadorId = operadorIdBody || operadorIdSession;
-
-    // 6. EXECUTAR ALOCAÇÃO (Transaction para garantir atomicidade)
     const resultado = await prisma.$transaction(async (tx) => {
-      // 6.1. Atualizar adolescente
       const adolescenteAtualizado = await tx.adolescente.update({
-        where: { id: body.adolescenteId },
+        where: { id: adolescenteId },
         data: {
-          alojamentoAtualId: body.alojamentoId,
+          alojamentoAtualId: alojamentoId,
           atualizadoEm: new Date(),
         },
         include: {
@@ -146,88 +174,74 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // 6.2. Se houve risco E há operador válido, registrar decisão operacional
-      let decisao = null;
-      if (dadosVerificacao.requer_justificativa && operadorId) {
-        // Verificar se operador existe
-        const operadorExiste = await tx.operador.findUnique({
-          where: { id: operadorId },
+      let decisao: { id: string } | null = null;
+      if (requerJustificativa) {
+        decisao = await tx.decisaoOperacional.create({
+          data: {
+            operadorId,
+            tipoOperacao: "ALOCAR_ALOJAMENTO",
+            adolescenteId,
+            alojamentoId,
+            nivelAlerta: nivelRisco === null ? null : String(nivelRisco),
+            conflitosDetectados: alertas.filter((alerta) =>
+              ensureString(alerta?.tipo).includes("CONFLITO")
+            ),
+            justificativaOperador: justificativa,
+            medidasAdicionais,
+            status: "EXECUTADO",
+          },
+          select: { id: true },
         });
-
-        if (operadorExiste) {
-          decisao = await tx.decisaoOperacional.create({
-            data: {
-              operadorId: operadorId,
-              tipoOperacao: "ALOCAR_ALOJAMENTO",
-              adolescenteId: body.adolescenteId,
-              alojamentoId: body.alojamentoId,
-              nivelAlerta: dadosVerificacao.nivel_risco,
-              conflitosDetectados: dadosVerificacao.alertas.filter((a: any) =>
-                a.tipo.includes("CONFLITO")
-              ),
-              justificativaOperador: body.justificativa || "",
-              medidasAdicionais: body.medidas_adicionais || [],
-              status: "EXECUTADO",
-            },
-          });
-        }
       }
 
-      // 6.3. Registrar log de auditoria APENAS se houver operador válido
-      if (operadorId) {
-        const operadorExiste = await tx.operador.findUnique({
-          where: { id: operadorId },
-        });
+      await tx.logAuditoria.create({
+        data: {
+          operadorId,
+          acao: "ALOCACAO",
+          tabelaAfetada: "adolescentes",
+          registroIdAfetado: adolescenteId,
+          detalhesAlteracao: {
+            alojamento_anterior: adolescente.alojamentoAtualId,
+            alojamento_novo: alojamentoId,
+            nivel_risco: nivelRisco,
+            alertas_count: alertas.length,
+            justificativa: justificativa || null,
+          },
+          ipOrigem: request.headers.get("x-forwarded-for") ?? "unknown",
+        },
+      });
 
-        if (operadorExiste) {
-          await tx.logAuditoria.create({
-            data: {
-              operadorId: operadorId,
-              acao: "ALOCACAO",
-              tabelaAfetada: "adolescentes",
-              registroIdAfetado: body.adolescenteId,
-              detalhesAlteracao: {
-                alojamento_anterior: adolescente.alojamentoAtualId,
-                alojamento_novo: body.alojamentoId,
-                nivel_risco: dadosVerificacao.nivel_risco,
-                alertas_count: dadosVerificacao.alertas.length,
-                justificativa: body.justificativa || null,
-              },
-              ipOrigem: request.headers.get("x-forwarded-for") || "unknown",
-            },
-          });
-        }
-      }
-
-      return {
-        adolescente: adolescenteAtualizado,
-        decisao,
-      };
+      return { adolescenteAtualizado, decisao };
     });
 
-    // 7. RESPOSTA DE SUCESSO
+    emitMapaEvent({
+      tipo: "alocacao",
+      adolescenteId,
+      alojamentoId,
+    });
+
     return NextResponse.json(
       {
         sucesso: true,
         mensagem: "Adolescente alocado com sucesso",
-        documentado: dadosVerificacao.requer_justificativa,
+        documentado: requerJustificativa,
         adolescente: {
-          id: resultado.adolescente.id,
-          nome: resultado.adolescente.nomeCompleto,
+          id: resultado.adolescenteAtualizado.id,
+          nome: resultado.adolescenteAtualizado.nomeCompleto,
           alojamento: {
-            casa: resultado.adolescente.alojamentoAtual?.casa.nome,
-            numero: resultado.adolescente.alojamentoAtual?.numeroAlojamento,
-            ala: resultado.adolescente.alojamentoAtual?.ala,
+            casa: resultado.adolescenteAtualizado.alojamentoAtual?.casa.nome,
+            numero:
+              resultado.adolescenteAtualizado.alojamentoAtual?.numeroAlojamento,
+            ala: resultado.adolescenteAtualizado.alojamentoAtual?.ala,
           },
         },
-        decisao_id: resultado.decisao?.id,
-        nivel_risco: dadosVerificacao.nivel_risco,
-        alertas_processados: dadosVerificacao.alertas.length,
+        decisao_id: resultado.decisao?.id ?? null,
+        nivel_risco: nivelRisco,
+        alertas_processados: alertas.length,
       },
       { status: 201 }
     );
   } catch (error) {
-    console.error("Erro ao alocar adolescente:", error);
     return NextResponse.json(
       {
         erro: "Erro ao alocar adolescente",
@@ -238,49 +252,48 @@ export async function POST(request: NextRequest) {
   }
 }
 
-/**
- * DELETE /api/alocar?adolescenteId=xxx
- *
- * Remove adolescente de seu alojamento atual (liberar alojamento)
- */
 export async function DELETE(request: NextRequest) {
   try {
-    const session = await auth().catch((error) => {
-      console.error("Erro ao obter sessão do auth:", error);
-      return null;
+    const session = await auth().catch(() => null);
+    const operadorId = ensureString(session?.user?.id);
+
+    if (!operadorId) {
+      return NextResponse.json(
+        { erro: "Operador nao autenticado" },
+        { status: 401 }
+      );
+    }
+
+    const operadorValido = await prisma.operador.findUnique({
+      where: { id: operadorId },
+      select: { id: true },
     });
-    const searchParams = request.nextUrl.searchParams;
-    let adolescenteId = searchParams.get("adolescenteId");
-    let operadorId = searchParams.get("operadorId");
-    let motivo: string | null = null;
 
-    const contentType = request.headers.get("content-type") || "";
+    if (!operadorValido) {
+      return NextResponse.json(
+        { erro: "Operador nao encontrado" },
+        { status: 403 }
+      );
+    }
+
+    const contentType = request.headers.get("content-type") ?? "";
+    let body: Record<string, unknown> | null = null;
     if (contentType.includes("application/json")) {
-      const body = await request.json().catch(() => null);
-      if (body && typeof body === "object") {
-        const payload = body as Record<string, unknown>;
-        adolescenteId =
-          adolescenteId ?? (payload.adolescenteId as string | undefined) ?? null;
-        operadorId =
-          operadorId ?? (payload.operadorId as string | undefined) ?? null;
-        motivo =
-          typeof payload.motivo === "string"
-            ? payload.motivo
-            : motivo;
-      }
+      body = await request.json().catch(() => null);
     }
 
-    const operadorIdSession = session?.user?.id ?? null;
-    if (!operadorId || operadorId === "temp-operador-id") {
-      operadorId = operadorIdSession;
-    }
+    const queryId = ensureString(request.nextUrl.searchParams.get("adolescenteId"));
+    const bodyId = ensureString(body?.adolescenteId);
+    const adolescenteId = queryId || bodyId;
 
     if (!adolescenteId) {
       return NextResponse.json(
-        { erro: "adolescenteId é obrigatório" },
+        { erro: "adolescenteId e obrigatorio" },
         { status: 400 }
       );
     }
+
+    const motivo = ensureString(body?.motivo);
 
     const adolescente = await prisma.adolescente.findUnique({
       where: { id: adolescenteId },
@@ -295,21 +308,20 @@ export async function DELETE(request: NextRequest) {
 
     if (!adolescente) {
       return NextResponse.json(
-        { erro: "Adolescente não encontrado" },
+        { erro: "Adolescente nao encontrado" },
         { status: 404 }
       );
     }
 
     if (!adolescente.alojamentoAtualId) {
       return NextResponse.json(
-        { erro: "Adolescente já está sem alojamento" },
+        { erro: "Adolescente ja esta sem alojamento" },
         { status: 400 }
       );
     }
 
     const alojamentoAnterior = adolescente.alojamentoAtual;
 
-    // Remover alocação
     await prisma.$transaction(async (tx) => {
       await tx.adolescente.update({
         where: { id: adolescenteId },
@@ -318,45 +330,41 @@ export async function DELETE(request: NextRequest) {
         },
       });
 
-      // Registrar log apenas se houver operador válido
-      if (operadorId) {
-        const operadorExiste = await tx.operador.findUnique({
-          where: { id: operadorId },
-        });
+      await tx.logAuditoria.create({
+        data: {
+          operadorId,
+          acao: "REMOCAO_ALOCACAO",
+          tabelaAfetada: "adolescentes",
+          registroIdAfetado: adolescenteId,
+          detalhesAlteracao: {
+            alojamento_removido: alojamentoAnterior?.id ?? null,
+            casa: alojamentoAnterior?.casa.nome ?? null,
+            numero: alojamentoAnterior?.numeroAlojamento ?? null,
+            motivo: motivo || null,
+          },
+          ipOrigem: request.headers.get("x-forwarded-for") ?? "unknown",
+        },
+      });
+    });
 
-        if (operadorExiste) {
-          await tx.logAuditoria.create({
-            data: {
-              operadorId: operadorId,
-              acao: "REMOCAO_ALOCACAO",
-              tabelaAfetada: "adolescentes",
-              registroIdAfetado: adolescenteId,
-              detalhesAlteracao: {
-                alojamento_removido: alojamentoAnterior?.id,
-                casa: alojamentoAnterior?.casa.nome,
-                numero: alojamentoAnterior?.numeroAlojamento,
-                motivo,
-              },
-              ipOrigem: request.headers.get("x-forwarded-for") || "unknown",
-            },
-          });
-        }
-      }
+    emitMapaEvent({
+      tipo: "desalocacao",
+      adolescenteId,
+      alojamentoId: null,
     });
 
     return NextResponse.json({
       sucesso: true,
       mensagem: "Adolescente removido do alojamento",
       alojamento_liberado: {
-        casa: alojamentoAnterior?.casa.nome,
-        numero: alojamentoAnterior?.numeroAlojamento,
+        casa: alojamentoAnterior?.casa.nome ?? null,
+        numero: alojamentoAnterior?.numeroAlojamento ?? null,
       },
     });
   } catch (error) {
-    console.error("Erro ao remover alocação:", error);
     return NextResponse.json(
       {
-        erro: "Erro ao remover alocação",
+        erro: "Erro ao remover alocacao",
         detalhes: error instanceof Error ? error.message : String(error),
       },
       { status: 500 }

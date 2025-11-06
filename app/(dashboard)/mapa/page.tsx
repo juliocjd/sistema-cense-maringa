@@ -1,15 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { MapaInterativo } from "@/components/mapa/mapa-interativo";
-import { useAuth } from "@/hooks/useAuth";
 
 import type { Casa, Adolescente, Conflito } from "@/types";
 
 export default function MapaPage() {
-  // Autenticação
-  const { user } = useAuth();
-
   // Estados
   const [casas, setCasas] = useState<Casa[]>([]);
   const [adolescentes, setAdolescentes] = useState<Adolescente[]>([]);
@@ -17,11 +13,7 @@ export default function MapaPage() {
   const [error, setError] = useState<string | null>(null);
 
   // Carregar dados do banco
-  useEffect(() => {
-    carregarDados();
-  }, []);
-
-  const carregarDados = async () => {
+  const carregarDados = useCallback(async () => {
     setLoading(true);
     setError(null);
 
@@ -33,10 +25,13 @@ export default function MapaPage() {
         throw new Error("Erro ao carregar adolescentes");
       }
 
-      const adolescentesData = await adolescentesResponse.json();
+      const payload = await adolescentesResponse.json();
+      const adolescentesLista: any[] = Array.isArray(payload?.data)
+        ? payload.data
+        : [];
 
       // Transformar dados dos adolescentes
-      const adolescentesFormatados: Adolescente[] = adolescentesData.map(
+      const adolescentesFormatados: Adolescente[] = adolescentesLista.map(
         (a: any) => ({
           id: a.id,
           nomeCompleto: a.nomeCompleto,
@@ -130,6 +125,87 @@ export default function MapaPage() {
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    carregarDados();
+  }, [carregarDados]);
+
+  useEffect(() => {
+    let isActive = true;
+    let eventSource: EventSource | null = null;
+
+    const connect = () => {
+      if (!isActive) return;
+      eventSource = new EventSource("/api/mapa/events");
+
+      eventSource.onmessage = (event) => {
+        if (!event.data) return;
+        try {
+          const payload = JSON.parse(event.data);
+          if (
+            payload?.tipo === "alocacao" ||
+            payload?.tipo === "desalocacao" ||
+            payload?.tipo === "refresh"
+          ) {
+            carregarDados();
+          }
+        } catch {
+          // ignorar eventos invalidos
+        }
+      };
+
+      eventSource.onerror = () => {
+        if (eventSource) {
+          eventSource.close();
+        }
+        if (isActive) {
+          setTimeout(connect, 5000);
+        }
+      };
+    };
+
+    connect();
+
+    return () => {
+      isActive = false;
+      if (eventSource) {
+        eventSource.close();
+      }
+    };
+  }, [carregarDados]);
+
+  const handleDesalocar = async (
+    alojamentoId: string,
+    adolescenteId: string
+  ): Promise<string> => {
+    try {
+      const response = await fetch("/api/alocar", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          adolescenteId,
+          alojamentoId,
+          motivo: "Desalocacao manual via mapa interativo",
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.erro || "Erro ao desalocar adolescente");
+      }
+
+      const data = await response.json();
+      await carregarDados();
+      return data.mensagem || "Adolescente removido do alojamento com sucesso!";
+    } catch (error) {
+      console.error("Erro ao desalocar:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Erro desconhecido";
+      throw new Error(errorMessage);
+    }
   };
 
   // Handler de alocação com tipos corretos
@@ -138,8 +214,6 @@ export default function MapaPage() {
     alojamentoId: string,
     justificativa?: string
   ): Promise<void> => {
-    console.log("Alocando:", { adolescenteId, alojamentoId, justificativa });
-
     try {
       // Chamar API com campos CORRETOS
       const response = await fetch("/api/alocar", {
@@ -152,7 +226,6 @@ export default function MapaPage() {
           alojamentoId,
           justificativa,
           medidas_adicionais: [],
-          ...(user?.id ? { operadorId: user.id } : {}),
         }),
       });
 
@@ -162,7 +235,6 @@ export default function MapaPage() {
       }
 
       const data = await response.json();
-      console.log("Alocação realizada:", data);
 
       // Mostrar notificação de sucesso com detalhes
       alert(
@@ -252,6 +324,7 @@ export default function MapaPage() {
         casas={casas}
         adolescentes={adolescentes}
         onAlocar={handleAlocar}
+        onDesalocar={handleDesalocar}
       />
     </div>
   );

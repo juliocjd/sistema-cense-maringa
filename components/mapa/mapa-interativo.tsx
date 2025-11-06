@@ -4,6 +4,7 @@ import { useState } from "react";
 import { AlertTriangle, Lock, Activity } from "lucide-react";
 import { ModalAlocacao } from "./modal-alocacao";
 import type { Alojamento, Casa, Adolescente } from "@/types";
+import { useAuth } from "@/hooks/useAuth";
 
 interface MapaInterativoProps {
   casas: Casa[];
@@ -13,18 +14,24 @@ interface MapaInterativoProps {
     alojamentoId: string,
     justificativa?: string
   ) => Promise<void>;
+  onDesalocar: (
+    alojamentoId: string,
+    adolescenteId: string
+  ) => Promise<string>;
 }
 
 export function MapaInterativo({
   casas,
   adolescentes,
   onAlocar,
+  onDesalocar,
 }: MapaInterativoProps) {
   const [modalAberto, setModalAberto] = useState(false);
   const [alojamentoSelecionado, setAlojamentoSelecionado] =
     useState<Alojamento | null>(null);
+  const { user } = useAuth();
 
-  // ==================== FUNÇÕES DE LÓGICA ====================
+  // ==================== FUNCOES DE LOGICA ====================
 
   function getCorAlojamento(alojamento: Alojamento) {
     if (alojamento.statusManutencao === "INTERDITADO") {
@@ -55,17 +62,6 @@ export function MapaInterativo({
 
     const conflitos = [...(ocupante.conflitosA || []), ...(ocupante.conflitosB || [])];
 
-    // DEBUG
-    if (conflitos.length > 0) {
-      console.log(`🔍 Alojamento ${alojamento.numeroAlojamento}:`, {
-        ocupante: ocupante.nomeCompleto,
-        numConflitos: conflitos.length,
-        conflitos: conflitos.map(c => ({ id: c.id, adolescenteA: c.adolescenteAId, adolescenteB: c.adolescenteBId })),
-        ala: alojamento.ala,
-        alojamentoFrontalId: alojamento.alojamentoFrontalId
-      });
-    }
-
     const temConflitoCritico = conflitos.some((c) => {
       const outro =
         c.adolescenteAId === ocupante.id ? c.adolescenteBId : c.adolescenteAId;
@@ -76,7 +72,6 @@ export function MapaInterativo({
           .flatMap((casa) => casa.alojamentos)
           .find((a) => a.id === alojamento.alojamentoFrontalId);
         if (frontal?.adolescentes[0]?.id === outro) {
-          console.log(`🔴 CONFLITO FRONTAL: ${ocupante.nomeCompleto} vs ${frontal.adolescentes[0].nomeCompleto}`);
           return true;
         }
       }
@@ -87,7 +82,6 @@ export function MapaInterativo({
         ?.alojamentos.filter((a) => a.ala === alojamento.ala && a.adolescentes[0]?.id === outro);
 
       if (mesmaAla && mesmaAla.length > 0) {
-        console.log(`🔴 CONFLITO MESMA ALA: ${ocupante.nomeCompleto} vs ${mesmaAla[0].adolescentes[0].nomeCompleto}`);
         return true;
       }
 
@@ -100,7 +94,6 @@ export function MapaInterativo({
 
     const temConflito = conflitos.length > 0;
     if (temConflito) {
-      console.log(`🟡 Conflito não-crítico para ${ocupante.nomeCompleto}`);
       return "bg-yellow-100 border-yellow-400 shadow-lg shadow-yellow-200";
     }
 
@@ -169,35 +162,22 @@ export function MapaInterativo({
       setModalAberto(true);
     };
 
-    const handleDesalocar = async (alojamentoId: string, adolescenteId: string) => {
+    const handleDesalocar = async (
+      alojamentoId: string,
+      adolescenteId: string
+    ) => {
+      if (!user?.id) {
+        alert("Operador nao autenticado. Realize login novamente.");
+        return;
+      }
+
       try {
-        const response = await fetch("/api/alocar", {
-          method: "DELETE",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            adolescenteId,
-            alojamentoId,
-            operadorId: "temp-operador-id",
-            motivo: "Desalocação manual via mapa operacional",
-          }),
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.erro || "Erro ao desalocar adolescente");
-        }
-
-        alert("✅ Adolescente removido do alojamento com sucesso!");
-
-        // Recarregar página para atualizar o mapa
-        window.location.reload();
+        const mensagem = await onDesalocar(alojamentoId, adolescenteId);
+        alert(mensagem || "Adolescente removido do alojamento com sucesso!");
       } catch (error) {
-        console.error("Erro ao desalocar:", error);
         const errorMessage =
           error instanceof Error ? error.message : "Erro desconhecido";
-        alert(`❌ Erro ao remover adolescente:\n${errorMessage}`);
+        alert(`Erro ao remover adolescente:\n${errorMessage}`);
       }
     };
 

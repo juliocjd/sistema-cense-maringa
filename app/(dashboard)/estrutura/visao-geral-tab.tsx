@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Building2,
   Home,
@@ -15,7 +15,6 @@ import {
 } from "lucide-react";
 import { InicializarEstruturaButton } from "./inicializar-button";
 import { ModalAlocacao } from "@/components/mapa/modal-alocacao";
-import { useAuth } from "@/hooks/useAuth";
 
 type VisaoGeralTabProps = {
   casas: any[];
@@ -37,7 +36,6 @@ type Adolescente = {
 };
 
 export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoGeralTabProps) {
-  const { user } = useAuth();
   const [casas, setCasas] = useState(casasIniciais);
   const [adolescentes, setAdolescentes] = useState<Adolescente[]>([]);
   const [alojamentoSelecionado, setAlojamentoSelecionado] = useState<any>(null);
@@ -47,11 +45,7 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
   const totalCasas = casas.length;
 
   // Carregar adolescentes e ocupação atualizada
-  useEffect(() => {
-    carregarDados();
-  }, []);
-
-  const carregarDados = async () => {
+  const carregarDados = useCallback(async () => {
     setLoading(true);
     try {
       // Carregar adolescentes com conflitos primeiro
@@ -59,8 +53,11 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
       let adolescentesData: Adolescente[] = [];
 
       if (adolescentesResponse.ok) {
-        adolescentesData = await adolescentesResponse.json();
+        const payload = await adolescentesResponse.json();
+        adolescentesData = Array.isArray(payload?.data) ? payload.data : [];
         setAdolescentes(adolescentesData);
+      } else {
+        console.warn("Falha ao buscar adolescentes:", adolescentesResponse.status);
       }
 
       // Carregar ocupação atualizada das casas
@@ -105,7 +102,53 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    carregarDados();
+  }, [carregarDados]);
+
+  useEffect(() => {
+    let active = true;
+    let eventSource: EventSource | null = null;
+
+    const connect = () => {
+      if (!active) return;
+      eventSource = new EventSource("/api/mapa/events");
+
+      eventSource.onmessage = (event) => {
+        if (!event.data) {
+          return;
+        }
+        try {
+          const payload = JSON.parse(event.data);
+          if (
+            payload?.tipo === "alocacao" ||
+            payload?.tipo === "desalocacao" ||
+            payload?.tipo === "refresh"
+          ) {
+            carregarDados();
+          }
+        } catch {
+          // ignorar
+        }
+      };
+
+      eventSource.onerror = () => {
+        eventSource?.close();
+        if (active) {
+          setTimeout(connect, 5000);
+        }
+      };
+    };
+
+    connect();
+
+    return () => {
+      active = false;
+      eventSource?.close();
+    };
+  }, [carregarDados]);
 
   // ==================== FUN��O DE COR ALINHADA AO BACKEND ====================
   function getCorAlojamento(alojamento: any) {
@@ -216,7 +259,6 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
           alojamentoId,
           justificativa,
           medidas_adicionais: [],
-          ...(user?.id ? { operadorId: user.id } : {}),
         }),
       });
 
@@ -253,7 +295,6 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
         body: JSON.stringify({
           adolescenteId,
           alojamentoId,
-          ...(user?.id ? { operadorId: user.id } : {}),
           motivo: "Desalocação manual via interface",
         }),
       });

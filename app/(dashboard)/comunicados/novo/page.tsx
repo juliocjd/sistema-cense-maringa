@@ -28,11 +28,10 @@ export default function NovoCIPage() {
         throw new Error("Erro ao carregar adolescentes");
       }
 
-      const data = await response.json();
-      setAdolescentes(data);
+      const payload = await response.json();
+      const lista = Array.isArray(payload?.data) ? payload.data : [];
+      setAdolescentes(lista);
     } catch (error) {
-      console.error("Erro:", error);
-
       // Mock de dados
       setAdolescentes([
         {
@@ -103,7 +102,6 @@ export default function NovoCIPage() {
       // Redirecionar para lista
       router.push("/comunicados");
     } catch (error) {
-      console.error("Erro:", error);
       throw error;
     }
   };

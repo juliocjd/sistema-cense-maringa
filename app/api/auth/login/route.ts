@@ -134,10 +134,49 @@ export async function POST(request: NextRequest) {
 // POST /api/auth/register - Cadastrar novo operador (apenas ADMIN)
 export async function PUT(request: NextRequest) {
   try {
-    // TODO: Verificar se usuário logado é ADMIN
-    // const token = request.headers.get('Authorization')?.replace('Bearer ', '');
-    // const decoded = jwt.verify(token, JWT_SECRET);
-    // if (decoded.role !== 'ADMIN') return 403
+    const authHeader = request.headers.get("authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return NextResponse.json(
+        { erro: "Credenciais de administrador ausentes" },
+        { status: 401 }
+      );
+    }
+
+    const token = authHeader.replace("Bearer ", "").trim();
+    let decoded: any;
+    try {
+      decoded = jwt.verify(token, JWT_SECRET);
+    } catch (error) {
+      console.warn("Falha ao validar token de administrador:", error);
+      return NextResponse.json(
+        { erro: "Token inválido ou expirado" },
+        { status: 401 }
+      );
+    }
+
+    if (typeof decoded !== "object" || decoded === null) {
+      return NextResponse.json(
+        { erro: "Token inválido" },
+        { status: 401 }
+      );
+    }
+
+    if (decoded.role !== "ADMIN") {
+      await prisma.logAuditoria.create({
+        data: {
+          operadorId: decoded.id ?? null,
+          acao: "LOGIN_FALHA",
+          detalhesAlteracao: {
+            motivo: "Usuário sem permissão para registrar operador",
+          },
+        },
+      });
+
+      return NextResponse.json(
+        { erro: "Apenas administradores podem cadastrar operadores" },
+        { status: 403 }
+      );
+    }
 
     const body = await request.json();
 

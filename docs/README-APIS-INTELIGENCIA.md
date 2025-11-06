@@ -1,69 +1,51 @@
-# 🧠 APIs de Inteligência - Sistema CENSE Maringá
+# APIs de Inteligência Operacional
 
-## 📋 Visão Geral
-
-Estas são as **APIs críticas** que implementam a inteligência do sistema - análise de riscos, detecção de conflitos e prevenção de incidentes.
+Este guia descreve as rotas responsáveis pela análise de risco de alocação, grupos e eventos especiais. Todas as chamadas exigem sessão autenticada via NextAuth/`auth()`; o backend ignora qualquer `operadorId` enviado pelo cliente.
 
 ---
 
-## 🎯 APIs Implementadas
+## Autenticação
+- Requer cookie de sessão válido (NextAuth).  
+- Rotas retornam `401` se a sessão for inexistente e `403` se o operador não estiver cadastrado/ativo.  
+- Toda ação gera registro em `logAuditoria` com IP (`x-forwarded-for`) e operador autenticado.
 
-### 1. **GET /api/verificar-alocacao** ⭐ CRÍTICA
+---
 
-**Função:** Analisa todos os riscos antes de alocar um adolescente em um alojamento.
+## 1. Verificação de Alocação
 
-**Query Params:**
-- `adolescenteId` (string, obrigatório) - ID do adolescente
-- `alojamentoId` (string, obrigatório) - ID do alojamento alvo
+`GET /api/verificar-alocacao?adolescenteId=<uuid>&alojamentoId=<uuid>`
 
-**Níveis de Risco Detectados:**
-
-| Nível | Tipo | Descrição |
-|-------|------|-----------|
-| 5 - CRÍTICO | Conflito Frontal | Adolescentes rivais em alojamentos frontais (ex: 01 ↔ 06) |
-| 4 - ALTO | Mesma Ala | Conflito ativo na mesma ala |
-| 3 - MÉDIO-ALTO | Mesma Casa | Conflito em alas diferentes da mesma casa |
-| 2 - MÉDIO | Zona de Risco | Conflito em zonas mapeadas (janelas) |
-| 1 - BAIXO | Sem Conflitos | Nenhum conflito detectado |
-
-**Response (200):**
-```json
+### Resposta (200)
+```jsonc
 {
   "permite_alocacao": true,
-  "requer_justificativa": true,
-  "nivel_risco": "CRÍTICO",
-  "nivel_numerico": 5,
+  "requer_justificativa": false,
+  "nivel_risco": "MEDIO",
+  "nivel_numerico": 3,
   "alertas": [
     {
-      "tipo": "CONFLITO_FRONTAL",
-      "nivel": 5,
-      "mensagem": "⚠️ CONFLITO NÍVEL 5 (FRONTAL CRÍTICO) com João Silva no alojamento frontal 06.",
+      "tipo": "CONFLITO_MESMA_CASA",
+      "nivel": 3,
+      "mensagem": "Conflito ativo com João Silva na Casa 02 (ala B).",
       "adolescente_conflitante": {
-        "id": "uuid-123",
+        "id": "uuid-adversario",
         "nome": "João Silva",
-        "alojamento": "06"
+        "alojamento": "Casa 02 - 05B"
       },
       "tipo_conflito": "FACCAO",
       "origem": "CI"
-    },
-    {
-      "tipo": "RISCO_SUICIDIO",
-      "nivel": 0,
-      "mensagem": "⚠️ ADOLESCENTE COM RISCO DE SUICÍDIO",
-      "detalhes": "⚠️ Alojamento frontal está VAZIO - recomenda-se ocupar",
-      "recomendacao": "✅ Localização preferencial (próximo a portas)"
     }
   ],
-  "alojamento": {
-    "id": "uuid-aloj",
-    "casa": "Casa 02",
-    "numero": "05",
-    "ala": "A"
-  },
   "adolescente": {
-    "id": "uuid-adol",
+    "id": "uuid-adolescente",
     "nome": "Pedro Santos",
     "sms": "12345"
+  },
+  "alojamento": {
+    "id": "uuid-alojamento",
+    "casa": "Casa 02",
+    "numero": "05",
+    "ala": "B"
   },
   "estatisticas": {
     "total_conflitos_ativos": 3,
@@ -72,509 +54,220 @@ Estas são as **APIs críticas** que implementam a inteligência do sistema - an
 }
 ```
 
-**Response (400/404/500):**
-```json
-{
-  "erro": "Descrição do erro",
-  "permite_alocacao": false
-}
-```
+### Regras Principais
+- Nível 5: crítico (alojamento frontal com rival).  
+- Nível 4: alto (mesma ala).  
+- Nível 3: médio-alto (outra ala da mesma casa).  
+- Nível 2: médio (zonas de risco cadastradas).  
+- Nível 1: baixo (nenhum conflito).  
+- Se o alojamento estiver interditado ou ocupado, a API retorna `400` com `permite_alocacao` falso.
 
 ---
 
-### 2. **POST /api/alocar** ⭐ CRÍTICA
+## 2. Alocação de Adolescente
 
-**Função:** Executa a alocação de um adolescente em um alojamento.
+`POST /api/alocar`
 
-**Body:**
-```json
+### Request
+```jsonc
 {
-  "adolescenteId": "uuid-123",
-  "alojamentoId": "uuid-456",
-  "operadorId": "uuid-789",
-  "justificativa": "Única vaga disponível. Supervisão reforçada.",
-  "medidas_adicionais": [
-    "Monitoramento 24h",
-    "Alerta para equipe de plantão"
-  ]
+  "adolescenteId": "uuid",
+  "alojamentoId": "uuid",
+  "justificativa": "Única vaga disponível, vigilância reforçada.",
+  "medidas_adicionais": ["Monitoramento 24h"]
 }
 ```
 
-**Campos:**
-- `adolescenteId` (string, obrigatório)
-- `alojamentoId` (string, obrigatório)
-- `operadorId` (string, obrigatório)
-- `justificativa` (string, obrigatório se houver risco)
-- `medidas_adicionais` (string[], opcional)
+### Comportamento
+1. Reexecuta internamente `/api/verificar-alocacao`.  
+2. Se `requer_justificativa = true` e nenhuma justificativa for enviada, responde `400`.  
+3. Atualiza o `alojamentoAtualId` do adolescente, cria `DecisaoOperacional` (quando necessário) e registra `LogAuditoria`.  
+4. Toda operação roda dentro de transação Prisma.
 
-**Validações Automáticas:**
-1. Chama `/verificar-alocacao` internamente
-2. Se `requer_justificativa = true` e justificativa não foi enviada → ERRO 400
-3. Verifica se alojamento está livre
-4. Verifica se alojamento não está interditado
-
-**O que a API faz:**
-1. ✅ Atualiza `alojamentoAtualId` do adolescente
-2. ✅ Cria `DecisaoOperacional` (se houver risco)
-3. ✅ Cria `LogAuditoria` (sempre)
-4. ✅ Tudo em **transaction** (rollback automático se falhar)
-
-**Response (201):**
-```json
+### Resposta (201)
+```jsonc
 {
   "sucesso": true,
   "mensagem": "Adolescente alocado com sucesso",
   "documentado": true,
   "adolescente": {
-    "id": "uuid-123",
+    "id": "uuid",
     "nome": "Pedro Santos",
     "alojamento": {
       "casa": "Casa 02",
       "numero": "05",
-      "ala": "A"
+      "ala": "B"
     }
   },
-  "decisao_id": "uuid-decisao-123",
-  "nivel_risco": "CRÍTICO",
-  "alertas_processados": 2
+  "decisao_id": "uuid-decisao",
+  "nivel_risco": "MEDIO",
+  "alertas_processados": 1
 }
 ```
 
-**Response (400):**
-```json
-{
-  "erro": "Esta alocação requer justificativa obrigatória",
-  "nivel_risco": "CRÍTICO",
-  "alertas": [...],
-  "requer_justificativa": true
-}
-```
+### Erros Possíveis
+- `400`: justificativa ausente, alojamento ocupado, alojamento interditado.  
+- `404`: adolescente ou alojamento inexistente.  
+- `409`: conflito de ocupação detectado durante a transação.
 
 ---
 
-### 3. **DELETE /api/alocar**
+## 3. Desalocação
 
-**Função:** Remove adolescente de seu alojamento atual (liberar alojamento).
+`DELETE /api/alocar?adolescenteId=<uuid>`  
+Corpo opcional (JSON) aceita `justificativa` e `motivo`. O operador é inferido via sessão.
 
-**Query Params:**
-- `adolescenteId` (string, obrigatório)
-- `operadorId` (string, obrigatório)
-
-**Response (200):**
-```json
+### Resposta (200)
+```jsonc
 {
   "sucesso": true,
   "mensagem": "Adolescente removido do alojamento",
   "alojamento_liberado": {
+    "id": "uuid-aloj",
     "casa": "Casa 02",
-    "numero": "05"
+    "numero": "05",
+    "ala": "B"
   }
 }
 ```
 
+Se o adolescente já estiver sem alojamento, a rota retorna `409` com mensagem explicativa.
+
 ---
 
-### 4. **POST /api/grupos/[id]/adicionar-membro** ⭐ IMPORTANTE
+## 4. Adicionar Membro a Grupo
 
-**Função:** Adiciona adolescente a um grupo, verificando conflitos.
+`POST /api/grupos/{id}/adicionar-membro`
 
-**Params:**
-- `id` (string) - ID do grupo
-
-**Body:**
-```json
+```jsonc
 {
-  "adolescenteId": "uuid-123",
-  "operadorId": "uuid-789",
-  "justificativa": "Mediação realizada com sucesso",
-  "medidas_adicionais": ["Supervisão durante atividades"]
+  "adolescenteId": "uuid",
+  "justificativa": "Mediação concluída",
+  "medidas_adicionais": ["Supervisão durante refeições"]
 }
 ```
 
-**Verificações Automáticas:**
-1. ✅ Se adolescente já pertence a outro grupo ativo → ERRO
-2. ✅ Conflitos diretos com membros do mesmo grupo (CRÍTICO)
-3. ✅ Conflitos com membros de outros grupos da mesma casa (ALTO)
+### Validações
+- Impede duplicidade de membro ativo.  
+- Avalia conflitos com membros do grupo ou da casa do grupo.  
+- Retorna `400` quando requer justificativa e não foi enviada.  
+- Registra `DecisaoOperacional` e `LogAuditoria` quando necessário.
 
-**Response (201):**
-```json
+### Resposta (201)
+```jsonc
 {
   "sucesso": true,
-  "mensagem": "Adolescente adicionado ao grupo com sucesso",
+  "mensagem": "Adolescente adicionado ao grupo",
   "documentado": true,
   "membro": {
-    "id": "uuid-membro",
-    "adolescente": {
-      "id": "uuid-123",
-      "nome": "Pedro Santos"
-    },
-    "grupo": {
-      "id": "uuid-grupo",
-      "nome": "Grupo 2A",
-      "casa": "Casa 02"
-    },
-    "data_entrada": "2025-11-03T10:30:00Z"
+    "id": "uuid",
+    "adolescente": { "id": "uuid-adol", "nome": "Pedro Santos" },
+    "grupo": { "id": "uuid-grupo", "nome": "Grupo Alpha" },
+    "data_entrada": "2025-11-05T19:23:18.123Z"
   },
   "decisao_id": "uuid-decisao",
-  "alertas_processados": 1,
-  "nivel_risco": "CRÍTICO"
-}
-```
-
-**Response (400) - Requer Justificativa:**
-```json
-{
-  "status": "REQUER_JUSTIFICATIVA",
-  "nivel": "CRÍTICO",
-  "conflitos": [
-    {
-      "tipo": "CONFLITO_MESMO_GRUPO",
-      "nivel": "CRÍTICO",
-      "mensagem": "⚠️ CONFLITO DIRETO com João Silva que está no mesmo grupo",
-      "adolescente_conflitante": {
-        "id": "uuid-456",
-        "nome": "João Silva"
-      },
-      "tipo_conflito": "FACCAO",
-      "impacto": "Os dois adolescentes estarão JUNTOS em todas as atividades do grupo"
-    }
-  ],
-  "mensagem": "Conflitos detectados. Justificativa obrigatória para prosseguir."
+  "nivel_risco": "ALTO",
+  "alertas_processados": 2
 }
 ```
 
 ---
 
-### 5. **GET /api/conflitos/[id]/mediacoes**
+## 5. Eventos Especiais
 
-**Função:** Retorna histórico de tentativas de mediação.
+### 5.1 Listar / Criar
+- `GET /api/eventos-especiais` aceita filtros `status`, `data_inicio`, `data_fim`, `incluirGrupos`, `incluirParticipantes`.  
+- `POST /api/eventos-especiais` cria evento, associa grupos/participantes e executa a análise de risco inicial.
 
-**Response (200):**
-```json
+### Request (POST)
+```jsonc
 {
-  "conflito_id": "uuid-123",
-  "total_tentativas": 3,
-  "mediacoes": [
-    {
-      "id": "uuid-med-1",
-      "data_tentativa": "2025-11-01",
-      "profissional_responsavel": "Maria Santos - Psicóloga",
-      "tipo_intervencao": "MEDIACAO",
-      "resultado": "EM_ANDAMENTO",
-      "observacoes": "Primeira sessão. Adolescentes demonstraram disposição...",
-      "proxima_acao_recomendada": "Acompanhamento em 15 dias",
-      "data_proxima_avaliacao": "2025-11-15",
-      "criado_em": "2025-11-01T09:30:00Z"
-    }
-  ],
-  "ultima_tentativa": {
-    "data": "2025-11-01",
-    "resultado": "EM_ANDAMENTO"
+  "titulo": "Campeonato de Futsal",
+  "descricao": "Evento interno com supervisão total.",
+  "inicioPrevisto": "2025-11-10T14:00:00Z",
+  "fimPrevisto": "2025-11-10T18:00:00Z",
+  "gruposParticipantes": ["uuid-grupo-1"],
+  "adolescentesParticipantes": ["uuid-adolescente-1", "uuid-adolescente-2"]
+}
+```
+
+### Resposta (201)
+```jsonc
+{
+  "evento": {
+    "id": "uuid-evento",
+    "titulo": "Campeonato de Futsal",
+    "status": "PLANEJADO",
+    "inicioPrevisto": "2025-11-10T14:00:00.000Z",
+    "fimPrevisto": "2025-11-10T18:00:00.000Z",
+    "grupos": [...],
+    "participantes": [...]
   },
-  "estatisticas": {
-    "resolvidas": 0,
-    "em_andamento": 2,
-    "sem_sucesso": 1
+  "analise": {
+    "score_risco_combinado": 4.2,
+    "nivel": "ALTO",
+    "conflitos_criticos": 1,
+    "recomendacoes": ["Separar rivais em horários distintos."]
   }
 }
 ```
 
----
+### 5.2 Verificar Conflitos de um Evento
+`POST /api/eventos-especiais/{id}/verificar-conflitos`
 
-### 6. **POST /api/conflitos/[id]/mediacoes**
-
-**Função:** Registra nova tentativa de mediação.
-
-**Body:**
-```json
+Request opcional permite informar subconjuntos de grupos/participantes:
+```jsonc
 {
-  "dataTentativa": "2025-11-03",
-  "profissionalResponsavel": "Maria Santos - Psicóloga",
-  "tipoIntervencao": "MEDIACAO",
-  "resultado": "EM_ANDAMENTO",
-  "observacoes": "Segunda sessão. Progresso lento mas positivo.",
-  "proximaAcaoRecomendada": "Continuar acompanhamento",
-  "dataProximaAvaliacao": "2025-11-18"
+  "gruposParticipantes": ["uuid-grupo-1"],
+  "adolescentesParticipantes": ["uuid-adolescente-1"]
 }
 ```
+Quando omitido, usa os dados já cadastrados no evento.
 
-**Campos:**
-- `dataTentativa` (string YYYY-MM-DD, obrigatório)
-- `profissionalResponsavel` (string, obrigatório)
-- `tipoIntervencao` (string, obrigatório) - "MEDIACAO", "ATENDIMENTO_INDIVIDUAL", "GRUPO_TERAPEUTICO"
-- `resultado` (string, obrigatório) - "RESOLVIDO", "EM_ANDAMENTO", "SEM_SUCESSO"
-- `observacoes` (string, opcional)
-- `proximaAcaoRecomendada` (string, opcional)
-- `dataProximaAvaliacao` (string YYYY-MM-DD, opcional)
-
-**Comportamento Especial:**
-- ⭐ Se `resultado = "RESOLVIDO"`, o conflito é marcado automaticamente como RESOLVIDO
-
-**Response (201):**
-```json
+### Resposta
+```jsonc
 {
-  "sucesso": true,
-  "mensagem": "Tentativa de mediação registrada com sucesso",
-  "mediacao": {
-    "id": "uuid-med",
-    "data_tentativa": "2025-11-03",
-    "profissional": "Maria Santos - Psicóloga",
-    "tipo": "MEDIACAO",
-    "resultado": "RESOLVIDO"
-  },
-  "conflito": {
-    "id": "uuid-123",
-    "adolescentes": "João Silva vs Pedro Santos",
-    "status": "RESOLVIDO"
-  },
-  "acao_automatica": "Conflito marcado como resolvido automaticamente"
-}
-```
-
----
-
-### 7. **PUT /api/conflitos/[id]/resolver**
-
-**Função:** Marca conflito como resolvido manualmente.
-
-**Body (opcional):**
-```json
-{
-  "operadorId": "uuid-789",
-  "observacao": "Conflito resolvido após conversa entre adolescentes"
-}
-```
-
-**Response (200):**
-```json
-{
-  "sucesso": true,
-  "mensagem": "Conflito marcado como resolvido",
-  "conflito": {
-    "id": "uuid-123",
-    "adolescentes": "João Silva vs Pedro Santos",
-    "tipo": "FACCAO",
-    "status": "RESOLVIDO",
-    "resolvido_em": "2025-11-03T14:30:00Z",
-    "criado_em": "2025-10-20T10:00:00Z",
-    "tempo_resolucao": "14 dias"
-  },
-  "estatisticas": {
-    "total_tentativas_mediacao": 3,
-    "ultima_mediacao": {
-      "data": "2025-11-01",
-      "resultado": "EM_ANDAMENTO",
-      "profissional": "Maria Santos - Psicóloga"
-    }
+  "eventoId": "uuid-evento",
+  "participantes_avaliados": 12,
+  "analise": {
+    "score_risco_combinado": 6.1,
+    "nivel": "CRITICO",
+    "conflitos_criticos": 2,
+    "conflitos_detalhados": [
+      {
+        "adolescenteA": { "id": "...", "nome": "João" },
+        "adolescenteB": { "id": "...", "nome": "Enzo" },
+        "motivo": "Rivalidade entre facções"
+      }
+    ],
+    "recomendacoes": ["Separar alojamentos", "Reforçar escolta"],
+    "participantes_avaliados": 12
   }
 }
 ```
 
----
-
-### 8. **DELETE /api/conflitos/[id]/resolver**
-
-**Função:** Reverte resolução de conflito (marca como ATIVO novamente).
-
-**Útil quando:** Houve erro ao marcar como resolvido, ou conflito voltou a acontecer.
-
-**Body:**
-```json
-{
-  "operadorId": "uuid-789",
-  "motivo": "Conflito voltou a acontecer"
-}
-```
-
-**Response (200):**
-```json
-{
-  "sucesso": true,
-  "mensagem": "Resolução do conflito revertida. Conflito marcado como ATIVO",
-  "conflito": {
-    "id": "uuid-123",
-    "status": "ATIVO"
-  }
-}
-```
+### Erros
+- `404` se algum grupo/participante informado não existir.  
+- `400` quando o corpo contém tipos inválidos.
 
 ---
 
-## 🔐 Auditoria e Rastreabilidade
-
-Todas as APIs implementam auditoria completa:
-
-### Tabela: `decisoes_operacionais`
-Registra decisões de risco (quando há conflito e justificativa):
-- Operador responsável
-- Tipo de operação
-- Nível de alerta
-- Conflitos detectados (JSON)
-- Justificativa fornecida
-- Medidas adicionais
-- Timestamp
-
-### Tabela: `log_auditoria`
-Registra TODAS as ações (sempre):
-- Operador responsável
-- Ação executada
-- Tabela afetada
-- ID do registro alterado
-- Detalhes da alteração (JSON)
-- IP de origem
-- Timestamp
+## Logs e Auditoria
+Todas as rotas acima criam entradas em `logAuditoria` com os campos:
+- `operadorId`: obtido da sessão.  
+- `acao`: string padronizada (ex.: `ALOCACAO_REALIZADA`, `GRUPO_ADICIONAR_MEMBRO`, `EVENTO_VERIFICAR_RISCO`).  
+- `tabelaAfetada`: nome lógico (ex.: `adolescentes`, `eventos_especiais`).  
+- `registroIdAfetado`: id principal da entidade alterada.  
+- `detalhesAlteracao`: objeto JSON com dados contextualizados (nível de risco, justificativa etc.).  
+- `ipOrigem`: `x-forwarded-for` ou `unknown`.
 
 ---
 
-## 🎯 Fluxos Completos
-
-### Fluxo 1: Alocar Adolescente
-
-```mermaid
-sequenceDiagram
-    Frontend->>API: GET /verificar-alocacao
-    API->>Banco: Busca conflitos ativos
-    Banco-->>API: Conflitos
-    API->>API: Calcula níveis de risco
-    API-->>Frontend: Alertas e nível de risco
-    Frontend->>Usuário: Exibe alertas
-    Usuário->>Frontend: Confirma + justificativa
-    Frontend->>API: POST /alocar
-    API->>Banco: Transaction (adolescente + decisão + log)
-    Banco-->>API: Sucesso
-    API-->>Frontend: Alocação confirmada
-```
-
-### Fluxo 2: Registrar Mediação
-
-```mermaid
-sequenceDiagram
-    Frontend->>API: POST /conflitos/:id/mediacoes
-    API->>Banco: Cria tentativa_mediacao
-    Banco-->>API: Mediação criada
-    alt Resultado = RESOLVIDO
-        API->>Banco: Atualiza conflito (status=RESOLVIDO)
-        Banco-->>API: Conflito resolvido
-    end
-    API-->>Frontend: Sucesso
-```
+## Testes Automatizados
+- Vitest configurado em `vitest.config.ts`.  
+- Suites existentes: `tests/lib/calc-risco-evento.test.ts`, `tests/api/alocar.test.ts`, `tests/api/eventos-especiais-verificar.test.ts`.  
+- Pendências: cenários “happy path” para POST/DELETE alocação, testes de grupos e integrações com dados reais de Prisma (work-in-progress).
 
 ---
 
-## 🧪 Testando as APIs
-
-### 1. Verificar Alocação
-```bash
-curl "http://localhost:3000/api/verificar-alocacao?adolescenteId=uuid-123&alojamentoId=uuid-456"
-```
-
-### 2. Alocar (sem risco)
-```bash
-curl -X POST http://localhost:3000/api/alocar \
-  -H "Content-Type: application/json" \
-  -d '{
-    "adolescenteId": "uuid-123",
-    "alojamentoId": "uuid-456",
-    "operadorId": "uuid-789"
-  }'
-```
-
-### 3. Alocar (com risco + justificativa)
-```bash
-curl -X POST http://localhost:3000/api/alocar \
-  -H "Content-Type: application/json" \
-  -d '{
-    "adolescenteId": "uuid-123",
-    "alojamentoId": "uuid-456",
-    "operadorId": "uuid-789",
-    "justificativa": "Única vaga disponível. Supervisão reforçada."
-  }'
-```
-
-### 4. Adicionar a Grupo
-```bash
-curl -X POST http://localhost:3000/api/grupos/uuid-grupo/adicionar-membro \
-  -H "Content-Type: application/json" \
-  -d '{
-    "adolescenteId": "uuid-123",
-    "operadorId": "uuid-789",
-    "justificativa": "Mediação realizada"
-  }'
-```
-
-### 5. Registrar Mediação
-```bash
-curl -X POST http://localhost:3000/api/conflitos/uuid-conflito/mediacoes \
-  -H "Content-Type: application/json" \
-  -d '{
-    "dataTentativa": "2025-11-03",
-    "profissionalResponsavel": "Maria Santos - Psicóloga",
-    "tipoIntervencao": "MEDIACAO",
-    "resultado": "EM_ANDAMENTO",
-    "observacoes": "Primeira sessão"
-  }'
-```
-
-### 6. Resolver Conflito
-```bash
-curl -X PUT http://localhost:3000/api/conflitos/uuid-conflito/resolver \
-  -H "Content-Type: application/json" \
-  -d '{
-    "operadorId": "uuid-789"
-  }'
-```
-
----
-
-## 📊 Estatísticas das APIs
-
-| API | Complexidade | LOC | Queries ao Banco | Transaction | Auditoria |
-|-----|--------------|-----|------------------|-------------|-----------|
-| `/verificar-alocacao` | ⭐⭐⭐⭐⭐ | ~350 | 5+ | Não | Não |
-| `/alocar` | ⭐⭐⭐⭐ | ~200 | 3 | Sim | Sim |
-| `/grupos/:id/adicionar-membro` | ⭐⭐⭐⭐ | ~250 | 4 | Sim | Sim |
-| `/conflitos/:id/mediacoes` (GET) | ⭐⭐ | ~80 | 2 | Não | Não |
-| `/conflitos/:id/mediacoes` (POST) | ⭐⭐⭐ | ~150 | 2 | Não | Não |
-| `/conflitos/:id/resolver` (PUT) | ⭐⭐⭐ | ~120 | 2 | Sim | Sim |
-| `/conflitos/:id/resolver` (DELETE) | ⭐⭐ | ~100 | 2 | Sim | Sim |
-
----
-
-## ✅ Status de Implementação
-
-- ✅ `/api/verificar-alocacao` - **100% Completo**
-- ✅ `/api/alocar` (POST) - **100% Completo**
-- ✅ `/api/alocar` (DELETE) - **100% Completo**
-- ✅ `/api/grupos/:id/adicionar-membro` - **100% Completo**
-- ✅ `/api/conflitos/:id/mediacoes` (GET) - **100% Completo**
-- ✅ `/api/conflitos/:id/mediacoes` (POST) - **100% Completo**
-- ✅ `/api/conflitos/:id/resolver` (PUT) - **100% Completo**
-- ✅ `/api/conflitos/:id/resolver` (DELETE) - **100% Completo**
-
----
-
-## 🚀 Próximos Passos
-
-Estas APIs já estão prontas para uso! Agora você pode:
-
-1. ✅ **Integrar com frontend** - Conectar componentes existentes
-2. ⏳ **Criar Mapa Visual** - Usar `/verificar-alocacao` no mapa interativo
-3. ⏳ **Testar em produção** - Com dados reais
-4. ⏳ **Adicionar métricas** - Dashboard de uso das APIs
-5. ⏳ **Implementar cache** - Para `/verificar-alocacao` (otimização)
-
----
-
-## 🎉 APIs de Inteligência 100% PRONTAS!
-
-**Total de linhas de código:** ~1.400
-**Total de endpoints:** 8
-**Complexidade:** Alta
-**Status:** ✅ Produção-ready
-**Cobertura:** Core completo do sistema de inteligência
-
----
-
-**Desenvolvido para:** Sistema CENSE Maringá
-**Data:** Novembro 2025
-**Versão:** 1.0
+_Documento revisado em 05/11/2025._

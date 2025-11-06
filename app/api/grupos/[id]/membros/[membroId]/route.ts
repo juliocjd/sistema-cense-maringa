@@ -1,80 +1,88 @@
-// app/api/grupos/[id]/membros/[membroId]/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 
-// DELETE /api/grupos/[id]/membros/[membroId] - Remover membro do grupo
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; membroId: string }> }
 ) {
   try {
     const { id: grupoId, membroId } = await params;
+    const session = await auth().catch(() => null);
+    const operadorId = session?.user?.id ?? null;
 
-    // Verificar se membro existe
+    if (!operadorId) {
+      return NextResponse.json(
+        { erro: "Operador nao autenticado" },
+        { status: 401 }
+      );
+    }
+
+    const operadorExiste = await prisma.operador.findUnique({
+      where: { id: operadorId },
+      select: { id: true },
+    });
+
+    if (!operadorExiste) {
+      return NextResponse.json(
+        { erro: "Operador nao encontrado" },
+        { status: 403 }
+      );
+    }
+
     const membro = await prisma.grupoMembro.findUnique({
       where: { id: membroId },
       include: {
-        grupo: {
-          select: {
-            id: true,
-            nomeGrupo: true,
-          },
-        },
-        adolescente: {
-          select: {
-            id: true,
-            nomeCompleto: true,
-          },
-        },
+        grupo: { select: { id: true, nomeGrupo: true } },
+        adolescente: { select: { id: true, nomeCompleto: true } },
       },
     });
 
     if (!membro) {
       return NextResponse.json(
-        { erro: "Membro não encontrado" },
+        { erro: "Membro nao encontrado" },
         { status: 404 }
       );
     }
 
-    // Verificar se o membro pertence ao grupo correto
     if (membro.grupoId !== grupoId) {
       return NextResponse.json(
-        { erro: "Membro não pertence a este grupo" },
+        { erro: "Membro nao pertence a este grupo" },
         { status: 400 }
       );
     }
 
-    // Verificar se já foi removido
     if (membro.dataSaida !== null) {
       return NextResponse.json(
-        { erro: "Este membro já foi removido do grupo anteriormente" },
+        { erro: "Este membro ja foi removido anteriormente" },
         { status: 400 }
       );
     }
 
-    // Atualizar membro (soft delete - marca data de saída)
-    const membroAtualizado = await prisma.grupoMembro.update({
-      where: { id: membroId },
-      data: {
-        dataSaida: new Date(),
-      },
-    });
-
-    // Log de auditoria
-    await prisma.logAuditoria.create({
-      data: {
-        // operadorId: request.user?.id, // TODO: Adicionar após implementar auth
-        acao: "UPDATE",
-        tabelaAfetada: "GruposMembros",
-        registroIdAfetado: membroId,
-        detalhesAlteracao: {
-          acao: "Remoção de membro",
-          grupo: membro.grupo.nomeGrupo,
-          adolescente: membro.adolescente.nomeCompleto,
-          dataSaida: membroAtualizado.dataSaida,
+    const membroAtualizado = await prisma.$transaction(async (tx) => {
+      const atualizado = await tx.grupoMembro.update({
+        where: { id: membroId },
+        data: {
+          dataSaida: new Date(),
         },
-        // ipOrigem: request.ip,
-      },
+      });
+
+      await tx.logAuditoria.create({
+        data: {
+          operadorId,
+          acao: "GRUPO_REMOVER_MEMBRO",
+          tabelaAfetada: "grupos_membros",
+          registroIdAfetado: membroId,
+          detalhesAlteracao: {
+            grupo: membro.grupo.nomeGrupo,
+            adolescente: membro.adolescente.nomeCompleto,
+            dataSaida: atualizado.dataSaida,
+          },
+          ipOrigem: request.headers.get("x-forwarded-for") ?? "unknown",
+        },
+      });
+
+      return atualizado;
     });
 
     return NextResponse.json({
@@ -89,7 +97,7 @@ export async function DELETE(
           id: membro.grupo.id,
           nome: membro.grupo.nomeGrupo,
         },
-        dataEntrada: membroAtualizado.dataEntrada,
+        dataEntrada: membro.dataEntrada,
         dataSaida: membroAtualizado.dataSaida,
       },
     });
