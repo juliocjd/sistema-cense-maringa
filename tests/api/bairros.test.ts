@@ -92,6 +92,78 @@ describe("GET /api/bairros", () => {
   });
 });
 
+describe("GET /api/bairros/[id]", () => {
+  const bairroId = "11111111-1111-1111-1111-111111111111";
+  const baseUrl = `http://localhost/api/bairros/${bairroId}`;
+
+  it("retorna 400 quando id invalido", async () => {
+    const request = buildRequest("GET", baseUrl);
+    const response = await GET_BAIRRO(request, {
+      params: Promise.resolve({ id: "nao-uuid" }),
+    });
+    const json = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(json.erro).toBe("Id do bairro invalido");
+  });
+
+  it("retorna 404 quando bairro nao encontrado", async () => {
+    mockedPrisma.bairro.findUnique.mockResolvedValueOnce(null);
+
+    const request = buildRequest("GET", baseUrl);
+    const response = await GET_BAIRRO(request, {
+      params: Promise.resolve({ id: bairroId }),
+    });
+    const json = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(json.erro).toBe("Bairro nao encontrado");
+  });
+
+  it("retorna bairro com adolescentes quando solicitado", async () => {
+    mockedPrisma.bairro.findUnique.mockResolvedValueOnce({
+      id: bairroId,
+      nomeBairro: "Zona 7",
+      cidade: "Maringa",
+      _count: { adolescentes: 2, bairrosConflitosA: 1, bairrosConflitosB: 0 },
+      adolescentes: [
+        {
+          id: "ado-1",
+          nomeCompleto: "Joao",
+          statusUnidade: "ATIVO",
+          alojamentoAtual: {
+            id: "aloj-1",
+            numeroAlojamento: "01",
+            ala: "A",
+            casa: { id: "casa-1", nome: "Casa 1", numero: 1 },
+          },
+        },
+      ],
+    });
+
+    const request = buildRequest(
+      "GET",
+      `${baseUrl}?incluir_adolescentes=true`
+    );
+    const response = await GET_BAIRRO(request, {
+      params: Promise.resolve({ id: bairroId }),
+    });
+    const json = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(json.totalAdolescentes).toBe(2);
+    expect(json.conflitosRegistrados).toBe(1);
+    expect(json.adolescentes[0]).toEqual(
+      expect.objectContaining({
+        id: "ado-1",
+        alojamento: expect.objectContaining({
+          casa: expect.objectContaining({ nome: "Casa 1" }),
+        }),
+      })
+    );
+  });
+});
+
 describe("POST /api/bairros", () => {
   const url = "http://localhost/api/bairros";
 
@@ -124,6 +196,53 @@ describe("POST /api/bairros", () => {
     expect(json.erro).toBe("Operador nao encontrado");
   });
 
+  it("retorna 400 quando payload invalido", async () => {
+    mockedAuth.mockResolvedValue({ user: { id: "oper-1" } } as any);
+    mockedPrisma.operador.findUnique.mockResolvedValue({ id: "oper-1" });
+
+    const request = buildRequest("POST", url, { nomeBairro: "" });
+    const response = await POST(request);
+    const json = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(json.erro).toBe("Dados invalidos");
+  });
+
+  it("retorna 400 quando corpo nao e JSON valido", async () => {
+    mockedAuth.mockResolvedValue({ user: { id: "oper-1" } } as any);
+    mockedPrisma.operador.findUnique.mockResolvedValue({ id: "oper-1" });
+
+    const rawRequest = new NextRequest(
+      new Request(url, {
+        method: "POST",
+        body: "nao-json",
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    const response = await POST(rawRequest);
+    const json = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(json.erro).toBe("Payload invalido: esperado JSON");
+  });
+
+  it("retorna 409 quando bairro ja cadastrado na mesma cidade", async () => {
+    mockedAuth.mockResolvedValue({ user: { id: "oper-1" } } as any);
+    mockedPrisma.operador.findUnique.mockResolvedValue({ id: "oper-1" });
+    mockedPrisma.bairro.findFirst.mockResolvedValueOnce({ id: "bairro-dup" });
+
+    const request = buildRequest("POST", url, {
+      nomeBairro: "Zona 7",
+      cidade: "Maringa",
+    });
+    const response = await POST(request);
+    const json = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(json.erro).toBe("Bairro ja cadastrado nesta cidade");
+  });
+
   it("cria bairro quando dados validos", async () => {
     mockedAuth.mockResolvedValue({ user: { id: "oper-1" } } as any);
     mockedPrisma.operador.findUnique.mockResolvedValue({ id: "oper-1" });
@@ -150,6 +269,20 @@ describe("POST /api/bairros", () => {
 describe("PUT /api/bairros/[id]", () => {
   const bairroId = "11111111-1111-1111-1111-111111111111";
   const url = `http://localhost/api/bairros/${bairroId}`;
+
+  it("retorna 400 quando id invalido", async () => {
+    mockedAuth.mockResolvedValue({ user: { id: "oper-1" } } as any);
+    mockedPrisma.operador.findUnique.mockResolvedValue({ id: "oper-1" });
+
+    const request = buildRequest("PUT", url, { cidade: "Sarandi" });
+    const response = await PUT(request, {
+      params: Promise.resolve({ id: "invalido" }),
+    });
+    const json = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(json.erro).toBe("Id do bairro invalido");
+  });
 
   it("retorna 401 sem autenticacao", async () => {
     mockedAuth.mockResolvedValue(null);
@@ -190,11 +323,89 @@ describe("PUT /api/bairros/[id]", () => {
     expect(json.cidade).toBe("Sarandi");
     expect(mockedPrisma.logAuditoria.create).toHaveBeenCalled();
   });
+
+  it("retorna 400 quando nenhum campo informado", async () => {
+    mockedAuth.mockResolvedValue({ user: { id: "oper-1" } } as any);
+    mockedPrisma.operador.findUnique.mockResolvedValue({ id: "oper-1" });
+    mockedPrisma.bairro.findUnique.mockResolvedValueOnce({
+      id: bairroId,
+      nomeBairro: "Zona 7",
+      cidade: "Maringa",
+    });
+
+    const request = buildRequest("PUT", url, {});
+    const response = await PUT(request, {
+      params: Promise.resolve({ id: bairroId }),
+    });
+    const json = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(json.erro).toBe("Dados invalidos");
+  });
+
+  it("retorna 404 quando bairro nao encontrado", async () => {
+    mockedAuth.mockResolvedValue({ user: { id: "oper-1" } } as any);
+    mockedPrisma.operador.findUnique.mockResolvedValue({ id: "oper-1" });
+    mockedPrisma.bairro.findUnique.mockResolvedValueOnce(null);
+
+    const request = buildRequest("PUT", url, { cidade: "Sarandi" });
+    const response = await PUT(request, {
+      params: Promise.resolve({ id: bairroId }),
+    });
+    const json = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(json.erro).toBe("Bairro nao encontrado");
+  });
+
+  it("retorna 409 quando novo nome ja existe na cidade", async () => {
+    mockedAuth.mockResolvedValue({ user: { id: "oper-1" } } as any);
+    mockedPrisma.operador.findUnique.mockResolvedValue({ id: "oper-1" });
+    mockedPrisma.bairro.findUnique
+      .mockResolvedValueOnce({
+        id: bairroId,
+        nomeBairro: "Zona 7",
+        cidade: "Maringa",
+      })
+      .mockResolvedValueOnce({
+        id: "outro-bairro",
+        nomeBairro: "Zona 8",
+        cidade: "Maringa",
+      });
+    mockedPrisma.bairro.findFirst.mockResolvedValueOnce({
+      id: "outro-bairro",
+    });
+
+    const request = buildRequest("PUT", url, {
+      nomeBairro: "Zona 8",
+    });
+    const response = await PUT(request, {
+      params: Promise.resolve({ id: bairroId }),
+    });
+    const json = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(json.erro).toBe("Ja existe bairro com este nome nesta cidade");
+  });
 });
 
 describe("DELETE /api/bairros/[id]", () => {
   const bairroId = "11111111-1111-1111-1111-111111111111";
   const url = `http://localhost/api/bairros/${bairroId}`;
+
+  it("retorna 400 quando id invalido", async () => {
+    mockedAuth.mockResolvedValue({ user: { id: "oper-1" } } as any);
+    mockedPrisma.operador.findUnique.mockResolvedValue({ id: "oper-1" });
+
+    const request = buildRequest("DELETE", url);
+    const response = await DELETE(request, {
+      params: Promise.resolve({ id: "nao-uuid" }),
+    });
+    const json = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(json.erro).toBe("Id do bairro invalido");
+  });
 
   it("retorna 409 quando ha vinculacoes", async () => {
     mockedAuth.mockResolvedValue({ user: { id: "oper-1" } } as any);
@@ -218,6 +429,21 @@ describe("DELETE /api/bairros/[id]", () => {
     );
   });
 
+  it("retorna 404 quando bairro nao encontrado", async () => {
+    mockedAuth.mockResolvedValue({ user: { id: "oper-1" } } as any);
+    mockedPrisma.operador.findUnique.mockResolvedValue({ id: "oper-1" });
+    mockedPrisma.bairro.findUnique.mockResolvedValueOnce(null);
+
+    const request = buildRequest("DELETE", url);
+    const response = await DELETE(request, {
+      params: Promise.resolve({ id: bairroId }),
+    });
+    const json = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(json.erro).toBe("Bairro nao encontrado");
+  });
+
   it("remove bairro quando sem vinculacoes", async () => {
     mockedAuth.mockResolvedValue({ user: { id: "oper-1" } } as any);
     mockedPrisma.operador.findUnique.mockResolvedValue({ id: "oper-1" });
@@ -239,4 +465,3 @@ describe("DELETE /api/bairros/[id]", () => {
     expect(mockedPrisma.logAuditoria.create).toHaveBeenCalled();
   });
 });
-

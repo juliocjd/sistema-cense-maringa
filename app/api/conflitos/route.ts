@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma"
 import { auth } from "@/auth";
 
@@ -91,6 +92,7 @@ export async function GET(request: Request) {
     // Formatar resposta
     const confilitosFormatados = conflitos.map((c) => ({
       id: c.id,
+      registroGrupoId: c.registroGrupoId,
       adolescenteA: {
         id: c.adolescenteA.id,
         nome: c.adolescenteA.nomeCompleto,
@@ -179,6 +181,11 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+    const registroGrupoId =
+      typeof body.registroGrupoId === "string" && body.registroGrupoId.length > 0
+        ? body.registroGrupoId
+        : randomUUID();
+
 
     // Verificar se conflito já existe
     const conflitoExistente = await prisma.conflito.findFirst({
@@ -215,6 +222,7 @@ export async function POST(request: Request) {
         tipoConflito: body.tipoConflito,
         ciOrigemId: body.ciOrigemId,
         descricao: body.descricao,
+        registroGrupoId: registroGrupoId,
         status: "ATIVO",
       },
       include: {
@@ -260,6 +268,11 @@ export async function POST(request: Request) {
     );
   }
 }
+
+
+
+
+
 
 
 

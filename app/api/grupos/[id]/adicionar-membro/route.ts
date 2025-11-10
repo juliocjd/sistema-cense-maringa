@@ -1,11 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import {
+  montarMapaBairrosConflitantes,
+  montarMapaFaccoesConflitantes,
+} from "@/lib/conflitos";
+import { notificarAgentesSobreConflito } from "@/lib/notificacoes/agente";
 
 type AlertItem = {
   tipo: string;
   nivel: number;
   mensagem: string;
+  origem?: string;
+  tipo_conflito?: string;
   adolescente?: {
     id: string;
     nome: string;
@@ -100,6 +107,9 @@ export async function POST(
                   where: { status: "ATIVO" },
                   select: { adolescenteAId: true },
                 },
+                bairroOrigem: true,
+                faccao: true,
+                agenteReferencia: true,
               },
             },
           },
@@ -119,12 +129,33 @@ export async function POST(
       include: {
         conflitosA: {
           where: { status: "ATIVO" },
-          include: { adolescenteB: true },
+          include: {
+            adolescenteB: {
+              include: {
+                alojamentoAtual: true,
+                bairroOrigem: true,
+                faccao: true,
+                agenteReferencia: true,
+              },
+            },
+          },
         },
         conflitosB: {
           where: { status: "ATIVO" },
-          include: { adolescenteA: true },
+          include: {
+            adolescenteA: {
+              include: {
+                alojamentoAtual: true,
+                bairroOrigem: true,
+                faccao: true,
+                agenteReferencia: true,
+              },
+            },
+          },
         },
+        bairroOrigem: true,
+        faccao: true,
+        agenteReferencia: true,
         gruposMembros: {
           where: { dataSaida: null },
           include: {
@@ -186,11 +217,99 @@ export async function POST(
       })),
     ];
 
+    const conflitosTerritoriais = await montarMapaBairrosConflitantes(
+      adolescente.bairroOrigemId
+    );
+    const conflitosFaccionais = await montarMapaFaccoesConflitantes(
+      adolescente.faccaoGrupoId
+    );
+
     const alertas: AlertItem[] = [];
+    const alertasAdicionais = new Set<string>();
     let nivelRiscoMaximo = 0;
     let requerJustificativa = false;
 
+    const registrarConflitoExtra = (
+      ocupante: any,
+      tipo: "bairro" | "faccao",
+      contexto: string,
+      nivelPadrao: number
+    ) => {
+      const mapa = tipo === "bairro" ? conflitosTerritoriais : conflitosFaccionais;
+      const chave =
+        tipo === "bairro" ? ocupante.bairroOrigemId : ocupante.faccaoGrupoId;
+      if (!chave || !mapa.has(chave)) {
+        return false;
+      }
+      const conflito = mapa.get(chave);
+      if (!conflito) {
+        return false;
+      }
+      const identificador = `${ocupante.id}:${tipo}`;
+      if (alertasAdicionais.has(identificador)) {
+        return false;
+      }
+      alertasAdicionais.add(identificador);
+      const mensagem =
+        tipo === "bairro"
+          ? `Conflito territorial (${conflito.origem.nome} × ${conflito.destino.nome}) detectado durante ${contexto} com ${ocupante.nomeCompleto}.`
+          : `Conflito entre facções (${conflito.origem.nome} × ${conflito.destino.nome}) detectado durante ${contexto} com ${ocupante.nomeCompleto}.`;
+      alertas.push({
+        tipo: tipo === "bairro" ? "CONFLITO_TERRITORIAL" : "CONFLITO_FACCAO",
+        nivel: nivelPadrao,
+        mensagem,
+        origem: tipo === "bairro" ? "TERRITORIAL" : "FACCAO",
+        tipo_conflito: tipo === "bairro" ? "BAIRRO" : "FACCAO",
+        adolescente: {
+          id: ocupante.id,
+          nome: ocupante.nomeCompleto,
+          grupo: contexto,
+        },
+      });
+      nivelRiscoMaximo = Math.max(nivelRiscoMaximo, nivelPadrao);
+      requerJustificativa = true;
+      void notificarAgentesSobreConflito({
+        contexto: "GRUPO",
+        adolescente: {
+          id: adolescente.id,
+          nomeCompleto: adolescente.nomeCompleto,
+          agente: adolescente.agenteReferencia
+            ? {
+                nome: adolescente.agenteReferencia.nome,
+                email: adolescente.agenteReferencia.email,
+              }
+            : undefined,
+        },
+        adversario: {
+          id: ocupante.id,
+          nomeCompleto: ocupante.nomeCompleto,
+          agente: ocupante.agenteReferencia
+            ? {
+                nome: ocupante.agenteReferencia.nome,
+                email: ocupante.agenteReferencia.email,
+              }
+            : undefined,
+        },
+        mensagem,
+      });
+      return true;
+    };
+
     const membrosAtivos = grupo.membros.map((membro) => membro.adolescente);
+    for (const membro of membrosAtivos) {
+      registrarConflitoExtra(
+        membro,
+        "bairro",
+        `mesmo grupo ${grupo.nomeGrupo}`,
+        3
+      );
+      registrarConflitoExtra(
+        membro,
+        "faccao",
+        `mesmo grupo ${grupo.nomeGrupo}`,
+        4
+      );
+    }
 
     const membrosOutrosGrupos = await prisma.grupoMembro.findMany({
       where: {
@@ -202,7 +321,14 @@ export async function POST(
       },
       include: {
         grupo: { include: { casa: true } },
-        adolescente: true,
+        adolescente: {
+          include: {
+            alojamentoAtual: true,
+            bairroOrigem: true,
+            faccao: true,
+            agenteReferencia: true,
+          },
+        },
       },
     });
 
@@ -211,6 +337,18 @@ export async function POST(
       adversariosMesmaCasa.set(
         membro.adolescenteId,
         membro.grupo.nomeGrupo
+      );
+      registrarConflitoExtra(
+        membro.adolescente,
+        "bairro",
+        `grupo ${membro.grupo.nomeGrupo}`,
+        3
+      );
+      registrarConflitoExtra(
+        membro.adolescente,
+        "faccao",
+        `grupo ${membro.grupo.nomeGrupo}`,
+        4
       );
     }
 
@@ -269,6 +407,8 @@ export async function POST(
           },
         });
       }
+      registrarConflitoExtra(adversario, "bairro", "grupo atual", 3);
+      registrarConflitoExtra(adversario, "faccao", "grupo atual", 4);
     }
 
     if (requerJustificativa && !justificativa) {

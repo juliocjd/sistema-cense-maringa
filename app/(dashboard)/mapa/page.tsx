@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { MapaInterativo } from "@/components/mapa/mapa-interativo";
 
 import type { Casa, Adolescente, Conflito } from "@/types";
+import type { ImpactoConflitoExterno } from "@/types/inteligencia";
 
 export default function MapaPage() {
   // Estados
@@ -11,6 +12,9 @@ export default function MapaPage() {
   const [adolescentes, setAdolescentes] = useState<Adolescente[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [conflitosExternos, setConflitosExternos] = useState<
+    Record<string, ImpactoConflitoExterno[]>
+  >({});
 
   // Carregar dados do banco
   const carregarDados = useCallback(async () => {
@@ -38,13 +42,40 @@ export default function MapaPage() {
           nomeSocial: a.nomeSocial ?? undefined,
           numeroSms: a.numeroSms ?? undefined,
           fotoUrl: a.fotoUrl ?? null,
-          alojamentoAtualId: a.alojamentoAtualId ?? null,
+          alojamentoAtualId:
+            a.alojamentoAtualId ?? a.alojamentoAtual?.id ?? null,
           statusUnidade: a.statusUnidade,
-          alertaRiscoSuicidio: a.alertaRiscoSuicidio,
-          alertaPerfilMapeado: a.alertaPerfilMapeado,
-          alertaSaudeConfidencial: a.alertaSaudeConfidencial,
+          alertaRiscoSuicidio: Boolean(a.alertaRiscoSuicidio),
+          alertaPerfilMapeado: Boolean(a.alertaPerfilMapeado),
+          alertaSaudeConfidencial: Boolean(a.alertaSaudeConfidencial),
+          alertaSaudeDetalhes: a.alertaSaudeDetalhes ?? null,
+          bairroOrigemId:
+            a.bairroOrigemId ??
+            a.bairroOrigem?.id ??
+            null,
+          bairroOrigem: a.bairroOrigem
+            ? {
+                id: a.bairroOrigem.id,
+                nome:
+                  a.bairroOrigem.nome ??
+                  a.bairroOrigem.nomeBairro,
+                cidade: a.bairroOrigem.cidade,
+              }
+            : null,
+          faccaoGrupoId: a.faccaoGrupoId ?? null,
+          faccaoNumeroMembro: a.faccaoNumeroMembro ?? null,
+          faccao: a.faccao
+            ? {
+                id: a.faccao.id,
+                nome: a.faccao.nome ?? a.faccao.nomeFaccao,
+                numeroMembro: a.faccao.numeroMembro ?? null,
+              }
+            : null,
           conflitosA: (a.conflitosA || []) as Conflito[],
           conflitosB: (a.conflitosB || []) as Conflito[],
+          riscoFuga: a.riscoFuga ?? null,
+          grupos: a.grupos ?? [],
+          tatuagens: a.tatuagens ?? [],
         })
       );
 
@@ -81,20 +112,39 @@ export default function MapaPage() {
               ? ({
                   id: ocupanteBruto.id,
                   nomeCompleto: ocupanteBruto.nome_completo,
-                nomeSocial: ocupanteBruto.nome_social ?? undefined,
-                numeroSms: ocupanteBruto.numero_sms ?? undefined,
-                fotoUrl: ocupanteBruto.foto_url ?? null,
-                alojamentoAtualId: aloj.id,
-                statusUnidade: ocupanteBruto.status_unidade ?? "ATIVO",
-                alertaRiscoSuicidio:
-                  ocupanteBruto.alerta_risco_suicidio ?? false,
-                alertaPerfilMapeado:
-                  ocupanteBruto.alerta_perfil_mapeado ?? false,
-                alertaSaudeConfidencial:
-                  ocupanteBruto.alerta_saude_confidencial ?? false,
-                conflitosA: (ocupanteBruto.conflitosA ?? []) as Conflito[],
-                conflitosB: (ocupanteBruto.conflitosB ?? []) as Conflito[],
-              } satisfies Adolescente)
+                  nomeSocial: ocupanteBruto.nome_social ?? undefined,
+                  numeroSms: ocupanteBruto.numero_sms ?? undefined,
+                  fotoUrl: ocupanteBruto.foto_url ?? null,
+                  alojamentoAtualId: aloj.id,
+                  statusUnidade: ocupanteBruto.status_unidade ?? "ATIVO",
+                  alertaRiscoSuicidio:
+                    ocupanteBruto.alerta_risco_suicidio ?? false,
+                  alertaPerfilMapeado:
+                    ocupanteBruto.alerta_perfil_mapeado ?? false,
+                  alertaSaudeConfidencial:
+                    ocupanteBruto.alerta_saude_confidencial ?? false,
+                  bairroOrigemId: ocupanteBruto.bairro_origem_id ?? null,
+                  bairroOrigem: ocupanteBruto.bairro_origem
+                    ? {
+                        id: ocupanteBruto.bairro_origem.id,
+                        nome:
+                          ocupanteBruto.bairro_origem.nome ??
+                          ocupanteBruto.bairro_origem.nomeBairro,
+                        cidade: ocupanteBruto.bairro_origem.cidade,
+                      }
+                    : null,
+                  faccaoGrupoId: ocupanteBruto.faccao_grupo_id ?? null,
+                  faccao: ocupanteBruto.faccao
+                    ? {
+                        id: ocupanteBruto.faccao.id,
+                        nome:
+                          ocupanteBruto.faccao.nome ??
+                          ocupanteBruto.faccao.nomeFaccao,
+                      }
+                    : null,
+                  conflitosA: (ocupanteBruto.conflitosA ?? []) as Conflito[],
+                  conflitosB: (ocupanteBruto.conflitosB ?? []) as Conflito[],
+                } satisfies Adolescente)
               : null;
 
           const adolescenteParaMapa = adolescenteCompleto || adolescenteFallback;
@@ -116,7 +166,39 @@ export default function MapaPage() {
         }),
       }));
 
+      let mapaImpactos: Record<string, ImpactoConflitoExterno[]> = {};
+      try {
+        const impactosResponse = await fetch(
+          "/api/inteligencia/conflitos/impacto?status=ATIVO"
+        );
+        if (impactosResponse.ok) {
+          const impactosData = await impactosResponse.json();
+          const lista: ImpactoConflitoExterno[] = Array.isArray(
+            impactosData?.impactos
+          )
+            ? impactosData.impactos
+            : [];
+          mapaImpactos = lista.reduce(
+            (acc, impacto) => {
+              const adolescenteId = impacto?.adolescente?.id;
+              if (!adolescenteId) {
+                return acc;
+              }
+              if (!acc[adolescenteId]) {
+                acc[adolescenteId] = [];
+              }
+              acc[adolescenteId].push(impacto);
+              return acc;
+            },
+            {} as Record<string, ImpactoConflitoExterno[]>
+          );
+        }
+      } catch (erroImpacto) {
+        console.warn("[Mapa geral] Falha ao carregar conflitos externos:", erroImpacto);
+      }
+
       setCasas(casasFormatadas);
+      setConflitosExternos(mapaImpactos);
     } catch (error) {
       console.error("Erro ao carregar dados:", error);
       setError(
@@ -323,6 +405,7 @@ export default function MapaPage() {
       <MapaInterativo
         casas={casas}
         adolescentes={adolescentes}
+        conflitosExternos={conflitosExternos}
         onAlocar={handleAlocar}
         onDesalocar={handleDesalocar}
       />

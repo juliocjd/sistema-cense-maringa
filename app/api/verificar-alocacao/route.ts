@@ -1,50 +1,245 @@
-// app/api/verificar-alocacao/route.ts
-// API CRÍTICA: Verifica riscos antes de alocar adolescente em alojamento
-
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import {
+  calcularRiscoAlojamento,
+  criarMapaSlots,
+  type CasaRisco,
+  type AlojamentoRisco,
+  type AdolescenteRisco,
+  type ConflitosExternosMapa,
+  type RiscoDetalhado,
+} from "@/lib/riscos/calcular";
+import type { ImpactoConflitoExterno } from "@/types/inteligencia";
+import {
+  montarMapaBairrosConflitantes,
+  montarMapaFaccoesConflitantes,
+  type BairroConflitoInfo,
+  type FaccaoConflitoInfo,
+} from "@/lib/conflitos";
 
-/**
- * GET /api/verificar-alocacao?adolescenteId=xxx&alojamentoId=yyy
- *
- * Analisa todos os riscos possíveis antes de alocar um adolescente:
- * - Conflitos com alojamentos frontais (NÍVEL 5 - CRÍTICO)
- * - Conflitos na mesma ala (NÍVEL 4 - ALTO)
- * - Conflitos na mesma casa, outra ala (NÍVEL 3 - MÉDIO-ALTO)
- * - Conflitos em zonas de risco (janelas) (NÍVEL 2 - MÉDIO)
- * - Alertas especiais (risco suicídio, perfil mapeado)
- */
+type PrismaAdolescente = NonNullable<
+  Awaited<ReturnType<typeof prisma.adolescente.findUnique>>
+>;
+
+const mapearAdolescenteParaRisco = (
+  adolescente: PrismaAdolescente
+): AdolescenteRisco => ({
+  id: adolescente.id,
+  nomeCompleto: adolescente.nomeCompleto,
+  bairroOrigemId: adolescente.bairroOrigemId,
+  faccaoGrupoId: adolescente.faccaoGrupoId,
+  alertaRiscoSuicidio: adolescente.alertaRiscoSuicidio,
+  alertaPerfilMapeado: adolescente.alertaPerfilMapeado,
+  alertaSaudeConfidencial: adolescente.alertaSaudeConfidencial,
+  alertaSaudeDetalhes: adolescente.alertaSaudeDetalhes,
+  faccao: adolescente.faccao
+    ? {
+        id: adolescente.faccao.id,
+        nome:
+          adolescente.faccao.nomeFaccao ??
+          adolescente.faccao.nome ??
+          undefined,
+      }
+    : null,
+  conflitosA: mapearConflitosInternos(adolescente, "B"),
+  conflitosB: mapearConflitosInternos(adolescente, "A"),
+});
+
+const mapearConflitosInternos = (
+  adolescente: PrismaAdolescente,
+  adversarioCampo: "A" | "B"
+) => {
+  const lista =
+    adversarioCampo === "B" ? adolescente.conflitosA ?? [] : adolescente.conflitosB ?? [];
+
+  return lista.map((conflito) => {
+    const adversario =
+      adversarioCampo === "B" ? conflito.adolescenteB : conflito.adolescenteA;
+
+    return {
+      id: conflito.id,
+      status: conflito.status,
+      tipoConflito: conflito.tipoConflito,
+      adolescenteAId: conflito.adolescenteAId,
+      adolescenteBId: conflito.adolescenteBId,
+      adversario: adversario
+        ? {
+            id: adversario.id,
+            nomeCompleto: adversario.nomeCompleto,
+            bairroOrigemId: adversario.bairroOrigemId,
+            faccaoGrupoId: adversario.faccaoGrupoId,
+            faccao: adversario.faccao
+              ? {
+                  id: adversario.faccao.id,
+                  nome:
+                    adversario.faccao.nomeFaccao ??
+                    adversario.faccao.nome ??
+                    undefined,
+                }
+              : null,
+          }
+        : null,
+    };
+  });
+};
+
+const formatarImpactosExternos = (
+  adolescente: PrismaAdolescente,
+  bairros: Map<string, BairroConflitoInfo>,
+  faccoes: Map<string, FaccaoConflitoInfo>
+): ConflitosExternosMapa => {
+  const impactos: ImpactoConflitoExterno[] = [];
+
+  bairros.forEach((info) => {
+    impactos.push({
+      conflitoId: info.id,
+      conflitoTipo: "BAIRRO",
+      statusConflito: info.status,
+      risco: "MEDIO",
+      conflitoOrigem: {
+        id: info.origem.id,
+        nome: info.origem.nome,
+      },
+      conflitoDestino: {
+        id: info.destino.id,
+        nome: info.destino.nome,
+      },
+      adolescente: {
+        id: adolescente.id,
+        nome: adolescente.nomeCompleto,
+        status: adolescente.statusUnidade,
+        numeroSms: adolescente.numeroSms,
+        bairro: adolescente.bairroOrigem
+          ? {
+              id: adolescente.bairroOrigem.id,
+              nome:
+                adolescente.bairroOrigem.nomeBairro ??
+                adolescente.bairroOrigem.nome,
+              cidade: adolescente.bairroOrigem.cidade ?? "Desconhecida",
+            }
+          : null,
+        faccao: null,
+        alojamento: null,
+      },
+    });
+  });
+
+  faccoes.forEach((info) => {
+    impactos.push({
+      conflitoId: info.id,
+      conflitoTipo: "FACCAO",
+      statusConflito: info.status,
+      risco: "ALTO",
+      conflitoOrigem: {
+        id: info.origem.id,
+        nome: info.origem.nome,
+      },
+      conflitoDestino: {
+        id: info.destino.id,
+        nome: info.destino.nome,
+      },
+      adolescente: {
+        id: adolescente.id,
+        nome: adolescente.nomeCompleto,
+        status: adolescente.statusUnidade,
+        numeroSms: adolescente.numeroSms,
+        bairro: null,
+        faccao: adolescente.faccao
+          ? {
+              id: adolescente.faccao.id,
+              nome:
+                adolescente.faccao.nomeFaccao ??
+                adolescente.faccao.nome ??
+                undefined,
+            }
+          : null,
+        alojamento: null,
+      },
+    });
+  });
+
+  if (impactos.length === 0) {
+    return {};
+  }
+
+  return { [adolescente.id]: impactos };
+};
+
+const mapearCasas = (casasDb: CasaRisco[]): CasaRisco[] =>
+  casasDb.map((casa) => ({
+    ...casa,
+    alojamentos: casa.alojamentos.map((alojamento) => ({
+      ...alojamento,
+      adolescentes: [...alojamento.adolescentes],
+    })),
+  }));
+
+const removerAdolescenteDasCasas = (
+  casas: CasaRisco[],
+  adolescenteId: string
+) => {
+  casas.forEach((casa) => {
+    casa.alojamentos.forEach((aloj) => {
+      if (aloj.adolescentes.some((a) => a.id === adolescenteId)) {
+        aloj.adolescentes = aloj.adolescentes.filter(
+          (a) => a.id !== adolescenteId
+        );
+      }
+    });
+  });
+};
+
+const construirAlertas = (
+  detalhes: RiscoDetalhado[],
+  ambiental?: { ativo: boolean; nivel: number; motivos: string[] } | null
+) => {
+  const alertas = detalhes.map((item) => ({
+    tipo: item.tipo,
+    nivel: item.nivel,
+    mensagem: item.mensagem,
+    proximidade: item.proximidade,
+  }));
+
+  if (ambiental?.ativo) {
+    ambiental.motivos.forEach((mensagem) => {
+      alertas.push({
+        tipo: "AMBIENTAL",
+        nivel: (ambiental.nivel ?? 2) as number,
+        mensagem,
+      });
+    });
+  }
+
+  return alertas;
+};
+
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const adolescenteId = searchParams.get("adolescenteId");
     const alojamentoId = searchParams.get("alojamentoId");
 
-    // Validações
     if (!adolescenteId || !alojamentoId) {
       return NextResponse.json(
         {
-          erro: "adolescenteId e alojamentoId são obrigatórios",
+          erro: "adolescenteId e alojamentoId são obrigatorios",
           permite_alocacao: false,
         },
         { status: 400 }
       );
     }
 
-    // 1. Buscar dados do adolescente com conflitos
     const adolescente = await prisma.adolescente.findUnique({
       where: { id: adolescenteId },
       include: {
+        bairroOrigem: true,
+        faccao: true,
         conflitosA: {
           where: { status: "ATIVO" },
           include: {
             adolescenteB: {
               include: {
-                alojamentoAtual: {
-                  include: {
-                    casa: true,
-                  },
-                },
+                faccao: true,
               },
             },
           },
@@ -54,17 +249,11 @@ export async function GET(request: NextRequest) {
           include: {
             adolescenteA: {
               include: {
-                alojamentoAtual: {
-                  include: {
-                    casa: true,
-                  },
-                },
+                faccao: true,
               },
             },
           },
         },
-        faccao: true,
-        bairroOrigem: true,
       },
     });
 
@@ -75,58 +264,28 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // 2. Buscar dados do alojamento alvo
-    const alojamentoAlvo = await prisma.alojamento.findUnique({
-      where: { id: alojamentoId },
+    const casasDb = await prisma.casa.findMany({
+      orderBy: { numero: "asc" },
       include: {
-        casa: true,
-        alojamentoFrontal: {
+        alojamentos: {
+          orderBy: [{ ala: "asc" }, { numeroAlojamento: "asc" }],
           include: {
             adolescentes: {
               where: { statusUnidade: "ATIVO" },
-            },
-          },
-        },
-        zonasRiscoAloj: {
-          include: {
-            zona: {
-              include: {
-                zonasVinculoA: {
-                  include: {
-                    zonaB: {
-                      include: {
-                        alojamentosLink: {
-                          include: {
-                            alojamento: {
-                              include: {
-                                adolescentes: {
-                                  where: { statusUnidade: "ATIVO" },
-                                },
-                              },
-                            },
-                          },
-                        },
-                      },
-                    },
-                  },
-                },
-                zonasVinculoB: {
-                  include: {
-                    zonaA: {
-                      include: {
-                        alojamentosLink: {
-                          include: {
-                            alojamento: {
-                              include: {
-                                adolescentes: {
-                                  where: { statusUnidade: "ATIVO" },
-                                },
-                              },
-                            },
-                          },
-                        },
-                      },
-                    },
+              select: {
+                id: true,
+                nomeCompleto: true,
+                bairroOrigemId: true,
+                faccaoGrupoId: true,
+                alertaRiscoSuicidio: true,
+                alertaPerfilMapeado: true,
+                alertaSaudeConfidencial: true,
+                alertaSaudeDetalhes: true,
+                faccao: {
+                  select: {
+                    id: true,
+                    nomeFaccao: true,
+                    nome: true,
                   },
                 },
               },
@@ -136,6 +295,67 @@ export async function GET(request: NextRequest) {
       },
     });
 
+    const casasParaCalculo: CasaRisco[] = casasDb.map((casa) => ({
+      id: casa.id,
+      nome: casa.nome,
+      numero: casa.numero ?? 0,
+      isolada: casa.isolada,
+      alojamentos: casa.alojamentos.map(
+        (alojamento): AlojamentoRisco => ({
+          id: alojamento.id,
+          casaId: casa.id,
+          numeroAlojamento: alojamento.numeroAlojamento,
+          ala: alojamento.ala,
+          statusManutencao: alojamento.statusManutencao,
+          alojamentoFrontalId: alojamento.alojamentoFrontalId,
+          localizacaoPreferencial: alojamento.localizacaoPreferencial,
+          corRisco: alojamento.corRisco ?? undefined,
+          nivelRisco: alojamento.nivelRisco ?? undefined,
+          icones: alojamento.icones ?? [],
+          alertas: alojamento.alertas ?? [],
+          adolescentes: alojamento.adolescentes.map(
+            (morador): AdolescenteRisco => ({
+              id: morador.id,
+              nomeCompleto: morador.nomeCompleto,
+              bairroOrigemId: morador.bairroOrigemId,
+              faccaoGrupoId: morador.faccaoGrupoId,
+              alertaRiscoSuicidio: morador.alertaRiscoSuicidio,
+              alertaPerfilMapeado: morador.alertaPerfilMapeado,
+              alertaSaudeConfidencial: morador.alertaSaudeConfidencial,
+              alertaSaudeDetalhes: morador.alertaSaudeDetalhes,
+              faccao: morador.faccao
+                ? {
+                    id: morador.faccao.id,
+                    nome:
+                      morador.faccao.nomeFaccao ??
+                      morador.faccao.nome ??
+                      undefined,
+                  }
+                : null,
+            })
+          ),
+        })
+      ),
+    }));
+
+    const casasClonadas = mapearCasas(casasParaCalculo);
+    removerAdolescenteDasCasas(casasClonadas, adolescente.id);
+
+    const casaAlvo = casasClonadas.find((casa) =>
+      casa.alojamentos.some((aloj) => aloj.id === alojamentoId)
+    );
+
+    if (!casaAlvo) {
+      return NextResponse.json(
+        { erro: "Alojamento não encontrado", permite_alocacao: false },
+        { status: 404 }
+      );
+    }
+
+    const alojamentoAlvo = casaAlvo.alojamentos.find(
+      (aloj) => aloj.id === alojamentoId
+    );
+
     if (!alojamentoAlvo) {
       return NextResponse.json(
         { erro: "Alojamento não encontrado", permite_alocacao: false },
@@ -143,293 +363,60 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Verificar se alojamento está livre ou interditado
-    if (alojamentoAlvo.statusManutencao === "INTERDITADO") {
-      return NextResponse.json({
-        permite_alocacao: false,
-        requer_justificativa: false,
-        nivel_risco: null,
-        alertas: [
-          {
-            tipo: "ALOJAMENTO_INTERDITADO",
-            nivel: 0,
-            mensagem: "Este alojamento está interditado e não pode ser usado.",
-            bloqueante: true,
-          },
-        ],
-      });
-    }
+    const adolescenteSimulado = mapearAdolescenteParaRisco(adolescente);
+    alojamentoAlvo.adolescentes = [adolescenteSimulado];
 
-    // 3. Buscar todos os adolescentes na mesma casa
-    const adolescentesMesmaCasa = await prisma.adolescente.findMany({
-      where: {
-        statusUnidade: "ATIVO",
-        alojamentoAtual: {
-          casaId: alojamentoAlvo.casaId,
-        },
-        id: { not: adolescenteId },
-      },
-      include: {
-        alojamentoAtual: true,
-      },
+    const mapaSlots = criarMapaSlots(casasClonadas);
+
+    const [mapaBairros, mapaFaccoes] = await Promise.all([
+      montarMapaBairrosConflitantes(adolescente.bairroOrigemId),
+      montarMapaFaccoesConflitantes(
+        adolescente.faccaoGrupoId ?? adolescente.faccao?.id ?? null
+      ),
+    ]);
+
+    const conflitosExternos = formatarImpactosExternos(
+      adolescente,
+      mapaBairros,
+      mapaFaccoes
+    );
+
+    const resultado = calcularRiscoAlojamento({
+      alojamento: alojamentoAlvo,
+      casaAtual: casaAlvo,
+      casas: casasClonadas,
+      slots: mapaSlots,
+      conflitosExternos,
     });
 
-    // 4. Combinar todos os conflitos do adolescente
-    const todosConflitos = [
-      ...adolescente.conflitosA.map((c) => ({
-        conflito: c,
-        adversario: c.adolescenteB,
-      })),
-      ...adolescente.conflitosB.map((c) => ({
-        conflito: c,
-        adversario: c.adolescenteA,
-      })),
-    ];
+    const alertas = construirAlertas(resultado.detalhes, resultado.ambiental);
+    const requerJustificativa = resultado.nivel >= 3;
+    const permiteAlocacao = resultado.nivel < 5;
 
-    // 5. ANÁLISE DE RISCOS
-    const alertas: any[] = [];
-    let nivelRiscoMaximo = 1;
-    let requerJustificativa = false;
-
-    // NÍVEL 5 - CRÍTICO: Conflito Frontal
-    if (alojamentoAlvo.alojamentoFrontal) {
-      const ocupantesFrontal = alojamentoAlvo.alojamentoFrontal.adolescentes;
-
-      for (const ocupante of ocupantesFrontal) {
-        const conflito = todosConflitos.find(
-          (c) => c.adversario.id === ocupante.id
-        );
-
-        if (conflito) {
-          alertas.push({
-            tipo: "CONFLITO_FRONTAL",
-            nivel: 5,
-            mensagem: `⚠️ CONFLITO NÍVEL 5 (FRONTAL CRÍTICO) com ${conflito.adversario.nomeCompleto} no alojamento frontal ${alojamentoAlvo.alojamentoFrontal.numeroAlojamento}.`,
-            adolescente_conflitante: {
-              id: conflito.adversario.id,
-              nome: conflito.adversario.nomeCompleto,
-              alojamento: alojamentoAlvo.alojamentoFrontal.numeroAlojamento,
-            },
-            tipo_conflito: conflito.conflito.tipoConflito,
-            origem: conflito.conflito.ciOrigemId ? `CI` : "Registro direto",
-          });
-          nivelRiscoMaximo = 5;
-          requerJustificativa = true;
-        }
-      }
-    }
-
-    // NÍVEL 4 - ALTO: Conflito na mesma ala
-    const adolescentesMesmaAla = adolescentesMesmaCasa.filter(
-      (a) => a.alojamentoAtual?.ala === alojamentoAlvo.ala
-    );
-
-    for (const outroAdolescente of adolescentesMesmaAla) {
-      const conflito = todosConflitos.find(
-        (c) => c.adversario.id === outroAdolescente.id
-      );
-
-      if (conflito && nivelRiscoMaximo < 5) {
-        alertas.push({
-          tipo: "CONFLITO_MESMA_ALA",
-          nivel: 4,
-          mensagem: `⚠️ CONFLITO NÍVEL 4 (MESMA ALA) com ${conflito.adversario.nomeCompleto} no alojamento ${outroAdolescente.alojamentoAtual?.numeroAlojamento} (Ala ${alojamentoAlvo.ala}).`,
-          adolescente_conflitante: {
-            id: conflito.adversario.id,
-            nome: conflito.adversario.nomeCompleto,
-            alojamento: outroAdolescente.alojamentoAtual?.numeroAlojamento,
-          },
-          tipo_conflito: conflito.conflito.tipoConflito,
-        });
-        nivelRiscoMaximo = Math.max(nivelRiscoMaximo, 4);
-        requerJustificativa = true;
-      }
-    }
-
-    // NÍVEL 3 - MÉDIO-ALTO: Mesma casa, outra ala
-    const adolescentesOutraAla = adolescentesMesmaCasa.filter(
-      (a) => a.alojamentoAtual?.ala !== alojamentoAlvo.ala
-    );
-
-    for (const outroAdolescente of adolescentesOutraAla) {
-      const conflito = todosConflitos.find(
-        (c) => c.adversario.id === outroAdolescente.id
-      );
-
-      if (conflito && nivelRiscoMaximo < 4) {
-        alertas.push({
-          tipo: "CONFLITO_MESMA_CASA",
-          nivel: 3,
-          mensagem: `⚠️ CONFLITO NÍVEL 3 (MESMA CASA) com ${conflito.adversario.nomeCompleto} no alojamento ${outroAdolescente.alojamentoAtual?.numeroAlojamento} (Ala ${outroAdolescente.alojamentoAtual?.ala}).`,
-          adolescente_conflitante: {
-            id: conflito.adversario.id,
-            nome: conflito.adversario.nomeCompleto,
-            alojamento: outroAdolescente.alojamentoAtual?.numeroAlojamento,
-          },
-          tipo_conflito: conflito.conflito.tipoConflito,
-        });
-        nivelRiscoMaximo = Math.max(nivelRiscoMaximo, 3);
-        requerJustificativa = true;
-      }
-    }
-
-    // NÍVEL 2 - MÉDIO: Zona de Risco (janelas)
-    if (alojamentoAlvo.zonasRiscoAloj?.length) {
-      const zonasProcessadas = new Set<string>();
-
-      const processarVinculosZona = (
-        vinculos: any[],
-        zonaOrigem: any,
-        direcao: "A" | "B"
-      ) => {
-        if (!vinculos?.length) {
-          return;
-        }
-
-        for (const vinculo of vinculos) {
-          const zonaRelacionada =
-            direcao === "A" ? vinculo.zonaB : vinculo.zonaA;
-
-          if (!zonaRelacionada?.alojamentosLink?.length) {
-            continue;
-          }
-
-          for (const link of zonaRelacionada.alojamentosLink) {
-            const alojamentoRelacionado = link.alojamento;
-            if (!alojamentoRelacionado?.adolescentes?.length) {
-              continue;
-            }
-
-            for (const ocupanteZona of alojamentoRelacionado.adolescentes) {
-              if (ocupanteZona.id === adolescenteId) {
-                continue;
-              }
-
-              const conflito = todosConflitos.find(
-                (c) => c.adversario.id === ocupanteZona.id
-              );
-
-              if (conflito && nivelRiscoMaximo < 3) {
-                const chaveAlerta = `${zonaOrigem.id}:${alojamentoRelacionado.id}:${ocupanteZona.id}`;
-                if (zonasProcessadas.has(chaveAlerta)) {
-                  continue;
-                }
-                zonasProcessadas.add(chaveAlerta);
-
-                alertas.push({
-                  tipo: "CONFLITO_ZONA_RISCO",
-                  nivel: 2,
-                  mensagem: `⚠️ CONFLITO NÍVEL 2 (ZONA DE RISCO) com ${conflito.adversario.nomeCompleto} na zona de risco ${zonaRelacionada.nomeZona || zonaOrigem.nomeZona || "vinculada"} (alojamento ${alojamentoRelacionado.numeroAlojamento}).`,
-                  adolescente_conflitante: {
-                    id: conflito.adversario.id,
-                    nome: conflito.adversario.nomeCompleto,
-                    alojamento: alojamentoRelacionado.numeroAlojamento,
-                  },
-                  tipo_conflito: conflito.conflito.tipoConflito,
-                  origem: "ZONA_RISCO",
-                  zona_risco: {
-                    origem: zonaOrigem.nomeZona || null,
-                    relacionada: zonaRelacionada.nomeZona || null,
-                  },
-                });
-                nivelRiscoMaximo = Math.max(nivelRiscoMaximo, 2);
-                requerJustificativa = true;
-              }
-            }
-          }
-        }
-      };
-
-      for (const zonaRel of alojamentoAlvo.zonasRiscoAloj) {
-        const zonaOrigem = zonaRel.zona;
-        if (!zonaOrigem) {
-          continue;
-        }
-
-        processarVinculosZona(zonaOrigem.zonasVinculoA, zonaOrigem, "A");
-        processarVinculosZona(zonaOrigem.zonasVinculoB, zonaOrigem, "B");
-      }
-    }
-
-    // ALERTAS ESPECIAIS
-    if (adolescente.alertaRiscoSuicidio) {
-      const ocupanteFrontal = alojamentoAlvo.alojamentoFrontal?.adolescentes[0];
-
-      alertas.push({
-        tipo: "RISCO_SUICIDIO",
-        nivel: 0,
-        mensagem: "⚠️ ADOLESCENTE COM RISCO DE SUICÍDIO",
-        detalhes: ocupanteFrontal
-          ? "✅ Alojamento frontal está ocupado (recomendado)"
-          : "⚠️ Alojamento frontal está VAZIO - recomenda-se ocupar",
-        recomendacao: alojamentoAlvo.localizacaoPreferencial
-          ? "✅ Localização preferencial (próximo a portas)"
-          : "⚠️ Considerar alojar em localização preferencial",
-      });
-    }
-
-    if (adolescente.alertaPerfilMapeado) {
-      alertas.push({
-        tipo: "PERFIL_MAPEADO",
-        nivel: 0,
-        mensagem: "🔒 PERFIL MAPEADO - Adolescente sob proteção especial",
-        detalhes: "Considerar alocação estratégica para garantir segurança",
-      });
-    }
-
-    if (adolescente.alertaSaudeConfidencial) {
-      alertas.push({
-        tipo: "ALERTA_SAUDE",
-        nivel: 0,
-        mensagem: "⚕️ ALERTA DE SAÚDE CONFIDENCIAL",
-        detalhes: "Verificar detalhes com equipe de saúde antes de alocar",
-      });
-    }
-
-    // 6. DETERMINAR NÍVEL DE RISCO FINAL
-    let nivelRiscoFinal: string;
-    if (nivelRiscoMaximo === 5) {
-      nivelRiscoFinal = "CRÍTICO";
-    } else if (nivelRiscoMaximo === 4) {
-      nivelRiscoFinal = "ALTO";
-    } else if (nivelRiscoMaximo === 3) {
-      nivelRiscoFinal = "MÉDIO-ALTO";
-    } else if (nivelRiscoMaximo === 2) {
-      nivelRiscoFinal = "MÉDIO";
-    } else {
-      nivelRiscoFinal = "BAIXO";
-    }
-
-    // 7. RESPOSTA FINAL
     return NextResponse.json({
-      permite_alocacao: true,
+      permite_alocacao: permiteAlocacao,
       requer_justificativa: requerJustificativa,
-      nivel_risco: nivelRiscoFinal,
-      nivel_numerico: nivelRiscoMaximo,
-      alertas: alertas,
+      nivel_risco: resultado.categoria,
+      nivel_numerico: resultado.nivel,
+      alertas,
+      motivos: resultado.motivos,
       alojamento: {
         id: alojamentoAlvo.id,
-        casa: alojamentoAlvo.casa.nome,
         numero: alojamentoAlvo.numeroAlojamento,
         ala: alojamentoAlvo.ala,
+        casa: casaAlvo.nome ?? `Casa ${casaAlvo.numero}`,
       },
       adolescente: {
         id: adolescente.id,
         nome: adolescente.nomeCompleto,
         sms: adolescente.numeroSms,
       },
-      estatisticas: {
-        total_conflitos_ativos: todosConflitos.length,
-        conflitos_detectados_nesta_alocacao: alertas.filter((a) =>
-          a.tipo.includes("CONFLITO")
-        ).length,
-      },
     });
   } catch (error) {
-    console.error("Erro ao verificar alocação:", error);
+    console.error("Erro ao verificar alocacao:", error);
     return NextResponse.json(
       {
-        erro: "Erro ao verificar alocação",
+        erro: "Erro ao verificar alocacao",
         detalhes: error instanceof Error ? error.message : String(error),
         permite_alocacao: false,
       },

@@ -9,6 +9,7 @@ export const INCLUDE_ADOLESCENTE_DEFAULT = {
   },
   faccao: true,
   bairroOrigem: true,
+  agenteReferencia: true,
   gruposMembros: {
     where: { dataSaida: null },
     include: {
@@ -121,16 +122,34 @@ export function mapPrismaAdolescente(
   return {
     id: adolescente.id,
     nomeCompleto: adolescente.nomeCompleto,
-    nomeSocial: adolescente.nomeSocial ?? undefined,
-    numeroSms: adolescente.numeroSms ?? undefined,
-    numeroProcesso: adolescente.numeroProcesso ?? undefined,
-    fotoUrl: adolescente.fotoUrl ?? undefined,
+    nomeSocial: adolescente.nomeSocial ?? null,
+    numeroSms: adolescente.numeroSms ?? null,
+    numeroProcesso: adolescente.numeroProcesso ?? null,
+    fotoUrl: adolescente.fotoUrl ?? null,
     dataNascimento: formatDate(adolescente.dataNascimento),
     dataEntrada: formatDate(adolescente.dataEntrada),
-    atoInfracionalAtual: adolescente.atoInfracionalAtual ?? undefined,
+    atoInfracionalAtual: adolescente.atoInfracionalAtual ?? null,
+    atoInfracionalAno: adolescente.atoInfracionalAno ?? null,
+    atoInfracionalProcesso: adolescente.atoInfracionalProcesso ?? null,
+    atoInfracionalGravidade: adolescente.atoInfracionalGravidade ?? false,
+    atoInfracionalGravidadeObs: adolescente.atoInfracionalGravidadeObs ?? null,
     statusUnidade,
-    alojamentoAtualId: adolescente.alojamentoAtualId ?? undefined,
+    alojamentoAtualId: adolescente.alojamentoAtualId ?? null,
+    faseInternacaoAtualId: adolescente.faseInternacaoAtualId ?? null,
+    dataDesinternacao: formatDate(adolescente.dataDesinternacao),
+    agenteReferenciaId: adolescente.agenteReferenciaId ?? null,
+    agenteReferencia: adolescente.agenteReferencia
+      ? {
+          id: adolescente.agenteReferencia.id,
+          nome: adolescente.agenteReferencia.nome,
+          atividade: adolescente.agenteReferencia.atividade ?? null,
+          email: adolescente.agenteReferencia.email,
+          telefone: adolescente.agenteReferencia.telefone ?? null,
+        }
+      : null,
     alojamentoAtual,
+    faccaoGrupoId: adolescente.faccaoGrupoId ?? null,
+    faccaoNumeroMembro: adolescente.faccaoNumeroMembro ?? null,
     faccao: adolescente.faccao
       ? {
           id: adolescente.faccao.id,
@@ -138,6 +157,7 @@ export function mapPrismaAdolescente(
           numeroMembro: adolescente.faccaoNumeroMembro ?? null,
         }
       : null,
+    bairroOrigemId: adolescente.bairroOrigemId ?? null,
     bairroOrigem: adolescente.bairroOrigem
       ? {
           id: adolescente.bairroOrigem.id,

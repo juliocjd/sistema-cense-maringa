@@ -4,27 +4,122 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { DetalhesConflito } from "@/components/conflitos/detalhes-conflito";
 
+type Participante = {
+  id: string;
+  nome: string;
+  numeroSms: string;
+  alojamento?: string | null;
+};
+
 type Conflito = {
   id: string;
-  adolescenteA: {
-    id: string;
-    nome: string;
-    numeroSms: string;
-    alojamento?: string;
-  };
-  adolescenteB: {
-    id: string;
-    nome: string;
-    numeroSms: string;
-    alojamento?: string;
-  };
   tipoConflito: string;
   status: "ATIVO" | "RESOLVIDO";
   origem: string;
   descricao?: string;
   criadoEm: string;
   resolvidoEm?: string;
+  participantes?: Participante[];
+  adolescenteA: Participante;
+  adolescenteB: Participante;
 };
+
+type ApiParticipante = {
+  id: string;
+  nomeCompleto?: string | null;
+  nomeSocial?: string | null;
+  numeroSms?: string | null;
+  alojamento?: string | null;
+  alojamentoAtual?: {
+    descricao?: string | null;
+    casa?: string | null;
+    numero?: string | number | null;
+    ala?: string | null;
+  } | null;
+};
+
+type ApiConflito = {
+  id: string;
+  tipo?: string;
+  tipoConflito?: string;
+  status: "ATIVO" | "RESOLVIDO";
+  descricao?: string;
+  dataRegistro: string;
+  dataResolucao?: string | null;
+  participantes?: Array<
+    ApiParticipante & { numeroSms?: string | null; alojamentoAtual?: { descricao?: string | null } | null }
+  >;
+  ciOrigem?: {
+    numero: string;
+    ano: string;
+  } | null;
+  adolescenteA: ApiParticipante & {
+    alojamentoAtual?: {
+      casa?: string | null;
+      numero?: string | number | null;
+      ala?: string | null;
+    } | null;
+  };
+  adolescenteB: ApiParticipante & {
+    alojamentoAtual?: {
+      casa?: string | null;
+      numero?: string | number | null;
+      ala?: string | null;
+    } | null;
+  };
+};
+
+const formatarNome = (dados: ApiParticipante) =>
+  dados.nomeCompleto || dados.nomeSocial || "Adolescente sem nome";
+
+const formatarAlojamento = (
+  alojamento?:
+    | string
+    | null
+    | {
+        descricao?: string | null;
+        casa?: string | null;
+        numero?: string | number | null;
+        ala?: string | null;
+      }
+) => {
+  if (!alojamento) return undefined;
+  if (typeof alojamento === "string") return alojamento;
+  if (alojamento.descricao) return alojamento.descricao;
+
+  const partes: string[] = [];
+  if (alojamento.casa) partes.push(alojamento.casa);
+  if (alojamento.numero) partes.push(`Aloj ${alojamento.numero}`);
+  if (alojamento.ala) partes.push(`Ala ${alojamento.ala}`);
+  return partes.length ? partes.join(" - ") : undefined;
+};
+
+const mapearParticipante = (dados: ApiParticipante): Participante => ({
+  id: dados.id,
+  nome: formatarNome(dados),
+  numeroSms: dados.numeroSms ?? "",
+  alojamento: formatarAlojamento(dados.alojamento ?? dados.alojamentoAtual),
+});
+
+const normalizarConflito = (dados: ApiConflito): Conflito => ({
+  id: dados.id,
+  tipoConflito: dados.tipo ?? dados.tipoConflito ?? "N/A",
+  status: dados.status,
+  origem: dados.ciOrigem
+    ? `CI ${dados.ciOrigem.numero}/${dados.ciOrigem.ano}`
+    : "Registro direto",
+  descricao: dados.descricao,
+  criadoEm: dados.dataRegistro,
+  resolvidoEm: dados.dataResolucao ?? undefined,
+  participantes: dados.participantes?.map((p) =>
+    mapearParticipante({
+      ...p,
+      alojamentoAtual: p.alojamentoAtual,
+    })
+  ),
+  adolescenteA: mapearParticipante(dados.adolescenteA),
+  adolescenteB: mapearParticipante(dados.adolescenteB),
+});
 
 type Mediacao = {
   id: string;
@@ -63,10 +158,10 @@ export default function ConflitoPorIdPage() {
         throw new Error("Erro ao carregar conflito");
       }
 
-      const conflitoData = await conflitoRes.json();
+      const conflitoData: ApiConflito = await conflitoRes.json();
       const mediacoesData = await mediacoesRes.json();
 
-      setConflito(conflitoData);
+      setConflito(normalizarConflito(conflitoData));
       setMediacoes(mediacoesData);
     } catch (error) {
       console.error("Erro:", error);
@@ -120,7 +215,7 @@ export default function ConflitoPorIdPage() {
         },
       ];
 
-      setConflito(mockConflito);
+      setConflito({ ...mockConflito, participantes: [mockConflito.adolescenteA, mockConflito.adolescenteB] });
       setMediacoes(mockMediacoes);
     } finally {
       setLoading(false);

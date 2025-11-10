@@ -1,14 +1,31 @@
 "use client";
 
-import { useState } from "react";
-import { AlertTriangle, Lock, Activity } from "lucide-react";
+import { useMemo, useState } from "react";
+import { AlertTriangle, Lock, Activity, Shield } from "lucide-react";
 import { ModalAlocacao } from "./modal-alocacao";
+import ModalAlojamentoDetalhes from "./modal-alojamento-detalhes";
 import type { Alojamento, Casa, Adolescente } from "@/types";
-import { useAuth } from "@/hooks/useAuth";
+import type { ImpactoConflitoExterno } from "@/types/inteligencia";
+import {
+  calcularRiscoAlojamento,
+  criarMapaSlots,
+  type ResultadoRisco,
+} from "@/lib/riscos/calcular";
+
+type AvaliacaoAmbiental = {
+  ativo: boolean;
+  nivel: number;
+  motivos: string[];
+};
+
+type AvaliacaoRiscoAlojamento = ResultadoRisco & {
+  corClass: string;
+};
 
 interface MapaInterativoProps {
   casas: Casa[];
   adolescentes: Adolescente[];
+  conflitosExternos?: Record<string, ImpactoConflitoExterno[]>;
   onAlocar: (
     adolescenteId: string,
     alojamentoId: string,
@@ -16,88 +33,142 @@ interface MapaInterativoProps {
   ) => Promise<void>;
   onDesalocar: (
     alojamentoId: string,
-    adolescenteId: string
+    adolescenteId: string,
+    motivo?: string
   ) => Promise<string>;
+  onDesinternar: (adolescenteId: string) => Promise<void>;
+  onTransferir: (
+    adolescente: Adolescente,
+    destinoAlojamentoId: string,
+    justificativa?: string
+  ) => Promise<void>;
+  onAlterarStatusAlojamento: (
+    alojamentoId: string,
+    status: "LIVRE" | "INTERDITADO",
+    justificativa: string,
+    numeroCi: string
+  ) => Promise<void>;
 }
+
+const riscoClasses = {
+  livre: "bg-gray-50 border-gray-300 hover:bg-gray-100",
+  nivel1: "bg-green-100 border-green-400 shadow-lg shadow-green-200",
+  nivel2: "bg-lime-100 border-lime-400 shadow-lg shadow-lime-200",
+  nivel3: "bg-yellow-100 border-yellow-400 shadow-lg shadow-yellow-200",
+  nivel4: "bg-orange-100 border-orange-400 shadow-lg shadow-orange-200",
+  nivel5: "bg-red-100 border-red-400 shadow-lg shadow-red-200",
+  interditado: "bg-gray-400 border-gray-600",
+};
+
+const classePorNivel: Record<0 | 1 | 2 | 3 | 4 | 5, string> = {
+  0: riscoClasses.livre,
+  1: riscoClasses.nivel1,
+  2: riscoClasses.nivel2,
+  3: riscoClasses.nivel3,
+  4: riscoClasses.nivel4,
+  5: riscoClasses.nivel5,
+};
+
+const formatarLocalReferencia = (
+  casa?: Pick<Casa, "nome"> | null,
+  alojamento?: Pick<Alojamento, "numeroAlojamento" | "ala"> | null
+) => {
+  const partes: string[] = [];
+  if (casa?.nome) {
+    partes.push(casa.nome);
+  }
+  if (alojamento?.numeroAlojamento) {
+    partes.push(`Aloj. ${alojamento.numeroAlojamento}`);
+  }
+  if (alojamento?.ala) {
+    partes.push(`Ala ${alojamento.ala}`);
+  }
+  return partes.length > 0 ? partes.join(" - ") : null;
+};
 
 export function MapaInterativo({
   casas,
   adolescentes,
+  conflitosExternos = {},
   onAlocar,
   onDesalocar,
+  onDesinternar,
+  onTransferir,
+  onAlterarStatusAlojamento,
 }: MapaInterativoProps) {
-  const [modalAberto, setModalAberto] = useState(false);
+  const [modalAlocacaoAberto, setModalAlocacaoAberto] = useState(false);
   const [alojamentoSelecionado, setAlojamentoSelecionado] =
     useState<Alojamento | null>(null);
-  const { user } = useAuth();
+  const [modalDetalhes, setModalDetalhes] = useState<{
+    aberto: boolean;
+    alojamento: (Alojamento & { casa?: Casa }) | null;
+    avaliacao: AvaliacaoRiscoAlojamento | null;
+  }>({ aberto: false, alojamento: null, avaliacao: null });
 
-  // ==================== FUNCOES DE LOGICA ====================
+  const fecharModalDetalhes = () =>
+    setModalDetalhes({ aberto: false, alojamento: null, avaliacao: null });
 
-  function getCorAlojamento(alojamento: Alojamento) {
-    if (alojamento.statusManutencao === "INTERDITADO") {
-      return "bg-gray-400 border-gray-600";
-    }
+  const abrirModalAlocacao = (alojamento: Alojamento & { casa?: Casa }) => {
+    setAlojamentoSelecionado(alojamento);
+    setModalAlocacaoAberto(true);
+  };
 
-    if (alojamento.corRisco) {
-      switch (alojamento.corRisco) {
-        case "perigo":
-          return "bg-red-100 border-red-400 shadow-lg shadow-red-200";
-        case "atencao":
-          return "bg-yellow-100 border-yellow-400 shadow-lg shadow-yellow-200";
-        case "seguro":
-          return "bg-green-100 border-green-400 shadow-lg shadow-green-200";
-        case "livre":
-          return "bg-gray-50 border-gray-300 hover:bg-gray-100";
-        case "interditado":
-          return "bg-gray-400 border-gray-600";
-        default:
-          break;
+  const adolescentesLookup = useMemo(() => {
+    const mapa = new Map<string, Adolescente>();
+    adolescentes.forEach((item) => {
+      if (item?.id) {
+        mapa.set(item.id, item);
       }
-    }
+    });
+    return mapa;
+  }, [adolescentes]);
 
-    const ocupante = alojamento.adolescentes[0];
-    if (!ocupante) {
-      return "bg-gray-50 border-gray-300 hover:bg-gray-100";
-    }
-
-    const conflitos = [...(ocupante.conflitosA || []), ...(ocupante.conflitosB || [])];
-
-    const temConflitoCritico = conflitos.some((c) => {
-      const outro =
-        c.adolescenteAId === ocupante.id ? c.adolescenteBId : c.adolescenteAId;
-
-      // Verificar frontal
-      if (alojamento.alojamentoFrontalId) {
-        const frontal = casas
-          .flatMap((casa) => casa.alojamentos)
-          .find((a) => a.id === alojamento.alojamentoFrontalId);
-        if (frontal?.adolescentes[0]?.id === outro) {
-          return true;
+  const casasNormalizadas = useMemo(() => {
+    return casas.map((casa) => ({
+      ...casa,
+      alojamentos: casa.alojamentos.map((alojamento) => {
+        const lista = Array.isArray(alojamento.adolescentes)
+          ? alojamento.adolescentes
+          : [];
+        const ocupante = lista[0];
+        if (!ocupante) {
+          return { ...alojamento, adolescentes: [] };
         }
-      }
 
-      // Verificar mesma ala
-      const mesmaAla = casas
-        .find((c) => c.id === alojamento.casaId)
-        ?.alojamentos.filter((a) => a.ala === alojamento.ala && a.adolescentes[0]?.id === outro);
+        const detalhado = adolescentesLookup.get(ocupante.id) ?? ocupante;
+        return {
+          ...alojamento,
+          adolescentes: [detalhado],
+        };
+      }),
+    }));
+  }, [casas, adolescentesLookup]);
 
-      if (mesmaAla && mesmaAla.length > 0) {
-        return true;
-      }
+  const slotsPorAdolescente = useMemo(
+    () => criarMapaSlots(casasNormalizadas),
+    [casasNormalizadas]
+  );
 
-      return false;
+  function avaliarRiscoAlojamento(
+    alojamento: Alojamento
+  ): AvaliacaoRiscoAlojamento {
+    const resultado = calcularRiscoAlojamento({
+      alojamento,
+      casaAtual: casasNormalizadas.find((casa) => casa.id === alojamento.casaId),
+      casas: casasNormalizadas,
+      slots: slotsPorAdolescente,
+      conflitosExternos,
     });
 
-    if (temConflitoCritico) {
-      return "bg-red-100 border-red-400 shadow-lg shadow-red-200";
-    }
+    const corClass =
+      resultado.categoria === "INTERDITADO"
+        ? riscoClasses.interditado
+        : classePorNivel[resultado.nivel] ?? riscoClasses.livre;
 
-    const temConflito = conflitos.length > 0;
-    if (temConflito) {
-      return "bg-yellow-100 border-yellow-400 shadow-lg shadow-yellow-200";
-    }
-
-    return "bg-green-100 border-green-400 shadow-lg shadow-green-200";
+    return {
+      ...resultado,
+      corClass,
+    };
   }
 
   function getIconesAlerta(alojamento: Alojamento) {
@@ -129,56 +200,90 @@ export function MapaInterativo({
     return casa.alojamentos.find((a) => a.numeroAlojamento === numero);
   };
 
-  // ==================== COMPONENTE DE ALOJAMENTO ====================
+  const handleDesalocarDoDetalhe = async (
+    alojamentoId: string,
+    adolescenteId: string,
+    motivo?: string
+  ) => {
+    try {
+      const mensagem = await onDesalocar(alojamentoId, adolescenteId, motivo);
+      alert(mensagem || "Adolescente removido do alojamento.");
+      fecharModalDetalhes();
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Erro desconhecido";
+      alert(`Erro ao remover adolescente:\n${errorMessage}`);
+    }
+  };
 
-  const Alojamento = ({ numero, casa }: { numero: string; casa: Casa }) => {
+  const handleTransferirDoDetalhe = async (
+    adolescente: Adolescente,
+    destinoAlojamentoId: string,
+    justificativa?: string
+  ) => {
+    try {
+      await onTransferir(adolescente, destinoAlojamentoId, justificativa);
+      fecharModalDetalhes();
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Erro desconhecido";
+      alert(`Erro ao transferir adolescente:\n${errorMessage}`);
+    }
+  };
+
+  const handleAlterarStatusDoDetalhe = async (
+    alojamentoId: string,
+    status: "LIVRE" | "INTERDITADO",
+    justificativa: string,
+    numeroCi: string
+  ) => {
+    await onAlterarStatusAlojamento(
+      alojamentoId,
+      status,
+      justificativa,
+      numeroCi
+    );
+  };
+
+  const handleDesinternarDoDetalhe = async (adolescenteId: string) => {
+    await onDesinternar(adolescenteId);
+    fecharModalDetalhes();
+  };
+
+  const getBadgeAmbiental = (avaliacao?: AvaliacaoRiscoAlojamento | null) => {
+    if (!avaliacao?.ambiental?.ativo) return null;
+    return (
+      <span className="absolute -left-2 -top-2 rounded-full bg-amber-500/85 px-2 py-0.5 text-[10px] font-semibold text-white shadow backdrop-blur border border-amber-300">
+        Aliados do rival na casa
+      </span>
+    );
+  };
+
+  const AlojamentoCard = ({ numero, casa }: { numero: string; casa: Casa }) => {
     const aloj = getAlojamento(casa, numero);
     if (!aloj) return null;
 
+    const avaliacao = avaliarRiscoAlojamento(aloj);
     const ocupante = aloj.adolescentes[0];
-    const corClass = getCorAlojamento(aloj);
-    const estaLivre = !ocupante && aloj.statusManutencao !== "INTERDITADO";
+
+    const nomeResumido =
+      ocupante && ocupante.nomeCompleto
+        ? (() => {
+            const partes = ocupante.nomeCompleto.trim().split(/\s+/);
+            const primeiro = partes[0];
+            const ultimo = partes.length > 1 ? partes[partes.length - 1] : null;
+            return { primeiro, ultimo };
+          })()
+        : null;
+
+    const corClass = avaliacao.corClass;
 
     const handleClick = () => {
-      // Se está interditado, não faz nada
-      if (aloj.statusManutencao === "INTERDITADO") {
-        return;
-      }
-
-      // Se tem ocupante, perguntar se quer remover
-      if (ocupante) {
-        const confirmar = confirm(
-          `Alojamento ocupado por:\n${ocupante.nomeCompleto}\nSMS: ${ocupante.numeroSms}\n\nDeseja REMOVER este adolescente do alojamento?`
-        );
-
-        if (confirmar) {
-          handleDesalocar(aloj.id, ocupante.id);
-        }
-        return;
-      }
-
-      // Se está livre, abrir modal de alocação
-      setAlojamentoSelecionado({ ...aloj, casa } as any);
-      setModalAberto(true);
-    };
-
-    const handleDesalocar = async (
-      alojamentoId: string,
-      adolescenteId: string
-    ) => {
-      if (!user?.id) {
-        alert("Operador nao autenticado. Realize login novamente.");
-        return;
-      }
-
-      try {
-        const mensagem = await onDesalocar(alojamentoId, adolescenteId);
-        alert(mensagem || "Adolescente removido do alojamento com sucesso!");
-      } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : "Erro desconhecido";
-        alert(`Erro ao remover adolescente:\n${errorMessage}`);
-      }
+      setModalDetalhes({
+        aberto: true,
+        alojamento: { ...aloj, casa } as Alojamento & { casa?: Casa },
+        avaliacao,
+      });
     };
 
     return (
@@ -189,19 +294,29 @@ export function MapaInterativo({
           aloj.statusManutencao === "INTERDITADO"
             ? "Alojamento Interditado"
             : ocupante
-            ? `${ocupante.nomeCompleto} - Clique para remover`
-            : "Alojamento Livre - Clique para alocar"
+            ? `${ocupante.nomeCompleto} - Clique para visualizar detalhes`
+            : "Clique para visualizar acoes e alocar"
         }
       >
+        {getBadgeAmbiental(avaliacao)}
         {getIconesAlerta(aloj)}
         <span className="font-bold text-xl text-gray-800">{numero}</span>
-        {ocupante && (
-          <span className="text-xs mt-1 text-gray-700 font-medium truncate w-full text-center">
-            {ocupante.nomeCompleto.split(" ")[0]}
-          </span>
+        {nomeResumido && (
+          <div className="mt-1 text-[11px] text-gray-800 font-semibold leading-tight text-center w-full flex flex-col items-center">
+            <span>{nomeResumido.primeiro}</span>
+            {nomeResumido.ultimo && (
+              <span className="text-slate-700 font-medium">
+                {nomeResumido.ultimo}
+              </span>
+            )}
+            {ocupante.faccao?.nome && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-medium text-indigo-600 mt-0.5">
+                <Shield size={10} />
+                {ocupante.faccao.nome}
+              </span>
+            )}
+          </div>
         )}
-
-        {/* Tooltip */}
         <div className="absolute bottom-full mb-2 hidden group-hover:block bg-gray-900 text-white text-xs rounded-lg px-3 py-2 whitespace-nowrap z-20 shadow-xl">
           {ocupante?.nomeCompleto || "Clique para alocar"}
         </div>
@@ -209,151 +324,207 @@ export function MapaInterativo({
     );
   };
 
-  // ==================== COMPONENTE CASA PADRÃO ====================
+  const CasaPadrao = ({ casa }: { casa: Casa }) => (
+    <div className="bg-white rounded-2xl shadow-2xl p-4 border-4 border-rose-600 hover:shadow-rose-200 transition-shadow">
+      <div className="flex items-center justify-center mb-4 pb-3 border-b-2 border-rose-200">
+        <h3 className="font-bold text-rose-700 text-lg">{casa.nome}</h3>
+        {casa.isolada && (
+          <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded-full font-semibold">
+            Isolada
+          </span>
+        )}
+      </div>
+      <div className="flex gap-3">
+        <div className="flex flex-col gap-2">
+          <div className="text-center text-xs font-bold text-orange-600 bg-orange-50 rounded-lg py-1 px-3">
+            Ala B
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <AlojamentoCard numero="08" casa={casa} />
+            <AlojamentoCard numero="07" casa={casa} />
+            <AlojamentoCard numero="09" casa={casa} />
+            <AlojamentoCard numero="10" casa={casa} />
+          </div>
+        </div>
+        <div className="flex flex-col gap-2">
+          <div className="text-center text-xs font-bold text-blue-600 bg-blue-50 rounded-lg py-1 px-3">
+            Ala A
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <AlojamentoCard numero="04" casa={casa} />
+            <AlojamentoCard numero="03" casa={casa} />
+            <AlojamentoCard numero="05" casa={casa} />
+            <AlojamentoCard numero="02" casa={casa} />
+            <AlojamentoCard numero="06" casa={casa} />
+            <AlojamentoCard numero="01" casa={casa} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 
-  const CasaPadrao = ({ casa }: { casa: Casa }) => {
+  const CasaFaseTres = ({ casa }: { casa: Casa }) => {
+    const ordenar = [...casa.alojamentos].sort((a, b) => {
+      const toNumber = (valor: string) =>
+        parseInt(valor.replace(/\D/g, ""), 10) || Number.MAX_SAFE_INTEGER;
+      return toNumber(a.numeroAlojamento) - toNumber(b.numeroAlojamento);
+    });
+
+    const ladoDireito = ordenar.filter((aloj) => {
+      const numero = parseInt(aloj.numeroAlojamento.replace(/\D/g, ""), 10);
+      return numero >= 1 && numero <= 4;
+    });
+    const ladoEsquerdo = ordenar.filter((aloj) => {
+      const numero = parseInt(aloj.numeroAlojamento.replace(/\D/g, ""), 10);
+      return numero > 4 || isNaN(numero);
+    });
+
+    const renderColuna = (
+      lista: typeof ordenar,
+      titulo: string,
+      alinhamento: "left" | "right"
+    ) => (
+      <div className="flex-1 flex flex-col gap-2">
+        <div
+          className={`text-xs font-bold ${
+            alinhamento === "left"
+              ? "text-indigo-600"
+              : "text-orange-600 text-right"
+          }`}
+        >
+          {titulo}
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          {lista.slice(0, 4).map((aloj) => (
+            <AlojamentoCard
+              key={aloj.id}
+              numero={aloj.numeroAlojamento}
+              casa={casa}
+            />
+          ))}
+        </div>
+      </div>
+    );
+
     return (
-      <div className="bg-white rounded-2xl shadow-2xl p-4 border-4 border-rose-600 hover:shadow-rose-200 transition-shadow">
-        {/* Cabeçalho */}
-        <div className="flex items-center justify-center mb-4 pb-3 border-b-2 border-rose-200">
-          <h3 className="font-bold text-rose-700 text-lg">{casa.nome}</h3>
+      <div className="bg-white rounded-2xl shadow-2xl p-4 border-4 border-indigo-600 hover:shadow-indigo-200 transition-shadow">
+        <div className="flex items-center justify-between mb-4 pb-3 border-b-2 border-indigo-200">
+          <div className="flex items-center gap-3">
+            <h3 className="font-bold text-indigo-700 text-lg">{casa.nome}</h3>
+            <span className="text-xs bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full font-semibold">
+              Fase 3
+            </span>
+          </div>
           {casa.isolada && (
-            <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded-full font-semibold">
+            <span className="text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded-full font-semibold">
               Isolada
             </span>
           )}
         </div>
-
-        {/* Layout da Casa */}
-        <div className="flex gap-3">
-          {/* ALA B (Esquerda) */}
-          <div className="flex flex-col gap-2">
-            <div className="text-center text-xs font-bold text-orange-600 bg-orange-50 rounded-lg py-1 px-3">
-              Ala B
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <Alojamento numero="08" casa={casa} />
-              <Alojamento numero="07" casa={casa} />
-              <Alojamento numero="09" casa={casa} />
-              <Alojamento numero="10" casa={casa} />
-            </div>
-          </div>
-
-          {/* CORREDOR CENTRAL */}
-          <div className="w-3 bg-gradient-to-b from-gray-200 via-gray-300 to-gray-200 rounded-full"></div>
-
-          {/* ALA A (Direita) */}
-          <div className="flex flex-col gap-2">
-            <div className="text-center text-xs font-bold text-blue-600 bg-blue-50 rounded-lg py-1 px-3">
-              Ala A
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <Alojamento numero="04" casa={casa} />
-              <Alojamento numero="03" casa={casa} />
-              <Alojamento numero="05" casa={casa} />
-              <Alojamento numero="02" casa={casa} />
-              <Alojamento numero="06" casa={casa} />
-              <Alojamento numero="01" casa={casa} />
-            </div>
-          </div>
+        <div className="flex gap-4">
+          {renderColuna(ladoEsquerdo, "Lado esquerdo", "left")}
+          {renderColuna(ladoDireito, "Lado direito", "right")}
         </div>
       </div>
     );
   };
 
-  // ==================== COMPONENTE CASA 08 ====================
-
-  const Casa08 = ({ casa }: { casa: Casa }) => {
-    return (
-      <div className="bg-white rounded-2xl shadow-2xl p-4 border-4 border-rose-600 hover:shadow-emerald-200 transition-shadow">
-        {/* Cabeçalho */}
-        <div className="flex items-center justify-center mb-4 pb-3 border-b-2 border-rose-200">
-          <h3 className="font-bold text-rose-700 text-lg">{casa.nome}</h3>
-          <span className="ml-2 text-xs bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full font-semibold">
-            Fase 3
-          </span>
-        </div>
-
-        {/* Layout da Casa 08 */}
-        <div className="flex gap-3 items-center">
-          {/* Lado Esquerdo */}
-          <div className="flex flex-col gap-2">
-            <div className="text-center text-xs font-bold text-orange-600 bg-orange-50 rounded-lg py-1 px-3">
-              Ala B
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <Alojamento numero="06" casa={casa} />
-              <Alojamento numero="05" casa={casa} />
-              <Alojamento numero="08" casa={casa} />
-              <Alojamento numero="07" casa={casa} />
-            </div>
-          </div>
-
-          {/* Área Central */}
-          <div className="w-4 h-full bg-gradient-to-b from-gray-200 via-gray-300 to-gray-200 rounded-full"></div>
-
-          {/* Lado Direito */}
-          <div className="flex flex-col gap-2">
-            <div className="text-center text-xs font-bold text-blue-600 bg-blue-50 rounded-lg py-1 px-3">
-              Ala A
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <Alojamento numero="04" casa={casa} />
-              <Alojamento numero="03" casa={casa} />
-              <Alojamento numero="01" casa={casa} />
-              <Alojamento numero="02" casa={casa} />
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  // ==================== BUSCAR CASAS ====================
-
-  const casa01 = casas.find((c) => c.numero === 1);
-  const casa02 = casas.find((c) => c.numero === 2);
-  const casa03 = casas.find((c) => c.numero === 3);
-  const casa04 = casas.find((c) => c.numero === 4);
-  const casa05 = casas.find((c) => c.numero === 5);
-  const casa06 = casas.find((c) => c.numero === 6);
-  const casa07 = casas.find((c) => c.numero === 7);
-  const casa08 = casas.find((c) => c.numero === 8);
-
-  // ==================== RENDER PRINCIPAL ====================
+  const casa01 = casasNormalizadas.find((c) => c.numero === 1);
+  const casa02 = casasNormalizadas.find((c) => c.numero === 2);
+  const casa03 = casasNormalizadas.find((c) => c.numero === 3);
+  const casa04 = casasNormalizadas.find((c) => c.numero === 4);
+  const casa05 = casasNormalizadas.find((c) => c.numero === 5);
+  const casa06 = casasNormalizadas.find((c) => c.numero === 6);
+  const casa07 = casasNormalizadas.find((c) => c.numero === 7);
+  const casa08 = casasNormalizadas.find((c) => c.numero === 8);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 p-8">
-      {/* Cabeçalho */}
-      <div className="max-w-7xl mx-auto mb-8">
-        <div className="text-center bg-white rounded-2xl shadow-xl p-6 border-b-4 border-rose-600">
-          <h1 className="text-4xl font-bold text-gray-800 mb-2">
-            Mapa Operacional - CENSE Maringá
-          </h1>
-          <p className="text-gray-600">
-            Monitoramento em tempo real da ocupação e alertas de conflito
-          </p>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 p-6">
+      <div className="max-w-7xl mx-auto space-y-6">
+        <div className="bg-white rounded-xl shadow p-4 border border-gray-200 text-xs">
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="font-semibold text-slate-800 leading-tight">
+                  Legenda de risco (niveis 0 a 5)
+                </p>
+                <p className="text-[11px] text-slate-500">
+                  Use as cores para priorizar intervencoes.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-3 text-[11px]">
+                <div className="flex items-center gap-1">
+                  <span className="w-5 h-5 rounded bg-red-100 border border-red-400"></span>
+                  <span>Nivel 5</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="w-5 h-5 rounded bg-orange-100 border border-orange-400"></span>
+                  <span>Nivel 4</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="w-5 h-5 rounded bg-yellow-100 border border-yellow-400"></span>
+                  <span>Nivel 3</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="w-5 h-5 rounded bg-lime-100 border border-lime-400"></span>
+                  <span>Nivel 2</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="w-5 h-5 rounded bg-green-100 border border-green-400"></span>
+                  <span>Nivel 1</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="w-5 h-5 rounded bg-gray-100 border border-gray-300"></span>
+                  <span>Nivel 0</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="w-5 h-5 rounded bg-gray-400 border border-gray-600"></span>
+                  <span>Interditado</span>
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-4 pt-2 border-t border-slate-100 text-[11px] text-slate-600">
+              <div className="flex items-center gap-1">
+                <span className="bg-orange-500 rounded-full p-1">
+                  <AlertTriangle size={12} className="text-white" />
+                </span>
+                Risco de suicidio
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="bg-purple-500 rounded-full p-1">
+                  <Lock size={12} className="text-white" />
+                </span>
+                Perfil mapeado
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="bg-blue-500 rounded-full p-1">
+                  <Activity size={12} className="text-white" />
+                </span>
+                Alerta de saude
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="rounded-full bg-amber-500/70 px-2 py-0.5 text-[10px] font-semibold text-white border border-amber-300">
+                  Aliados
+                </span>
+                Aliados do rival na casa
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
 
-      {/* Layout das Casas */}
-      <div className="max-w-7xl mx-auto">
         <div className="flex justify-center gap-6">
-          {/* Coluna Esquerda */}
           <div className="flex flex-col gap-6">
             {casa01 && <CasaPadrao casa={casa01} />}
             {casa02 && <CasaPadrao casa={casa02} />}
             {casa03 && <CasaPadrao casa={casa03} />}
           </div>
-
-          {/* Coluna Central */}
           <div className="flex flex-col gap-6">
-            {casa08 && <Casa08 casa={casa08} />}
+            {casa08 && (
+              <CasaFaseTres casa={casa08} />
+            )}
             <div className="flex-1"></div>
             {casa04 && <CasaPadrao casa={casa04} />}
           </div>
-
-          {/* Coluna Direita */}
           <div className="flex flex-col gap-6">
             {casa07 && <CasaPadrao casa={casa07} />}
             {casa06 && <CasaPadrao casa={casa06} />}
@@ -362,74 +533,43 @@ export function MapaInterativo({
         </div>
       </div>
 
-      {/* Legenda */}
-      <div className="max-w-5xl mx-auto mt-8">
-        <div className="bg-white rounded-2xl shadow-xl p-6 border-2 border-gray-200">
-          <h4 className="font-bold text-xl mb-4 text-gray-800">Legenda</h4>
+      <ModalAlojamentoDetalhes
+        isOpen={modalDetalhes.aberto}
+        alojamento={modalDetalhes.alojamento}
+        avaliacaoRisco={modalDetalhes.avaliacao}
+        onClose={fecharModalDetalhes}
+        casas={casasNormalizadas}
+        conflitosExternos={conflitosExternos}
+        onDesalocar={handleDesalocarDoDetalhe}
+        onDesinternar={handleDesinternarDoDetalhe}
+        onTransferir={handleTransferirDoDetalhe}
+        onSolicitarAlocacao={() => {
+          if (modalDetalhes.alojamento) {
+            abrirModalAlocacao(modalDetalhes.alojamento as Alojamento & { casa?: Casa });
+          }
+        }}
+        onInterditar={(alojamentoId, justificativa, numeroCi) =>
+          handleAlterarStatusDoDetalhe(
+            alojamentoId,
+            "INTERDITADO",
+            justificativa,
+            numeroCi
+          )
+        }
+        onLiberarInterdicao={(alojamentoId, justificativa, numeroCi) =>
+          handleAlterarStatusDoDetalhe(
+            alojamentoId,
+            "LIVRE",
+            justificativa,
+            numeroCi
+          )
+        }
+      />
 
-          {/* Status */}
-          <div className="mb-6">
-            <h5 className="font-semibold text-sm mb-3 text-gray-700">
-              Status dos Alojamentos:
-            </h5>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-              <div className="flex items-center gap-2">
-                <div className="w-10 h-10 bg-gray-50 border-2 border-gray-300 rounded-lg"></div>
-                <span className="text-sm">Livre</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-10 h-10 bg-green-100 border-2 border-green-400 rounded-lg shadow-lg shadow-green-200"></div>
-                <span className="text-sm">Seguro</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-10 h-10 bg-yellow-100 border-2 border-yellow-400 rounded-lg shadow-lg shadow-yellow-200"></div>
-                <span className="text-sm">Atenção</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-10 h-10 bg-red-100 border-2 border-red-400 rounded-lg shadow-lg shadow-red-200"></div>
-                <span className="text-sm">Perigo</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-10 h-10 bg-gray-400 border-2 border-gray-600 rounded-lg"></div>
-                <span className="text-sm">Interditado</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Alertas */}
-          <div>
-            <h5 className="font-semibold text-sm mb-3 text-gray-700">
-              Alertas Especiais:
-            </h5>
-            <div className="flex flex-wrap gap-6">
-              <div className="flex items-center gap-2">
-                <div className="bg-orange-500 rounded-full p-1.5">
-                  <AlertTriangle size={16} className="text-white" />
-                </div>
-                <span className="text-sm">Risco de Suicídio</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="bg-purple-500 rounded-full p-1.5">
-                  <Lock size={16} className="text-white" />
-                </div>
-                <span className="text-sm">Perfil Mapeado</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="bg-blue-500 rounded-full p-1.5">
-                  <Activity size={16} className="text-white" />
-                </div>
-                <span className="text-sm">Alerta de Saúde</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Modal de Alocação */}
       <ModalAlocacao
-        isOpen={modalAberto}
+        isOpen={modalAlocacaoAberto}
         onClose={() => {
-          setModalAberto(false);
+          setModalAlocacaoAberto(false);
           setAlojamentoSelecionado(null);
         }}
         alojamento={alojamentoSelecionado}
@@ -439,3 +579,4 @@ export function MapaInterativo({
     </div>
   );
 }
+

@@ -1,6 +1,6 @@
-﻿"use client";
+"use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X, AlertTriangle, Search, CheckCircle, XCircle } from "lucide-react";
 
 type Adolescente = any;
@@ -52,6 +52,29 @@ export function ModalAlocacao({
   );
   const [justificativa, setJustificativa] = useState("");
   const [loading, setLoading] = useState(false);
+  const [mensagem, setMensagem] = useState<{
+    tipo: "erro" | "info";
+    texto: string;
+  } | null>(null);
+
+  const resetarEstado = () => {
+    setBusca("");
+    setAdolescenteSelecionado(null);
+    setVerificacao(null);
+    setJustificativa("");
+    setMensagem(null);
+  };
+
+  useEffect(() => {
+    if (!isOpen) {
+      resetarEstado();
+    }
+  }, [isOpen, alojamento?.id]);
+
+  const handleFechar = () => {
+    resetarEstado();
+    onClose();
+  };
 
   if (!isOpen || !alojamento) return null;
 
@@ -71,18 +94,16 @@ export function ModalAlocacao({
     setLoading(true);
 
     try {
-      // Chamar API de verificaÃ§Ã£o de alocaÃ§Ã£o
       const response = await fetch(
         `/api/verificar-alocacao?adolescenteId=${adolescente.id}&alojamentoId=${alojamento.id}`
       );
 
       if (!response.ok) {
-        throw new Error("Erro ao verificar alocaÃ§Ã£o");
+        throw new Error("Erro ao verificar alocacao");
       }
 
       const data = await response.json();
 
-      // Transformar resposta da API para o formato esperado
       const verificacaoAPI: VerificacaoConflito = {
         permite_alocacao: data.permite_alocacao,
         requer_justificativa: data.requer_justificativa,
@@ -92,11 +113,11 @@ export function ModalAlocacao({
 
       setVerificacao(verificacaoAPI);
     } catch (error) {
-      alert(
-        "Erro ao verificar conflitos. Verifique se o banco de dados estÃ¡ configurado."
-      );
+      setMensagem({
+        tipo: "erro",
+        texto: "Erro ao verificar conflitos. Prosseguir com cautela.",
+      });
 
-      // Em caso de erro, permitir alocaÃ§Ã£o mas avisar
       setVerificacao({
         permite_alocacao: true,
         requer_justificativa: false,
@@ -106,7 +127,7 @@ export function ModalAlocacao({
             tipo: "ERRO_VERIFICACAO",
             nivel: 0,
             mensagem:
-              "âš ï¸ NÃ£o foi possÃ­vel verificar conflitos. Prossiga com cautela.",
+              "Nao foi possivel verificar conflitos. Prossiga com cautela.",
           },
         ],
       });
@@ -119,6 +140,7 @@ export function ModalAlocacao({
     setAdolescenteSelecionado(adolescente);
     setVerificacao(null);
     setJustificativa("");
+     setMensagem(null);
     verificarConflitos(adolescente);
   };
 
@@ -126,26 +148,28 @@ export function ModalAlocacao({
     if (!adolescenteSelecionado) return;
 
     if (verificacao?.requer_justificativa && !justificativa.trim()) {
-      alert("Justificativa obrigatÃ³ria para este nÃ­vel de risco!");
+      setMensagem({
+        tipo: "erro",
+        texto: "Justificativa obrigatoria para este nivel de risco.",
+      });
       return;
     }
 
     setLoading(true);
     try {
+      const justificativaLimpa = justificativa.trim();
       await onAlocar(
         adolescenteSelecionado.id,
         alojamento.id,
-        verificacao?.requer_justificativa ? justificativa : undefined
+        verificacao?.requer_justificativa && justificativaLimpa
+          ? justificativaLimpa
+          : undefined
       );
-
-      // Resetar e fechar
-      setAdolescenteSelecionado(null);
-      setVerificacao(null);
-      setJustificativa("");
-      setBusca("");
-      onClose();
+      handleFechar();
     } catch (error) {
-      alert("Erro ao realizar alocaÃ§Ã£o. Tente novamente.");
+      const errorMessage =
+        error instanceof Error ? error.message : "Erro ao realizar alocacao.";
+      setMensagem({ tipo: "erro", texto: errorMessage });
     } finally {
       setLoading(false);
     }
@@ -176,7 +200,7 @@ export function ModalAlocacao({
             </p>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleFechar}
             className="hover:bg-white/20 rounded-lg p-2 transition-colors"
           >
             <X size={24} />
@@ -185,10 +209,20 @@ export function ModalAlocacao({
 
         {/* ConteÃºdo */}
         <div className="flex-1 overflow-y-auto p-6">
+          {mensagem && (
+            <div
+              className={`mb-4 rounded-2xl border px-4 py-3 text-sm font-semibold ${
+                mensagem.tipo === "erro"
+                  ? "border-rose-200 bg-rose-50 text-rose-700"
+                  : "border-indigo-200 bg-indigo-50 text-indigo-700"
+              }`}
+            >
+              {mensagem.texto}
+            </div>
+          )}
           {!adolescenteSelecionado ? (
-            // ETAPA 1: SeleÃ§Ã£o de Adolescente
-            <div>
-              <div className="mb-4">
+            <>
+            <div className="mb-4">
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Buscar Adolescente
                 </label>
@@ -258,8 +292,8 @@ export function ModalAlocacao({
                   ))
                 )}
               </div>
-            </div>
-          ) : (
+            </>
+            ) : (
             // ETAPA 2: VerificaÃ§Ã£o e ConfirmaÃ§Ã£o
             <div>
               {/* Adolescente Selecionado */}
@@ -413,7 +447,7 @@ export function ModalAlocacao({
         {/* RodapÃ© */}
         <div className="border-t-2 border-gray-200 p-6 bg-gray-50 flex gap-3 justify-end">
           <button
-            onClick={onClose}
+            onClick={handleFechar}
             className="px-6 py-3 border-2 border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-100 transition-colors"
           >
             Cancelar

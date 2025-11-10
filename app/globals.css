@@ -57,3 +57,22 @@
     @apply bg-background text-foreground;
   }
 }
+
+.sidebar-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(129, 140, 248, 0.6) rgba(15, 23, 42, 0.8);
+}
+
+.sidebar-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.5);
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(129, 140, 248, 0.8);
+  border-radius: 999px;
+  border: 2px solid rgba(15, 23, 42, 0.6);
+}

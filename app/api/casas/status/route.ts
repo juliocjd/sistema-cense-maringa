@@ -1,25 +1,99 @@
 // app/api/casas/status/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import {
+  calcularRiscoAlojamento,
+  criarMapaSlots,
+  type CasaRisco,
+} from "@/lib/riscos/calcular";
+import type { Adolescente, Alojamento } from "@/types";
+
+const mapearCorRisco = (categoria: string, nivel: number) => {
+  if (categoria === "INTERDITADO") return "interditado";
+  if (nivel >= 4) return "perigo";
+  if (nivel >= 2) return "atencao";
+  if (nivel === 1) return "seguro";
+  return "livre";
+};
 
 export async function GET(request: NextRequest) {
   try {
-    // Buscar casas com alojamentos e ocupantes do banco
-    const casas = await prisma.casa.findMany({
+    const casasDb = await prisma.casa.findMany({
       include: {
         alojamentos: {
           include: {
             adolescentes: {
               include: {
                 conflitosA: {
-                  where: { status: "ATIVO" },
+                  select: {
+                    id: true,
+                    status: true,
+                    tipoConflito: true,
+                    descricao: true,
+                    criadoEm: true,
+                    resolvidoEm: true,
+                    adolescenteAId: true,
+                    adolescenteBId: true,
+                    ciOrigemId: true,
+                    ciOrigem: {
+                      select: {
+                        numero: true,
+                        ano: true,
+                      },
+                    },
+                    adolescenteB: {
+                      select: {
+                        id: true,
+                        nomeCompleto: true,
+                        numeroSms: true,
+                        alojamentoAtual: {
+                          select: {
+                            numeroAlojamento: true,
+                            ala: true,
+                            casa: { select: { nome: true } },
+                          },
+                        },
+                      },
+                    },
+                  },
                 },
                 conflitosB: {
-                  where: { status: "ATIVO" },
+                  select: {
+                    id: true,
+                    status: true,
+                    tipoConflito: true,
+                    descricao: true,
+                    criadoEm: true,
+                    resolvidoEm: true,
+                    adolescenteAId: true,
+                    adolescenteBId: true,
+                    ciOrigemId: true,
+                    ciOrigem: {
+                      select: {
+                        numero: true,
+                        ano: true,
+                      },
+                    },
+                    adolescenteA: {
+                      select: {
+                        id: true,
+                        nomeCompleto: true,
+                        numeroSms: true,
+                        alojamentoAtual: {
+                          select: {
+                            numeroAlojamento: true,
+                            ala: true,
+                            casa: { select: { nome: true } },
+                          },
+                        },
+                      },
+                    },
+                  },
                 },
+                bairroOrigem: true,
+                faccao: true,
               },
             },
-            alojamentoFrontal: true,
           },
           orderBy: [{ ala: "asc" }, { numeroAlojamento: "asc" }],
         },
@@ -27,127 +101,175 @@ export async function GET(request: NextRequest) {
       orderBy: { numero: "asc" },
     });
 
-    // Processar casas para incluir análise de risco
-    const casasProcessadas = casas.map((casa) => {
-      const alojamentosProcessados = casa.alojamentos.map((alojamento) => {
-        const ocupante = alojamento.adolescentes[0];
+    const casasParaCalculo: CasaRisco[] = casasDb.map((casa) => ({
+      id: casa.id,
+      nome: casa.nome,
+      numero: casa.numero ?? 0,
+      isolada: casa.isolada,
+      alojamentos: casa.alojamentos.map(
+        (alojamento) =>
+          ({
+            id: alojamento.id,
+            casaId: casa.id,
+            numeroAlojamento: alojamento.numeroAlojamento,
+            ala: alojamento.ala,
+            statusManutencao: alojamento.statusManutencao,
+            alojamentoFrontalId: alojamento.alojamentoFrontalId,
+            localizacaoPreferencial: alojamento.localizacaoPreferencial,
+            corRisco: alojamento.corRisco ?? undefined,
+            nivelRisco: alojamento.nivelRisco ?? undefined,
+            icones: alojamento.icones ?? [],
+            alertas: alojamento.alertas ?? [],
+            adolescentes: alojamento.adolescentes as Adolescente[],
+          } as Alojamento)
+      ),
+    }));
 
-        // Determinar cor e nível de risco
-        let corRisco = "livre";
-        let nivelRisco = 1;
-        const alertas: string[] = [];
+    const slots = criarMapaSlots(casasParaCalculo);
+
+    const casasProcessadas = casasParaCalculo.map((casa) => {
+      const alojamentosProcessados = casa.alojamentos.map((alojamento) => {
+        const risco = calcularRiscoAlojamento({
+          alojamento,
+          casaAtual: casa,
+          casas: casasParaCalculo,
+          slots,
+        });
+
+        const ocupante = alojamento.adolescentes[0] ?? null;
+        const alertasSet = new Set<string>(risco.motivos ?? []);
         const icones: string[] = [];
 
-        if (alojamento.statusManutencao === "INTERDITADO") {
-          corRisco = "interditado";
-          nivelRisco = 0;
-        } else if (ocupante) {
-          // Conflitos do adolescente
-          const conflitos = [
-            ...(ocupante.conflitosA || []),
-            ...(ocupante.conflitosB || []),
-          ];
-          const conflitoIds = new Set(
-            conflitos.map((conflito) =>
-              conflito.adolescenteAId === ocupante.id
-                ? conflito.adolescenteBId
-                : conflito.adolescenteAId
-            )
-          );
+        if (risco.ambiental?.ativo) {
+          risco.ambiental.motivos.forEach((motivo) => alertasSet.add(motivo));
+        }
 
-          let temConflitoZona = false;
+        if (ocupante?.alertaRiscoSuicidio) {
+          icones.push("risco_suicidio");
+          alertasSet.add("Risco de suicidio");
+        }
+        if (ocupante?.alertaPerfilMapeado) {
+          icones.push("perfil_mapeado");
+          alertasSet.add("Perfil mapeado");
+        }
+        if (ocupante?.alertaSaudeConfidencial) {
+          icones.push("saude_confidencial");
+          alertasSet.add("Alerta de saude confidencial");
+        }
 
-          // Verificar conflitos na mesma ala ou frontal
-          const temConflitoCritico = conflitos.some((conflito) => {
-            const outroId =
-              conflito.adolescenteAId === ocupante.id
-                ? conflito.adolescenteBId
-                : conflito.adolescenteAId;
+        const corRisco = mapearCorRisco(risco.categoria, risco.nivel);
 
-            // Verificar frontal
-            if (alojamento.alojamentoFrontalId) {
-              const frontal = casa.alojamentos.find(
-                (a) => a.id === alojamento.alojamentoFrontalId
-              );
-              if (frontal?.adolescentes[0]?.id === outroId) return true;
-            }
+        const formatarLocalAdversario = (
+          dados?:
+            | {
+                numeroAlojamento?: string | number | null;
+                ala?: string | null;
+                casa?: { nome?: string | null } | null;
+              }
+            | null
+        ) => {
+          if (!dados) return null;
+          const partes: string[] = [];
+          if (dados.casa?.nome) partes.push(dados.casa.nome);
+          if (dados.numeroAlojamento) partes.push(`Aloj. ${dados.numeroAlojamento}`);
+          if (dados.ala) partes.push(`Ala ${dados.ala}`);
+          return partes.length > 0 ? partes.join(" - ") : null;
+        };
 
-            // Verificar mesma ala
-            const mesmaAla = casa.alojamentos.some(
-              (a) =>
-                a.ala === alojamento.ala && a.adolescentes[0]?.id === outroId
+        const normalizarData = (valor?: Date | string | null) => {
+          if (!valor) return undefined;
+          if (valor instanceof Date) {
+            return valor.toISOString();
+          }
+          return valor;
+        };
+
+        const construirConflitoResumo = (
+          conflito: any,
+          adversario: any
+        ) => ({
+          id: conflito.id,
+          adolescenteAId: conflito.adolescenteAId,
+          adolescenteBId: conflito.adolescenteBId,
+          tipoConflito: conflito.tipoConflito,
+          status: conflito.status,
+          descricao: conflito.descricao,
+          criadoEm: normalizarData(conflito.criadoEm),
+          resolvidoEm: normalizarData(conflito.resolvidoEm),
+          adversario: adversario
+            ? {
+                id: adversario.id,
+                nomeCompleto: adversario.nomeCompleto,
+                numeroSms: adversario.numeroSms ?? null,
+              }
+            : null,
+          adversarioLocal: adversario?.alojamentoAtual
+            ? formatarLocalAdversario(adversario.alojamentoAtual)
+            : null,
+        });
+
+        let ocupanteFormatado: any = null;
+
+        if (ocupante) {
+          const conflitosAtivosA: any[] = [];
+          const conflitosAtivosB: any[] = [];
+          const conflitosResolvidos: any[] = [];
+
+          (ocupante.conflitosA ?? []).forEach((conflito: any) => {
+            const resumo = construirConflitoResumo(
+              conflito,
+              conflito.adolescenteB
             );
-            return mesmaAla;
+            if (conflito.status === "RESOLVIDO") {
+              conflitosResolvidos.push(resumo);
+            } else {
+              conflitosAtivosA.push(resumo);
+            }
           });
 
-          if (temConflitoCritico) {
-            corRisco = "perigo";
-            nivelRisco = 4;
-            alertas.push("Conflito crítico detectado");
-          }
-
-          if (!temConflitoCritico) {
-            const processarZona = (
-              vinculos: any[] | undefined,
-              obterZonaRelacionada: (v: any) => any
-            ) => {
-              if (!vinculos) return;
-              for (const vinculo of vinculos) {
-                const zonaRelacionada = obterZonaRelacionada(vinculo);
-                if (!zonaRelacionada?.alojamentosLink) continue;
-                for (const link of zonaRelacionada.alojamentosLink) {
-                  const alojamentoRelacionado = link.alojamento;
-                  const ocupanteZona =
-                    alojamentoRelacionado?.adolescentes?.[0];
-                  if (
-                    ocupanteZona &&
-                    conflitoIds.has(ocupanteZona.id) &&
-                    ocupanteZona.id !== ocupante.id
-                  ) {
-                    temConflitoZona = true;
-                    return;
-                  }
-                }
-              }
-            };
-
-            const zonasRisco = (alojamento as any).zonasRiscoAloj || [];
-            for (const zonaRel of zonasRisco) {
-              const zonaOrigem = zonaRel.zona;
-              if (!zonaOrigem) continue;
-              processarZona(zonaOrigem.zonasVinculoA, (v) => v.zonaB);
-              if (temConflitoZona) break;
-              processarZona(zonaOrigem.zonasVinculoB, (v) => v.zonaA);
-              if (temConflitoZona) break;
+          (ocupante.conflitosB ?? []).forEach((conflito: any) => {
+            const resumo = construirConflitoResumo(
+              conflito,
+              conflito.adolescenteA
+            );
+            if (conflito.status === "RESOLVIDO") {
+              conflitosResolvidos.push(resumo);
+            } else {
+              conflitosAtivosB.push(resumo);
             }
-          }
+          });
 
-          if (!temConflitoCritico && temConflitoZona) {
-            corRisco = "atencao";
-            nivelRisco = Math.max(nivelRisco, 3);
-            alertas.push("Conflito em zona de risco");
-          } else if (!temConflitoCritico && conflitos.length > 0) {
-            corRisco = "atencao";
-            nivelRisco = Math.max(nivelRisco, 3);
-            alertas.push("Adolescente possui conflitos registrados");
-          } else if (!temConflitoCritico && !temConflitoZona) {
-            corRisco = "seguro";
-            nivelRisco = 2;
-          }
-
-          // Adicionar ícones de alertas especiais
-          if (ocupante.alertaRiscoSuicidio) {
-            icones.push("risco_suicidio");
-            alertas.push("Risco de suicídio");
-          }
-          if (ocupante.alertaPerfilMapeado) {
-            icones.push("perfil_mapeado");
-            alertas.push("Perfil mapeado");
-          }
-          if (ocupante.alertaSaudeConfidencial) {
-            icones.push("saude_confidencial");
-            alertas.push("Alerta de saúde");
-          }
+          ocupanteFormatado = {
+            id: ocupante.id,
+            nome_completo: ocupante.nomeCompleto,
+            nome_social: ocupante.nomeSocial,
+            numero_sms: ocupante.numeroSms,
+            foto_url: ocupante.fotoUrl,
+            status_unidade: ocupante.statusUnidade,
+            alerta_risco_suicidio: ocupante.alertaRiscoSuicidio,
+            alerta_perfil_mapeado: ocupante.alertaPerfilMapeado,
+            alerta_saude_confidencial: ocupante.alertaSaudeConfidencial,
+            bairro_origem_id: ocupante.bairroOrigemId,
+            bairro_origem: ocupante.bairroOrigem
+              ? {
+                  id: ocupante.bairroOrigem.id,
+                  nome:
+                    ocupante.bairroOrigem.nomeBairro ??
+                    ocupante.bairroOrigem.nome,
+                  cidade: ocupante.bairroOrigem.cidade,
+                }
+              : null,
+            faccao_grupo_id: ocupante.faccaoGrupoId,
+            faccao: ocupante.faccao
+              ? {
+                  id: ocupante.faccao.id,
+                  nome: ocupante.faccao.nomeFaccao ?? ocupante.faccao.nome,
+                }
+              : null,
+            conflitosA: conflitosAtivosA,
+            conflitosB: conflitosAtivosB,
+            conflitosResolvidos,
+          };
         }
 
         return {
@@ -157,46 +279,15 @@ export async function GET(request: NextRequest) {
           status_manutencao: alojamento.statusManutencao,
           alojamento_frontal_id: alojamento.alojamentoFrontalId,
           cor_risco: corRisco,
-          nivel_risco: nivelRisco,
+          nivel_risco: risco.nivel,
           icones,
-          alertas,
-          ocupante: ocupante
-            ? {
-                id: ocupante.id,
-                nome_completo: ocupante.nomeCompleto,
-                nome_social: ocupante.nomeSocial,
-                numero_sms: ocupante.numeroSms,
-                foto_url: ocupante.fotoUrl,
-                status_unidade: ocupante.statusUnidade,
-                alerta_risco_suicidio: ocupante.alertaRiscoSuicidio,
-                alerta_perfil_mapeado: ocupante.alertaPerfilMapeado,
-                alerta_saude_confidencial: ocupante.alertaSaudeConfidencial,
-                conflitosA: ocupante.conflitosA.map((conflito) => ({
-                  id: conflito.id,
-                  adolescenteAId: conflito.adolescenteAId,
-                  adolescenteBId: conflito.adolescenteBId,
-                  status: conflito.status,
-                  tipoConflito: conflito.tipoConflito,
-                  descricao: conflito.descricao,
-                  criadoEm: conflito.criadoEm,
-                })),
-                conflitosB: ocupante.conflitosB.map((conflito) => ({
-                  id: conflito.id,
-                  adolescenteAId: conflito.adolescenteAId,
-                  adolescenteBId: conflito.adolescenteBId,
-                  status: conflito.status,
-                  tipoConflito: conflito.tipoConflito,
-                  descricao: conflito.descricao,
-                  criadoEm: conflito.criadoEm,
-                })),
-              }
-            : null,
+          alertas: Array.from(alertasSet),
+          ocupante: ocupanteFormatado,
         };
       });
 
-      // Calcular score de tensão da casa
       const scoreTensao = alojamentosProcessados.reduce(
-        (acc, aloj) => acc + (aloj.nivel_risco - 1),
+        (acc, aloj) => acc + Math.max(0, (aloj.nivel_risco ?? 0) - 1),
         0
       );
 
@@ -210,7 +301,6 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    // Calcular estatísticas
     const totalAlojamentos = casasProcessadas.reduce(
       (acc, casa) => acc + casa.alojamentos.length,
       0
@@ -231,7 +321,7 @@ export async function GET(request: NextRequest) {
     const alojamentosComRisco = casasProcessadas.reduce(
       (acc, casa) =>
         acc +
-        casa.alojamentos.filter((a) => a.nivel_risco >= 3).length,
+        casa.alojamentos.filter((a) => (a.nivel_risco ?? 0) >= 3).length,
       0
     );
 

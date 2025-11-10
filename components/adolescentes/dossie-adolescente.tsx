@@ -148,14 +148,13 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
               <Download size={18} />
               Exportar PDF
             </button>
-            <button
-              onClick={() => alert("Funcionalidade de edição em desenvolvimento")}
-              className="px-4 py-2 bg-gray-400 text-white rounded-lg cursor-not-allowed flex items-center gap-2 font-semibold opacity-60"
-              title="Em desenvolvimento"
+            <Link
+              href={`/adolescentes/${adolescente.id}/editar`}
+              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2 font-semibold"
             >
               <Edit size={18} />
               Editar
-            </button>
+            </Link>
           </div>
         </div>
 
@@ -191,7 +190,19 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                   </p>
                 )}
               </div>
-              {getStatusBadge(adolescente.statusUnidade)}
+              <div className="flex flex-col items-end gap-1">
+                {getStatusBadge(adolescente.statusUnidade)}
+                {adolescente.statusUnidade !== "ATIVO" && (
+                  <p className="text-xs text-gray-500">
+                    Desde{" "}
+                    {adolescente.dataDesinternacao
+                      ? new Date(adolescente.dataDesinternacao).toLocaleDateString(
+                          "pt-BR"
+                        )
+                      : "-"}
+                  </p>
+                )}
+              </div>
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
@@ -379,13 +390,43 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                   </div>
                 </div>
 
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <h3 className="font-semibold text-gray-700 mb-3">
-                    Ato Infracional Atual
-                  </h3>
-                  <p className="text-sm text-gray-800">
-                    {adolescente.atoInfracionalAtual || "Não informado"}
+                <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                  <div className="flex items-center gap-3">
+                    <h3 className="font-semibold text-gray-700">
+                      Ato Infracional Atual
+                    </h3>
+                    {adolescente.atoInfracionalGravidade && (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-full bg-orange-100 text-orange-700">
+                        <AlertTriangle size={14} />
+                        Gravidade
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm text-gray-800 leading-relaxed">
+                    {adolescente.atoInfracionalAtual || "Nao informado"}
                   </p>
+                  <div className="grid gap-4 md:grid-cols-2 text-sm text-gray-600">
+                    <div>
+                      <span className="font-semibold text-gray-700">
+                        Numero do processo:
+                      </span>{" "}
+                      {adolescente.atoInfracionalProcesso ||
+                        adolescente.numeroProcesso ||
+                        "-"}
+                    </div>
+                    <div>
+                      <span className="font-semibold text-gray-700">
+                        Ano do fato:
+                      </span>{" "}
+                      {adolescente.atoInfracionalAno ?? "-"}
+                    </div>
+                  </div>
+                  {adolescente.atoInfracionalGravidadeObs && (
+                    <div className="text-sm text-orange-700 bg-orange-50 border border-orange-200 rounded-lg p-3">
+                      <p className="font-semibold">Repercussao / detalhes:</p>
+                      <p>{adolescente.atoInfracionalGravidadeObs}</p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

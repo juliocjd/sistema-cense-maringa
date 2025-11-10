@@ -15,6 +15,7 @@ import {
   MapPin,
   Search,
   UserPlus,
+  Flame,
 } from "lucide-react";
 import type { Adolescente } from "@/types";
 
@@ -94,8 +95,8 @@ const aplicaFiltroAlertas = (aluno: Adolescente, filtro: AlertaFiltro) => {
   }
 };
 
-const normalizaTexto = (valor?: string) =>
-  valor ? valor.trim().toLowerCase() : "";
+const normalizaTexto = (valor?: string | null) =>
+  typeof valor === "string" ? valor.trim().toLowerCase() : "";
 
 const extraiIniciais = (nome: string) =>
   nome
@@ -127,6 +128,17 @@ const renderAlertas = (adolescente: Adolescente) => {
 
   return (
     <div className="flex flex-wrap gap-2">
+      {adolescente.atoInfracionalGravidade && (
+        <span
+          title={
+            adolescente.atoInfracionalGravidadeObs ?? "Gravidade do ato infracional atual"
+          }
+          className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-amber-100 text-amber-700 text-xs font-semibold"
+        >
+          <Flame size={14} />
+          Gravidade do ato
+        </span>
+      )}
       {adolescente.alertaRiscoSuicidio && (
         <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-orange-100 text-orange-700 text-xs font-semibold">
           <AlertTriangle size={14} />
@@ -156,24 +168,24 @@ const renderAlojamento = (adolescente: Adolescente) => {
     return <span className="text-sm text-gray-500">Nao alocado</span>;
   }
 
-  const casa =
+  const casaLabel =
     alojamento.casa?.nome ??
     (typeof alojamento.casa?.numero !== "undefined"
       ? `Casa ${String(alojamento.casa.numero).padStart(2, "0")}`
       : "Casa nao identificada");
 
-  const numero = alojamento.numero
+  const numeroFormatado = alojamento.numero
     ? alojamento.numero.padStart(2, "0")
-    : undefined;
+    : "-";
 
   return (
     <div className="flex items-center gap-2 text-sm text-gray-700">
       <MapPin size={14} className="text-indigo-600" />
       <div className="flex flex-col leading-tight">
-        <span className="font-semibold">{casa}</span>
+        <span className="font-semibold">{casaLabel}</span>
         <span className="text-xs text-gray-500 uppercase">
-          Aloj {numero ?? "-"}
-          {alojamento.ala ? ` • Ala ${alojamento.ala}` : ""}
+          Aloj {numeroFormatado}
+          {alojamento.ala ? ` - Ala ${alojamento.ala}` : ""}
         </span>
       </div>
     </div>
@@ -328,10 +340,9 @@ export function ListagemAdolescentes({
                 ))}
               </div>
             </div>
-
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Alertas operacionais
+                Alertas ativos
               </label>
               <div className="grid grid-cols-2 gap-2">
                 {ALERTA_OPTIONS.map((option) => (
@@ -421,12 +432,12 @@ export function ListagemAdolescentes({
                           )}
                           {adolescente.faccao && (
                             <p className="text-xs text-gray-500">
-                              Facção:{" "}
+                              Faccao:{" "}
                               <span className="font-medium text-gray-700">
                                 {adolescente.faccao.nome}
                               </span>
                               {adolescente.faccao.numeroMembro && (
-                                <> • Nº {adolescente.faccao.numeroMembro}</>
+                                <> - No {adolescente.faccao.numeroMembro}</>
                               )}
                             </p>
                           )}
@@ -458,7 +469,7 @@ export function ListagemAdolescentes({
                     <td className="px-6 py-4">{renderAlojamento(adolescente)}</td>
                     <td className="px-6 py-4">
                       {getStatusBadge(
-                        adolescente.statusUnidade as StatusFiltro
+                        (adolescente.statusUnidade as StatusFiltro) ?? "ATIVO"
                       )}
                     </td>
                     <td className="px-6 py-4">{renderAlertas(adolescente)}</td>

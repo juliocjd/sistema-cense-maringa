@@ -3,20 +3,18 @@
 import { useState, useEffect } from "react";
 import { ListagemConflitos } from "@/components/conflitos/listagem-conflitos";
 
-type Conflito = {
+type Participante = {
   id: string;
-  adolescenteA: {
-    id: string;
-    nome: string;
-    numeroSms: string;
-    alojamento?: string;
-  };
-  adolescenteB: {
-    id: string;
-    nome: string;
-    numeroSms: string;
-    alojamento?: string;
-  };
+  nome: string;
+  numeroSms: string;
+  alojamento?: string;
+};
+
+type ApiConflito = {
+  id: string;
+  registroGrupoId?: string;
+  adolescenteA?: Participante;
+  adolescenteB?: Participante;
   tipoConflito: string;
   status: "ATIVO" | "RESOLVIDO";
   origem: string;
@@ -25,6 +23,37 @@ type Conflito = {
   resolvidoEm?: string;
   tentativasMediacao: number;
   ultimaMediacao?: string;
+};
+
+type Conflito = Omit<ApiConflito, "adolescenteA" | "adolescenteB"> & {
+  registroGrupoId: string;
+  participantes: Participante[];
+};
+
+const normalizarConflito = (conflito: ApiConflito): Conflito => {
+  const participantes: Participante[] = [];
+
+  if (conflito.adolescenteA) {
+    participantes.push({ ...conflito.adolescenteA });
+  }
+
+  if (conflito.adolescenteB) {
+    participantes.push({ ...conflito.adolescenteB });
+  }
+
+  return {
+    id: conflito.id,
+    registroGrupoId: conflito.registroGrupoId ?? conflito.id,
+    tipoConflito: conflito.tipoConflito,
+    status: conflito.status,
+    origem: conflito.origem,
+    descricao: conflito.descricao,
+    criadoEm: conflito.criadoEm,
+    resolvidoEm: conflito.resolvidoEm,
+    tentativasMediacao: conflito.tentativasMediacao,
+    ultimaMediacao: conflito.ultimaMediacao,
+    participantes,
+  };
 };
 
 export default function ConflitosPage() {
@@ -44,12 +73,13 @@ export default function ConflitosPage() {
       }
 
       const data = await response.json();
-      setConflitos(data);
+      setConflitos(data.map(normalizarConflito));
     } catch (error) {
       // Mock de dados para desenvolvimento
-      setConflitos([
+      const mockConflitos: ApiConflito[] = [
         {
           id: "conf-001",
+          registroGrupoId: "grp-001",
           adolescenteA: {
             id: "adol-001",
             nome: "João da Silva Santos",
@@ -72,6 +102,7 @@ export default function ConflitosPage() {
         },
         {
           id: "conf-002",
+          registroGrupoId: "grp-002",
           adolescenteA: {
             id: "adol-003",
             nome: "Carlos Eduardo Mendes",
@@ -95,6 +126,7 @@ export default function ConflitosPage() {
         },
         {
           id: "conf-003",
+          registroGrupoId: "grp-003",
           adolescenteA: {
             id: "adol-005",
             nome: "Ana Paula Rodrigues",
@@ -118,6 +150,7 @@ export default function ConflitosPage() {
         },
         {
           id: "conf-004",
+          registroGrupoId: "grp-004",
           adolescenteA: {
             id: "adol-001",
             nome: "João da Silva Santos",
@@ -141,6 +174,7 @@ export default function ConflitosPage() {
         },
         {
           id: "conf-005",
+          registroGrupoId: "grp-005",
           adolescenteA: {
             id: "adol-008",
             nome: "Matheus Henrique Silva",
@@ -161,7 +195,8 @@ export default function ConflitosPage() {
           criadoEm: "2025-10-29T14:20:00",
           tentativasMediacao: 0,
         },
-      ]);
+      ];
+      setConflitos(mockConflitos.map(normalizarConflito));
     } finally {
       setLoading(false);
     }

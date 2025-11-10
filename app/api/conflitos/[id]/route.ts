@@ -2,7 +2,62 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-// GET /api/conflitos/[id] - Buscar detalhes de um conflito específico
+const formatarAlojamento = (alojamento?: {
+  id: string;
+  casa: { nome: string } | null;
+  numeroAlojamento: string | number;
+  ala: string | null;
+}) => {
+  if (!alojamento) {
+    return null;
+  }
+  const partes = [
+    alojamento.casa?.nome ?? null,
+    `Aloj ${alojamento.numeroAlojamento}`,
+    alojamento.ala ? `Ala ${alojamento.ala}` : null,
+  ].filter(Boolean);
+
+  return {
+    id: alojamento.id,
+    descricao: partes.join(" - "),
+    casa: alojamento.casa?.nome ?? null,
+    numero: alojamento.numeroAlojamento,
+    ala: alojamento.ala,
+  };
+};
+
+const coletarParticipantes = (conflitos: any[]) => {
+  const mapa = new Map<
+    string,
+    {
+      id: string;
+      nomeCompleto: string;
+      numeroSms: string | null;
+      alojamentoAtual: ReturnType<typeof formatarAlojamento>;
+    }
+  >();
+
+  const adicionar = (dados: any) => {
+    if (!dados) return;
+    if (!mapa.has(dados.id)) {
+      mapa.set(dados.id, {
+        id: dados.id,
+        nomeCompleto: dados.nomeCompleto ?? dados.nomeSocial ?? "",
+        numeroSms: dados.numeroSms ?? "",
+        alojamentoAtual: formatarAlojamento(dados.alojamentoAtual),
+      });
+    }
+  };
+
+  conflitos.forEach((item) => {
+    adicionar(item.adolescenteA);
+    adicionar(item.adolescenteB);
+  });
+
+  return Array.from(mapa.values());
+};
+
+// GET /api/conflitos/[id]
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -54,21 +109,62 @@ export async function GET(
 
     if (!conflito) {
       return NextResponse.json(
-        { erro: "Conflito não encontrado" },
+        { erro: "Conflito nao encontrado" },
         { status: 404 }
       );
     }
 
-    // Formatar resposta
+    const grupoId = conflito.registroGrupoId ?? conflito.id;
+    const conflitosAgrupados = await prisma.conflito.findMany({
+      where: grupoId
+        ? {
+            OR: [
+              { registroGrupoId: grupoId },
+              { id: grupoId },
+            ],
+          }
+        : { id: conflito.id },
+      include: {
+        adolescenteA: {
+          select: {
+            id: true,
+            nomeCompleto: true,
+            nomeSocial: true,
+            numeroSms: true,
+            alojamentoAtual: {
+              include: {
+                casa: true,
+              },
+            },
+          },
+        },
+        adolescenteB: {
+          select: {
+            id: true,
+            nomeCompleto: true,
+            nomeSocial: true,
+            numeroSms: true,
+            alojamentoAtual: {
+              include: {
+                casa: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const participantes = coletarParticipantes(conflitosAgrupados);
+
     const conflitoFormatado = {
       id: conflito.id,
+      registroGrupoId: grupoId,
       tipo: conflito.tipoConflito,
       status: conflito.status,
       descricao: conflito.descricao,
       dataRegistro: conflito.criadoEm,
       dataResolucao: conflito.resolvidoEm,
-
-      // Comunicado Interno de origem
+      participantes,
       ciOrigem: conflito.ciOrigem
         ? {
             id: conflito.ciOrigem.id,
@@ -78,8 +174,6 @@ export async function GET(
             resumo: conflito.ciOrigem.resumoCI,
           }
         : null,
-
-      // Adolescente A
       adolescenteA: {
         id: conflito.adolescenteA.id,
         nomeCompleto: conflito.adolescenteA.nomeCompleto,
@@ -96,8 +190,6 @@ export async function GET(
             }
           : null,
       },
-
-      // Adolescente B
       adolescenteB: {
         id: conflito.adolescenteB.id,
         nomeCompleto: conflito.adolescenteB.nomeCompleto,
@@ -114,8 +206,6 @@ export async function GET(
             }
           : null,
       },
-
-      // Tentativas de mediação realizadas
       tentativasMediacao: conflito.tentativasMediacao.map((tentativa) => ({
         id: tentativa.id,
         dataTentativa: tentativa.dataTentativa,
@@ -126,25 +216,6 @@ export async function GET(
         proximaAcaoRecomendada: tentativa.proximaAcaoRecomendada,
         dataProximaAvaliacao: tentativa.dataProximaAvaliacao,
       })),
-
-      // Análise de risco
-      analiseRisco: {
-        mesmaAla: conflito.adolescenteA.alojamentoAtual?.ala === conflito.adolescenteB.alojamentoAtual?.ala,
-        mesmaCasa: conflito.adolescenteA.alojamentoAtual?.casaId === conflito.adolescenteB.alojamentoAtual?.casaId,
-        ambosAtivos:
-          conflito.adolescenteA.statusUnidade === "ATIVO" &&
-          conflito.adolescenteB.statusUnidade === "ATIVO",
-        nivelAlerta:
-          conflito.status === "ATIVO" &&
-          conflito.adolescenteA.alojamentoAtual?.ala === conflito.adolescenteB.alojamentoAtual?.ala
-            ? "CRÍTICO"
-            : conflito.status === "ATIVO" &&
-              conflito.adolescenteA.alojamentoAtual?.casaId === conflito.adolescenteB.alojamentoAtual?.casaId
-            ? "ALTO"
-            : conflito.status === "ATIVO"
-            ? "MÉDIO"
-            : "BAIXO",
-      },
     };
 
     return NextResponse.json(conflitoFormatado);

@@ -223,6 +223,246 @@ describe("POST /api/grupos/[id]/adicionar-membro", () => {
       })
     );
   });
+
+  it("retorna 404 quando adolescente nao encontrado", async () => {
+    mockedAuth.mockResolvedValueOnce({ user: { id: "oper-1" } } as any);
+    mockedPrisma.operador.findUnique.mockResolvedValueOnce({ id: "oper-1" });
+    mockedPrisma.grupo.findUnique.mockResolvedValueOnce({
+      id: "grupo-1",
+      nomeGrupo: "Grupo A",
+      casaId: "casa-1",
+      casa: { id: "casa-1", nome: "Casa 1" },
+      membros: [],
+    });
+    mockedPrisma.adolescente.findUnique.mockResolvedValueOnce(null);
+
+    const response = await POST_ADICIONAR(
+      makeRequest("POST", url, { adolescenteId: "ado-1" }),
+      { params: Promise.resolve({ id: "grupo-1" }) }
+    );
+    const json = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(json.erro).toBe("Adolescente nao encontrado");
+  });
+
+  it("retorna 400 quando adolescente ja pertence a um grupo ativo", async () => {
+    mockedAuth.mockResolvedValueOnce({ user: { id: "oper-1" } } as any);
+    mockedPrisma.operador.findUnique.mockResolvedValueOnce({ id: "oper-1" });
+    mockedPrisma.grupo.findUnique.mockResolvedValueOnce({
+      id: "grupo-1",
+      nomeGrupo: "Grupo A",
+      casaId: "casa-1",
+      casa: { id: "casa-1", nome: "Casa 1" },
+      membros: [],
+    });
+    mockedPrisma.adolescente.findUnique.mockResolvedValueOnce({
+      id: "ado-1",
+      nomeCompleto: "Joao Silva",
+      conflitosA: [],
+      conflitosB: [],
+      gruposMembros: [
+        {
+          grupo: {
+            id: "grupo-9",
+            nomeGrupo: "Grupo B",
+            casa: { nome: "Casa 2" },
+          },
+        },
+      ],
+    });
+
+    const response = await POST_ADICIONAR(
+      makeRequest("POST", url, { adolescenteId: "ado-1" }),
+      { params: Promise.resolve({ id: "grupo-1" }) }
+    );
+    const json = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(json.erro).toBe("Adolescente ja pertence a um grupo ativo");
+    expect(json.grupo_atual).toEqual({
+      id: "grupo-9",
+      nome: "Grupo B",
+      casa: "Casa 2",
+    });
+  });
+
+  it("retorna 400 quando adolescente ja e membro ativo do grupo", async () => {
+    mockedAuth.mockResolvedValueOnce({ user: { id: "oper-1" } } as any);
+    mockedPrisma.operador.findUnique.mockResolvedValueOnce({ id: "oper-1" });
+    mockedPrisma.grupo.findUnique.mockResolvedValueOnce({
+      id: "grupo-1",
+      nomeGrupo: "Grupo A",
+      casaId: "casa-1",
+      casa: { id: "casa-1", nome: "Casa 1" },
+      membros: [],
+    });
+    mockedPrisma.adolescente.findUnique.mockResolvedValueOnce({
+      id: "ado-1",
+      nomeCompleto: "Joao Silva",
+      conflitosA: [],
+      conflitosB: [],
+      gruposMembros: [],
+    });
+    mockedPrisma.grupoMembro.findFirst.mockResolvedValueOnce({
+      id: "membro-1",
+      dataSaida: null,
+    });
+
+    const response = await POST_ADICIONAR(
+      makeRequest("POST", url, { adolescenteId: "ado-1" }),
+      { params: Promise.resolve({ id: "grupo-1" }) }
+    );
+    const json = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(json.erro).toBe("Adolescente ja e membro ativo deste grupo");
+  });
+
+  it("exige justificativa quando ha conflito com membro do mesmo grupo", async () => {
+    mockedAuth.mockResolvedValueOnce({ user: { id: "oper-1" } } as any);
+    mockedPrisma.operador.findUnique.mockResolvedValueOnce({ id: "oper-1" });
+    mockedPrisma.grupo.findUnique.mockResolvedValueOnce({
+      id: "grupo-1",
+      nomeGrupo: "Grupo A",
+      casaId: "casa-1",
+      casa: { id: "casa-1", nome: "Casa 1" },
+      membros: [
+        {
+          adolescente: {
+            id: "ado-2",
+            nomeCompleto: "Carlos",
+            conflitosA: [],
+            conflitosB: [],
+          },
+        },
+      ],
+    });
+    mockedPrisma.adolescente.findUnique.mockResolvedValueOnce({
+      id: "ado-1",
+      nomeCompleto: "Joao Silva",
+      conflitosA: [
+        {
+          id: "conf-1",
+          tipoConflito: "AGRESSAO",
+          adolescenteB: { id: "ado-2", nomeCompleto: "Carlos" },
+        },
+      ],
+      conflitosB: [],
+      gruposMembros: [],
+    });
+    mockedPrisma.grupoMembro.findFirst.mockResolvedValueOnce(null);
+    mockedPrisma.grupoMembro.findMany.mockResolvedValueOnce([]);
+
+    const response = await POST_ADICIONAR(
+      makeRequest("POST", url, { adolescenteId: "ado-1" }),
+      { params: Promise.resolve({ id: "grupo-1" }) }
+    );
+    const json = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(json.status).toBe("REQUER_JUSTIFICATIVA");
+    expect(Array.isArray(json.conflitos)).toBe(true);
+    expect(json.conflitos[0]).toEqual(
+      expect.objectContaining({
+        tipo: "CONFLITO_INTERNO",
+        nivel: 5,
+      })
+    );
+  });
+
+  it("cria decisao operacional quando justificativa fornecida para conflito critico", async () => {
+    mockedAuth.mockResolvedValueOnce({ user: { id: "oper-1" } } as any);
+    mockedPrisma.operador.findUnique.mockResolvedValueOnce({ id: "oper-1" });
+    mockedPrisma.grupo.findUnique.mockResolvedValueOnce({
+      id: "grupo-1",
+      nomeGrupo: "Grupo A",
+      casaId: "casa-1",
+      casa: { id: "casa-1", nome: "Casa 1" },
+      membros: [
+        {
+          adolescente: {
+            id: "ado-2",
+            nomeCompleto: "Carlos",
+            conflitosA: [],
+            conflitosB: [],
+          },
+        },
+      ],
+    });
+    mockedPrisma.adolescente.findUnique.mockResolvedValueOnce({
+      id: "ado-1",
+      nomeCompleto: "Joao Silva",
+      conflitosA: [
+        {
+          id: "conf-1",
+          tipoConflito: "AMEACA",
+          adolescenteB: { id: "ado-2", nomeCompleto: "Carlos" },
+        },
+      ],
+      conflitosB: [],
+      gruposMembros: [],
+    });
+    mockedPrisma.grupoMembro.findFirst.mockResolvedValueOnce(null);
+    mockedPrisma.grupoMembro.findMany.mockResolvedValueOnce([]);
+
+    const dataEntrada = new Date("2025-02-01T10:00:00Z");
+    mockedPrisma.$transaction.mockImplementationOnce(async (fn) => {
+      return await fn({
+        grupoMembro: mockedPrisma.grupoMembro,
+        logAuditoria: mockedPrisma.logAuditoria,
+        decisaoOperacional: mockedPrisma.decisaoOperacional,
+      });
+    });
+    mockedPrisma.grupoMembro.create.mockResolvedValueOnce({
+      id: "membro-1",
+      dataEntrada,
+      adolescente: { id: "ado-1", nomeCompleto: "Joao Silva" },
+      grupo: {
+        id: "grupo-1",
+        nomeGrupo: "Grupo A",
+        casa: { nome: "Casa 1" },
+      },
+    });
+    mockedPrisma.decisaoOperacional.create.mockResolvedValueOnce({
+      id: "dec-1",
+    });
+    mockedPrisma.logAuditoria.create.mockResolvedValueOnce({ id: "log-3" });
+
+    const response = await POST_ADICIONAR(
+      makeRequest("POST", url, {
+        adolescenteId: "ado-1",
+        justificativa: "Conflito sera monitorado.",
+        medidas_adicionais: ["Acompanhamento psicossocial"],
+      }),
+      { params: Promise.resolve({ id: "grupo-1" }) }
+    );
+    const json = await response.json();
+
+    expect(response.status).toBe(201);
+    expect(json.documentado).toBe(true);
+    expect(json.decisao_id).toBe("dec-1");
+    expect(json.nivel_risco).toBe("CRITICO");
+    expect(json.alertas_processados).toBeGreaterThan(0);
+    expect(mockedPrisma.decisaoOperacional.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          operadorId: "oper-1",
+          justificativaOperador: "Conflito sera monitorado.",
+        }),
+      })
+    );
+    expect(mockedPrisma.logAuditoria.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          detalhesAlteracao: expect.objectContaining({
+            justificativa: "Conflito sera monitorado.",
+            conflitos_detectados: expect.any(Number),
+          }),
+        }),
+      })
+    );
+  });
 });
 
 describe("DELETE /api/grupos/[id]/membros/[membroId]", () => {

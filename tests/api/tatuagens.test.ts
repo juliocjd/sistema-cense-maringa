@@ -91,6 +91,82 @@ describe("GET /api/tatuagens", () => {
   });
 });
 
+describe("GET /api/tatuagens/[id]", () => {
+  const tatuagemId = "11111111-1111-1111-1111-111111111111";
+  const baseUrl = `http://localhost/api/tatuagens/${tatuagemId}`;
+
+  it("retorna 400 quando id invalido", async () => {
+    const request = buildRequest("GET", baseUrl);
+    const response = await GET_TATUAGEM(request, {
+      params: Promise.resolve({ id: "nao-uuid" }),
+    });
+    const json = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(json.erro).toBe("Id da tatuagem invalido");
+  });
+
+  it("retorna 404 quando tatuagem nao encontrada", async () => {
+    mockedPrisma.tatuagemCatalogo.findUnique.mockResolvedValueOnce(null);
+
+    const request = buildRequest("GET", baseUrl);
+    const response = await GET_TATUAGEM(request, {
+      params: Promise.resolve({ id: tatuagemId }),
+    });
+    const json = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(json.erro).toBe("Tatuagem nao encontrada");
+  });
+
+  it("retorna tatuagem com usos quando solicitado", async () => {
+    mockedPrisma.tatuagemCatalogo.findUnique.mockResolvedValueOnce({
+      id: tatuagemId,
+      nomeSimbolo: "Palhaco",
+      significadoAssociado: "Simbolo",
+      nivelRisco: "ALTO",
+      _count: { adolescentesTatuagens: 2 },
+      adolescentesTatuagens: [
+        {
+          id: "uso-1",
+          localCorpo: "Braco",
+          fotoUrl: null,
+          observacoes: null,
+          adolescente: {
+            id: "ado-1",
+            nomeCompleto: "Joao",
+            statusUnidade: "ATIVO",
+            alojamentoAtual: {
+              id: "aloj-1",
+              numeroAlojamento: "01",
+              ala: "A",
+              casa: { id: "casa-1", nome: "Casa 1", numero: 1 },
+            },
+          },
+        },
+      ],
+    });
+
+    const request = buildRequest(
+      "GET",
+      `${baseUrl}?incluir_adolescentes=true`
+    );
+    const response = await GET_TATUAGEM(request, {
+      params: Promise.resolve({ id: tatuagemId }),
+    });
+    const json = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(json.totalUso).toBe(2);
+    expect(json.adolescentes[0]).toEqual(
+      expect.objectContaining({
+        id: "ado-1",
+        localCorpo: "Braco",
+      })
+    );
+  });
+});
+
 describe("POST /api/tatuagens", () => {
   const url = "http://localhost/api/tatuagens";
 
@@ -128,6 +204,49 @@ describe("POST /api/tatuagens", () => {
     expect(response.status).toBe(201);
     expect(json.nomeSimbolo).toBe("Palhaco");
     expect(mockedPrisma.logAuditoria.create).toHaveBeenCalled();
+  });
+
+  it("retorna 403 quando operador nao encontrado", async () => {
+    mockedAuth.mockResolvedValue({ user: { id: "oper-1" } } as any);
+    mockedPrisma.operador.findUnique.mockResolvedValueOnce(null);
+
+    const request = buildRequest("POST", url, {
+      nomeSimbolo: "Palhaco",
+    });
+    const response = await POST(request);
+    const json = await response.json();
+
+    expect(response.status).toBe(403);
+    expect(json.erro).toBe("Operador nao encontrado");
+  });
+
+  it("retorna 400 quando payload invalido", async () => {
+    mockedAuth.mockResolvedValue({ user: { id: "oper-1" } } as any);
+    mockedPrisma.operador.findUnique.mockResolvedValueOnce({ id: "oper-1" });
+
+    const request = buildRequest("POST", url, { nomeSimbolo: "" });
+    const response = await POST(request);
+    const json = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(json.erro).toBe("Dados invalidos");
+  });
+
+  it("retorna 409 quando simbolo ja cadastrado", async () => {
+    mockedAuth.mockResolvedValue({ user: { id: "oper-1" } } as any);
+    mockedPrisma.operador.findUnique.mockResolvedValueOnce({ id: "oper-1" });
+    mockedPrisma.tatuagemCatalogo.findUnique.mockResolvedValueOnce({
+      id: "tat-1",
+    });
+
+    const request = buildRequest("POST", url, {
+      nomeSimbolo: "Palhaco",
+    });
+    const response = await POST(request);
+    const json = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(json.erro).toBe("Tatuagem ja cadastrada com este simbolo");
   });
 });
 
@@ -173,6 +292,58 @@ describe("PUT /api/tatuagens/[id]", () => {
     expect(response.status).toBe(200);
     expect(json.nivelRisco).toBe("MEDIO");
     expect(mockedPrisma.logAuditoria.create).toHaveBeenCalled();
+  });
+
+  it("retorna 404 quando tatuagem nao encontrada", async () => {
+    mockedAuth.mockResolvedValue({ user: { id: "oper-1" } } as any);
+    mockedPrisma.operador.findUnique.mockResolvedValue({ id: "oper-1" });
+    mockedPrisma.tatuagemCatalogo.findUnique.mockResolvedValueOnce(null);
+
+    const request = buildRequest("PUT", url, {
+      nivelRisco: "ALTO",
+    });
+    const response = await PUT(request, {
+      params: Promise.resolve({ id: tatuagemId }),
+    });
+    const json = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(json.erro).toBe("Tatuagem nao encontrada");
+  });
+
+  it("retorna 409 quando nome simbolo já utilizado", async () => {
+    mockedAuth.mockResolvedValue({ user: { id: "oper-1" } } as any);
+    mockedPrisma.operador.findUnique.mockResolvedValue({ id: "oper-1" });
+    mockedPrisma.tatuagemCatalogo.findUnique
+      .mockResolvedValueOnce({ id: tatuagemId, nomeSimbolo: "Palhaco" })
+      .mockResolvedValueOnce({ id: "outro" });
+
+    const request = buildRequest("PUT", url, { nomeSimbolo: "Palhaco 2" });
+    const response = await PUT(request, {
+      params: Promise.resolve({ id: tatuagemId }),
+    });
+    const json = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(json.erro).toBe("Ja existe tatuagem com este simbolo");
+  });
+
+  it("retorna 400 quando nenhum campo informado", async () => {
+    mockedAuth.mockResolvedValue({ user: { id: "oper-1" } } as any);
+    mockedPrisma.operador.findUnique.mockResolvedValue({ id: "oper-1" });
+    mockedPrisma.tatuagemCatalogo.findUnique.mockResolvedValueOnce({
+      id: tatuagemId,
+      nomeSimbolo: "Palhaco",
+    });
+
+    const request = buildRequest("PUT", url, {});
+    const response = await PUT(request, {
+      params: Promise.resolve({ id: tatuagemId }),
+    });
+    const json = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(json.erro).toBe("Dados invalidos");
   });
 });
 
@@ -221,5 +392,34 @@ describe("DELETE /api/tatuagens/[id]", () => {
     expect(response.status).toBe(200);
     expect(json.sucesso).toBe(true);
     expect(mockedPrisma.logAuditoria.create).toHaveBeenCalled();
+  });
+
+  it("retorna 400 quando id invalido", async () => {
+    mockedAuth.mockResolvedValue({ user: { id: "oper-1" } } as any);
+    mockedPrisma.operador.findUnique.mockResolvedValue({ id: "oper-1" });
+
+    const request = buildRequest("DELETE", url);
+    const response = await DELETE(request, {
+      params: Promise.resolve({ id: "abc" }),
+    });
+    const json = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(json.erro).toBe("Id da tatuagem invalido");
+  });
+
+  it("retorna 404 quando tatuagem nao encontrada", async () => {
+    mockedAuth.mockResolvedValue({ user: { id: "oper-1" } } as any);
+    mockedPrisma.operador.findUnique.mockResolvedValue({ id: "oper-1" });
+    mockedPrisma.tatuagemCatalogo.findUnique.mockResolvedValueOnce(null);
+
+    const request = buildRequest("DELETE", url);
+    const response = await DELETE(request, {
+      params: Promise.resolve({ id: tatuagemId }),
+    });
+    const json = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(json.erro).toBe("Tatuagem nao encontrada");
   });
 });

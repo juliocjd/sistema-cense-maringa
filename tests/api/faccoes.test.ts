@@ -91,6 +91,84 @@ describe("GET /api/faccoes", () => {
   });
 });
 
+describe("GET /api/faccoes/[id]", () => {
+  const faccaoId = "11111111-1111-1111-1111-111111111111";
+  const baseUrl = `http://localhost/api/faccoes/${faccaoId}`;
+
+  it("retorna 400 quando id invalido", async () => {
+    const request = buildRequest("GET", baseUrl);
+    const response = await GET_FACCAO(request, {
+      params: Promise.resolve({ id: "nao-uuid" }),
+    });
+    const json = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(json.erro).toBe("Id da faccao invalido");
+  });
+
+  it("retorna 404 quando faccao nao encontrada", async () => {
+    mockedPrisma.faccao.findUnique.mockResolvedValueOnce(null);
+
+    const request = buildRequest("GET", baseUrl);
+    const response = await GET_FACCAO(request, {
+      params: Promise.resolve({ id: faccaoId }),
+    });
+    const json = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(json.erro).toBe("Faccao nao encontrada");
+  });
+
+  it("retorna faccao com adolescentes quando solicitado", async () => {
+    mockedPrisma.faccao.findUnique.mockResolvedValueOnce({
+      id: faccaoId,
+      nomeFaccao: "Grupo A",
+      descricao: "Descricao",
+      _count: { adolescentes: 2 },
+      adolescentes: [
+        {
+          id: "ado-1",
+          nomeCompleto: "Joao",
+          statusUnidade: "ATIVO",
+          alojamentoAtual: {
+            id: "aloj-1",
+            numeroAlojamento: "01",
+            ala: "A",
+            casa: { id: "casa-1", nome: "Casa 1", numero: 1 },
+          },
+        },
+        {
+          id: "ado-2",
+          nomeCompleto: "Maria",
+          statusUnidade: "ATIVO",
+          alojamentoAtual: null,
+        },
+      ],
+    });
+
+    const request = buildRequest(
+      "GET",
+      `${baseUrl}?incluir_adolescentes=true`
+    );
+    const response = await GET_FACCAO(request, {
+      params: Promise.resolve({ id: faccaoId }),
+    });
+    const json = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(json.totalAdolescentes).toBe(2);
+    expect(Array.isArray(json.adolescentes)).toBe(true);
+    expect(json.adolescentes[0]).toEqual(
+      expect.objectContaining({
+        id: "ado-1",
+        alojamento: expect.objectContaining({
+          casa: expect.objectContaining({ nome: "Casa 1" }),
+        }),
+      })
+    );
+  });
+});
+
 describe("POST /api/faccoes", () => {
   const url = "http://localhost/api/faccoes";
 
@@ -144,6 +222,35 @@ describe("POST /api/faccoes", () => {
     expect(json.id).toBe("fac-1");
     expect(mockedPrisma.logAuditoria.create).toHaveBeenCalled();
   });
+
+  it("retorna 400 quando payload invalido", async () => {
+    mockedAuth.mockResolvedValue({ user: { id: "oper-1" } } as any);
+    mockedPrisma.operador.findUnique.mockResolvedValue({ id: "oper-1" });
+
+    const request = buildRequest("POST", url, { nomeFaccao: "" });
+    const response = await POST(request);
+    const json = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(json.erro).toBe("Dados invalidos");
+  });
+
+  it("retorna 409 quando nome ja existe", async () => {
+    mockedAuth.mockResolvedValue({ user: { id: "oper-1" } } as any);
+    mockedPrisma.operador.findUnique.mockResolvedValue({ id: "oper-1" });
+    mockedPrisma.faccao.findUnique.mockResolvedValueOnce({
+      id: "fac-1",
+    });
+
+    const request = buildRequest("POST", url, {
+      nomeFaccao: "Grupo A",
+    });
+    const response = await POST(request);
+    const json = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(json.erro).toBe("Faccao ja cadastrada com este nome");
+  });
 });
 
 describe("PUT /api/faccoes/[id]", () => {
@@ -184,6 +291,58 @@ describe("PUT /api/faccoes/[id]", () => {
     expect(response.status).toBe(200);
     expect(json.nomeFaccao).toBe("Grupo B");
     expect(mockedPrisma.logAuditoria.create).toHaveBeenCalled();
+  });
+
+  it("retorna 404 quando faccao inexistente", async () => {
+    mockedAuth.mockResolvedValue({ user: { id: "oper-1" } } as any);
+    mockedPrisma.operador.findUnique.mockResolvedValue({ id: "oper-1" });
+    mockedPrisma.faccao.findUnique.mockResolvedValueOnce(null);
+
+    const request = buildRequest("PUT", baseUrl, {
+      nomeFaccao: "Grupo Z",
+    });
+    const response = await PUT(request, {
+      params: Promise.resolve({ id: faccaoId }),
+    });
+    const json = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(json.erro).toBe("Faccao nao encontrada");
+  });
+
+  it("retorna 409 quando novo nome ja utilizado", async () => {
+    mockedAuth.mockResolvedValue({ user: { id: "oper-1" } } as any);
+    mockedPrisma.operador.findUnique.mockResolvedValue({ id: "oper-1" });
+    mockedPrisma.faccao.findUnique
+      .mockResolvedValueOnce({ id: faccaoId, nomeFaccao: "Grupo A" })
+      .mockResolvedValueOnce({ id: "outro-id" });
+
+    const request = buildRequest("PUT", baseUrl, { nomeFaccao: "Grupo B" });
+    const response = await PUT(request, {
+      params: Promise.resolve({ id: faccaoId }),
+    });
+    const json = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(json.erro).toBe("Ja existe faccao com este nome");
+  });
+
+  it("retorna 400 quando nenhum campo informado", async () => {
+    mockedAuth.mockResolvedValue({ user: { id: "oper-1" } } as any);
+    mockedPrisma.operador.findUnique.mockResolvedValue({ id: "oper-1" });
+    mockedPrisma.faccao.findUnique.mockResolvedValueOnce({
+      id: faccaoId,
+      nomeFaccao: "Grupo A",
+    });
+
+    const request = buildRequest("PUT", baseUrl, {});
+    const response = await PUT(request, {
+      params: Promise.resolve({ id: faccaoId }),
+    });
+    const json = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(json.erro).toBe("Dados invalidos");
   });
 });
 
@@ -230,5 +389,34 @@ describe("DELETE /api/faccoes/[id]", () => {
     expect(response.status).toBe(200);
     expect(json.sucesso).toBe(true);
     expect(mockedPrisma.logAuditoria.create).toHaveBeenCalled();
+  });
+
+  it("retorna 400 quando id invalido", async () => {
+    mockedAuth.mockResolvedValue({ user: { id: "oper-1" } } as any);
+    mockedPrisma.operador.findUnique.mockResolvedValue({ id: "oper-1" });
+
+    const request = buildRequest("DELETE", baseUrl);
+    const response = await DELETE(request, {
+      params: Promise.resolve({ id: "invalido" }),
+    });
+    const json = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(json.erro).toBe("Id da faccao invalido");
+  });
+
+  it("retorna 404 quando faccao nao encontrada", async () => {
+    mockedAuth.mockResolvedValue({ user: { id: "oper-1" } } as any);
+    mockedPrisma.operador.findUnique.mockResolvedValue({ id: "oper-1" });
+    mockedPrisma.faccao.findUnique.mockResolvedValueOnce(null);
+
+    const request = buildRequest("DELETE", baseUrl);
+    const response = await DELETE(request, {
+      params: Promise.resolve({ id: faccaoId }),
+    });
+    const json = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(json.erro).toBe("Faccao nao encontrada");
   });
 });

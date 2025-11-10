@@ -1,8 +1,8 @@
-﻿"use client";
+"use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Save, Search, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Save, Search, AlertTriangle, X } from "lucide-react";
 
 type Adolescente = {
   id: string;
@@ -11,74 +11,129 @@ type Adolescente = {
   alojamento?: string;
 };
 
+type NovoConflitoPayload = {
+  principalId: string;
+  envolvidosIds: string[];
+  tipoConflito: string;
+  origem: string;
+  ciOrigem?: string;
+  descricao?: string;
+  registroGrupoId: string;
+};
+
 interface RegistroConflitoProps {
   adolescentes: Adolescente[];
-  onSalvar: (conflito: any) => Promise<void>;
+  onSalvar: (conflito: NovoConflitoPayload) => Promise<void>;
 }
 
 export function RegistroConflito({
   adolescentes,
   onSalvar,
 }: RegistroConflitoProps) {
-  const [adolescenteA, setAdolescenteA] = useState<Adolescente | null>(null);
-  const [adolescenteB, setAdolescenteB] = useState<Adolescente | null>(null);
+  const [principal, setPrincipal] = useState<Adolescente | null>(null);
+  const [envolvidos, setEnvolvidos] = useState<Adolescente[]>([]);
   const [tipoConflito, setTipoConflito] = useState("");
   const [origem, setOrigem] = useState("");
   const [ciOrigem, setCiOrigem] = useState("");
   const [descricao, setDescricao] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const [buscaA, setBuscaA] = useState("");
-  const [buscaB, setBuscaB] = useState("");
-  const [mostrarListaA, setMostrarListaA] = useState(false);
-  const [mostrarListaB, setMostrarListaB] = useState(false);
+  const [buscaPrincipal, setBuscaPrincipal] = useState("");
+  const [buscaEnvolvido, setBuscaEnvolvido] = useState("");
+  const [mostrarListaPrincipal, setMostrarListaPrincipal] = useState(false);
+  const [mostrarListaEnvolvidos, setMostrarListaEnvolvidos] = useState(false);
 
-  const adolescentesFiltradosA = adolescentes.filter(
-    (a) =>
-      a.id !== adolescenteB?.id &&
-      (a.nomeCompleto.toLowerCase().includes(buscaA.toLowerCase()) ||
-        a.numeroSms.includes(buscaA))
-  );
+  const participantesIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (principal) {
+      ids.add(principal.id);
+    }
+    envolvidos.forEach((item) => ids.add(item.id));
+    return ids;
+  }, [principal, envolvidos]);
 
-  const adolescentesFiltradosB = adolescentes.filter(
-    (a) =>
-      a.id !== adolescenteA?.id &&
-      (a.nomeCompleto.toLowerCase().includes(buscaB.toLowerCase()) ||
-        a.numeroSms.includes(buscaB))
-  );
+  const candidatosPrincipal = useMemo(() => {
+    const termo = buscaPrincipal.toLowerCase();
+    return adolescentes.filter((alvo) => {
+      if (envolvidos.some((item) => item.id === alvo.id)) {
+        return false;
+      }
+      return (
+        termo === "" ||
+        alvo.nomeCompleto.toLowerCase().includes(termo) ||
+        (buscaPrincipal && (alvo.numeroSms ?? "").includes(buscaPrincipal))
+      );
+    });
+  }, [adolescentes, buscaPrincipal, envolvidos]);
+
+  const candidatosEnvolvidos = useMemo(() => {
+    const termo = buscaEnvolvido.toLowerCase();
+    return adolescentes.filter((alvo) => {
+      if (principal?.id === alvo.id) {
+        return false;
+      }
+      if (envolvidos.some((item) => item.id === alvo.id)) {
+        return false;
+      }
+      return (
+        termo === "" ||
+        alvo.nomeCompleto.toLowerCase().includes(termo) ||
+        (buscaEnvolvido && (alvo.numeroSms ?? "").includes(buscaEnvolvido))
+      );
+    });
+  }, [adolescentes, buscaEnvolvido, envolvidos, principal]);
+
+  const handleAdicionarEnvolvido = (alvo: Adolescente) => {
+    setEnvolvidos((lista) => [...lista, alvo]);
+    setBuscaEnvolvido("");
+    setMostrarListaEnvolvidos(false);
+  };
 
   const handleSalvar = async () => {
-    // ValidaÃ§Ãµes
-    if (!adolescenteA || !adolescenteB) {
-      alert("Selecione os dois adolescentes envolvidos!");
+    if (!principal) {
+      alert("Selecione o adolescente principal.");
+      return;
+    }
+
+    if (envolvidos.length === 0) {
+      alert("Selecione ao menos um adolescente envolvido.");
       return;
     }
 
     if (!tipoConflito) {
-      alert("Selecione o tipo de conflito!");
+      alert("Selecione o tipo de conflito.");
       return;
     }
 
     if (!origem) {
-      alert("Informe a origem do conflito!");
+      alert("Informe a origem do conflito.");
       return;
     }
 
     setLoading(true);
     try {
+      const registroGrupoId =
+        typeof crypto !== "undefined" && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random()}`;
+
       await onSalvar({
-        adolescenteAId: adolescenteA.id,
-        adolescenteBId: adolescenteB.id,
+        principalId: principal.id,
+        envolvidosIds: envolvidos.map((item) => item.id),
         tipoConflito,
         origem,
         ciOrigem: ciOrigem || undefined,
         descricao: descricao || undefined,
+        registroGrupoId,
       });
 
-      alert("âœ… Conflito registrado com sucesso!");
-      // Limpar formulÃ¡rio ou redirecionar
+      alert("Conflitos registrados com sucesso.");
     } catch (error) {
-      alert("âŒ Erro ao registrar conflito. Tente novamente.");
+      const mensagem =
+        error instanceof Error
+          ? error.message
+          : "Erro ao registrar conflito. Tente novamente.";
+      alert(mensagem);
     } finally {
       setLoading(false);
     }
@@ -86,271 +141,232 @@ export function RegistroConflito({
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-white rounded-2xl shadow-lg p-6 border-b-4 border-red-600">
+      <div className="rounded-2xl border-b-4 border-red-600 bg-white p-6 shadow-lg">
         <Link
           href="/conflitos"
-          className="flex items-center gap-2 text-red-600 hover:text-red-700 font-semibold mb-4"
+          className="mb-4 flex items-center gap-2 font-semibold text-red-600 hover:text-red-700"
         >
           <ArrowLeft size={20} />
           Voltar para lista
         </Link>
-        <h1 className="text-3xl font-bold text-gray-800">
-          Registrar Novo Conflito
-        </h1>
-        <p className="text-gray-600 mt-2">
-          Preencha as informaÃ§Ãµes sobre o conflito entre os adolescentes
+        <h1 className="text-3xl font-bold text-gray-800">Registrar novo conflito</h1>
+        <p className="mt-2 text-sm text-gray-600">
+          Selecione todos os adolescentes envolvidos e descreva a ocorrencia registrada.
         </p>
       </div>
 
-      {/* FormulÃ¡rio */}
-      <div className="bg-white rounded-2xl shadow-lg p-8">
+      <div className="rounded-2xl bg-white p-8 shadow-lg">
         <div className="space-y-6">
-          {/* Alerta */}
-          <div className="bg-orange-50 border-l-4 border-orange-500 p-4 rounded-r-lg">
+          <div className="rounded-r-lg border-l-4 border-orange-500 bg-orange-50 p-4">
             <div className="flex items-start gap-3">
-              <AlertTriangle size={20} className="text-orange-600 mt-0.5" />
-              <div className="flex-1">
-                <p className="font-semibold text-orange-900 mb-1">
-                  AtenÃ§Ã£o ao registrar conflitos
-                </p>
+              <AlertTriangle size={20} className="mt-0.5 text-orange-600" />
+              <div>
+                <p className="font-semibold text-orange-900">Atencao</p>
                 <p className="text-sm text-orange-800">
-                  O registro de conflito ativarÃ¡ alertas automÃ¡ticos no sistema
-                  de alocaÃ§Ã£o e impedirÃ¡ que os adolescentes sejam colocados em
-                  alojamentos frontais ou mesma ala.
+                  Cada conflito registrado bloqueia a alocacao dos adolescentes na mesma ala
+                  ou alojamento ate nova avaliacao da equipe tecnica.
                 </p>
               </div>
             </div>
           </div>
 
-          {/* SeleÃ§Ã£o de Adolescentes */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Adolescente A */}
+          <div className="grid gap-6 md:grid-cols-2">
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Adolescente A *
+              <label className="mb-2 block text-sm font-semibold text-gray-700">
+                Adolescente principal *
               </label>
               <div className="relative">
-                <div className="relative">
-                  <Search
-                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                    size={20}
-                  />
-                  <input
-                    type="text"
-                    value={adolescenteA ? adolescenteA.nomeCompleto : buscaA}
-                    onChange={(e) => {
-                      setBuscaA(e.target.value);
-                      setAdolescenteA(null);
-                      setMostrarListaA(true);
-                    }}
-                    onFocus={() => setMostrarListaA(true)}
-                    placeholder="Buscar por nome ou SMS..."
-                    className="w-full pl-10 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none transition-all"
-                  />
-                </div>
-
-                {mostrarListaA &&
-                  !adolescenteA &&
-                  adolescentesFiltradosA.length > 0 && (
-                    <>
-                      <div
-                        className="fixed inset-0 z-10"
-                        onClick={() => setMostrarListaA(false)}
-                      />
-                      <div className="absolute z-20 w-full mt-1 bg-white border-2 border-gray-300 rounded-lg shadow-xl max-h-60 overflow-y-auto">
-                        {adolescentesFiltradosA
-                          .slice(0, 5)
-                          .map((adolescente) => (
-                            <button
-                              key={adolescente.id}
-                              onClick={() => {
-                                setAdolescenteA(adolescente);
-                                setMostrarListaA(false);
-                              }}
-                              className="w-full text-left px-4 py-3 hover:bg-gray-100 transition-colors border-b border-gray-200 last:border-b-0"
-                            >
-                              <p className="font-semibold text-gray-800">
-                                {adolescente.nomeCompleto}
-                              </p>
-                              <p className="text-sm text-gray-600">
-                                SMS: {adolescente.numeroSms}
-                                {adolescente.alojamento && (
-                                  <> â€¢ {adolescente.alojamento}</>
-                                )}
-                              </p>
-                            </button>
-                          ))}
-                      </div>
-                    </>
-                  )}
+                <Search
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                  size={18}
+                />
+                <input
+                  type="text"
+                  value={buscaPrincipal}
+                  onChange={(event) => setBuscaPrincipal(event.target.value)}
+                  onFocus={() => setMostrarListaPrincipal(true)}
+                  placeholder="Buscar por nome ou SMS"
+                  className="w-full rounded-lg border-2 border-gray-300 px-3 py-2 pl-9 focus:border-red-500 focus:ring-2 focus:ring-red-200"
+                />
+                {mostrarListaPrincipal && candidatosPrincipal.length > 0 && (
+                  <div className="absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+                    {candidatosPrincipal.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => {
+                          setPrincipal(item);
+                          setBuscaPrincipal(item.nomeCompleto);
+                          setMostrarListaPrincipal(false);
+                        }}
+                        className="flex w-full flex-col items-start gap-1 border-b border-gray-100 px-3 py-2 text-left hover:bg-red-50"
+                      >
+                        <span className="font-semibold text-gray-800">
+                          {item.nomeCompleto}
+                        </span>
+                        <span className="text-xs text-gray-500">
+                          SMS: {item.numeroSms}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
-              {adolescenteA && (
-                <div className="mt-2 p-3 bg-red-50 rounded-lg border border-red-200">
-                  <p className="font-semibold text-gray-800">
-                    {adolescenteA.nomeCompleto}
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    SMS: {adolescenteA.numeroSms}
-                    {adolescenteA.alojamento && (
-                      <> â€¢ {adolescenteA.alojamento}</>
-                    )}
-                  </p>
+              {principal && (
+                <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-gray-800">{principal.nomeCompleto}</p>
+                      <p className="text-sm text-gray-600">
+                        SMS: {principal.numeroSms}
+                        {principal.alojamento ? ` | ${principal.alojamento}` : ""}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPrincipal(null);
+                        setBuscaPrincipal("");
+                      }}
+                      className="text-xs font-semibold text-red-600 hover:text-red-800"
+                    >
+                      Limpar
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
 
-            {/* Adolescente B */}
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Adolescente B *
+              <label className="mb-2 block text-sm font-semibold text-gray-700">
+                Outros envolvidos (minimo 1) *
               </label>
               <div className="relative">
-                <div className="relative">
-                  <Search
-                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                    size={20}
-                  />
-                  <input
-                    type="text"
-                    value={adolescenteB ? adolescenteB.nomeCompleto : buscaB}
-                    onChange={(e) => {
-                      setBuscaB(e.target.value);
-                      setAdolescenteB(null);
-                      setMostrarListaB(true);
-                    }}
-                    onFocus={() => setMostrarListaB(true)}
-                    placeholder="Buscar por nome ou SMS..."
-                    className="w-full pl-10 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none transition-all"
-                  />
-                </div>
-
-                {mostrarListaB &&
-                  !adolescenteB &&
-                  adolescentesFiltradosB.length > 0 && (
-                    <>
-                      <div
-                        className="fixed inset-0 z-10"
-                        onClick={() => setMostrarListaB(false)}
-                      />
-                      <div className="absolute z-20 w-full mt-1 bg-white border-2 border-gray-300 rounded-lg shadow-xl max-h-60 overflow-y-auto">
-                        {adolescentesFiltradosB
-                          .slice(0, 5)
-                          .map((adolescente) => (
-                            <button
-                              key={adolescente.id}
-                              onClick={() => {
-                                setAdolescenteB(adolescente);
-                                setMostrarListaB(false);
-                              }}
-                              className="w-full text-left px-4 py-3 hover:bg-gray-100 transition-colors border-b border-gray-200 last:border-b-0"
-                            >
-                              <p className="font-semibold text-gray-800">
-                                {adolescente.nomeCompleto}
-                              </p>
-                              <p className="text-sm text-gray-600">
-                                SMS: {adolescente.numeroSms}
-                                {adolescente.alojamento && (
-                                  <> â€¢ {adolescente.alojamento}</>
-                                )}
-                              </p>
-                            </button>
-                          ))}
-                      </div>
-                    </>
-                  )}
+                <Search
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                  size={18}
+                />
+                <input
+                  type="text"
+                  value={buscaEnvolvido}
+                  onChange={(event) => setBuscaEnvolvido(event.target.value)}
+                  onFocus={() => setMostrarListaEnvolvidos(true)}
+                  placeholder="Buscar por nome ou SMS"
+                  disabled={!principal}
+                  className="w-full rounded-lg border-2 border-gray-300 px-3 py-2 pl-9 focus:border-red-500 focus:ring-2 focus:ring-red-200 disabled:cursor-not-allowed disabled:bg-gray-50"
+                />
+                {mostrarListaEnvolvidos && candidatosEnvolvidos.length > 0 && (
+                  <div className="absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+                    {candidatosEnvolvidos.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => handleAdicionarEnvolvido(item)}
+                        className="flex w-full flex-col items-start gap-1 border-b border-gray-100 px-3 py-2 text-left hover:bg-red-50"
+                      >
+                        <span className="font-semibold text-gray-800">
+                          {item.nomeCompleto}
+                        </span>
+                        <span className="text-xs text-gray-500">
+                          SMS: {item.numeroSms}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
-              {adolescenteB && (
-                <div className="mt-2 p-3 bg-red-50 rounded-lg border border-red-200">
-                  <p className="font-semibold text-gray-800">
-                    {adolescenteB.nomeCompleto}
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    SMS: {adolescenteB.numeroSms}
-                    {adolescenteB.alojamento && (
-                      <> â€¢ {adolescenteB.alojamento}</>
-                    )}
-                  </p>
+              {envolvidos.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {envolvidos.map((item) => (
+                    <span
+                      key={item.id}
+                      className="inline-flex items-center gap-2 rounded-full bg-red-100 px-3 py-1 text-sm font-semibold text-red-700"
+                    >
+                      {item.nomeCompleto}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setEnvolvidos((lista) => lista.filter((alvo) => alvo.id !== item.id))
+                        }
+                        className="text-red-600 hover:text-red-800"
+                      >
+                        <X size={14} />
+                      </button>
+                    </span>
+                  ))}
                 </div>
               )}
             </div>
           </div>
 
-          {/* Tipo de Conflito */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Tipo de Conflito *
+            <label className="mb-2 block text-sm font-semibold text-gray-700">
+              Tipo de conflito *
             </label>
             <select
               value={tipoConflito}
-              onChange={(e) => setTipoConflito(e.target.value)}
-              className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none transition-all"
+              onChange={(event) => setTipoConflito(event.target.value)}
+              className="w-full rounded-lg border-2 border-gray-300 px-4 py-3 focus:border-red-500 focus:ring-2 focus:ring-red-200"
             >
-              <option value="">Selecione o tipo...</option>
-              <option value="FACCAO">FacÃ§Ãµes rivais</option>
-              <option value="TERRITORIAL">
-                Territorial (bairros em conflito)
-              </option>
+              <option value="">Selecione...</option>
+              <option value="FACCAO">Faccoes rivais</option>
+              <option value="TERRITORIAL">Disputa territorial</option>
               <option value="PESSOAL">Rivalidade pessoal</option>
               <option value="OUTROS">Outros</option>
             </select>
           </div>
 
-          {/* Origem */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid gap-4 md:grid-cols-2">
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Origem do Registro *
+              <label className="mb-2 block text-sm font-semibold text-gray-700">
+                Origem do registro *
               </label>
               <select
                 value={origem}
-                onChange={(e) => setOrigem(e.target.value)}
-                className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none transition-all"
+                onChange={(event) => setOrigem(event.target.value)}
+                className="w-full rounded-lg border-2 border-gray-300 px-4 py-3 focus:border-red-500 focus:ring-2 focus:ring-red-200"
               >
                 <option value="">Selecione...</option>
-                <option value="CI">Comunicado Interno (CI)</option>
-                <option value="OBSERVACAO">ObservaÃ§Ã£o direta</option>
-                <option value="DENUNCIA">DenÃºncia</option>
+                <option value="CI">Comunicado interno (CI)</option>
+                <option value="OBSERVACAO">Observacao direta</option>
+                <option value="DENUNCIA">Denuncia</option>
                 <option value="OUTROS">Outros</option>
               </select>
             </div>
-
             {origem === "CI" && (
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  NÃºmero do CI
+                <label className="mb-2 block text-sm font-semibold text-gray-700">
+                  Numero do CI
                 </label>
                 <input
                   type="text"
                   value={ciOrigem}
-                  onChange={(e) => setCiOrigem(e.target.value)}
+                  onChange={(event) => setCiOrigem(event.target.value)}
                   placeholder="Ex: 145/2025"
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none transition-all"
+                  className="w-full rounded-lg border-2 border-gray-300 px-4 py-3 focus:border-red-500 focus:ring-2 focus:ring-red-200"
                 />
               </div>
             )}
           </div>
 
-          {/* DescriÃ§Ã£o */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              DescriÃ§Ã£o do Conflito
+            <label className="mb-2 block text-sm font-semibold text-gray-700">
+              Descricao do conflito
             </label>
             <textarea
               value={descricao}
-              onChange={(e) => setDescricao(e.target.value)}
+              onChange={(event) => setDescricao(event.target.value)}
               rows={4}
-              placeholder="Descreva os detalhes do conflito, como foi identificado, circunstÃ¢ncias, etc..."
-              className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none transition-all resize-none"
+              placeholder="Descreva a dinamica do conflito, contexto e encaminhamentos"
+              className="w-full rounded-lg border-2 border-gray-300 px-4 py-3 focus:border-red-500 focus:ring-2 focus:ring-red-200"
             />
           </div>
         </div>
 
-        {/* BotÃµes */}
-        <div className="flex items-center justify-end gap-3 mt-8 pt-6 border-t-2 border-gray-200">
+        <div className="mt-8 flex items-center justify-end gap-3 border-t-2 border-gray-200 pt-6">
           <Link
             href="/conflitos"
-            className="px-6 py-3 border-2 border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-100 transition-colors"
+            className="rounded-lg border-2 border-gray-300 px-6 py-3 font-semibold text-gray-700 hover:bg-gray-100"
           >
             Cancelar
           </Link>
@@ -358,22 +374,22 @@ export function RegistroConflito({
             onClick={handleSalvar}
             disabled={
               loading ||
-              !adolescenteA ||
-              !adolescenteB ||
+              !principal ||
+              envolvidos.length === 0 ||
               !tipoConflito ||
               !origem
             }
-            className="px-6 py-3 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+            className="flex items-center gap-2 rounded-lg bg-red-600 px-6 py-3 font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-gray-400"
           >
             {loading ? (
               <>
-                <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+                <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
                 Salvando...
               </>
             ) : (
               <>
                 <Save size={20} />
-                Registrar Conflito
+                Registrar conflito
               </>
             )}
           </button>

@@ -32,6 +32,20 @@ model Operador {
   @@map("operadores")
 }
 
+model AgenteProfissional {
+  id          String    @id @default(uuid())
+  nome        String
+  atividade   String?
+  email       String    @unique
+  telefone    String?
+  criadoEm    DateTime  @default(now()) @map("criado_em")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+
+  adolescentesReferencia Adolescente[] @relation("AgenteReferencia")
+
+  @@map("agentes_profissionais")
+}
+
 // ============================================
 // ESTRUTURA FÍSICA
 // ============================================
@@ -121,8 +135,24 @@ model Faccao {
 
   // Relações
   adolescentes Adolescente[]
+  conflitosFaccaoA FaccaoConflito[] @relation("FaccaoA")
+  conflitosFaccaoB FaccaoConflito[] @relation("FaccaoB")
 
   @@map("faccoes")
+}
+
+model FaccaoConflito {
+  id        String  @id @default(uuid())
+  faccaoAId String  @map("faccao_a_id")
+  faccaoBId String  @map("faccao_b_id")
+  status    String  @default("ATIVO")
+  criadoEm  DateTime @default(now()) @map("criado_em")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+
+  faccaoA Faccao @relation("FaccaoA", fields: [faccaoAId], references: [id])
+  faccaoB Faccao @relation("FaccaoB", fields: [faccaoBId], references: [id])
+
+  @@map("faccoes_conflitos")
 }
 
 model Bairro {
@@ -191,6 +221,10 @@ model Adolescente {
   dataEntrada               DateTime? @map("data_entrada")
   numeroProcesso            String?   @map("numero_processo")
   atoInfracionalAtual       String?   @map("ato_infracional_atual")
+  atoInfracionalAno         Int?      @map("ato_infracional_ano")
+  atoInfracionalProcesso    String?   @map("ato_infracional_processo")
+  atoInfracionalGravidade   Boolean   @default(false) @map("ato_infracional_gravidade")
+  atoInfracionalGravidadeObs String?  @map("ato_infracional_gravidade_obs")
   statusUnidade             String    @default("ATIVO") @map("status_unidade")
   
   // Perfil de Risco
@@ -208,6 +242,9 @@ model Adolescente {
   // Alocação Atual
   alojamentoAtualId         String?   @map("alojamento_atual_id")
   faseInternacaoAtualId     String?   @map("fase_internacao_atual_id")
+  agenteReferenciaId        String?   @map("agente_referencia_id")
+  agenteReferencia          AgenteProfissional? @relation("AgenteReferencia", fields: [agenteReferenciaId], references: [id])
+  dataDesinternacao         DateTime? @map("data_desinternacao")
   
   criadoEm                  DateTime  @default(now()) @map("criado_em")
   atualizadoEm              DateTime  @updatedAt @map("atualizado_em")
@@ -254,6 +291,10 @@ model AdolescenteHistoricoInfracional {
   id                        String  @id @default(uuid())
   adolescenteId             String  @map("adolescente_id")
   atoInfracionalDescricao   String  @map("ato_infracional_descricao")
+  atoInfracionalAno         Int?    @map("ato_infracional_ano")
+  atoInfracionalProcesso    String? @map("ato_infracional_processo")
+  atoInfracionalGravidade   Boolean @default(false) @map("ato_infracional_gravidade")
+  atoInfracionalGravidadeObs String? @map("ato_infracional_gravidade_obs")
   unidadeInternacao         String? @map("unidade_internacao")
   ano                       Int?
   observacoes               String?
@@ -312,6 +353,7 @@ model Conflito {
   status          String    @default("ATIVO")
   ciOrigemId      String?   @map("ci_origem_id")
   descricao       String?
+  registroGrupoId String?   @map("registro_grupo_id")
   criadoEm        DateTime  @default(now()) @map("criado_em")
   resolvidoEm     DateTime? @map("resolvido_em")
 

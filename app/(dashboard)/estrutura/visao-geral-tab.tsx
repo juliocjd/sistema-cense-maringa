@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Building2,
   Home,
@@ -11,94 +11,230 @@ import {
   AlertTriangle,
   Lock,
   Activity,
-  X
 } from "lucide-react";
 import { InicializarEstruturaButton } from "./inicializar-button";
 import { ModalAlocacao } from "@/components/mapa/modal-alocacao";
+import ModalAlojamentoDetalhes from "@/components/mapa/modal-alojamento-detalhes";
+import type {
+  Casa,
+  Alojamento,
+  Adolescente as AdolescenteTipo,
+} from "@/types";
+import type { ImpactoConflitoExterno } from "@/types/inteligencia";
+import {
+  calcularRiscoAlojamento,
+  criarMapaSlots,
+  type ResultadoRisco,
+} from "@/lib/riscos/calcular";
 
 type VisaoGeralTabProps = {
-  casas: any[];
+  casas: Casa[];
   totalAlojamentos: number;
 };
 
-type Adolescente = {
-  id: string;
-  nomeCompleto: string;
-  numeroSms: string;
-  fotoUrl: string | null;
-  alojamentoAtualId: string | null;
-  statusUnidade: "ATIVO" | "TRANSFERIDO" | "LIBERADO" | "EVADIDO";
-  alertaRiscoSuicidio: boolean;
-  alertaPerfilMapeado: boolean;
-  alertaSaudeConfidencial: boolean;
-  conflitosA: any[];
-  conflitosB: any[];
+interface ModalDetalhesState {
+  aberto: boolean;
+  alojamento: (Alojamento & { casa?: Casa }) | null;
+  avaliacao: (ResultadoRisco & { corClass: string }) | null;
+}
+
+const riscoClasses = {
+  livre: "bg-gray-50 border-gray-300 hover:bg-gray-100",
+  nivel1: "bg-green-100 border-green-400 shadow-lg shadow-green-200",
+  nivel2: "bg-lime-100 border-lime-400 shadow-lg shadow-lime-200",
+  nivel3: "bg-yellow-100 border-yellow-400 shadow-lg shadow-yellow-200",
+  nivel4: "bg-orange-100 border-orange-400 shadow-lg shadow-orange-200",
+  nivel5: "bg-red-100 border-red-400 shadow-lg shadow-red-200",
+  interditado: "bg-gray-400 border-gray-600",
+};
+
+const classePorNivel: Record<0 | 1 | 2 | 3 | 4 | 5, string> = {
+  0: riscoClasses.livre,
+  1: riscoClasses.nivel1,
+  2: riscoClasses.nivel2,
+  3: riscoClasses.nivel3,
+  4: riscoClasses.nivel4,
+  5: riscoClasses.nivel5,
+};
+
+const obterNomeResumido = (nome?: string | null) => {
+  if (!nome) return null;
+  const partes = nome.trim().split(/\s+/).filter(Boolean);
+  if (partes.length === 0) return null;
+  const primeiro = partes[0];
+  const ultimo = partes.length > 1 ? partes[partes.length - 1] : null;
+  return { primeiro, ultimo };
+};
+
+const renderIconesAlerta = (alojamento: Alojamento): JSX.Element | null => {
+  const ocupante = alojamento.adolescentes?.[0];
+  if (!ocupante) return null;
+
+  return (
+    <div className="absolute -top-1 -right-1 z-10 flex gap-0.5">
+      {ocupante.alertaRiscoSuicidio && (
+        <div className="rounded-full bg-orange-500 p-0.5" title="Risco de suicidio">
+          <AlertTriangle size={10} className="text-white" />
+        </div>
+      )}
+      {ocupante.alertaPerfilMapeado && (
+        <div className="rounded-full bg-purple-500 p-0.5" title="Perfil mapeado">
+          <Lock size={10} className="text-white" />
+        </div>
+      )}
+      {ocupante.alertaSaudeConfidencial && (
+        <div className="rounded-full bg-blue-500 p-0.5" title="Alerta de saude">
+          <Activity size={10} className="text-white" />
+        </div>
+      )}
+    </div>
+  );
 };
 
 export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoGeralTabProps) {
-  const [casas, setCasas] = useState(casasIniciais);
-  const [adolescentes, setAdolescentes] = useState<Adolescente[]>([]);
-  const [alojamentoSelecionado, setAlojamentoSelecionado] = useState<any>(null);
-  const [modalAberto, setModalAberto] = useState(false);
+  const [casas, setCasas] = useState<Casa[]>(casasIniciais ?? []);
+  const [adolescentes, setAdolescentes] = useState<AdolescenteTipo[]>([]);
+  const [conflitosExternos, setConflitosExternos] = useState<
+    Record<string, ImpactoConflitoExterno[]>
+  >({});
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [modalAlocacaoAberto, setModalAlocacaoAberto] = useState(false);
+  const [alojamentoSelecionado, setAlojamentoSelecionado] = useState<
+    (Alojamento & { casa?: Casa }) | null
+  >(null);
+  const [modalDetalhes, setModalDetalhes] = useState<ModalDetalhesState>({
+    aberto: false,
+    alojamento: null,
+    avaliacao: null,
+  });
 
   const totalCasas = casas.length;
 
-  // Carregar adolescentes e ocupação atualizada
   const carregarDados = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
-      // Carregar adolescentes com conflitos primeiro
       const adolescentesResponse = await fetch("/api/adolescentes");
-      let adolescentesData: Adolescente[] = [];
-
-      if (adolescentesResponse.ok) {
-        const payload = await adolescentesResponse.json();
-        adolescentesData = Array.isArray(payload?.data) ? payload.data : [];
-        setAdolescentes(adolescentesData);
-      } else {
-        console.warn("Falha ao buscar adolescentes:", adolescentesResponse.status);
+      if (!adolescentesResponse.ok) {
+        throw new Error("Erro ao carregar adolescentes");
       }
+      const payload = await adolescentesResponse.json();
+      const adolescentesData: AdolescenteTipo[] = Array.isArray(payload?.data)
+        ? payload.data
+        : [];
+      setAdolescentes(adolescentesData);
 
-      // Carregar ocupação atualizada das casas
       const casasResponse = await fetch("/api/casas/status");
-      if (casasResponse.ok) {
-        const casasData = await casasResponse.json();
-
-        // Transformar para formato compatível com lógica de cores
-        const casasFormatadas = casasData.casas.map((casa: any) => ({
-          ...casa,
-          alojamentos: casa.alojamentos.map((aloj: any) => {
-            // Se tem ocupante, buscar dados completos do adolescente (com conflitos!)
-            let adolescenteCompleto = null;
-            if (aloj.ocupante) {
-              adolescenteCompleto = adolescentesData.find(
-                (a: Adolescente) => a.id === aloj.ocupante.id
-              );
-            }
-
-            return {
-              id: aloj.id,
-              numeroAlojamento: aloj.numero,
-              statusManutencao: aloj.status_manutencao,
-              ala: aloj.ala,
-              alojamentoFrontalId: aloj.alojamento_frontal_id,
-              casaId: casa.id,
-              corRisco: aloj.cor_risco,
-              nivelRisco: aloj.nivel_risco,
-              alertas: aloj.alertas || [],
-              icones: aloj.icones || [],
-              // Sempre usar os dados completos do adolescente se existir
-              ocupante: adolescenteCompleto,
-              adolescentes: adolescenteCompleto ? [adolescenteCompleto] : [],
-            };
-          }),
-        }));
-
-        setCasas(casasFormatadas);
+      if (!casasResponse.ok) {
+        throw new Error("Erro ao carregar dados das casas");
       }
-    } catch (error) {
-      console.error("Erro ao carregar dados:", error);
+      const casasData = await casasResponse.json();
+      const casasFormatadas: Casa[] = casasData.casas.map((casa: any) => ({
+        id: casa.id,
+        numero: casa.numero,
+        nome: casa.nome,
+        isolada: casa.isolada,
+        alojamentos: casa.alojamentos.map((aloj: any) => {
+          const ocupanteBruto = aloj.ocupante;
+          let adolescenteCompleto: AdolescenteTipo | null = null;
+          if (ocupanteBruto) {
+            adolescenteCompleto =
+              adolescentesData.find((a) => a.id === ocupanteBruto.id) ?? null;
+          }
+          const adolescenteFallback =
+            !adolescenteCompleto && ocupanteBruto
+              ? ({
+                  id: ocupanteBruto.id,
+                  nomeCompleto: ocupanteBruto.nome_completo,
+                  nomeSocial: ocupanteBruto.nome_social ?? undefined,
+                  numeroSms: ocupanteBruto.numero_sms ?? undefined,
+                  fotoUrl: ocupanteBruto.foto_url ?? null,
+                  alojamentoAtualId: aloj.id,
+                  statusUnidade: ocupanteBruto.status_unidade ?? "ATIVO",
+                  alertaRiscoSuicidio:
+                    ocupanteBruto.alerta_risco_suicidio ?? false,
+                  alertaPerfilMapeado:
+                    ocupanteBruto.alerta_perfil_mapeado ?? false,
+                  alertaSaudeConfidencial:
+                    ocupanteBruto.alerta_saude_confidencial ?? false,
+                  bairroOrigemId: ocupanteBruto.bairro_origem_id ?? null,
+                  bairroOrigem: ocupanteBruto.bairro_origem
+                    ? {
+                        id: ocupanteBruto.bairro_origem.id,
+                        nome:
+                          ocupanteBruto.bairro_origem.nome ??
+                          ocupanteBruto.bairro_origem.nomeBairro,
+                        cidade: ocupanteBruto.bairro_origem.cidade,
+                      }
+                    : null,
+                  faccaoGrupoId: ocupanteBruto.faccao_grupo_id ?? null,
+                  faccao: ocupanteBruto.faccao
+                    ? {
+                        id: ocupanteBruto.faccao.id,
+                        nome:
+                          ocupanteBruto.faccao.nome ??
+                          ocupanteBruto.faccao.nomeFaccao,
+                      }
+                    : null,
+                  conflitosA: ocupanteBruto.conflitosA ?? [],
+                  conflitosB: ocupanteBruto.conflitosB ?? [],
+                  conflitosResolvidos: ocupanteBruto.conflitosResolvidos ?? [],
+                } satisfies AdolescenteTipo)
+              : null;
+
+          const adolescenteParaMapa =
+            adolescenteCompleto || adolescenteFallback;
+
+          return {
+            id: aloj.id,
+            casaId: casa.id,
+            numeroAlojamento: aloj.numero,
+            ala: aloj.ala,
+            statusManutencao: aloj.status_manutencao,
+            alojamentoFrontalId: aloj.alojamento_frontal_id,
+            corRisco: aloj.cor_risco,
+            nivelRisco: aloj.nivel_risco,
+            alertas: aloj.alertas ?? [],
+            icones: aloj.icones ?? [],
+            adolescentes: adolescenteParaMapa ? [adolescenteParaMapa] : [],
+          } as Alojamento;
+        }),
+      }));
+      setCasas(casasFormatadas);
+
+      let impactos: Record<string, ImpactoConflitoExterno[]> = {};
+      try {
+        const impactosResponse = await fetch(
+          "/api/inteligencia/conflitos/impacto?status=ATIVO"
+        );
+        if (impactosResponse.ok) {
+          const impactosData = await impactosResponse.json();
+          const lista: ImpactoConflitoExterno[] = Array.isArray(
+            impactosData?.impactos
+          )
+            ? impactosData.impactos
+            : [];
+          impactos = lista.reduce((acc, impacto) => {
+            const adolescenteId = impacto?.adolescente?.id;
+            if (!adolescenteId) return acc;
+            if (!acc[adolescenteId]) {
+              acc[adolescenteId] = [];
+            }
+            acc[adolescenteId].push(impacto);
+            return acc;
+          }, {} as Record<string, ImpactoConflitoExterno[]>);
+        }
+      } catch (impactoErro) {
+        console.warn("Falha ao carregar conflitos externos:", impactoErro);
+      }
+      setConflitosExternos(impactos);
+    } catch (erro) {
+      console.error("Erro ao carregar dados:", erro);
+      setError(
+        erro instanceof Error ? erro.message : "Erro ao carregar dados"
+      );
     } finally {
       setLoading(false);
     }
@@ -115,11 +251,8 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
     const connect = () => {
       if (!active) return;
       eventSource = new EventSource("/api/mapa/events");
-
       eventSource.onmessage = (event) => {
-        if (!event.data) {
-          return;
-        }
+        if (!event.data) return;
         try {
           const payload = JSON.parse(event.data);
           if (
@@ -130,10 +263,9 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
             carregarDados();
           }
         } catch {
-          // ignorar
+          /* ignore */
         }
       };
-
       eventSource.onerror = () => {
         eventSource?.close();
         if (active) {
@@ -150,175 +282,229 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
     };
   }, [carregarDados]);
 
-  // ==================== FUN��O DE COR ALINHADA AO BACKEND ====================
-  function getCorAlojamento(alojamento: any) {
-    const corRisco: string | undefined = alojamento.corRisco;
-
-    if (alojamento.statusManutencao === "INTERDITADO" || corRisco === "interditado") {
-      return "bg-gray-400 border-gray-600 text-gray-800";
-    }
-
-    switch (corRisco) {
-      case "perigo":
-        return "bg-red-100 border-red-400 shadow-lg shadow-red-200 text-red-800";
-      case "atencao":
-        return "bg-yellow-100 border-yellow-400 shadow-lg shadow-yellow-200 text-yellow-800";
-      case "seguro":
-        return "bg-green-100 border-green-400 shadow-lg shadow-green-200 text-green-800";
-      case "livre":
-        return "bg-gray-50 border-gray-300 hover:bg-gray-100 text-gray-700";
-      default: {
-        const ocupante = alojamento.adolescentes?.[0] || alojamento.ocupante;
-        if (!ocupante) {
-          return "bg-gray-50 border-gray-300 hover:bg-gray-100 text-gray-700";
-        }
-        return "bg-green-100 border-green-400 shadow-lg shadow-green-200 text-green-800";
+  const adolescentesLookup = useMemo(() => {
+    const mapa = new Map<string, AdolescenteTipo>();
+    adolescentes.forEach((item) => {
+      if (item?.id) {
+        mapa.set(item.id, item);
       }
-    }
-  }
-
-// ==================== ÍCONES DE ALERTA (MESMOS DO MAPA) ====================
-  function getIconesAlerta(alojamento: any) {
-    const ocupante = alojamento.adolescentes?.[0] || alojamento.ocupante;
-    if (!ocupante) return null;
-
-    return (
-      <div className="absolute -top-1 -right-1 flex gap-0.5 z-10">
-        {ocupante.alertaRiscoSuicidio && (
-          <div
-            className="bg-orange-500 rounded-full p-0.5"
-            title="Risco de Suicídio"
-          >
-            <AlertTriangle size={10} className="text-white" />
-          </div>
-        )}
-        {ocupante.alertaPerfilMapeado && (
-          <div
-            className="bg-purple-500 rounded-full p-0.5"
-            title="Perfil Mapeado"
-          >
-            <Lock size={10} className="text-white" />
-          </div>
-        )}
-        {ocupante.alertaSaudeConfidencial && (
-          <div
-            className="bg-blue-500 rounded-full p-0.5"
-            title="Alerta de Saúde"
-          >
-            <Activity size={10} className="text-white" />
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // ==================== HANDLERS ====================
-  const handleCliqueAlojamento = (casa: any, aloj: any) => {
-    // Se estiver interditado, não faz nada
-    if (aloj.statusManutencao === "INTERDITADO") {
-      alert("Este alojamento está interditado e não pode receber alocações.");
-      return;
-    }
-
-    const ocupante = aloj.adolescentes?.[0] || aloj.ocupante;
-
-    // Se já tem ocupante, mostrar opções
-    if (ocupante) {
-      const confirmar = confirm(
-        `Alojamento ocupado por:\n${ocupante.nomeCompleto || ocupante.nome_completo}\nSMS: ${ocupante.numeroSms || ocupante.numero_sms}\n\nDeseja REMOVER este adolescente do alojamento?`
-      );
-
-      if (confirmar) {
-        handleDesalocar(aloj.id, ocupante.id);
-      }
-      return;
-    }
-
-    // Se estiver livre, abrir modal de alocação
-    setAlojamentoSelecionado({
-      id: aloj.id,
-      numero: aloj.numeroAlojamento,
-      casaNome: casa.nome,
     });
-    setModalAberto(true);
+    return mapa;
+  }, [adolescentes]);
+
+  const casasNormalizadas = useMemo(() => {
+    return casas.map((casa) => ({
+      ...casa,
+      alojamentos: casa.alojamentos.map((alojamento) => {
+        const lista = Array.isArray(alojamento.adolescentes)
+          ? alojamento.adolescentes
+          : [];
+        const ocupante = lista[0];
+        if (!ocupante) {
+          return { ...alojamento, adolescentes: [] };
+        }
+        const detalhado = adolescentesLookup.get(ocupante.id) ?? ocupante;
+        return {
+          ...alojamento,
+          adolescentes: [detalhado],
+        };
+      }),
+    }));
+  }, [casas, adolescentesLookup]);
+
+  const slotsPorAdolescente = useMemo(
+    () => criarMapaSlots(casasNormalizadas),
+    [casasNormalizadas]
+  );
+
+  const avaliarRiscoAlojamento = useCallback(
+    (alojamento: Alojamento) => {
+      const resultado = calcularRiscoAlojamento({
+        alojamento,
+        casaAtual: casasNormalizadas.find((casa) => casa.id === alojamento.casaId),
+        casas: casasNormalizadas,
+        slots: slotsPorAdolescente,
+        conflitosExternos,
+      });
+
+      const corClass =
+        resultado.categoria === "INTERDITADO"
+          ? riscoClasses.interditado
+          : classePorNivel[resultado.nivel] ?? riscoClasses.livre;
+
+      return {
+        ...resultado,
+        corClass,
+      };
+    },
+    [casasNormalizadas, conflitosExternos, slotsPorAdolescente]
+  );
+
+  const abrirModalAlocacao = (alojamento: Alojamento & { casa?: Casa }) => {
+    setAlojamentoSelecionado(alojamento);
+    setModalAlocacaoAberto(true);
+  };
+
+  const fecharModalDetalhes = () =>
+    setModalDetalhes({ aberto: false, alojamento: null, avaliacao: null });
+
+  const handleCliqueAlojamento = (casa: Casa, alojamento: Alojamento) => {
+    const avaliacao = avaliarRiscoAlojamento(alojamento);
+    const ocupante = alojamento.adolescentes[0];
+
+    if (ocupante) {
+      setModalDetalhes({
+        aberto: true,
+        alojamento: { ...alojamento, casa },
+        avaliacao,
+      });
+      return;
+    }
+
+    abrirModalAlocacao({ ...alojamento, casa });
   };
 
   const handleAlocar = async (
     adolescenteId: string,
     alojamentoId: string,
     justificativa?: string
-  ): Promise<void> => {
-    try {
-      const response = await fetch("/api/alocar", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          adolescenteId,
-          alojamentoId,
-          justificativa,
-          medidas_adicionais: [],
-        }),
-      });
+  ) => {
+    const response = await fetch("/api/alocar", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        adolescenteId,
+        alojamentoId,
+        justificativa,
+        medidas_adicionais: [],
+      }),
+    });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.erro || "Erro ao alocar adolescente");
-      }
-
-      const data = await response.json();
-
-      alert(
-        `✅ Adolescente alocado com sucesso!\n\nNível de risco: ${data.nivel_risco || "BAIXO"}`
-      );
-
-      // Fechar modal e recarregar dados
-      setModalAberto(false);
-      await carregarDados();
-    } catch (error) {
-      console.error("Erro ao alocar:", error);
-      const errorMessage =
-        error instanceof Error ? error.message : "Erro desconhecido";
-      alert(`❌ Erro ao realizar alocação:\n${errorMessage}`);
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.erro || "Erro ao alocar adolescente");
     }
+
+    await response.json();
+    setModalAlocacaoAberto(false);
+    setAlojamentoSelecionado(null);
+    await carregarDados();
   };
 
-  const handleDesalocar = async (alojamentoId: string, adolescenteId: string) => {
-    setLoading(true);
-    try {
-      const response = await fetch("/api/alocar", {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          adolescenteId,
-          alojamentoId,
-          motivo: "Desalocação manual via interface",
-        }),
-      });
+  const handleDesalocar = async (
+    alojamentoId: string,
+    adolescenteId: string,
+    motivo?: string
+  ): Promise<string> => {
+    const response = await fetch("/api/alocar", {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        adolescenteId,
+        alojamentoId,
+        motivo: motivo ?? "Desalocacao manual via visao geral",
+      }),
+    });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.erro || "Erro ao desalocar adolescente");
-      }
-
-      alert("✅ Adolescente removido do alojamento com sucesso!");
-      await carregarDados();
-    } catch (error) {
-      console.error("Erro ao desalocar:", error);
-      const errorMessage =
-        error instanceof Error ? error.message : "Erro desconhecido";
-      alert(`❌ Erro ao remover adolescente:\n${errorMessage}`);
-    } finally {
-      setLoading(false);
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.erro || "Erro ao desalocar adolescente");
     }
+
+    const data = await response.json();
+    await carregarDados();
+    return data.mensagem || "Adolescente removido do alojamento";
   };
+
+  const handleDesinternar = async (adolescenteId: string) => {
+    const response = await fetch(`/api/adolescentes/${adolescenteId}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        statusUnidade: "LIBERADO",
+        alojamentoAtualId: null,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.erro || "Erro ao desinternar adolescente");
+    }
+
+    await response.json();
+    await carregarDados();
+  };
+
+  const handleTransferir = async (
+    adolescente: AdolescenteTipo,
+    destinoAlojamentoId: string,
+    justificativa?: string
+  ) => {
+    const response = await fetch("/api/alocar", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        adolescenteId: adolescente.id,
+        alojamentoId: destinoAlojamentoId,
+        justificativa,
+        medidas_adicionais: [],
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.erro || "Erro ao transferir adolescente");
+    }
+
+    await response.json();
+    await carregarDados();
+  };
+
+  const handleAlterarStatusAlojamento = async (
+    alojamentoId: string,
+    status: "LIVRE" | "INTERDITADO",
+    justificativa: string,
+    numeroCi: string
+  ) => {
+    const response = await fetch(`/api/alojamentos?id=${alojamentoId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        statusManutencao: status,
+        justificativa,
+        numeroCi,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.erro || "Erro ao atualizar alojamento");
+    }
+
+    await response.json();
+    await carregarDados();
+  };
+
+  if (loading && casas.length === 0) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="animate-spin text-indigo-600" size={48} />
+      </div>
+    );
+  }
 
   return (
     <div>
-      {/* Estatísticas */}
       <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
         <div className="rounded-xl bg-gradient-to-br from-blue-50 to-blue-100 p-6 border-2 border-blue-200 shadow-md">
           <div className="flex items-center gap-3 mb-2">
@@ -338,65 +524,31 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
 
         <div className="rounded-xl bg-gradient-to-br from-purple-50 to-purple-100 p-6 border-2 border-purple-200 shadow-md">
           <div className="flex items-center gap-3 mb-2">
-            <Building2 className="text-purple-600" size={24} />
-            <p className="text-sm font-semibold text-purple-700">Capacidade Total</p>
+            <User className="text-purple-600" size={24} />
+            <p className="text-sm font-semibold text-purple-700">Adolescentes ativos</p>
           </div>
-          <p className="text-4xl font-bold text-purple-900">78</p>
+          <p className="text-4xl font-bold text-purple-900">
+            {adolescentes.length}
+          </p>
         </div>
       </div>
 
-      {/* Legenda de Cores */}
-      <div className="mb-4 p-4 bg-white rounded-xl border-2 border-gray-200 shadow-sm">
-        <h4 className="font-semibold text-sm text-gray-700 mb-3">Legenda de Status:</h4>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-xs">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-gray-50 border-2 border-gray-300 rounded"></div>
-            <span className="text-gray-700">Desocupado</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-green-100 border-2 border-green-400 rounded"></div>
-            <span className="text-gray-700">Seguro</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-yellow-100 border-2 border-yellow-400 rounded"></div>
-            <span className="text-gray-700">Atenção</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-red-100 border-2 border-red-400 rounded"></div>
-            <span className="text-gray-700">Perigo</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-gray-400 border-2 border-gray-600 rounded"></div>
-            <span className="text-gray-700">Interditado</span>
-          </div>
+      {error && (
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
         </div>
-        <div className="mt-3 flex flex-wrap gap-3 text-xs pt-3 border-t border-gray-200">
-          <div className="flex items-center gap-2">
-            <AlertTriangle size={16} className="text-orange-500" />
-            <span className="text-gray-700">Risco Suicídio</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Lock size={16} className="text-purple-500" />
-            <span className="text-gray-700">Perfil Mapeado</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Activity size={16} className="text-blue-500" />
-            <span className="text-gray-700">Alerta Saúde</span>
-          </div>
-        </div>
-      </div>
+      )}
 
-      {/* Conteúdo Principal */}
       {totalCasas === 0 ? (
         <div className="rounded-xl bg-gradient-to-br from-yellow-50 to-orange-50 border-2 border-yellow-300 p-8 shadow-lg">
           <div className="flex items-start gap-4">
             <AlertCircle className="text-yellow-600 flex-shrink-0" size={32} />
             <div className="flex-1">
               <h3 className="font-bold text-xl text-yellow-900 mb-2">
-                🏗️ Estrutura não inicializada
+                Estrutura nao inicializada
               </h3>
               <p className="text-yellow-800 mb-4">
-                O sistema precisa criar as 8 casas e 78 alojamentos da unidade antes de começar as operações.
+                Crie as 8 casas e 78 alojamentos antes de iniciar as operacoes.
               </p>
               <InicializarEstruturaButton />
             </div>
@@ -410,7 +562,7 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
                 Estrutura das Casas
               </h2>
               <p className="text-sm text-gray-600">
-                Clique em um alojamento livre para alocar, ou em um ocupado para remover
+                Clique em um alojamento para ver detalhes ou realizar acoes.
               </p>
             </div>
             {loading && (
@@ -422,7 +574,7 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
           </div>
 
           <div className="grid gap-4">
-            {casas.map((casa) => (
+            {casasNormalizadas.map((casa) => (
               <div
                 key={casa.id}
                 className="rounded-xl bg-white border-2 border-gray-200 shadow-md hover:shadow-lg transition-shadow p-6"
@@ -446,38 +598,59 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
                   </div>
                 </div>
 
-                {/* Grid de Alojamentos */}
-                <div className="grid grid-cols-5 sm:grid-cols-10 gap-2">
-                  {casa.alojamentos.map((aloj: any) => {
-                    const corClasse = getCorAlojamento(aloj);
-                    const ocupante = aloj.adolescentes?.[0] || aloj.ocupante;
+                <div className="grid grid-cols-5 gap-2 sm:grid-cols-10">
+                  {casa.alojamentos.map((aloj) => {
+                    const avaliacao = avaliarRiscoAlojamento(aloj);
+                    const ocupante = aloj.adolescentes[0];
                     const interditado = aloj.statusManutencao === "INTERDITADO";
+                    const nomePreferencial =
+                      ocupante?.nomeSocial || ocupante?.nomeCompleto || "";
+                    const nomeResumido = obterNomeResumido(nomePreferencial);
 
                     return (
                       <button
                         key={aloj.id}
                         onClick={() => handleCliqueAlojamento(casa, aloj)}
-                        disabled={loading || interditado}
+                        disabled={loading}
                         className={`
-                          text-center p-3 rounded-lg text-sm font-bold
-                          transition-all hover:scale-105 cursor-pointer
-                          relative border-2
-                          ${corClasse}
-                          ${(loading || interditado) && "opacity-50 cursor-not-allowed"}
+                          relative p-3 rounded-lg text-xs font-bold
+                          transition-all hover:scale-105 border-2 h-full
+                          flex flex-col items-center justify-center gap-1
+                          ${avaliacao.corClass}
+                          ${loading ? "opacity-70 cursor-not-allowed" : "cursor-pointer"}
                         `}
                         title={
                           interditado
                             ? `Alojamento ${aloj.numeroAlojamento} - Interditado`
                             : ocupante
-                            ? `Alojamento ${aloj.numeroAlojamento} - ${ocupante.nomeCompleto || ocupante.nome_completo} - Clique para remover`
+                            ? `${ocupante.nomeCompleto} - Clique para visualizar`
                             : `Alojamento ${aloj.numeroAlojamento} - Clique para alocar`
                         }
                       >
-                        {/* Ícones de Alerta */}
-                        {getIconesAlerta(aloj)}
-
-                        {/* Número do alojamento */}
-                        {aloj.numeroAlojamento}
+                        {renderIconesAlerta(aloj)}
+                        <span className="text-base font-extrabold text-gray-800">
+                          {aloj.numeroAlojamento}
+                        </span>
+                        {ocupante ? (
+                          <div className="text-center text-[10px] font-semibold leading-tight text-gray-800 max-w-[4.25rem]">
+                            <span className="block truncate">
+                              {nomeResumido?.primeiro ?? nomePreferencial}
+                            </span>
+                            {nomeResumido?.ultimo && (
+                              <span className="block truncate text-[9px] font-medium text-gray-600">
+                                {nomeResumido.ultimo}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span
+                            className={`text-[10px] font-semibold ${
+                              interditado ? "text-red-600" : "text-gray-500"
+                            }`}
+                          >
+                            {interditado ? "Interditado" : "Livre"}
+                          </span>
+                        )}
                       </button>
                     );
                   })}
@@ -488,10 +661,48 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
         </div>
       )}
 
-      {/* Modal de Alocação */}
+      <ModalAlojamentoDetalhes
+        isOpen={modalDetalhes.aberto}
+        alojamento={modalDetalhes.alojamento}
+        avaliacaoRisco={modalDetalhes.avaliacao}
+        onClose={fecharModalDetalhes}
+        casas={casasNormalizadas}
+        conflitosExternos={conflitosExternos}
+        onDesalocar={(alojamentoId, adolescenteId, motivo) =>
+          handleDesalocar(alojamentoId, adolescenteId, motivo)
+        }
+        onDesinternar={handleDesinternar}
+        onTransferir={handleTransferir}
+        onSolicitarAlocacao={() => {
+          if (modalDetalhes.alojamento) {
+            abrirModalAlocacao(modalDetalhes.alojamento);
+          }
+          fecharModalDetalhes();
+        }}
+        onInterditar={(alojamentoId, justificativa, numeroCi) =>
+          handleAlterarStatusAlojamento(
+            alojamentoId,
+            "INTERDITADO",
+            justificativa,
+            numeroCi
+          )
+        }
+        onLiberarInterdicao={(alojamentoId, justificativa, numeroCi) =>
+          handleAlterarStatusAlojamento(
+            alojamentoId,
+            "LIVRE",
+            justificativa,
+            numeroCi
+          )
+        }
+      />
+
       <ModalAlocacao
-        isOpen={modalAberto}
-        onClose={() => setModalAberto(false)}
+        isOpen={modalAlocacaoAberto}
+        onClose={() => {
+          setModalAlocacaoAberto(false);
+          setAlojamentoSelecionado(null);
+        }}
         alojamento={alojamentoSelecionado}
         adolescentes={adolescentes}
         onAlocar={handleAlocar}

@@ -62,13 +62,13 @@ describe("GET /api/analytics/alertas", () => {
     mockedPrisma.alertaAtivo.findMany.mockResolvedValue([
       {
         id: "alerta-1",
-        tipoAlerta: "Risco Suicídio",
-        nivelRisco: "CRÍTICO",
+        tipoAlerta: "Risco Suicidio",
+        nivelRisco: "CRITICO",
         descricaoAlerta: "Monitoramento constante",
         criadoEm: new Date("2025-11-05T10:00:00Z"),
         adolescente: {
           id: "ado-1",
-          nomeCompleto: "João da Silva",
+          nomeCompleto: "Joao da Silva",
           alojamentoAtual: {
             id: "aloj-1",
             numero: "05",
@@ -81,7 +81,7 @@ describe("GET /api/analytics/alertas", () => {
         id: "alerta-2",
         tipoAlerta: null,
         nivelRisco: null,
-        descricaoAlerta: "Observação adicional",
+        descricaoAlerta: "Observacao adicional",
         criadoEm: new Date("2025-11-04T10:00:00Z"),
         adolescente: null,
       },
@@ -106,18 +106,18 @@ describe("GET /api/analytics/alertas", () => {
     expect(json.resumo.encerradosUltimos30Dias).toBe(2);
     expect(json.porTipo).toHaveLength(2);
     expect(json.porTipo[0]).toMatchObject({
-      tipo: "Risco Suicídio",
+      tipo: "Risco Suicidio",
       ativos: 3,
       percentual: 50,
     });
     expect(json.alertasRecentes[0]).toMatchObject({
       id: "alerta-1",
-      tipo: "Risco Suicídio",
+      tipo: "Risco Suicidio",
       nivel: "CRITICO",
       diasAtivo: 1,
       adolescente: {
         id: "ado-1",
-        nome: "João da Silva",
+        nome: "Joao da Silva",
         alojamento: {
           id: "aloj-1",
           rotulo: "Casa 01 - 05 - B",
@@ -126,6 +126,7 @@ describe("GET /api/analytics/alertas", () => {
     });
     expect(json.alertasRecentes[1].adolescente).toBeNull();
   });
+
 
   it("retorna 500 quando ocorre erro", async () => {
     mockedPrisma.alertaAtivo.groupBy.mockRejectedValueOnce(

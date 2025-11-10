@@ -1,46 +1,49 @@
-// Shared domain types for the CENSE Maringa system
+// Shared domain types for the CENSE Maringa system. All strings are kept in
+// ASCII to avoid encoding issues that were breaking build pipelines.
 
 export type StatusUnidade = "ATIVO" | "TRANSFERIDO" | "LIBERADO" | "EVADIDO";
 export type StatusManutencao = "LIVRE" | "INTERDITADO";
 export type Ala = "A" | "B" | null;
 export type RiscoFuga = "BAIXO" | "MEDIO" | "ALTO";
 
-export type CasaResumo = {
+export interface CasaResumo {
   id: string;
   nome: string;
   numero: number | string | null;
-};
+}
 
-export type AdolescenteAlojamentoResumo = {
+export interface AdolescenteAlojamentoResumo {
   id: string;
   numero: string;
-  ala?: Ala;
-  casa?: CasaResumo | null;
-  localizacaoPreferencial?: boolean;
-};
+  ala: Ala;
+  casa: CasaResumo | null;
+  localizacaoPreferencial: boolean;
+}
 
-export type AdolescenteGrupoResumo = {
+export interface AdolescenteGrupoResumo {
   id: string;
   nome: string;
-  casa?: CasaResumo | null;
-};
+  casa: CasaResumo | null;
+}
 
-export type Conflito = {
+export interface Conflito {
   id: string;
   adolescenteAId: string;
   adolescenteBId: string;
   tipoConflito?: string | null;
   status: "ATIVO" | "RESOLVIDO" | string;
   descricao?: string | null;
-  criadoEm?: Date | string;
+  criadoEm?: string;
+  resolvidoEm?: string | null;
   adversario?: {
     id: string;
     nomeCompleto: string;
     numeroSms?: string | null;
   } | null;
-};
+  adversarioLocal?: string | null;
+}
 
-export type AdolescenteTatuagemResumo = {
+export interface AdolescenteTatuagemResumo {
   id: string;
   catalogoId: string;
   simbolo: string;
@@ -48,99 +51,136 @@ export type AdolescenteTatuagemResumo = {
   nivelRisco?: string | null;
   localCorpo?: string | null;
   observacoes?: string | null;
-};
+}
 
-export type Adolescente = {
+export interface FaccaoCatalogo {
+  id: string;
+  nomeFaccao: string;
+  descricao?: string | null;
+  totalAdolescentes?: number;
+}
+
+export interface BairroCatalogo {
+  id: string;
+  nomeBairro: string;
+  cidade: string;
+  totalAdolescentes?: number;
+}
+
+export interface TatuagemCatalogo {
+  id: string;
+  nomeSimbolo: string;
+  significadoAssociado?: string | null;
+  nivelRisco?: string | null;
+  totalUso?: number;
+}
+
+export interface Adolescente {
   id: string;
   nomeCompleto: string;
-  nomeSocial?: string;
-  numeroSms?: string;
+  nomeSocial?: string | null;
+  numeroSms?: string | null;
   fotoUrl?: string | null;
-  dataNascimento?: Date | string;
-  dataEntrada?: Date | string;
-  numeroProcesso?: string;
-  atoInfracionalAtual?: string;
+  dataNascimento?: string;
+  dataEntrada?: string;
+  numeroProcesso?: string | null;
+  atoInfracionalAtual?: string | null;
+  atoInfracionalAno?: number | null;
+  atoInfracionalProcesso?: string | null;
+  atoInfracionalGravidade: boolean;
+  atoInfracionalGravidadeObs?: string | null;
   statusUnidade: StatusUnidade;
 
-  // Alocacao atual
   alojamentoAtualId?: string | null;
+  faseInternacaoAtualId?: string | null;
   alojamentoAtual?: AdolescenteAlojamentoResumo | null;
+  dataDesinternacao?: string | null;
+  agenteReferenciaId?: string | null;
+  agenteReferencia?: {
+    id: string;
+    nome: string;
+    atividade?: string | null;
+    email: string;
+    telefone?: string | null;
+  } | null;
 
-  // Vinculacoes e perfil
+  faccaoGrupoId?: string | null;
+  faccaoNumeroMembro?: string | null;
   faccao?: {
     id: string;
     nome: string;
     numeroMembro?: string | null;
   } | null;
+
+  bairroOrigemId?: string | null;
   bairroOrigem?: {
     id: string;
     nome: string;
     cidade: string;
   } | null;
+
   riscoFuga?: RiscoFuga | string | null;
 
-  grupos?: AdolescenteGrupoResumo[];
+  grupos: AdolescenteGrupoResumo[];
+  tatuagens: AdolescenteTatuagemResumo[];
 
-  tatuagens?: AdolescenteTatuagemResumo[];
-
-  // Alertas
   alertaRiscoSuicidio: boolean;
   alertaPerfilMapeado: boolean;
   alertaSaudeConfidencial: boolean;
   alertaSaudeDetalhes?: string | null;
 
-  // Conflitos (origem e adversarios completos)
-  conflitosA?: Conflito[];
-  conflitosB?: Conflito[];
+  conflitosA: Conflito[];
+  conflitosB: Conflito[];
+  conflitosResolvidos?: Conflito[];
 
-  criadoEm?: Date | string;
-  atualizadoEm?: Date | string;
-};
+  criadoEm?: string;
+  atualizadoEm?: string;
+}
 
-export type ListaAdolescentesMeta = {
+export interface ListaAdolescentesMeta {
   total: number;
   page: number;
   limit: number;
   hasMore: boolean;
-};
+}
 
-export type ListaAdolescentesResponse = {
+export interface ListaAdolescentesResponse {
   data: Adolescente[];
   meta: ListaAdolescentesMeta;
-};
+}
 
-export type Alojamento = {
+export interface Alojamento {
   id: string;
   casaId: string;
   numeroAlojamento: string;
   ala: Ala;
   statusManutencao: StatusManutencao;
   alojamentoFrontalId?: string | null;
-  localizacaoPreferencial?: boolean;
+  localizacaoPreferencial: boolean;
   corRisco?: "livre" | "interditado" | "perigo" | "atencao" | "seguro";
   nivelRisco?: number;
   icones?: string[];
   alertas?: string[];
   adolescentes: Adolescente[];
-};
+}
 
-export type Casa = {
+export interface Casa {
   id: string;
   numero: number;
   nome: string;
   isolada: boolean;
-  observacoes?: string;
+  observacoes?: string | null;
   alojamentos: Alojamento[];
-};
+}
 
-export type VerificacaoConflito = {
+export interface VerificacaoConflito {
   permite_alocacao: boolean;
   requer_justificativa: boolean;
   nivel_risco: "CRITICO" | "ALTO" | "MEDIO" | "BAIXO" | null;
   alertas: AlertaConflito[];
-};
+}
 
-export type AlertaConflito = {
+export interface AlertaConflito {
   tipo: string;
   nivel: number;
   mensagem: string;
@@ -152,27 +192,35 @@ export type AlertaConflito = {
   origem?: string;
   tipo_conflito?: string;
   recomendacao?: string;
-};
+}
 
-export type Operador = {
+export interface Operador {
   id: string;
   nomeCompleto: string;
   email: string;
   funcaoRole: "ADMIN" | "OPERADOR";
   status: string;
-};
+}
 
-export type DecisaoOperacional = {
+export interface AgenteProfissional {
+  id: string;
+  nome: string;
+  atividade?: string | null;
+  email: string;
+  telefone?: string | null;
+}
+
+export interface DecisaoOperacional {
   id: string;
   operadorId: string;
-  dataHora: Date | string;
+  dataHora: string;
   tipoOperacao: string;
   adolescenteId?: string;
   grupoId?: string;
   alojamentoId?: string;
   nivelAlerta?: string;
-  conflitosDetectados?: any;
+  conflitosDetectados?: unknown;
   justificativaOperador: string;
   medidasAdicionais?: string[];
   status: string;
-};
+}
