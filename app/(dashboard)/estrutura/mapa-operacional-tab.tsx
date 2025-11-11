@@ -44,6 +44,7 @@ export function MapaOperacionalTab() {
             a.alojamentoAtual?.id ??
             null,
           statusUnidade: a.statusUnidade,
+          atoInfracionalGravidade: Boolean(a.atoInfracionalGravidade ?? false),
           alertaRiscoSuicidio: Boolean(a.alertaRiscoSuicidio),
           alertaPerfilMapeado: Boolean(a.alertaPerfilMapeado),
           alertaSaudeConfidencial: Boolean(a.alertaSaudeConfidencial),
@@ -115,6 +116,7 @@ export function MapaOperacionalTab() {
                   fotoUrl: ocupanteBruto.foto_url ?? null,
                   alojamentoAtualId: aloj.id,
                   statusUnidade: ocupanteBruto.status_unidade ?? "ATIVO",
+                  atoInfracionalGravidade: Boolean(ocupanteBruto.ato_infracional_gravidade ?? false),
                   alertaRiscoSuicidio:
                     ocupanteBruto.alerta_risco_suicidio ?? false,
                   alertaPerfilMapeado:
@@ -140,6 +142,8 @@ export function MapaOperacionalTab() {
                           ocupanteBruto.faccao.nomeFaccao,
                       }
                     : null,
+                  grupos: [],
+                  tatuagens: [],
                   conflitosA: (ocupanteBruto.conflitosA ?? []) as Conflito[],
                   conflitosB: (ocupanteBruto.conflitosB ?? []) as Conflito[],
                   conflitosResolvidos:

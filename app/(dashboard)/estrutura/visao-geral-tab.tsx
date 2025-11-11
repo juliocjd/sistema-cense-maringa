@@ -11,10 +11,12 @@ import {
   AlertTriangle,
   Lock,
   Activity,
+  ChevronDown,
 } from "lucide-react";
 import { InicializarEstruturaButton } from "./inicializar-button";
 import { ModalAlocacao } from "@/components/mapa/modal-alocacao";
 import ModalAlojamentoDetalhes from "@/components/mapa/modal-alojamento-detalhes";
+import { ModalAnaliseImpacto } from "@/components/estrutura/modal-analise-impacto";
 import type {
   Casa,
   Alojamento,
@@ -66,27 +68,46 @@ const obterNomeResumido = (nome?: string | null) => {
   return { primeiro, ultimo };
 };
 
-const renderIconesAlerta = (alojamento: Alojamento): JSX.Element | null => {
+const renderIconesAlerta = (
+  alojamento: Alojamento,
+  temConflitos: boolean,
+  onClickConflito?: () => void,
+  avaliacaoRisco?: { ambiental?: { ativo: boolean } | null }
+): React.ReactElement | null => {
   const ocupante = alojamento.adolescentes?.[0];
-  if (!ocupante) return null;
+  const temAliados = avaliacaoRisco?.ambiental?.ativo ?? false;
+
+  if (!ocupante && !temAliados) return null;
 
   return (
     <div className="absolute -top-1 -right-1 z-10 flex gap-0.5">
-      {ocupante.alertaRiscoSuicidio && (
+      {ocupante?.alertaRiscoSuicidio && (
         <div className="rounded-full bg-orange-500 p-0.5" title="Risco de suicidio">
           <AlertTriangle size={10} className="text-white" />
         </div>
       )}
-      {ocupante.alertaPerfilMapeado && (
+      {ocupante?.alertaPerfilMapeado && (
         <div className="rounded-full bg-purple-500 p-0.5" title="Perfil mapeado">
           <Lock size={10} className="text-white" />
         </div>
       )}
-      {ocupante.alertaSaudeConfidencial && (
+      {ocupante?.alertaSaudeConfidencial && (
         <div className="rounded-full bg-blue-500 p-0.5" title="Alerta de saude">
           <Activity size={10} className="text-white" />
         </div>
       )}
+      {temAliados && (
+        <div
+          className="rounded-full bg-amber-500/70 px-1.5 py-0.5 text-[8px] font-semibold text-white border border-amber-300"
+          title="Aliados do rival na casa"
+        >
+          A
+        </div>
+      )}
+      {/*
+        REMOVIDO: Ícone vermelho de conflito
+        As cores de nível de risco e os ícones específicos já indicam os conflitos.
+      */}
     </div>
   );
 };
@@ -96,6 +117,9 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
   const [adolescentes, setAdolescentes] = useState<AdolescenteTipo[]>([]);
   const [conflitosExternos, setConflitosExternos] = useState<
     Record<string, ImpactoConflitoExterno[]>
+  >({});
+  const [conflitosInternos, setConflitosInternos] = useState<
+    Record<string, Array<{ id: string; adversario: { id: string; nome: string } }>>
   >({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -109,6 +133,22 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
     alojamento: null,
     avaliacao: null,
   });
+
+  const [modalAnaliseImpacto, setModalAnaliseImpacto] = useState<{
+    aberto: boolean;
+    adolescenteId: string | null;
+    adolescenteNome: string | null;
+    adolescenteAlocado: boolean;
+    conflitos: Array<{ id: string; adversario: { id: string; nome: string } }>;
+  }>({
+    aberto: false,
+    adolescenteId: null,
+    adolescenteNome: null,
+    adolescenteAlocado: false,
+    conflitos: [],
+  });
+
+  const [dropdownConflitosAberto, setDropdownConflitosAberto] = useState(false);
 
   const totalCasas = casas.length;
 
@@ -153,6 +193,7 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
                   fotoUrl: ocupanteBruto.foto_url ?? null,
                   alojamentoAtualId: aloj.id,
                   statusUnidade: ocupanteBruto.status_unidade ?? "ATIVO",
+                  atoInfracionalGravidade: Boolean(ocupanteBruto.ato_infracional_gravidade ?? false),
                   alertaRiscoSuicidio:
                     ocupanteBruto.alerta_risco_suicidio ?? false,
                   alertaPerfilMapeado:
@@ -178,6 +219,8 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
                           ocupanteBruto.faccao.nomeFaccao,
                       }
                     : null,
+                  grupos: [],
+                  tatuagens: [],
                   conflitosA: ocupanteBruto.conflitosA ?? [],
                   conflitosB: ocupanteBruto.conflitosB ?? [],
                   conflitosResolvidos: ocupanteBruto.conflitosResolvidos ?? [],
@@ -230,6 +273,50 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
         console.warn("Falha ao carregar conflitos externos:", impactoErro);
       }
       setConflitosExternos(impactos);
+
+      // Carregar conflitos internos
+      let conflitosMap: Record<string, Array<{ id: string; adversario: { id: string; nome: string } }>> = {};
+      try {
+        const conflitosResponse = await fetch("/api/conflitos?status=ATIVO");
+        if (conflitosResponse.ok) {
+          const conflitosData = await conflitosResponse.json();
+          if (Array.isArray(conflitosData)) {
+            conflitosData.forEach((conflito: any) => {
+              const adolescenteAId = conflito.adolescenteA?.id;
+              const adolescenteBId = conflito.adolescenteB?.id;
+
+              if (adolescenteAId) {
+                if (!conflitosMap[adolescenteAId]) {
+                  conflitosMap[adolescenteAId] = [];
+                }
+                conflitosMap[adolescenteAId].push({
+                  id: conflito.id,
+                  adversario: {
+                    id: adolescenteBId,
+                    nome: conflito.adolescenteB?.nome || "Desconhecido",
+                  },
+                });
+              }
+
+              if (adolescenteBId) {
+                if (!conflitosMap[adolescenteBId]) {
+                  conflitosMap[adolescenteBId] = [];
+                }
+                conflitosMap[adolescenteBId].push({
+                  id: conflito.id,
+                  adversario: {
+                    id: adolescenteAId,
+                    nome: conflito.adolescenteA?.nome || "Desconhecido",
+                  },
+                });
+              }
+            });
+          }
+        }
+      } catch (conflitosErro) {
+        console.warn("Falha ao carregar conflitos internos:", conflitosErro);
+      }
+      setConflitosInternos(conflitosMap);
     } catch (erro) {
       console.error("Erro ao carregar dados:", erro);
       setError(
@@ -340,6 +427,23 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
     [casasNormalizadas, conflitosExternos, slotsPorAdolescente]
   );
 
+  // Mapa de níveis de risco por adolescente (para filtrar dropdown)
+  const riscosPorAdolescente = useMemo(() => {
+    const mapa = new Map<string, number>();
+
+    casasNormalizadas.forEach((casa) => {
+      casa.alojamentos.forEach((aloj) => {
+        const ocupante = aloj.adolescentes[0];
+        if (ocupante) {
+          const avaliacao = avaliarRiscoAlojamento(aloj);
+          mapa.set(ocupante.id, avaliacao.nivel);
+        }
+      });
+    });
+
+    return mapa;
+  }, [casasNormalizadas, avaliarRiscoAlojamento]);
+
   const abrirModalAlocacao = (alojamento: Alojamento & { casa?: Casa }) => {
     setAlojamentoSelecionado(alojamento);
     setModalAlocacaoAberto(true);
@@ -350,18 +454,13 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
 
   const handleCliqueAlojamento = (casa: Casa, alojamento: Alojamento) => {
     const avaliacao = avaliarRiscoAlojamento(alojamento);
-    const ocupante = alojamento.adolescentes[0];
 
-    if (ocupante) {
-      setModalDetalhes({
-        aberto: true,
-        alojamento: { ...alojamento, casa },
-        avaliacao,
-      });
-      return;
-    }
-
-    abrirModalAlocacao({ ...alojamento, casa });
+    // Sempre abre o modal de detalhes (ocupado ou vazio)
+    setModalDetalhes({
+      aberto: true,
+      alojamento: { ...alojamento, casa },
+      avaliacao,
+    });
   };
 
   const handleAlocar = async (
@@ -533,6 +632,78 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
         </div>
       </div>
 
+      {/* Legenda de risco e ícones de alerta */}
+      <div className="bg-white rounded-xl shadow p-4 border border-gray-200 text-xs">
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="font-semibold text-slate-800 leading-tight">
+                Legenda de risco (niveis 0 a 5)
+              </p>
+              <p className="text-[11px] text-slate-500">
+                Use as cores para priorizar intervencoes.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-3 text-[11px]">
+              <div className="flex items-center gap-1">
+                <span className="w-5 h-5 rounded bg-red-100 border border-red-400"></span>
+                <span>Nivel 5</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="w-5 h-5 rounded bg-orange-100 border border-orange-400"></span>
+                <span>Nivel 4</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="w-5 h-5 rounded bg-yellow-100 border border-yellow-400"></span>
+                <span>Nivel 3</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="w-5 h-5 rounded bg-lime-100 border border-lime-400"></span>
+                <span>Nivel 2</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="w-5 h-5 rounded bg-green-100 border border-green-400"></span>
+                <span>Nivel 1</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="w-5 h-5 rounded bg-gray-100 border border-gray-300"></span>
+                <span>Nivel 0</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="w-5 h-5 rounded bg-gray-400 border border-gray-600"></span>
+                <span>Interditado</span>
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-4 pt-2 border-t border-slate-100 text-[11px] text-slate-600">
+            <div className="flex items-center gap-1">
+              <span className="bg-orange-500 rounded-full p-1">
+                <AlertTriangle size={12} className="text-white" />
+              </span>
+              Risco de suicidio
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="bg-purple-500 rounded-full p-1">
+                <Lock size={12} className="text-white" />
+              </span>
+              Perfil mapeado
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="bg-blue-500 rounded-full p-1">
+                <Activity size={12} className="text-white" />
+              </span>
+              Alerta de saude
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="rounded-full bg-amber-500/70 px-2 py-0.5 text-[10px] font-semibold text-white border border-amber-300">
+                Aliados
+              </span>
+              Aliados do rival na casa
+            </div>
+          </div>
+        </div>
+      </div>
+
       {error && (
         <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
@@ -557,7 +728,7 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
       ) : (
         <div className="space-y-4">
           <div className="flex items-center justify-between mb-4">
-            <div>
+            <div className="flex-1">
               <h2 className="text-xl font-bold text-gray-800">
                 Estrutura das Casas
               </h2>
@@ -565,13 +736,183 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
                 Clique em um alojamento para ver detalhes ou realizar acoes.
               </p>
             </div>
-            {loading && (
-              <div className="flex items-center gap-2 text-indigo-600">
-                <Loader2 className="animate-spin" size={16} />
-                <span className="text-sm">Atualizando...</span>
-              </div>
-            )}
+            <div className="flex items-center gap-3">
+              {loading && (
+                <div className="flex items-center gap-2 text-indigo-600">
+                  <Loader2 className="animate-spin" size={16} />
+                  <span className="text-sm">Atualizando...</span>
+                </div>
+              )}
+              {(() => {
+                // Combinar IDs de adolescentes com conflitos internos OU externos
+                const idsComConflitosInternos = new Set(Object.keys(conflitosInternos));
+                const idsComConflitosExternos = new Set(Object.keys(conflitosExternos));
+                const todosIdsComConflitos = new Set([...idsComConflitosInternos, ...idsComConflitosExternos]);
+
+                // Filtrar apenas adolescentes com nível de risco >= 2 (MONITORAR ou superior)
+                const idsComRiscoRelevante = Array.from(todosIdsComConflitos).filter((id) => {
+                  const nivelRisco = riscosPorAdolescente.get(id) ?? 0;
+                  return nivelRisco >= 2;
+                });
+
+                return idsComRiscoRelevante.length > 0 && (
+                  <div className="relative">
+                    <button
+                      onClick={() => setDropdownConflitosAberto(!dropdownConflitosAberto)}
+                      className="px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors flex items-center gap-2 shadow-md"
+                    >
+                      <AlertTriangle size={18} />
+                      <span>Analisar Conflitos ({idsComRiscoRelevante.length})</span>
+                      <ChevronDown size={16} className={`transition-transform ${dropdownConflitosAberto ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {dropdownConflitosAberto && (
+                      <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl border border-gray-200 z-50 max-h-96 overflow-y-auto">
+                        <div className="p-3 border-b border-gray-200 bg-gray-50">
+                          <p className="text-sm font-semibold text-gray-700">Selecione o adolescente para análise:</p>
+                        </div>
+                        <div className="py-1">
+                          {idsComRiscoRelevante.map((adolescenteId) => {
+                            const adolescente = adolescentes.find(a => a.id === adolescenteId);
+                            const numConflitosInternos = conflitosInternos[adolescenteId]?.length || 0;
+                            const numConflitosExternos = conflitosExternos[adolescenteId]?.length || 0;
+                            const numConflitosTotal = numConflitosInternos + numConflitosExternos;
+                            const alojamento = adolescente?.alojamentoAtualId
+                              ? casas.flatMap(c => c.alojamentos).find(a => a.id === adolescente.alojamentoAtualId)
+                              : null;
+                            const casa = alojamento
+                              ? casas.find(c => c.alojamentos.some(a => a.id === alojamento.id))
+                              : null;
+
+                            return (
+                              <button
+                                key={adolescenteId}
+                                onClick={() => {
+                                  if (adolescente) {
+                                    setModalAnaliseImpacto({
+                                      aberto: true,
+                                      adolescenteId: adolescente.id,
+                                      adolescenteNome: adolescente.nomeCompleto || "Desconhecido",
+                                      adolescenteAlocado: !!adolescente.alojamentoAtualId,
+                                      conflitos: conflitosInternos[adolescente.id] || [],
+                                    });
+                                    setDropdownConflitosAberto(false);
+                                  }
+                                }}
+                                className="w-full px-4 py-3 text-left hover:bg-red-50 transition-colors border-b border-gray-100 last:border-b-0"
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex-1">
+                                    <p className="font-semibold text-gray-900">{adolescente?.nomeCompleto || "Desconhecido"}</p>
+                                    <p className="text-sm text-gray-600">SMS: {adolescente?.numeroSms || "N/A"}</p>
+                                    {alojamento && casa ? (
+                                      <p className="text-xs text-blue-600 mt-1">
+                                        {casa.nome} - Aloj {alojamento.numeroAlojamento} (Ala {alojamento.ala})
+                                      </p>
+                                    ) : (
+                                      <p className="text-xs text-orange-600 mt-1 font-medium">Não alocado</p>
+                                    )}
+                                  </div>
+                                  <div className="flex-shrink-0">
+                                    <span className="inline-flex items-center justify-center w-8 h-8 bg-red-100 text-red-700 rounded-full text-xs font-bold">
+                                      {numConflitosTotal}
+                                    </span>
+                                  </div>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
           </div>
+
+          {/* Adolescentes com conflitos não alocados */}
+          {/*
+            REGRA DE NEGÓCIO: Conflitos e status de internação
+
+            1. Apenas adolescentes com status ATIVO/INTERNADO devem aparecer em listas de conflitos
+            2. Adolescentes TRANSFERIDOS, LIBERADOS ou EVADIDOS não devem aparecer
+            3. Quando um adolescente é desinternado:
+               - O conflito direto com ele deixa de existir (não está mais no sistema)
+               - MAS o risco pode permanecer entre o adolescente que ainda está internado
+                 e os ALIADOS do adolescente desinternado (mesmo bairro/facção)
+            4. Conflitos internos: registros diretos na tabela Conflito
+            5. Conflitos externos: rivalidades de bairro/facção detectadas pela inteligência
+          */}
+          {(() => {
+            const adolescentesComConflitosNaoAlocados = adolescentes.filter(
+              (a) =>
+                !a.alojamentoAtualId &&
+                a.statusUnidade === "ATIVO" &&
+                (conflitosInternos[a.id]?.length > 0 ||
+                  conflitosExternos[a.id]?.length > 0)
+            );
+
+            if (adolescentesComConflitosNaoAlocados.length === 0) return null;
+
+            return (
+              <div className="bg-gradient-to-r from-red-50 to-orange-50 border-2 border-red-200 rounded-xl p-6 shadow-lg">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center">
+                    <AlertTriangle className="text-red-600" size={24} />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-xl text-red-900">
+                      Adolescentes com Conflitos Não Alocados
+                    </h3>
+                    <p className="text-sm text-red-700">
+                      {adolescentesComConflitosNaoAlocados.length} adolescente(s)
+                      aguardando alocação com conflitos ativos
+                    </p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {adolescentesComConflitosNaoAlocados.map((adolescente) => (
+                    <button
+                      key={adolescente.id}
+                      onClick={() =>
+                        setModalAnaliseImpacto({
+                          aberto: true,
+                          adolescenteId: adolescente.id,
+                          adolescenteNome:
+                            adolescente.nomeCompleto || "Desconhecido",
+                          adolescenteAlocado: !!adolescente.alojamentoAtualId,
+                          conflitos: conflitosInternos[adolescente.id] || [],
+                        })
+                      }
+                      className="bg-white border-2 border-red-300 rounded-lg p-4 hover:shadow-lg hover:border-red-400 transition-all text-left"
+                    >
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex-1">
+                          <h4 className="font-bold text-gray-900">
+                            {adolescente.nomeCompleto}
+                          </h4>
+                          {adolescente.numeroSms && (
+                            <p className="text-xs text-gray-600">
+                              SMS: {adolescente.numeroSms}
+                            </p>
+                          )}
+                        </div>
+                        <span className="px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs font-semibold">
+                          {conflitosInternos[adolescente.id]?.length || 0}{" "}
+                          conflito(s)
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-red-600">
+                        <AlertCircle size={14} />
+                        <span>Clique para analisar e sugerir alocação</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
 
           <div className="grid gap-4">
             {casasNormalizadas.map((casa) => (
@@ -606,11 +947,31 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
                     const nomePreferencial =
                       ocupante?.nomeSocial || ocupante?.nomeCompleto || "";
                     const nomeResumido = obterNomeResumido(nomePreferencial);
+                    const temConflitos = ocupante
+                      ? ((conflitosInternos[ocupante.id]?.length || 0) > 0 ||
+                         (conflitosExternos[ocupante.id]?.length || 0) > 0)
+                      : false;
+
+                    const handleClickConflito = () => {
+                      if (ocupante) {
+                        setModalAnaliseImpacto({
+                          aberto: true,
+                          adolescenteId: ocupante.id,
+                          adolescenteNome: ocupante.nomeCompleto || "Desconhecido",
+                          adolescenteAlocado: !!ocupante.alojamentoAtualId,
+                          conflitos: conflitosInternos[ocupante.id] || [],
+                        });
+                      }
+                    };
+
+                    const handleClick = () => {
+                      handleCliqueAlojamento(casa, aloj);
+                    };
 
                     return (
                       <button
                         key={aloj.id}
-                        onClick={() => handleCliqueAlojamento(casa, aloj)}
+                        onClick={handleClick}
                         disabled={loading}
                         className={`
                           relative p-3 rounded-lg text-xs font-bold
@@ -622,12 +983,14 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
                         title={
                           interditado
                             ? `Alojamento ${aloj.numeroAlojamento} - Interditado`
+                            : ocupante && temConflitos
+                            ? `${ocupante.nomeCompleto} - Clique para visualizar | Clique no ícone vermelho para analisar conflitos`
                             : ocupante
                             ? `${ocupante.nomeCompleto} - Clique para visualizar`
                             : `Alojamento ${aloj.numeroAlojamento} - Clique para alocar`
                         }
                       >
-                        {renderIconesAlerta(aloj)}
+                        {renderIconesAlerta(aloj, temConflitos, handleClickConflito, avaliacao)}
                         <span className="text-base font-extrabold text-gray-800">
                           {aloj.numeroAlojamento}
                         </span>
@@ -706,6 +1069,21 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
         alojamento={alojamentoSelecionado}
         adolescentes={adolescentes}
         onAlocar={handleAlocar}
+      />
+
+      <ModalAnaliseImpacto
+        isOpen={modalAnaliseImpacto.aberto}
+        onClose={() => setModalAnaliseImpacto({
+          aberto: false,
+          adolescenteId: null,
+          adolescenteNome: null,
+          adolescenteAlocado: false,
+          conflitos: [],
+        })}
+        adolescenteId={modalAnaliseImpacto.adolescenteId || ""}
+        adolescenteNome={modalAnaliseImpacto.adolescenteNome || ""}
+        adolescenteAlocado={modalAnaliseImpacto.adolescenteAlocado}
+        conflitos={modalAnaliseImpacto.conflitos}
       />
     </div>
   );

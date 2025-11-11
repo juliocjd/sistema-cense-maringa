@@ -42,7 +42,7 @@ export default function ComunicadosPage() {
       }
 
       const data = await response.json();
-      setComunicados(data);
+      setComunicados(data.comunicados || []);
     } catch (error) {
       // Mock de dados para desenvolvimento
       setComunicados([

@@ -73,9 +73,9 @@ export function RegistroCI({ adolescentes, onSalvar }: RegistroCIProps) {
   };
 
   const handleSalvar = async () => {
-    // ValidaÃ§Ãµes
+    // Validações
     if (!numero || !ano || !dataFato || !tipoCi || !resumoCi) {
-      alert("Preencha todos os campos obrigatÃ³rios!");
+      alert("Preencha todos os campos obrigatórios!");
       return;
     }
 
@@ -105,7 +105,7 @@ export function RegistroCI({ adolescentes, onSalvar }: RegistroCIProps) {
       await onSalvar(formData);
 
       alert("âœ… CI registrado com sucesso!");
-      // Limpar formulÃ¡rio ou redirecionar
+      // Limpar formulário ou redirecionar
     } catch (error) {
       alert("âŒ Erro ao registrar CI. Tente novamente.");
     } finally {
@@ -128,11 +128,11 @@ export function RegistroCI({ adolescentes, onSalvar }: RegistroCIProps) {
           Registrar Novo Comunicado Interno
         </h1>
         <p className="text-gray-600 mt-2">
-          Preencha as informaÃ§Ãµes do CI e vincule os adolescentes envolvidos
+          Preencha as informações do CI e vincule os adolescentes envolvidos
         </p>
       </div>
 
-      {/* FormulÃ¡rio */}
+      {/* Formulário */}
       <div className="bg-white rounded-2xl shadow-lg p-8">
         <div className="space-y-6">
           {/* Alerta */}
@@ -142,18 +142,18 @@ export function RegistroCI({ adolescentes, onSalvar }: RegistroCIProps) {
               <div className="flex-1">
                 <p className="font-semibold text-blue-900 mb-1">Importante</p>
                 <p className="text-sm text-blue-800">
-                  ApÃ³s salvar, vocÃª poderÃ¡ criar conflitos ou alertas
+                  Após salvar, você poderá criar conflitos ou alertas
                   automaticamente baseados neste CI.
                 </p>
               </div>
             </div>
           </div>
 
-          {/* NÃºmero e Ano */}
+          {/* Número e Ano */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
-                NÃºmero do CI *
+                Número do CI *
               </label>
               <input
                 type="number"
@@ -203,8 +203,8 @@ export function RegistroCI({ adolescentes, onSalvar }: RegistroCIProps) {
               <option value="">Selecione o tipo...</option>
               <option value="DISCIPLINAR">Disciplinar</option>
               <option value="CONFLITO">Conflito</option>
-              <option value="AUTORIZACAO_ESPECIAL">AutorizaÃ§Ã£o Especial</option>
-              <option value="SAUDE">SaÃºde</option>
+              <option value="AUTORIZACAO_ESPECIAL">Autorização Especial</option>
+              <option value="SAUDE">Saúde</option>
               <option value="OUTROS">Outros</option>
             </select>
           </div>
@@ -274,7 +274,7 @@ export function RegistroCI({ adolescentes, onSalvar }: RegistroCIProps) {
             </div>
           </div>
 
-          {/* SeleÃ§Ã£o de Adolescentes */}
+          {/* Seleção de Adolescentes */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
               Adolescentes Envolvidos *
@@ -362,7 +362,7 @@ export function RegistroCI({ adolescentes, onSalvar }: RegistroCIProps) {
           </div>
         </div>
 
-        {/* BotÃµes */}
+        {/* Botões */}
         <div className="flex items-center justify-end gap-3 mt-8 pt-6 border-t-2 border-gray-200">
           <Link
             href="/comunicados"
@@ -400,3 +400,4 @@ export function RegistroCI({ adolescentes, onSalvar }: RegistroCIProps) {
     </div>
   );
 }
+

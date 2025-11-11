@@ -74,6 +74,7 @@ export default function MapaPage() {
           conflitosA: (a.conflitosA || []) as Conflito[],
           conflitosB: (a.conflitosB || []) as Conflito[],
           riscoFuga: a.riscoFuga ?? null,
+          atoInfracionalGravidade: Boolean(a.atoInfracionalGravidade ?? false),
           grupos: a.grupos ?? [],
           tatuagens: a.tatuagens ?? [],
         })
@@ -144,6 +145,9 @@ export default function MapaPage() {
                     : null,
                   conflitosA: (ocupanteBruto.conflitosA ?? []) as Conflito[],
                   conflitosB: (ocupanteBruto.conflitosB ?? []) as Conflito[],
+                  atoInfracionalGravidade: Boolean(ocupanteBruto.ato_infracional_gravidade ?? false),
+                  grupos: [],
+                  tatuagens: [],
                 } satisfies Adolescente)
               : null;
 

@@ -239,6 +239,7 @@ export function calcularRiscoAlojamento({
       rotulo: base.rotulo ?? "Interditado",
       descricao: base.descricao ?? "Alojamento bloqueado para uso.",
       motivos: [base.descricao ?? "Alojamento bloqueado para uso."],
+      detalhes: [],
       ambiental: null,
     };
   }
@@ -256,6 +257,7 @@ export function calcularRiscoAlojamento({
       rotulo: override.rotulo ?? base.rotulo,
       descricao,
       motivos: descricao ? [descricao] : [],
+      detalhes: [],
       ambiental: null,
     };
   }

@@ -366,7 +366,7 @@ export function ListagemCIs({ comunicados }: ListagemCIsProps) {
                     <User size={16} />
                     <span>
                       <span className="font-semibold">Operador:</span>{" "}
-                      {ci.operador.nome}
+                      {ci.operador?.nome || "Não informado"}
                     </span>
                   </div>
                   <div className="flex items-center gap-2 text-gray-600">

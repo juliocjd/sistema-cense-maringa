@@ -171,7 +171,7 @@ const construirImpactosExternos = (
         conflitoOrigem: {
           id: origem.id,
           nome:
-            adolescente.bairroOrigem?.nome ??
+            adolescente.bairroOrigem?.nomeBairro ??
             origem.nome ??
             "Bairro origem",
         },
@@ -187,12 +187,12 @@ const construirImpactosExternos = (
           bairro: adolescente.bairroOrigem
             ? {
                 id: adolescente.bairroOrigem.id,
-                nome: adolescente.bairroOrigem.nome,
+                nome: adolescente.bairroOrigem.nomeBairro,
                 cidade: adolescente.bairroOrigem.cidade,
               }
             : null,
           faccao: adolescente.faccao
-            ? { id: adolescente.faccao.id, nome: adolescente.faccao.nome }
+            ? { id: adolescente.faccao.id, nome: adolescente.faccao.nomeFaccao }
             : null,
           alojamento: null,
         },
@@ -215,7 +215,7 @@ const construirImpactosExternos = (
         conflitoOrigem: {
           id: origem.id,
           nome:
-            adolescente.faccao?.nome ??
+            adolescente.faccao?.nomeFaccao ??
             origem.nome ??
             "Faccao origem",
         },
@@ -231,12 +231,12 @@ const construirImpactosExternos = (
           bairro: adolescente.bairroOrigem
             ? {
                 id: adolescente.bairroOrigem.id,
-                nome: adolescente.bairroOrigem.nome,
+                nome: adolescente.bairroOrigem.nomeBairro,
                 cidade: adolescente.bairroOrigem.cidade,
               }
             : null,
           faccao: adolescente.faccao
-            ? { id: adolescente.faccao.id, nome: adolescente.faccao.nome }
+            ? { id: adolescente.faccao.id, nome: adolescente.faccao.nomeFaccao }
             : null,
           alojamento: null,
         },

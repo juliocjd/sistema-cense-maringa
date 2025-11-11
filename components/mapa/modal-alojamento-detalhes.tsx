@@ -304,16 +304,59 @@ export default function ModalAlojamentoDetalhes({
     }
 
     const externos = conflitosExternos[ocupante.id] ?? [];
+
+    // Agrupar conflitos externos por conflitoId para evitar duplicação
+    const conflitosProcessados = new Set<string>();
+
     externos.forEach((impacto) => {
-      const relacionados =
+      // Evitar processar o mesmo conflito múltiplas vezes
+      if (conflitosProcessados.has(impacto.conflitoId)) {
+        return;
+      }
+      conflitosProcessados.add(impacto.conflitoId);
+
+      // Buscar TODOS os registros deste conflito
+      const todosRelacionados =
         impactosPorConflito
           .get(impacto.conflitoId)
           ?.filter((registro) => registro.adolescente.id !== ocupante.id) ??
         [];
 
+      // DEBUG
+      if (todosRelacionados.length > 0) {
+        console.log('=== DEBUG Conflito Externo ===');
+        console.log('Ocupante:', ocupante.nomeCompleto);
+        console.log('Conflito:', impacto.conflitoDestino.nome);
+        console.log('Tipo:', impacto.conflitoTipo);
+        console.log('Total relacionados:', todosRelacionados.length);
+        todosRelacionados.forEach(r => {
+          console.log('  - ', r.adolescente.nome, 'Bairro:', r.adolescente.bairro?.nome, 'ID:', r.adolescente.bairro?.id);
+        });
+        console.log('Destino ID:', impacto.conflitoDestino.id);
+      }
+
+      // Filtrar apenas os RIVAIS (do bairro/facção oposta), não os aliados do mesmo bairro/facção
+      const rivaisReais = todosRelacionados.filter((registro) => {
+        if (impacto.conflitoTipo === "BAIRRO") {
+          // O adolescente rival deve ser do bairro de DESTINO do conflito (não do mesmo bairro do ocupante)
+          // IMPORTANTE: O campo é "bairro", não "bairroOrigem"
+          const match = registro.adolescente.bairro?.id === impacto.conflitoDestino.id;
+          console.log('    Comparando:', registro.adolescente.nome, match ? '✓ MATCH' : '✗ NO MATCH');
+          return match;
+        } else if (impacto.conflitoTipo === "FACCAO") {
+          // O adolescente rival deve ser da facção de DESTINO do conflito (não da mesma facção do ocupante)
+          return registro.adolescente.faccao?.id === impacto.conflitoDestino.id;
+        }
+        return false;
+      });
+
+      // DEBUG
+      console.log('Rivais reais encontrados:', rivaisReais.length);
+
+      // Mapear TODOS os rivais reais encontrados
       const envolvidos =
-        relacionados.length > 0
-          ? relacionados.map((registro) => {
+        rivaisReais.length > 0
+          ? rivaisReais.map((registro) => {
               const localDireto = localizarAdolescente(
                 registro.adolescente.id
               );
@@ -337,6 +380,7 @@ export default function ModalAlojamentoDetalhes({
         ? ` (${impacto.conflitoDestino.complemento})`
         : "";
 
+      // Criar UM ÚNICO card com TODOS os rivais deste conflito
       riscos.push({
         titulo:
           impacto.conflitoTipo === "FACCAO"
@@ -632,25 +676,6 @@ export default function ModalAlojamentoDetalhes({
                     <p className="text-sm text-slate-500">
                       SMS: {ocupante.numeroSms ?? "Nao informado"}
                     </p>
-                {avaliacaoRisco && (
-                  <p className="text-sm text-slate-600">
-                    Nivel de risco atual:{" "}
-                    <span className="font-semibold text-slate-900">
-                      {avaliacaoRisco.rotulo}
-                    </span>{" "}
-                    - {avaliacaoRisco.descricao}
-                  </p>
-                )}
-                {avaliacaoRisco?.ambiental?.ativo && (
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                    <p className="font-semibold">Ala em tensao</p>
-                    <ul className="list-disc pl-4 mt-1 space-y-1">
-                      {avaliacaoRisco.ambiental.motivos.map((motivo, index) => (
-                        <li key={`ambiental-${index}`}>{motivo}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
                     {ocupante.bairroOrigem && (
                       <p className="text-sm text-slate-500 flex items-center gap-2">
                         <MapPin size={14} />
@@ -663,12 +688,40 @@ export default function ModalAlojamentoDetalhes({
                         {ocupante.faccao.nome}
                       </p>
                     )}
+                    {avaliacaoRisco && (
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm text-slate-600">
+                          Nivel de risco atual:{" "}
+                        </p>
+                        <span className={`
+                          inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold
+                          ${avaliacaoRisco.nivel === 5 ? 'bg-red-100 text-red-800 border border-red-300' : ''}
+                          ${avaliacaoRisco.nivel === 4 ? 'bg-orange-100 text-orange-800 border border-orange-300' : ''}
+                          ${avaliacaoRisco.nivel === 3 ? 'bg-yellow-100 text-yellow-800 border border-yellow-300' : ''}
+                          ${avaliacaoRisco.nivel === 2 ? 'bg-lime-100 text-lime-800 border border-lime-300' : ''}
+                          ${avaliacaoRisco.nivel === 1 ? 'bg-green-100 text-green-800 border border-green-300' : ''}
+                          ${avaliacaoRisco.nivel === 0 ? 'bg-gray-100 text-gray-800 border border-gray-300' : ''}
+                        `}>
+                          {avaliacaoRisco.rotulo}
+                        </span>
+                      </div>
+                    )}
+                {avaliacaoRisco?.ambiental?.ativo && (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                    <p className="font-semibold">Ala em tensao</p>
+                    <ul className="list-disc pl-4 mt-1 space-y-1">
+                      {avaliacaoRisco.ambiental.motivos.map((motivo, index) => (
+                        <li key={`ambiental-${index}`}>{motivo}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
                   </div>
 
                   {riscosDetalhados.length > 0 ? (
                     <div className="space-y-2">
                       <p className="text-sm font-semibold text-slate-700">
-                        Alertas e justificativas do risco:
+                        Conflitos e justificativas do risco:
                       </p>
                       <div className="space-y-2">
                         {riscosDetalhados.map((risco, index) => {

@@ -224,3 +224,49 @@ export interface DecisaoOperacional {
   medidasAdicionais?: string[];
   status: string;
 }
+
+export interface AlertaAtivo {
+  id: string;
+  adolescenteId: string;
+  ciOrigemId?: string | null;
+  tipoAlerta?: string | null;
+  descricaoAlerta: string;
+  nivelRisco?: string | null;
+  criadoEm: string;
+  desativadoEm?: string | null;
+  adolescente?: {
+    id: string;
+    nomeCompleto: string;
+    nomeSocial?: string | null;
+    numeroSms?: string | null;
+    fotoUrl?: string | null;
+    statusUnidade: string;
+    dataNascimento?: string | null;
+    alojamentoAtual?: {
+      id: string;
+      numeroAlojamento: string;
+      ala: Ala;
+      casa: {
+        id: string;
+        nome: string;
+        numero: number;
+      };
+    } | null;
+    bairroOrigem?: {
+      id: string;
+      nomeBairro: string;
+      cidade: string;
+    } | null;
+    faccao?: {
+      id: string;
+      nomeFaccao: string;
+    } | null;
+  };
+  ciOrigem?: {
+    id: string;
+    numero: number;
+    resumoCI: string;
+    tipoCI: string;
+    dataFato?: string | null;
+  } | null;
+}

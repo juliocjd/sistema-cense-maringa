@@ -18,7 +18,14 @@
       "Bash(npx tsx:*)",
       "Bash(timeout /t 10 /nobreak)",
       "Bash(taskkill //F //PID 144400)",
-      "Bash(taskkill:*)"
+      "Bash(taskkill:*)",
+      "Bash(mkdir:*)",
+      "Bash(grep:*)",
+      "Bash(powershell -Command:*)",
+      "Bash(node temp-check-marcos.js:*)",
+      "Bash(powershell -ExecutionPolicy Bypass -File fix-encoding.ps1)",
+      "Bash(cat:*)",
+      "Bash(xxd:*)"
     ],
     "deny": [],
     "ask": []

@@ -1,0 +1,106 @@
+app/(dashboard)/conflitos/[id]/page.tsx(304,7): error TS2719: Type 'Conflito' is not assignable to type 'Conflito'. Two different types with this name exist, but they are unrelated.
+  The types of 'adolescenteA.alojamento' are incompatible between these types.
+    Type 'string | null | undefined' is not assignable to type 'string | undefined'.
+      Type 'null' is not assignable to type 'string | undefined'.
+app/(dashboard)/estrutura/mapa-operacional-tab.tsx(382,8): error TS2739: Type '{ casas: Casa[]; adolescentes: Adolescente[]; conflitosExternos: Record<string, ImpactoConflitoExterno[]>; onAlocar: (adolescenteId: string, alojamentoId: string, justificativa?: string | undefined) => Promise<...>; onDesalocar: (alojamentoId: string, adolescenteId: string) => Promise<...>; }' is missing the following properties from type 'MapaInterativoProps': onDesinternar, onTransferir, onAlterarStatusAlojamento
+app/(dashboard)/estrutura/visao-geral-tab.tsx(69,54): error TS2503: Cannot find namespace 'JSX'.
+app/(dashboard)/estrutura/visao-geral-tab.tsx(675,11): error TS2322: Type 'Promise<string>' is not assignable to type 'Promise<void>'.
+  Type 'string' is not assignable to type 'void'.
+app/(dashboard)/mapa/page.tsx(409,8): error TS2739: Type '{ casas: Casa[]; adolescentes: Adolescente[]; conflitosExternos: Record<string, ImpactoConflitoExterno[]>; onAlocar: (adolescenteId: string, alojamentoId: string, justificativa?: string | undefined) => Promise<...>; onDesalocar: (alojamentoId: string, adolescenteId: string) => Promise<...>; }' is missing the following properties from type 'MapaInterativoProps': onDesinternar, onTransferir, onAlterarStatusAlojamento
+app/api/bairros/conflitos/route.ts(52,18): error TS2353: Object literal may only specify known properties, and 'criadoEm' does not exist in type 'BairroConflitoOrderByWithRelationInput | BairroConflitoOrderByWithRelationInput[]'.
+app/api/bairros/conflitos/route.ts(61,24): error TS2551: Property 'bairroA' does not exist on type '{ id: string; status: string; bairroAId: string; barroBId: string; }'. Did you mean 'bairroAId'?
+app/api/bairros/conflitos/route.ts(62,26): error TS2551: Property 'bairroA' does not exist on type '{ id: string; status: string; bairroAId: string; barroBId: string; }'. Did you mean 'bairroAId'?
+app/api/bairros/conflitos/route.ts(63,28): error TS2551: Property 'bairroA' does not exist on type '{ id: string; status: string; bairroAId: string; barroBId: string; }'. Did you mean 'bairroAId'?
+app/api/bairros/conflitos/route.ts(66,24): error TS2339: Property 'bairroB' does not exist on type '{ id: string; status: string; bairroAId: string; barroBId: string; }'.
+app/api/bairros/conflitos/route.ts(67,26): error TS2339: Property 'bairroB' does not exist on type '{ id: string; status: string; bairroAId: string; barroBId: string; }'.
+app/api/bairros/conflitos/route.ts(68,28): error TS2339: Property 'bairroB' does not exist on type '{ id: string; status: string; bairroAId: string; barroBId: string; }'.
+app/api/casas/status/route.ts(119,34): error TS2339: Property 'corRisco' does not exist on type '{ adolescentes: ({ faccao: { id: string; nomeFaccao: string; descricao: string | null; } | null; bairroOrigem: { id: string; nomeBairro: string; cidade: string; } | null; conflitosA: { id: string; ... 9 more ...; ciOrigem: { ...; } | null; }[]; conflitosB: { ...; }[]; } & { ...; })[]; } & { ...; }'.
+app/api/casas/status/route.ts(120,36): error TS2339: Property 'nivelRisco' does not exist on type '{ adolescentes: ({ faccao: { id: string; nomeFaccao: string; descricao: string | null; } | null; bairroOrigem: { id: string; nomeBairro: string; cidade: string; } | null; conflitosA: { id: string; ... 9 more ...; ciOrigem: { ...; } | null; }[]; conflitosB: { ...; }[]; } & { ...; })[]; } & { ...; }'.
+app/api/casas/status/route.ts(121,32): error TS2339: Property 'icones' does not exist on type '{ adolescentes: ({ faccao: { id: string; nomeFaccao: string; descricao: string | null; } | null; bairroOrigem: { id: string; nomeBairro: string; cidade: string; } | null; conflitosA: { id: string; ... 9 more ...; ciOrigem: { ...; } | null; }[]; conflitosB: { ...; }[]; } & { ...; })[]; } & { ...; }'.
+app/api/casas/status/route.ts(122,33): error TS2339: Property 'alertas' does not exist on type '{ adolescentes: ({ faccao: { id: string; nomeFaccao: string; descricao: string | null; } | null; bairroOrigem: { id: string; nomeBairro: string; cidade: string; } | null; conflitosA: { id: string; ... 9 more ...; ciOrigem: { ...; } | null; }[]; conflitosB: { ...; }[]; } & { ...; })[]; } & { ...; }'.
+app/api/casas/status/route.ts(123,27): error TS2352: Conversion of type '({ faccao: { id: string; nomeFaccao: string; descricao: string | null; } | null; bairroOrigem: { id: string; nomeBairro: string; cidade: string; } | null; conflitosA: { id: string; status: string; ... 8 more ...; ciOrigem: { ...; } | null; }[]; conflitosB: { ...; }[]; } & { ...; })[]' to type 'Adolescente[]' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type '{ faccao: { id: string; nomeFaccao: string; descricao: string | null; } | null; bairroOrigem: { id: string; nomeBairro: string; cidade: string; } | null; conflitosA: { id: string; status: string; ... 8 more ...; ciOrigem: { ...; } | null; }[]; conflitosB: { ...; }[]; } & { ...; }' is missing the following properties from type 'Adolescente': grupos, tatuagens
+app/api/casas/status/route.ts(245,35): error TS2339: Property 'nomeSocial' does not exist on type 'AdolescenteRisco'.
+app/api/casas/status/route.ts(246,34): error TS2339: Property 'numeroSms' does not exist on type 'AdolescenteRisco'.
+app/api/casas/status/route.ts(247,32): error TS2339: Property 'fotoUrl' does not exist on type 'AdolescenteRisco'.
+app/api/casas/status/route.ts(248,38): error TS2339: Property 'statusUnidade' does not exist on type 'AdolescenteRisco'.
+app/api/casas/status/route.ts(253,37): error TS2551: Property 'bairroOrigem' does not exist on type 'AdolescenteRisco'. Did you mean 'bairroOrigemId'?
+app/api/casas/status/route.ts(255,32): error TS2551: Property 'bairroOrigem' does not exist on type 'AdolescenteRisco'. Did you mean 'bairroOrigemId'?
+app/api/casas/status/route.ts(257,30): error TS2551: Property 'bairroOrigem' does not exist on type 'AdolescenteRisco'. Did you mean 'bairroOrigemId'?
+app/api/casas/status/route.ts(258,30): error TS2551: Property 'bairroOrigem' does not exist on type 'AdolescenteRisco'. Did you mean 'bairroOrigemId'?
+app/api/casas/status/route.ts(259,36): error TS2551: Property 'bairroOrigem' does not exist on type 'AdolescenteRisco'. Did you mean 'bairroOrigemId'?
+app/api/casas/status/route.ts(266,41): error TS2339: Property 'nomeFaccao' does not exist on type '{ id: string | null; nome?: string | null | undefined; }'.
+app/api/verificar-alocacao/route.ts(35,23): error TS2339: Property 'faccao' does not exist on type '{ id: string; nomeCompleto: string; criadoEm: Date; atualizadoEm: Date; nomeSocial: string | null; fotoUrl: string | null; numeroSms: string | null; dataNascimento: Date | null; ... 19 more ...; dataDesinternacao: Date | null; }'.
+app/api/verificar-alocacao/route.ts(37,25): error TS2339: Property 'faccao' does not exist on type '{ id: string; nomeCompleto: string; criadoEm: Date; atualizadoEm: Date; nomeSocial: string | null; fotoUrl: string | null; numeroSms: string | null; dataNascimento: Date | null; ... 19 more ...; dataDesinternacao: Date | null; }'.
+app/api/verificar-alocacao/route.ts(39,23): error TS2339: Property 'faccao' does not exist on type '{ id: string; nomeCompleto: string; criadoEm: Date; atualizadoEm: Date; nomeSocial: string | null; fotoUrl: string | null; numeroSms: string | null; dataNascimento: Date | null; ... 19 more ...; dataDesinternacao: Date | null; }'.
+app/api/verificar-alocacao/route.ts(40,23): error TS2339: Property 'faccao' does not exist on type '{ id: string; nomeCompleto: string; criadoEm: Date; atualizadoEm: Date; nomeSocial: string | null; fotoUrl: string | null; numeroSms: string | null; dataNascimento: Date | null; ... 19 more ...; dataDesinternacao: Date | null; }'.
+app/api/verificar-alocacao/route.ts(53,43): error TS2339: Property 'conflitosA' does not exist on type '{ id: string; nomeCompleto: string; criadoEm: Date; atualizadoEm: Date; nomeSocial: string | null; fotoUrl: string | null; numeroSms: string | null; dataNascimento: Date | null; ... 19 more ...; dataDesinternacao: Date | null; }'.
+app/api/verificar-alocacao/route.ts(53,74): error TS2339: Property 'conflitosB' does not exist on type '{ id: string; nomeCompleto: string; criadoEm: Date; atualizadoEm: Date; nomeSocial: string | null; fotoUrl: string | null; numeroSms: string | null; dataNascimento: Date | null; ... 19 more ...; dataDesinternacao: Date | null; }'.
+app/api/verificar-alocacao/route.ts(55,21): error TS7006: Parameter 'conflito' implicitly has an 'any' type.
+app/api/verificar-alocacao/route.ts(112,29): error TS2551: Property 'bairroOrigem' does not exist on type '{ id: string; nomeCompleto: string; criadoEm: Date; atualizadoEm: Date; nomeSocial: string | null; fotoUrl: string | null; numeroSms: string | null; dataNascimento: Date | null; ... 19 more ...; dataDesinternacao: Date | null; }'. Did you mean 'bairroOrigemId'?
+app/api/verificar-alocacao/route.ts(114,31): error TS2551: Property 'bairroOrigem' does not exist on type '{ id: string; nomeCompleto: string; criadoEm: Date; atualizadoEm: Date; nomeSocial: string | null; fotoUrl: string | null; numeroSms: string | null; dataNascimento: Date | null; ... 19 more ...; dataDesinternacao: Date | null; }'. Did you mean 'bairroOrigemId'?
+app/api/verificar-alocacao/route.ts(116,29): error TS2551: Property 'bairroOrigem' does not exist on type '{ id: string; nomeCompleto: string; criadoEm: Date; atualizadoEm: Date; nomeSocial: string | null; fotoUrl: string | null; numeroSms: string | null; dataNascimento: Date | null; ... 19 more ...; dataDesinternacao: Date | null; }'. Did you mean 'bairroOrigemId'?
+app/api/verificar-alocacao/route.ts(117,29): error TS2551: Property 'bairroOrigem' does not exist on type '{ id: string; nomeCompleto: string; criadoEm: Date; atualizadoEm: Date; nomeSocial: string | null; fotoUrl: string | null; numeroSms: string | null; dataNascimento: Date | null; ... 19 more ...; dataDesinternacao: Date | null; }'. Did you mean 'bairroOrigemId'?
+app/api/verificar-alocacao/route.ts(118,35): error TS2551: Property 'bairroOrigem' does not exist on type '{ id: string; nomeCompleto: string; criadoEm: Date; atualizadoEm: Date; nomeSocial: string | null; fotoUrl: string | null; numeroSms: string | null; dataNascimento: Date | null; ... 19 more ...; dataDesinternacao: Date | null; }'. Did you mean 'bairroOrigemId'?
+app/api/verificar-alocacao/route.ts(147,29): error TS2339: Property 'faccao' does not exist on type '{ id: string; nomeCompleto: string; criadoEm: Date; atualizadoEm: Date; nomeSocial: string | null; fotoUrl: string | null; numeroSms: string | null; dataNascimento: Date | null; ... 19 more ...; dataDesinternacao: Date | null; }'.
+app/api/verificar-alocacao/route.ts(149,31): error TS2339: Property 'faccao' does not exist on type '{ id: string; nomeCompleto: string; criadoEm: Date; atualizadoEm: Date; nomeSocial: string | null; fotoUrl: string | null; numeroSms: string | null; dataNascimento: Date | null; ... 19 more ...; dataDesinternacao: Date | null; }'.
+app/api/verificar-alocacao/route.ts(151,29): error TS2339: Property 'faccao' does not exist on type '{ id: string; nomeCompleto: string; criadoEm: Date; atualizadoEm: Date; nomeSocial: string | null; fotoUrl: string | null; numeroSms: string | null; dataNascimento: Date | null; ... 19 more ...; dataDesinternacao: Date | null; }'.
+app/api/verificar-alocacao/route.ts(152,29): error TS2339: Property 'faccao' does not exist on type '{ id: string; nomeCompleto: string; criadoEm: Date; atualizadoEm: Date; nomeSocial: string | null; fotoUrl: string | null; numeroSms: string | null; dataNascimento: Date | null; ... 19 more ...; dataDesinternacao: Date | null; }'.
+app/api/verificar-alocacao/route.ts(207,9): error TS2322: Type 'number' is not assignable to type 'NivelRiscoBasico'.
+app/api/verificar-alocacao/route.ts(288,21): error TS2353: Object literal may only specify known properties, and 'nome' does not exist in type 'FaccaoSelect<DefaultArgs>'.
+app/api/verificar-alocacao/route.ts(303,25): error TS2339: Property 'alojamentos' does not exist on type '{ id: string; nome: string; numero: number; isolada: boolean; observacoes: string | null; }'.
+app/api/verificar-alocacao/route.ts(304,10): error TS7006: Parameter 'alojamento' implicitly has an 'any' type.
+app/api/verificar-alocacao/route.ts(317,14): error TS7006: Parameter 'morador' implicitly has an 'any' type.
+components/conflitos/form-conflito.tsx(136,46): error TS2339: Property 'cidade' does not exist on type 'CatalogoBairro | CatalogoFaccao'.
+  Property 'cidade' does not exist on type 'CatalogoFaccao'.
+components/conflitos/form-conflito.tsx(155,46): error TS2339: Property 'cidade' does not exist on type 'CatalogoBairro | CatalogoFaccao'.
+  Property 'cidade' does not exist on type 'CatalogoFaccao'.
+components/mapa/modal-alojamento-detalhes.tsx(728,31): error TS2345: Argument of type '{ casa: string; numero: string; ala: "A" | "B" | null; } | null' is not assignable to parameter of type '{ casa?: string | null | undefined; numero?: string | null | undefined; ala?: string | null | undefined; } | undefined'.
+  Type 'null' is not assignable to type '{ casa?: string | null | undefined; numero?: string | null | undefined; ala?: string | null | undefined; } | undefined'.
+lib/alocacao/sugestoes.ts(120,22): error TS2339: Property 'corRisco' does not exist on type '{ alojamentoFrontal: { id: string; } | null; adolescentes: ({ faccao: { id: string; nomeFaccao: string; descricao: string | null; } | null; bairroOrigem: { id: string; nomeBairro: string; cidade: string; } | null; } & { ...; })[]; } & { ...; }'.
+lib/alocacao/sugestoes.ts(121,24): error TS2339: Property 'nivelRisco' does not exist on type '{ alojamentoFrontal: { id: string; } | null; adolescentes: ({ faccao: { id: string; nomeFaccao: string; descricao: string | null; } | null; bairroOrigem: { id: string; nomeBairro: string; cidade: string; } | null; } & { ...; })[]; } & { ...; }'.
+lib/alocacao/sugestoes.ts(122,20): error TS2339: Property 'icones' does not exist on type '{ alojamentoFrontal: { id: string; } | null; adolescentes: ({ faccao: { id: string; nomeFaccao: string; descricao: string | null; } | null; bairroOrigem: { id: string; nomeBairro: string; cidade: string; } | null; } & { ...; })[]; } & { ...; }'.
+lib/alocacao/sugestoes.ts(123,21): error TS2339: Property 'alertas' does not exist on type '{ alojamentoFrontal: { id: string; } | null; adolescentes: ({ faccao: { id: string; nomeFaccao: string; descricao: string | null; } | null; bairroOrigem: { id: string; nomeBairro: string; cidade: string; } | null; } & { ...; })[]; } & { ...; }'.
+lib/alocacao/sugestoes.ts(127,14): error TS2352: Conversion of type '({ faccao: { id: string; nomeFaccao: string; descricao: string | null; } | null; bairroOrigem: { id: string; nomeBairro: string; cidade: string; } | null; } & { id: string; nomeCompleto: string; ... 25 more ...; dataDesinternacao: Date | null; })[]' to type 'Adolescente[]' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type '{ faccao: { id: string; nomeFaccao: string; descricao: string | null; } | null; bairroOrigem: { id: string; nomeBairro: string; cidade: string; } | null; } & { id: string; nomeCompleto: string; ... 25 more ...; dataDesinternacao: Date | null; }' is missing the following properties from type 'Adolescente': grupos, tatuagens, conflitosA, conflitosB
+lib/alocacao/sugestoes.ts(138,4): error TS2352: Conversion of type '{ id: string; nomeCompleto: string; statusUnidade: string; bairroOrigemId: string | null; faccaoGrupoId: string | null; bairroOrigem: null; faccao: null; conflitosA: never[]; conflitosB: never[]; }' to type '{ faccao: { id: string; nomeFaccao: string; descricao: string | null; } | null; bairroOrigem: { id: string; nomeBairro: string; cidade: string; } | null; conflitosA: ({ adolescenteB: { faccao: { ...; } | null; bairroOrigem: { ...; } | null; } & { ...; }; } & { ...; })[]; conflitosB: ({ ...; } & { ...; })[]; } & { .....' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type '{ id: string; nomeCompleto: string; statusUnidade: string; bairroOrigemId: string | null; faccaoGrupoId: string | null; bairroOrigem: null; faccao: null; conflitosA: never[]; conflitosB: never[]; }' is missing the following properties from type '{ id: string; nomeCompleto: string; criadoEm: Date; atualizadoEm: Date; nomeSocial: string | null; fotoUrl: string | null; numeroSms: string | null; dataNascimento: Date | null; ... 19 more ...; dataDesinternacao: Date | null; }': criadoEm, atualizadoEm, nomeSocial, fotoUrl, and 19 more.
+lib/alocacao/sugestoes.ts(174,13): error TS18047: 'adolescente' is possibly 'null'.
+lib/alocacao/sugestoes.ts(183,15): error TS18047: 'adolescente' is possibly 'null'.
+lib/alocacao/sugestoes.ts(184,17): error TS18047: 'adolescente' is possibly 'null'.
+lib/alocacao/sugestoes.ts(185,19): error TS18047: 'adolescente' is possibly 'null'.
+lib/alocacao/sugestoes.ts(186,22): error TS18047: 'adolescente' is possibly 'null'.
+lib/alocacao/sugestoes.ts(187,19): error TS18047: 'adolescente' is possibly 'null'.
+lib/alocacao/sugestoes.ts(189,21): error TS18047: 'adolescente' is possibly 'null'.
+lib/alocacao/sugestoes.ts(190,23): error TS18047: 'adolescente' is possibly 'null'.
+lib/alocacao/sugestoes.ts(191,25): error TS18047: 'adolescente' is possibly 'null'.
+lib/alocacao/sugestoes.ts(194,19): error TS18047: 'adolescente' is possibly 'null'.
+lib/alocacao/sugestoes.ts(195,21): error TS18047: 'adolescente' is possibly 'null'.
+lib/alocacao/sugestoes.ts(195,50): error TS18047: 'adolescente' is possibly 'null'.
+lib/alocacao/sugestoes.ts(218,13): error TS18047: 'adolescente' is possibly 'null'.
+lib/alocacao/sugestoes.ts(227,15): error TS18047: 'adolescente' is possibly 'null'.
+lib/alocacao/sugestoes.ts(228,17): error TS18047: 'adolescente' is possibly 'null'.
+lib/alocacao/sugestoes.ts(229,19): error TS18047: 'adolescente' is possibly 'null'.
+lib/alocacao/sugestoes.ts(230,22): error TS18047: 'adolescente' is possibly 'null'.
+lib/alocacao/sugestoes.ts(231,19): error TS18047: 'adolescente' is possibly 'null'.
+lib/alocacao/sugestoes.ts(233,21): error TS18047: 'adolescente' is possibly 'null'.
+lib/alocacao/sugestoes.ts(234,23): error TS18047: 'adolescente' is possibly 'null'.
+lib/alocacao/sugestoes.ts(235,25): error TS18047: 'adolescente' is possibly 'null'.
+lib/alocacao/sugestoes.ts(238,19): error TS18047: 'adolescente' is possibly 'null'.
+lib/alocacao/sugestoes.ts(239,21): error TS18047: 'adolescente' is possibly 'null'.
+lib/alocacao/sugestoes.ts(239,50): error TS18047: 'adolescente' is possibly 'null'.
+lib/alocacao/sugestoes.ts(247,35): error TS18047: 'adolescente' is possibly 'null'.
+tests/api/alocar.test.ts(138,38): error TS2345: Argument of type 'null' is not assignable to parameter of type 'NextMiddleware'.
+tests/api/alocar.test.ts(267,38): error TS2345: Argument of type 'null' is not assignable to parameter of type 'NextMiddleware'.
+tests/api/bairros.test.ts(171,34): error TS2345: Argument of type 'null' is not assignable to parameter of type 'NextMiddleware'.
+tests/api/bairros.test.ts(288,34): error TS2345: Argument of type 'null' is not assignable to parameter of type 'NextMiddleware'.
+tests/api/eventos-especiais-verificar.test.ts(76,34): error TS2345: Argument of type 'null' is not assignable to parameter of type 'NextMiddleware'.
+tests/api/faccoes.test.ts(176,34): error TS2345: Argument of type 'null' is not assignable to parameter of type 'NextMiddleware'.
+tests/api/faccoes.test.ts(261,34): error TS2345: Argument of type 'null' is not assignable to parameter of type 'NextMiddleware'.
+tests/api/grupos-membros.test.ts(98,38): error TS2345: Argument of type 'null' is not assignable to parameter of type 'NextMiddleware'.
+tests/api/grupos-membros.test.ts(472,38): error TS2345: Argument of type 'null' is not assignable to parameter of type 'NextMiddleware'.
+tests/api/grupos.test.ts(157,34): error TS2345: Argument of type 'null' is not assignable to parameter of type 'NextMiddleware'.
+tests/api/grupos.test.ts(316,34): error TS2345: Argument of type 'null' is not assignable to parameter of type 'NextMiddleware'.
+tests/api/grupos.test.ts(391,34): error TS2345: Argument of type 'null' is not assignable to parameter of type 'NextMiddleware'.
+tests/api/tatuagens.test.ts(174,34): error TS2345: Argument of type 'null' is not assignable to parameter of type 'NextMiddleware'.
+tests/api/tatuagens.test.ts(258,34): error TS2345: Argument of type 'null' is not assignable to parameter of type 'NextMiddleware'.

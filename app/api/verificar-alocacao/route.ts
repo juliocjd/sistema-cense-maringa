@@ -17,9 +17,8 @@ import {
   type FaccaoConflitoInfo,
 } from "@/lib/conflitos";
 
-type PrismaAdolescente = NonNullable<
-  Awaited<ReturnType<typeof prisma.adolescente.findUnique>>
->;
+// Tipo inferido da query do adolescente com todos os includes necessários
+type PrismaAdolescente = any; // Tipo complexo do Prisma com includes aninhados
 
 const mapearAdolescenteParaRisco = (
   adolescente: PrismaAdolescente
@@ -52,7 +51,7 @@ const mapearConflitosInternos = (
   const lista =
     adversarioCampo === "B" ? adolescente.conflitosA ?? [] : adolescente.conflitosB ?? [];
 
-  return lista.map((conflito) => {
+  return lista.map((conflito: any) => {
     const adversario =
       adversarioCampo === "B" ? conflito.adolescenteB : conflito.adolescenteA;
 
@@ -204,8 +203,9 @@ const construirAlertas = (
     ambiental.motivos.forEach((mensagem) => {
       alertas.push({
         tipo: "AMBIENTAL",
-        nivel: (ambiental.nivel ?? 2) as number,
+        nivel: (ambiental.nivel ?? 2) as any,
         mensagem,
+        proximidade: undefined,
       });
     });
   }
@@ -285,7 +285,54 @@ export async function GET(request: NextRequest) {
                   select: {
                     id: true,
                     nomeFaccao: true,
-                    nome: true,
+                  },
+                },
+                conflitosA: {
+                  where: { status: "ATIVO" },
+                  select: {
+                    id: true,
+                    status: true,
+                    tipoConflito: true,
+                    adolescenteAId: true,
+                    adolescenteBId: true,
+                    adolescenteB: {
+                      select: {
+                        id: true,
+                        nomeCompleto: true,
+                        bairroOrigemId: true,
+                        faccaoGrupoId: true,
+                        faccao: {
+                          select: {
+                            id: true,
+                            nomeFaccao: true,
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+                conflitosB: {
+                  where: { status: "ATIVO" },
+                  select: {
+                    id: true,
+                    status: true,
+                    tipoConflito: true,
+                    adolescenteAId: true,
+                    adolescenteBId: true,
+                    adolescenteA: {
+                      select: {
+                        id: true,
+                        nomeCompleto: true,
+                        bairroOrigemId: true,
+                        faccaoGrupoId: true,
+                        faccao: {
+                          select: {
+                            id: true,
+                            nomeFaccao: true,
+                          },
+                        },
+                      },
+                    },
                   },
                 },
               },
@@ -293,15 +340,15 @@ export async function GET(request: NextRequest) {
           },
         },
       },
-    });
+    }) as any;
 
-    const casasParaCalculo: CasaRisco[] = casasDb.map((casa) => ({
+    const casasParaCalculo: CasaRisco[] = casasDb.map((casa: any) => ({
       id: casa.id,
       nome: casa.nome,
       numero: casa.numero ?? 0,
       isolada: casa.isolada,
       alojamentos: casa.alojamentos.map(
-        (alojamento): AlojamentoRisco => ({
+        (alojamento: any): AlojamentoRisco => ({
           id: alojamento.id,
           casaId: casa.id,
           numeroAlojamento: alojamento.numeroAlojamento,
@@ -314,25 +361,41 @@ export async function GET(request: NextRequest) {
           icones: alojamento.icones ?? [],
           alertas: alojamento.alertas ?? [],
           adolescentes: alojamento.adolescentes.map(
-            (morador): AdolescenteRisco => ({
-              id: morador.id,
-              nomeCompleto: morador.nomeCompleto,
-              bairroOrigemId: morador.bairroOrigemId,
-              faccaoGrupoId: morador.faccaoGrupoId,
-              alertaRiscoSuicidio: morador.alertaRiscoSuicidio,
-              alertaPerfilMapeado: morador.alertaPerfilMapeado,
-              alertaSaudeConfidencial: morador.alertaSaudeConfidencial,
-              alertaSaudeDetalhes: morador.alertaSaudeDetalhes,
-              faccao: morador.faccao
-                ? {
-                    id: morador.faccao.id,
-                    nome:
-                      morador.faccao.nomeFaccao ??
-                      morador.faccao.nome ??
-                      undefined,
-                  }
-                : null,
-            })
+            (morador: any): AdolescenteRisco => {
+              const conflitosA = mapearConflitosInternos(morador, "B");
+              const conflitosB = mapearConflitosInternos(morador, "A");
+
+              // DEBUG: Log para verificar conflitos mapeados
+              if (conflitosA.length > 0 || conflitosB.length > 0) {
+                console.log(`[DEBUG] Morador ${morador.nomeCompleto} tem conflitos:`, {
+                  conflitosA: conflitosA.length,
+                  conflitosB: conflitosB.length,
+                  adversarios: [...conflitosA, ...conflitosB].map(c => c.adversario?.nomeCompleto),
+                });
+              }
+
+              return {
+                id: morador.id,
+                nomeCompleto: morador.nomeCompleto,
+                bairroOrigemId: morador.bairroOrigemId,
+                faccaoGrupoId: morador.faccaoGrupoId,
+                alertaRiscoSuicidio: morador.alertaRiscoSuicidio,
+                alertaPerfilMapeado: morador.alertaPerfilMapeado,
+                alertaSaudeConfidencial: morador.alertaSaudeConfidencial,
+                alertaSaudeDetalhes: morador.alertaSaudeDetalhes,
+                faccao: morador.faccao
+                  ? {
+                      id: morador.faccao.id,
+                      nome:
+                        morador.faccao.nomeFaccao ??
+                        morador.faccao.nome ??
+                        undefined,
+                    }
+                  : null,
+                conflitosA,
+                conflitosB,
+              };
+            }
           ),
         })
       ),
@@ -364,7 +427,34 @@ export async function GET(request: NextRequest) {
     }
 
     const adolescenteSimulado = mapearAdolescenteParaRisco(adolescente);
+
+    // DEBUG: Log para verificar adolescente simulado
+    console.log(`[DEBUG] Simulando alocacao de ${adolescenteSimulado.nomeCompleto}:`, {
+      id: adolescenteSimulado.id,
+      conflitosA: adolescenteSimulado.conflitosA?.length ?? 0,
+      conflitosB: adolescenteSimulado.conflitosB?.length ?? 0,
+      adversarios: [
+        ...(adolescenteSimulado.conflitosA ?? []),
+        ...(adolescenteSimulado.conflitosB ?? []),
+      ].map(c => c.adversario?.nomeCompleto),
+    });
+
+    console.log(`[DEBUG] Status do alojamento ANTES da simulacao:`, {
+      alojamentoId: alojamentoAlvo.id,
+      numero: alojamentoAlvo.numeroAlojamento,
+      statusManutencao: alojamentoAlvo.statusManutencao,
+      ocupantesAtuais: alojamentoAlvo.adolescentes.length,
+    });
+
     alojamentoAlvo.adolescentes = [adolescenteSimulado];
+
+    // Para simular alocação, o alojamento deve estar disponível (não INTERDITADO)
+    // Temporariamente mudar status para permitir cálculo de risco
+    const statusOriginal = alojamentoAlvo.statusManutencao;
+    if (alojamentoAlvo.statusManutencao === "INTERDITADO") {
+      alojamentoAlvo.statusManutencao = "DISPONIVEL";
+      console.log(`[DEBUG] Alojamento estava INTERDITADO, mudando para DISPONIVEL para simular`);
+    }
 
     const mapaSlots = criarMapaSlots(casasClonadas);
 
@@ -381,12 +471,28 @@ export async function GET(request: NextRequest) {
       mapaFaccoes
     );
 
+    // DEBUG: Log para verificar alojamento frontal
+    if (alojamentoAlvo.alojamentoFrontalId) {
+      const frontal = casaAlvo.alojamentos.find(a => a.id === alojamentoAlvo.alojamentoFrontalId);
+      console.log(`[DEBUG] Alojamento ${alojamentoAlvo.numeroAlojamento} tem frontal:`, {
+        frontalId: alojamentoAlvo.alojamentoFrontalId,
+        frontalNumero: frontal?.numeroAlojamento,
+        ocupantes: frontal?.adolescentes.map(a => a.nomeCompleto),
+      });
+    }
+
     const resultado = calcularRiscoAlojamento({
       alojamento: alojamentoAlvo,
       casaAtual: casaAlvo,
       casas: casasClonadas,
       slots: mapaSlots,
       conflitosExternos,
+    });
+
+    console.log(`[DEBUG] Resultado do calculo:`, {
+      nivel: resultado.nivel,
+      categoria: resultado.categoria,
+      motivos: resultado.motivos,
     });
 
     const alertas = construirAlertas(resultado.detalhes, resultado.ambiental);

@@ -55,11 +55,6 @@ export async function listarConflitosExternos(
 
   const territoriaisFormatados: ConflitoExternoResumo[] = territoriais.map(
     (conflito) => {
-      const criado =
-        conflito.criadoEm instanceof Date
-          ? conflito.criadoEm.toISOString()
-          : null;
-
       return {
         id: conflito.id,
         tipo: "BAIRRO",
@@ -74,7 +69,7 @@ export async function listarConflitosExternos(
           nome: conflito.bairroB?.nomeBairro ?? "Bairro removido",
           complemento: normalizarComplemento(conflito.bairroB?.cidade),
         },
-        criadoEm: criado,
+        criadoEm: null, // BairroConflito não possui campo criadoEm
       };
     }
   );
