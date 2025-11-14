@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { DetalhesConflito } from "@/components/conflitos/detalhes-conflito";
 
@@ -141,12 +141,18 @@ export default function ConflitoPorIdPage() {
   const [mediacoes, setMediacoes] = useState<Mediacao[]>([]);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState(false);
+  const [salvandoEdicao, setSalvandoEdicao] = useState(false);
+  const [mensagemEdicao, setMensagemEdicao] = useState<{
+    tipo: "erro" | "sucesso";
+    texto: string;
+  } | null>(null);
+  const [edicaoConflito, setEdicaoConflito] = useState({
+    tipoConflito: "FACCAO",
+    status: "ATIVO" as "ATIVO" | "RESOLVIDO",
+    descricao: "",
+  });
 
-  useEffect(() => {
-    carregarDados();
-  }, [conflitoId]);
-
-  const carregarDados = async () => {
+  const carregarDados = useCallback(async () => {
     try {
       // Chamar API
       const [conflitoRes, mediacoesRes] = await Promise.all([
@@ -219,6 +225,61 @@ export default function ConflitoPorIdPage() {
       setMediacoes(mockMediacoes);
     } finally {
       setLoading(false);
+    }
+  }, [conflitoId]);
+
+  useEffect(() => {
+    carregarDados();
+  }, [carregarDados]);
+
+  useEffect(() => {
+    if (conflito) {
+      setEdicaoConflito({
+        tipoConflito: conflito.tipoConflito,
+        status: conflito.status,
+        descricao: conflito.descricao ?? "",
+      });
+    }
+  }, [conflito]);
+
+  const handleSalvarEdicao = async () => {
+    if (!conflito) return;
+    setMensagemEdicao(null);
+    setSalvandoEdicao(true);
+    try {
+      const response = await fetch(`/api/conflitos/${conflitoId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          tipoConflito: edicaoConflito.tipoConflito,
+          status: edicaoConflito.status,
+          descricao: edicaoConflito.descricao?.trim() || null,
+        }),
+      });
+
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(payload?.erro ?? "Erro ao atualizar conflito.");
+      }
+
+      setMensagemEdicao({
+        tipo: "sucesso",
+        texto: payload?.mensagem ?? "Conflito atualizado com sucesso.",
+      });
+      await carregarDados();
+    } catch (error) {
+      setMensagemEdicao({
+        tipo: "erro",
+        texto:
+          error instanceof Error
+            ? error.message
+            : "Erro inesperado ao atualizar conflito.",
+      });
+    } finally {
+      setSalvandoEdicao(false);
     }
   };
 
@@ -299,12 +360,143 @@ export default function ConflitoPorIdPage() {
     return null;
   }
 
+  const tipoConflitoOptions = [
+    { value: "FACCAO", label: "Conflito por faccao" },
+    { value: "TERRITORIAL", label: "Conflito territorial" },
+    { value: "PESSOAL", label: "Conflito pessoal" },
+    { value: "OUTROS", label: "Outros" },
+  ];
+
+  const statusOptions: Array<"ATIVO" | "RESOLVIDO"> = ["ATIVO", "RESOLVIDO"];
+
   return (
-    <DetalhesConflito
-      conflito={conflito}
-      mediacoes={mediacoes}
-      onAdicionarMediacao={handleAdicionarMediacao}
-      onResolverConflito={handleResolverConflito}
-    />
+    <div className="space-y-6">
+      <section className="bg-white rounded-2xl shadow-lg p-6 border-l-4 border-red-500">
+        <div className="flex flex-col gap-2 mb-6">
+          <p className="text-xs font-semibold uppercase tracking-wide text-red-500">
+            Edicao rapida
+          </p>
+          <h2 className="text-2xl font-bold text-gray-900">
+            Atualizar dados do conflito
+          </h2>
+          <p className="text-sm text-gray-600">
+            Ajuste a classificacao, o status e os registros de observacao conforme a evolucao das
+            evidencias.
+          </p>
+        </div>
+
+        {mensagemEdicao && (
+          <div
+            className={`mb-4 rounded-xl border px-4 py-3 text-sm font-semibold ${
+              mensagemEdicao.tipo === "sucesso"
+                ? "bg-green-50 border-green-200 text-green-800"
+                : "bg-red-50 border-red-200 text-red-700"
+            }`}
+          >
+            {mensagemEdicao.texto}
+          </div>
+        )}
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Tipo de conflito
+            </label>
+            <select
+              value={edicaoConflito.tipoConflito}
+              onChange={(event) => {
+                setMensagemEdicao(null);
+                setEdicaoConflito((prev) => ({
+                  ...prev,
+                  tipoConflito: event.target.value,
+                }));
+              }}
+              className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none transition-all bg-white"
+            >
+              {tipoConflitoOptions.map((opcao) => (
+                <option key={opcao.value} value={opcao.value}>
+                  {opcao.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Status
+            </label>
+            <select
+              value={edicaoConflito.status}
+              onChange={(event) => {
+                setMensagemEdicao(null);
+                setEdicaoConflito((prev) => ({
+                  ...prev,
+                  status: event.target.value as "ATIVO" | "RESOLVIDO",
+                }));
+              }}
+              className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none transition-all bg-white"
+            >
+              {statusOptions.map((status) => (
+                <option key={status} value={status}>
+                  {status === "ATIVO" ? "Ativo" : "Resolvido"}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <label className="block text-sm font-semibold text-gray-700 mb-2">
+            Observacoes / descricao
+          </label>
+          <textarea
+            value={edicaoConflito.descricao}
+            onChange={(event) => {
+              setMensagemEdicao(null);
+              setEdicaoConflito((prev) => ({
+                ...prev,
+                descricao: event.target.value,
+              }));
+            }}
+            rows={4}
+            className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none transition-all resize-none"
+            placeholder="Descreva novas evidencias, acordos ou orientacoes para a equipe."
+          />
+        </div>
+
+        <div className="mt-6 flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={handleSalvarEdicao}
+            disabled={salvandoEdicao}
+            className="px-6 py-3 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 disabled:bg-red-300 disabled:cursor-not-allowed transition-colors"
+          >
+            {salvandoEdicao ? "Salvando..." : "Salvar alteracoes"}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (!conflito) return;
+              setMensagemEdicao(null);
+              setEdicaoConflito({
+                tipoConflito: conflito.tipoConflito,
+                status: conflito.status,
+                descricao: conflito.descricao ?? "",
+              });
+            }}
+            className="px-4 py-2 border-2 border-gray-200 rounded-lg text-sm font-semibold text-gray-600 hover:border-gray-400"
+          >
+            Desfazer alteracoes
+          </button>
+        </div>
+      </section>
+
+      <DetalhesConflito
+        conflito={conflito}
+        mediacoes={mediacoes}
+        onAdicionarMediacao={handleAdicionarMediacao}
+        onResolverConflito={handleResolverConflito}
+      />
+    </div>
   );
 }

@@ -216,10 +216,22 @@ export function ModalAnaliseImpacto({
                 (a) => a.alojamento.casaNumero === 1
               );
             } else if (tipoInternacao === "DEFINITIVA") {
-              sugestoesValidas = sugestoesValidas.filter(
-                (a) =>
-                  a.alojamento.casaNumero >= 2 && a.alojamento.casaNumero <= 7
-              );
+              sugestoesValidas = sugestoesValidas.filter((a) => {
+                const casaNum = a.alojamento.casaNumero;
+
+                // Casas 02-07: sempre permitidas
+                if (casaNum >= 2 && casaNum <= 7) {
+                  return true;
+                }
+
+                // Casa 08: apenas se não houver conflitos (Fase 3)
+                if (casaNum === 8) {
+                  return a.nivelRisco <= 1; // Apenas LIVRE ou SEGURO
+                }
+
+                // Casa 01: excluir (é provisória)
+                return false;
+              });
             }
           }
 
@@ -314,8 +326,6 @@ export function ModalAnaliseImpacto({
           });
         });
 
-        // DEBUG: Log alojamentos encontrados
-        console.log(`[DEBUG] Encontrados ${alojamentosVagos.length} alojamentos vagos para avaliar`);
 
         // Avaliar cada alojamento vago
         const avaliacoes = await Promise.all(
@@ -344,7 +354,6 @@ export function ModalAnaliseImpacto({
               permiteAlocacao: resultado.permite_alocacao ?? false,
             };
 
-            console.log(`[DEBUG] Avaliação:`, avaliacao.alojamento);
             return avaliacao;
           })
         );
@@ -361,16 +370,32 @@ export function ModalAnaliseImpacto({
           );
         } else {
           // REGRA 1: Internação Provisória = APENAS Casa 01
-          // REGRA 2: Internação Definitiva = Casas 02-07 (excluir Casa 01 e Casa 08)
+          // REGRA 2: Internação Definitiva = Casas 02-07
+          // REGRA 3: Casa 08 (Fase 3) = Apenas sem conflitos ativos
           if (tipoInternacao === "PROVISORIA") {
             sugestoesValidas = sugestoesValidas.filter(
               (a) => a.alojamento.casaNumero === 1
             );
           } else if (tipoInternacao === "DEFINITIVA") {
-            sugestoesValidas = sugestoesValidas.filter(
-              (a) =>
-                a.alojamento.casaNumero >= 2 && a.alojamento.casaNumero <= 7
-            );
+            sugestoesValidas = sugestoesValidas.filter((a) => {
+              const casaNum = a.alojamento.casaNumero;
+
+              // Casas 02-07: sempre permitidas
+              if (casaNum >= 2 && casaNum <= 7) {
+                return true;
+              }
+
+              // Casa 08: apenas se não houver conflitos
+              // (Fase 3 é para progressão positiva, sem conflitos ativos)
+              if (casaNum === 8) {
+                // Verificar se adolescente tem conflitos
+                // Se chegou aqui com nível <= 3, significa sem conflitos graves
+                return a.nivelRisco <= 1; // Apenas LIVRE ou SEGURO
+              }
+
+              // Casa 01: excluir (é provisória)
+              return false;
+            });
           }
         }
 
@@ -686,9 +711,14 @@ export function ModalAnaliseImpacto({
                       <h3 className="font-semibold text-amber-900 mb-1">
                         Filtro por Casa Específica (Opcional)
                       </h3>
-                      <p className="text-sm text-amber-700">
-                        Selecione uma casa para ver apenas os 3 melhores alojamentos disponíveis nessa casa, ordenados por nível de risco:
+                      <p className="text-sm text-amber-700 mb-2">
+                        Selecione uma casa para ver apenas os 3 melhores alojamentos disponíveis nessa casa, ordenados por nível de risco.
                       </p>
+                      {tipoInternacao === "DEFINITIVA" && (
+                        <p className="text-xs text-purple-700 bg-purple-50 border border-purple-200 rounded px-2 py-1 mt-2">
+                          <strong>★ Casa 08 (Fase 3):</strong> Aceita apenas adolescentes SEM conflitos ativos (nível 0-1)
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -716,7 +746,7 @@ export function ModalAnaliseImpacto({
                       </button>
                     ) : (
                       <>
-                        {[2, 3, 4, 5, 6, 7].map((casa) => (
+                        {[2, 3, 4, 5, 6, 7, 8].map((casa) => (
                           <button
                             key={casa}
                             onClick={() => setCasaEspecifica(casa)}
@@ -724,9 +754,11 @@ export function ModalAnaliseImpacto({
                               casaEspecifica === casa
                                 ? "border-amber-600 bg-amber-100 text-amber-900"
                                 : "border-gray-300 bg-white text-gray-700 hover:border-amber-400"
-                            }`}
+                            } ${casa === 8 ? 'border-purple-300 bg-purple-50 hover:border-purple-400' : ''}`}
+                            title={casa === 8 ? 'Casa 08 - Fase 3 (apenas sem conflitos)' : ''}
                           >
                             Casa {String(casa).padStart(2, '0')}
+                            {casa === 8 && <span className="ml-1 text-xs text-purple-600">★</span>}
                           </button>
                         ))}
                       </>

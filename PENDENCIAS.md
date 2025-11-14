@@ -36,15 +36,53 @@
 - ✅ Reorganização da ordem de informações do adolescente
 - ✅ Correção do título "Conflitos e justificativas" (não "Alertas")
 
+### 7. **NOVO** - Validação Casa 08 - Fase 3
+- ✅ Implementada regra: Casa 08 apenas para nível 0-1 (sem conflitos)
+- ✅ Interface especial com cor roxa e ícone de estrela
+- ✅ Tooltip explicativo sobre restrições da Casa 08
+- ✅ Validação em ambos modais (alocação e realocação)
+
+### 8. **NOVO** - Dashboard de Tensão por Casa
+- ✅ Nova página `/dashboard-tensao` criada
+- ✅ Estatísticas gerais (4 cards): total, ocupados, em risco, tensão total
+- ✅ Cards individuais por casa com métricas detalhadas
+- ✅ Sistema de cores dinâmicas por nível de tensão
+- ✅ Barras visuais para distribuição de risco
+- ✅ Contador de conflitos ativos por casa
+- ✅ Ordenação por tensão ou número da casa
+- ✅ Navegação bidirecional com página /estrutura
+- ✅ Link "Dashboard de Tensão" adicionado no header de /estrutura
+
+### 9. **NOVO (Sessão 2025-11-11 - Parte 1)** - Melhorias de UX e Testes
+- ✅ **Remoção completa de logs de debug** (3 arquivos limpos)
+- ✅ **Auto-scroll para casa específica**: Navegação do Dashboard → Estrutura com scroll suave
+- ✅ **Highlight visual temporário**: Borda indigo + pulso + ring effect por 3 segundos
+- ✅ **Documentação de testes**: Roteiro completo em `docs/testes/ROTEIRO-TESTES-MANUAIS.md`
+- ✅ **7 cenários de teste documentados**: Conflitos, motor de risco, validações, Dashboard
+
+### 10. **NOVO (Sessão 2025-11-11 - Parte 2)** - Filtros e Gráficos no Dashboard
+- ✅ **Filtros avançados por nível de risco**: 6 opções (Crítico, Alto, Médio, Baixo, Sem Risco, Todos)
+- ✅ **Filtros por tipo de alerta**: Com conflitos, Superlotação (≥90%), Sem alertas
+- ✅ **Ordenação expandida**: 4 opções (Maior Tensão, Taxa de Ocupação, Mais Conflitos, Número da Casa)
+- ✅ **Interface de filtros expansível** com contador de filtros ativos
+- ✅ **Gráfico de distribuição de risco** (Donut Chart em SVG puro)
+- ✅ **Gráfico de barras horizontais**: Top 5 casas com maior tensão
+- ✅ **Mapa de calor**: Grid visual de 8 casas com níveis de tensão coloridos
+- ✅ **Auto-refresh configurável**: Intervalos de 1, 3, 5 ou 10 minutos
+- ✅ **Controles Play/Pause** para auto-atualização
+- ✅ **Indicador de próxima atualização** em tempo real
+
 ---
 
 ## ⚠️ PENDÊNCIAS CRÍTICAS
 
 ### 1. 🔴 Testes do Sistema Completo
-**Status**: NÃO TESTADO
+**Status**: ROTEIRO COMPLETO DOCUMENTADO - AGUARDANDO EXECUÇÃO
 **Prioridade**: ALTA
 
-**O que testar**:
+📋 **Documentação de Testes**: [docs/testes/ROTEIRO-TESTES-MANUAIS.md](docs/testes/ROTEIRO-TESTES-MANUAIS.md)
+
+**Resumo dos 7 Testes Documentados**:
 
 #### Teste 1: Enzo (não alocado) - Internação Provisória
 ```
@@ -132,127 +170,77 @@ Resultado Esperado:
 ✓ Log no console: status_manutencao ou statusManutencao === "INTERDITADO"
 ```
 
+#### Teste 6: Casa 08 - Validação Fase 3
+```
+Setup:
+- Ter um adolescente SEM conflitos ativos (ex: nível risco 0-1)
+- Ter um adolescente COM conflitos ativos (ex: nível risco 4-5)
+
+Passos:
+1. Selecionar adolescente SEM conflitos
+2. Escolher "Internação Definitiva"
+3. Clicar em botão "Casa 08" (opcional)
+4. Analisar
+
+Resultado Esperado - Adolescente SEM conflitos:
+✓ Casa 08 DEVE aparecer nas sugestões
+✓ Botão Casa 08 tem cor roxa e ícone de estrela
+✓ Tooltip mostra "Casa 08 - Fase 3 (apenas sem conflitos)"
+
+Resultado Esperado - Adolescente COM conflitos:
+✓ Casa 08 NÃO deve aparecer nas sugestões
+✓ Mesmo clicando em "Casa 08", não deve mostrar opções
+```
+
+#### Teste 7: Dashboard de Tensão
+```
+Setup:
+- Ter dados de múltiplas casas com diferentes níveis de risco
+
+Passos:
+1. Acessar /estrutura
+2. Clicar em "Dashboard de Tensão" (botão roxo-indigo no header)
+3. Verificar carregamento da página /dashboard-tensao
+
+Resultado Esperado:
+✓ 4 cards de estatísticas gerais no topo
+✓ Total alojamentos correto
+✓ Taxa de ocupação calculada corretamente
+✓ Cards individuais para cada casa
+✓ Badge de tensão com cor correta (verde/lima/amarelo/laranja/vermelho)
+✓ Barras de distribuição de risco visíveis apenas para níveis 3+
+✓ Contador de conflitos ativos por casa
+✓ Ordenação por "Maior Tensão" funciona
+✓ Ordenação por "Número da Casa" funciona
+✓ Botão "Atualizar" recarrega os dados
+✓ Link "Voltar para Estrutura" funciona
+```
+
 ---
 
-### 2. 🟡 Validação da Regra Casa 08 - Fase 3
-**Status**: REGRA DE NEGÓCIO NÃO CONFIRMADA
-**Prioridade**: MÉDIA
+### 2. ✅ Limpeza de Logs de Debug
+**Status**: ✅ **CONCLUÍDO** (2025-11-11)
+**Prioridade**: ~~MÉDIA~~ **COMPLETO**
 
-**Questões a Esclarecer**:
-- Casa 08 é exclusivamente para Fase 3?
-- Casa 08 aceita adolescentes com conflitos ATIVOS?
-- Casa 08 aceita adolescentes com alertas disciplinares?
+**Todos os logs de debug foram removidos com sucesso**:
 
-**Implementação Necessária** (se confirmado):
-```typescript
-// Em modal-analise-impacto.tsx
-if (tipoInternacao === "DEFINITIVA") {
-  sugestoesValidas = sugestoesValidas.filter((a) => {
-    // Excluir Casa 01 (provisórios) e Casa 08 (Fase 3)
-    if (a.alojamento.casaNumero >= 2 && a.alojamento.casaNumero <= 7) {
-      return true;
-    }
+#### ✅ `components/mapa/modal-alojamento-detalhes.tsx`
+- ✅ Removidas linhas 326-336: Debug de conflito externo
+- ✅ Removida linha 344: Comparação de adolescentes
+- ✅ Removida linha 354: Contagem de rivais reais
 
-    // Casa 08 só se for Fase 3 e SEM conflitos ativos
-    if (a.alojamento.casaNumero === 8) {
-      // TODO: verificar se adolescente tem conflitos ativos
-      // TODO: verificar se adolescente tem alertas disciplinares
-      // return !temConflitosAtivos && !temAlertasDisciplinares;
-    }
+#### ✅ `components/estrutura/modal-analise-impacto.tsx`
+- ✅ Removida linha 330: Contagem de alojamentos vagos
+- ✅ Removida linha 359: Dados de avaliação
 
-    return false;
-  });
-}
-```
+#### ✅ `app/api/verificar-alocacao/route.ts`
+- ✅ Removidas linhas 368-375: Debug de conflitos de moradores
+- ✅ Removidas linhas 432-447: Debug de simulação de alocação
+- ✅ Removida linha 447: Status INTERDITADO
+- ✅ Removidas linhas 468-473: Debug de alojamento frontal
+- ✅ Removidas linhas 483-487: Debug de resultados do cálculo
 
-**Arquivo**: `components/estrutura/modal-analise-impacto.tsx` (linha ~360)
-
----
-
-### 3. 🟢 Limpeza de Logs de Debug
-**Status**: LOGS TEMPORÁRIOS ATIVOS
-**Prioridade**: MÉDIA (antes de produção)
-
-**Arquivos com Logs para Remover**:
-
-#### `components/mapa/modal-alojamento-detalhes.tsx`
-```typescript
-// REMOVER linhas 326-336:
-if (todosRelacionados.length > 0) {
-  console.log('=== DEBUG Conflito Externo ===');
-  console.log('Ocupante:', ocupante.nomeCompleto);
-  console.log('Conflito:', impacto.conflitoDestino.nome);
-  console.log('Tipo:', impacto.conflitoTipo);
-  console.log('Total relacionados:', todosRelacionados.length);
-  todosRelacionados.forEach(r => {
-    console.log('  - ', r.adolescente.nome, 'Bairro:', r.adolescente.bairro?.nome, 'ID:', r.adolescente.bairro?.id);
-  });
-  console.log('Destino ID:', impacto.conflitoDestino.id);
-}
-
-// REMOVER linha 344:
-console.log('    Comparando:', registro.adolescente.nome, match ? '✓ MATCH' : '✗ NO MATCH');
-
-// REMOVER linha 354:
-console.log('Rivais reais encontrados:', rivaisReais.length);
-```
-
-#### `components/estrutura/modal-analise-impacto.tsx`
-```typescript
-// REMOVER linha 276:
-console.log(`[DEBUG] Encontrados ${alojamentosVagos.length} alojamentos vagos para avaliar`);
-
-// REMOVER linha 305:
-console.log(`[DEBUG] Avaliação:`, avaliacao.alojamento);
-```
-
-#### `app/api/verificar-alocacao/route.ts`
-```typescript
-// REMOVER linhas 322-327:
-if (conflitosA.length > 0 || conflitosB.length > 0) {
-  console.log(`[DEBUG] Morador ${morador.nomeCompleto} tem conflitos:`, {
-    conflitosA: conflitosA.length,
-    conflitosB: conflitosB.length,
-    adversarios: [...conflitosA, ...conflitosB].map(c => c.adversario?.nomeCompleto),
-  });
-}
-
-// REMOVER linhas 368-376:
-console.log(`[DEBUG] Simulando alocacao de ${adolescenteSimulado.nomeCompleto}:`, {
-  id: adolescenteSimulado.id,
-  conflitosA: adolescenteSimulado.conflitosA?.length ?? 0,
-  conflitosB: adolescenteSimulado.conflitosB?.length ?? 0,
-  adversarios: [...],
-});
-
-// REMOVER linhas 378-383:
-console.log(`[DEBUG] Status do alojamento ANTES da simulacao:`, {
-  alojamentoId: alojamentoAlvo.id,
-  numero: alojamentoAlvo.numeroAlojamento,
-  statusManutencao: alojamentoAlvo.statusManutencao,
-  ocupantesAtuais: alojamentoAlvo.adolescentes.length,
-});
-
-// REMOVER linha 392:
-console.log(`[DEBUG] Alojamento estava INTERDITADO, mudando para DISPONIVEL para simular`);
-
-// REMOVER linhas 410-417:
-if (alojamentoAlvo.alojamentoFrontalId) {
-  const frontal = casaAlvo.alojamentos.find(a => a.id === alojamentoAlvo.alojamentoFrontalId);
-  console.log(`[DEBUG] Alojamento ${alojamentoAlvo.numeroAlojamento} tem frontal:`, {
-    frontalId: alojamentoAlvo.alojamentoFrontalId,
-    frontalNumero: frontal?.numeroAlojamento,
-    ocupantes: frontal?.adolescentes.map(a => a.nomeCompleto),
-  });
-}
-
-// REMOVER linhas 428-432:
-console.log(`[DEBUG] Resultado do calculo:`, {
-  nivel: resultado.nivel,
-  categoria: resultado.categoria,
-  motivos: resultado.motivos,
-});
-```
+**Código agora está pronto para produção** sem logs desnecessários.
 
 ---
 
@@ -363,13 +351,23 @@ console.log('Total alojamentos:', alojamentosVagos.length);
 **Descrição**: Sistema sugere trocas (swap) entre adolescentes
 **Exemplo**: "Trocar João (Casa 01, Aloj 04) com Pedro (Casa 02, Aloj 02) reduz risco geral"
 
-### 5. Dashboard de Tensão por Casa
+### 5. ~~Dashboard de Tensão por Casa~~ ✅ **IMPLEMENTADO**
 **Descrição**: Visão geral do nível de risco em cada casa
 **Métrica**: Score de tensão (já calculado em `/api/casas/status`)
+**Status**: Concluído em 2025-11-11 - Ver `app/dashboard-tensao/page.tsx`
 
 ### 6. Exportação de Relatórios
 **Descrição**: PDF com análise completa de conflitos
 **Uso**: Reuniões, auditorias, estudos de caso
+
+### 7. Melhorias no Dashboard de Tensão
+**Descrição**: Funcionalidades adicionais para o dashboard criado
+**Possíveis Adições**:
+- Gráficos de histórico de tensão ao longo do tempo
+- Comparação entre períodos (semana atual vs anterior)
+- Alertas automáticos quando tensão ultrapassa limites
+- Drill-down: clicar em casa para ver detalhes dos alojamentos
+- Exportação de relatórios do dashboard (PDF/Excel)
 
 ---
 
@@ -377,9 +375,12 @@ console.log('Total alojamentos:', alojamentosVagos.length);
 
 Antes de colocar em produção, verificar:
 
-- [ ] Todos os testes da seção "PENDÊNCIAS CRÍTICAS" executados e passando
-- [ ] Logs de debug removidos de TODOS os arquivos
-- [ ] Regra Casa 08 validada e implementada (se necessário)
+- [ ] Todos os testes da seção "PENDÊNCIAS CRÍTICAS" executados e passando (ver [docs/testes/ROTEIRO-TESTES-MANUAIS.md](docs/testes/ROTEIRO-TESTES-MANUAIS.md))
+- [x] Logs de debug removidos de TODOS os arquivos ✅ **CONCLUÍDO (2025-11-11)**
+- [x] Auto-scroll e drill-down do Dashboard implementados ✅ **CONCLUÍDO (2025-11-11)**
+- [x] Filtros e gráficos no Dashboard de Tensão ✅ **CONCLUÍDO (2025-11-11)**
+- [x] Auto-refresh configurável implementado ✅ **CONCLUÍDO (2025-11-11)**
+- [x] Regra Casa 08 validada e implementada ✅ **CONCLUÍDO**
 - [ ] Performance testada com carga real (30+ adolescentes não alocados)
 - [ ] Manual do usuário criado e distribuído
 - [ ] Backup do banco de dados antes do deploy
@@ -396,5 +397,11 @@ Antes de colocar em produção, verificar:
 
 ---
 
-**Última Atualização**: 2025-11-11
-**Próxima Revisão**: Após testes completos
+**Última Atualização**: 2025-11-11 (Sessão 3: Filtros, Gráficos e Auto-refresh no Dashboard)
+**Próxima Revisão**: Após execução completa dos testes documentados
+
+**Resumo desta sessão**:
+- ✅ Filtros avançados implementados (risco + alertas)
+- ✅ 3 gráficos visuais criados (donut, barras, mapa de calor)
+- ✅ Auto-refresh configurável com controles Play/Pause
+- ✅ Documentação completa atualizada

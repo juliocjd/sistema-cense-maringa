@@ -25,7 +25,12 @@
       "Bash(node temp-check-marcos.js:*)",
       "Bash(powershell -ExecutionPolicy Bypass -File fix-encoding.ps1)",
       "Bash(cat:*)",
-      "Bash(xxd:*)"
+      "Bash(xxd:*)",
+      "Bash(timeout /t 30 /nobreak)",
+      "Bash(npx prisma migrate dev:*)",
+      "Bash(npx prisma db push:*)",
+      "Bash(npx jest:*)",
+      "Bash(npm run test:*)"
     ],
     "deny": [],
     "ask": []

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Building2,
   Home,
@@ -113,6 +114,10 @@ const renderIconesAlerta = (
 };
 
 export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoGeralTabProps) {
+  const searchParams = useSearchParams();
+  const casaNumeroFromUrl = searchParams.get("casa");
+  const [casaHighlighted, setCasaHighlighted] = useState<number | null>(null);
+
   const [casas, setCasas] = useState<Casa[]>(casasIniciais ?? []);
   const [adolescentes, setAdolescentes] = useState<AdolescenteTipo[]>([]);
   const [conflitosExternos, setConflitosExternos] = useState<
@@ -368,6 +373,32 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
       eventSource?.close();
     };
   }, [carregarDados]);
+
+  // Auto-scroll para casa específica quando vem da URL
+  useEffect(() => {
+    if (casaNumeroFromUrl && casas.length > 0) {
+      const casaNumero = parseInt(casaNumeroFromUrl, 10);
+
+      // Aguardar um pouco para garantir que o DOM foi renderizado
+      setTimeout(() => {
+        const elemento = document.getElementById(`casa-${casaNumero}`);
+        if (elemento) {
+          elemento.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center'
+          });
+
+          // Adicionar highlight temporário
+          setCasaHighlighted(casaNumero);
+
+          // Remover highlight após 3 segundos
+          setTimeout(() => {
+            setCasaHighlighted(null);
+          }, 3000);
+        }
+      }, 300);
+    }
+  }, [casaNumeroFromUrl, casas]);
 
   const adolescentesLookup = useMemo(() => {
     const mapa = new Map<string, AdolescenteTipo>();
@@ -918,7 +949,12 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
             {casasNormalizadas.map((casa) => (
               <div
                 key={casa.id}
-                className="rounded-xl bg-white border-2 border-gray-200 shadow-md hover:shadow-lg transition-shadow p-6"
+                id={`casa-${casa.numero}`}
+                className={`rounded-xl bg-white border-2 shadow-md hover:shadow-lg transition-all duration-500 p-6 ${
+                  casaHighlighted === casa.numero
+                    ? 'border-indigo-500 ring-4 ring-indigo-300 ring-opacity-50 animate-pulse'
+                    : 'border-gray-200'
+                }`}
               >
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center">

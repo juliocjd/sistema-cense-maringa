@@ -22,6 +22,7 @@ import type {
   RiscoFuga,
   StatusUnidade,
 } from "@/types";
+import { SeletorTatuagens } from "@/components/cadastro/seletor-tatuagens";
 
 const STATUS_OPCOES: Array<{ value: StatusUnidade; label: string }> = [
   { value: "ATIVO", label: "Ativo / Internado" },
@@ -753,7 +754,7 @@ export function CadastroAdolescente({
           : undefined;
 
       const processoSanitizado = sanitize(atoInfracional.processo);
-      const gravidadeDescricaoSanitizada = sanitizeOrNull(
+      const gravidadeDescricaoSanitizada = sanitize(
         atoInfracional.gravidadeDescricao
       );
 
@@ -767,7 +768,7 @@ export function CadastroAdolescente({
         atoInfracionalAno: anoValido,
         atoInfracionalProcesso: processoSanitizado,
         atoInfracionalGravidade: atoInfracional.gravidade,
-        atoInfracionalGravidadeObs: gravidadeDescricaoSanitizada ?? undefined,
+        atoInfracionalGravidadeObs: gravidadeDescricaoSanitizada,
         numeroProcesso: processoSanitizado,
         fotoUrl: foto,
         alertaRiscoSuicidio: alertas.riscoSuicidio,
@@ -782,7 +783,14 @@ export function CadastroAdolescente({
         conflitosA: [],
         conflitosB: [],
         grupos: [],
-        tatuagens: [],
+        tatuagens: tatuagens
+          .filter((t) => t.catalogoId && t.localCorpo)
+          .map((t) => ({
+            catalogoId: t.catalogoId,
+            localCorpo: t.localCorpo,
+            observacoes: t.observacoes || "",
+            significadoPessoal: t.significadoPessoal || "",
+          })),
         faccaoGrupoId: sanitize(vinculacoes.faccaoId),
         faccaoNumeroMembro: sanitize(vinculacoes.numeroMembro),
         bairroOrigemId: sanitize(vinculacoes.bairroId),
@@ -1547,97 +1555,10 @@ export function CadastroAdolescente({
                 Tatuagens
               </h2>
 
-              <div className="flex items-center justify-between mb-4">
-                <p className="text-sm text-gray-600">
-                  Registre as tatuagens identificadas no adolescente
-                </p>
-                <button
-                  type="button"
-                  onClick={adicionarTatuagem}
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-semibold"
-                >
-                  + Adicionar Tatuagem
-                </button>
-              </div>
-
-              {tatuagens.length === 0 ? (
-                <div className="text-center py-12 text-gray-500 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
-                  <Camera size={48} className="mx-auto mb-2 text-gray-400" />
-                  <p>Nenhuma tatuagem registrada</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {tatuagens.map((tatuagem, index) => (
-                    <div
-                      key={index}
-                      className="p-4 bg-gray-50 rounded-lg border-2 border-gray-200"
-                    >
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                        <div>
-                          <label className="block text-xs font-semibold text-gray-700 mb-1">
-                            Símbolo/Tipo
-                          </label>
-                          <select
-                            value={tatuagem.catalogoId}
-                            onChange={(e) => {
-                              const novo = [...tatuagens];
-                              novo[index].catalogoId = e.target.value;
-                              setTatuagens(novo);
-                            }}
-                            className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-indigo-500 outline-none text-sm"
-                          >
-                            <option value="">Selecione...</option>
-                            {catalogoTatuagens.map((cat) => (
-                              <option key={cat.id} value={cat.id}>
-                                {cat.nome}{cat.nivel !== "DESCONHECIDO" ? ` (${cat.nivel})` : ""} - {cat.significado}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-xs font-semibold text-gray-700 mb-1">
-                            Local do Corpo
-                          </label>
-                          <input
-                            type="text"
-                            value={tatuagem.localCorpo}
-                            onChange={(e) => {
-                              const novo = [...tatuagens];
-                              novo[index].localCorpo = e.target.value;
-                              setTatuagens(novo);
-                            }}
-                            placeholder="Ex: Braço direito"
-                            className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-indigo-500 outline-none text-sm"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-semibold text-gray-700 mb-1">
-                            Observações
-                          </label>
-                          <input
-                            type="text"
-                            value={tatuagem.observacoes}
-                            onChange={(e) => {
-                              const novo = [...tatuagens];
-                              novo[index].observacoes = e.target.value;
-                              setTatuagens(novo);
-                            }}
-                            placeholder="Detalhes adicionais"
-                            className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-indigo-500 outline-none text-sm"
-                          />
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => removerTatuagem(index)}
-                        className="mt-2 text-red-600 hover:text-red-700 text-sm font-semibold"
-                      >
-                        Remover
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <SeletorTatuagens
+                tatuagens={tatuagens}
+                onChange={setTatuagens}
+              />
             </div>
           )}
 

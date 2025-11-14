@@ -89,8 +89,12 @@ const formatarImpactosExternos = (
 ): ConflitosExternosMapa => {
   const impactos: ImpactoConflitoExterno[] = [];
 
-  bairros.forEach((info) => {
-    impactos.push({
+  // PRIORIDADE DE FACÇÃO: Só considera conflito de bairro se adolescente NÃO tem facção
+  const temFaccao = !!(adolescente.faccaoGrupoId || adolescente.faccao?.id);
+
+  if (!temFaccao) {
+    bairros.forEach((info) => {
+      impactos.push({
       conflitoId: info.id,
       conflitoTipo: "BAIRRO",
       statusConflito: info.status,
@@ -121,7 +125,8 @@ const formatarImpactosExternos = (
         alojamento: null,
       },
     });
-  });
+    });
+  }
 
   faccoes.forEach((info) => {
     impactos.push({
@@ -365,15 +370,6 @@ export async function GET(request: NextRequest) {
               const conflitosA = mapearConflitosInternos(morador, "B");
               const conflitosB = mapearConflitosInternos(morador, "A");
 
-              // DEBUG: Log para verificar conflitos mapeados
-              if (conflitosA.length > 0 || conflitosB.length > 0) {
-                console.log(`[DEBUG] Morador ${morador.nomeCompleto} tem conflitos:`, {
-                  conflitosA: conflitosA.length,
-                  conflitosB: conflitosB.length,
-                  adversarios: [...conflitosA, ...conflitosB].map(c => c.adversario?.nomeCompleto),
-                });
-              }
-
               return {
                 id: morador.id,
                 nomeCompleto: morador.nomeCompleto,
@@ -428,24 +424,6 @@ export async function GET(request: NextRequest) {
 
     const adolescenteSimulado = mapearAdolescenteParaRisco(adolescente);
 
-    // DEBUG: Log para verificar adolescente simulado
-    console.log(`[DEBUG] Simulando alocacao de ${adolescenteSimulado.nomeCompleto}:`, {
-      id: adolescenteSimulado.id,
-      conflitosA: adolescenteSimulado.conflitosA?.length ?? 0,
-      conflitosB: adolescenteSimulado.conflitosB?.length ?? 0,
-      adversarios: [
-        ...(adolescenteSimulado.conflitosA ?? []),
-        ...(adolescenteSimulado.conflitosB ?? []),
-      ].map(c => c.adversario?.nomeCompleto),
-    });
-
-    console.log(`[DEBUG] Status do alojamento ANTES da simulacao:`, {
-      alojamentoId: alojamentoAlvo.id,
-      numero: alojamentoAlvo.numeroAlojamento,
-      statusManutencao: alojamentoAlvo.statusManutencao,
-      ocupantesAtuais: alojamentoAlvo.adolescentes.length,
-    });
-
     alojamentoAlvo.adolescentes = [adolescenteSimulado];
 
     // Para simular alocação, o alojamento deve estar disponível (não INTERDITADO)
@@ -453,7 +431,6 @@ export async function GET(request: NextRequest) {
     const statusOriginal = alojamentoAlvo.statusManutencao;
     if (alojamentoAlvo.statusManutencao === "INTERDITADO") {
       alojamentoAlvo.statusManutencao = "DISPONIVEL";
-      console.log(`[DEBUG] Alojamento estava INTERDITADO, mudando para DISPONIVEL para simular`);
     }
 
     const mapaSlots = criarMapaSlots(casasClonadas);
@@ -471,28 +448,12 @@ export async function GET(request: NextRequest) {
       mapaFaccoes
     );
 
-    // DEBUG: Log para verificar alojamento frontal
-    if (alojamentoAlvo.alojamentoFrontalId) {
-      const frontal = casaAlvo.alojamentos.find(a => a.id === alojamentoAlvo.alojamentoFrontalId);
-      console.log(`[DEBUG] Alojamento ${alojamentoAlvo.numeroAlojamento} tem frontal:`, {
-        frontalId: alojamentoAlvo.alojamentoFrontalId,
-        frontalNumero: frontal?.numeroAlojamento,
-        ocupantes: frontal?.adolescentes.map(a => a.nomeCompleto),
-      });
-    }
-
     const resultado = calcularRiscoAlojamento({
       alojamento: alojamentoAlvo,
       casaAtual: casaAlvo,
       casas: casasClonadas,
       slots: mapaSlots,
       conflitosExternos,
-    });
-
-    console.log(`[DEBUG] Resultado do calculo:`, {
-      nivel: resultado.nivel,
-      categoria: resultado.categoria,
-      motivos: resultado.motivos,
     });
 
     const alertas = construirAlertas(resultado.detalhes, resultado.ambiental);

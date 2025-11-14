@@ -511,21 +511,134 @@ Nenhuma migração de banco de dados foi necessária nesta sessão.
 
 ---
 
-## 📚 Arquivos Modificados
+## 🆕 Novas Implementações (2025-11-11 - Sessão Continuação)
 
+### 1. Validação Casa 08 - Fase 3
+**Arquivo**: `components/estrutura/modal-analise-impacto.tsx`
+
+**Funcionalidade**:
+- Casa 08 é reservada para adolescentes em Fase 3 (progressão de medida)
+- **Regra Crítica**: Apenas adolescentes SEM conflitos ativos podem ser alocados na Casa 08
+- Filtragem automática: Casa 08 só aparece nas sugestões se o nível de risco for 0 ou 1 (LIVRE ou SEGURO)
+
+**Implementação** (linhas 358-363):
+```typescript
+// Casa 08: apenas se não houver conflitos (Fase 3)
+if (casaNum === 8) {
+  return a.nivelRisco <= 1; // Apenas LIVRE ou SEGURO
+}
+```
+
+**Interface**:
+- Botão da Casa 08 tem estilo especial (borda roxa, fundo roxo claro)
+- Ícone de estrela (★) indica casa especial
+- Tooltip explicativo: "Casa 08 - Fase 3 (apenas sem conflitos)"
+
+**Também Aplicado em**:
+- Modal de Realocação (`components/mapa/modal-alocacao.tsx`)
+- Mesma lógica de validação implementada
+
+---
+
+### 2. Dashboard de Tensão por Casa
+**Arquivo Novo**: `app/dashboard-tensao/page.tsx`
+
+**Objetivo**:
+Fornecer uma visão executiva do estado de tensão de toda a unidade, facilitando a tomada de decisões estratégicas sobre realocações e intervenções.
+
+**🆕 Melhorias Adicionadas (Sessão Continuação 2)**:
+- ✅ **Timestamp de última atualização** com hora exata (HH:MM:SS)
+- ✅ **Botão de Atualizar otimizado** com indicador de loading (ícone animado)
+- ✅ **Exportação CSV** com todos os dados do dashboard
+- ✅ **Drill-down navigation** - clicar em "Ver Detalhes" navega para `/estrutura?casa=X`
+- ✅ **Performance otimizada** com `useMemo` para ordenação
+- ✅ **Estado disabled** nos botões durante carregamento
+
+**Funcionalidades Principais**:
+
+#### Estatísticas Gerais (4 cards no topo)
+1. **Total Alojamentos**: Quantidade total de alojamentos na unidade
+2. **Ocupados**: Quantidade de alojamentos com adolescentes + taxa de ocupação %
+3. **Com Risco**: Alojamentos com nível de risco ≥ 3 (Atenção, Elevado, Crítico)
+4. **Tensão Total**: Soma do score de tensão de todas as casas
+
+#### Cards Individuais por Casa
+Cada casa é exibida em um card com:
+
+**Header (fundo gradiente indigo)**:
+- Nome/número da casa
+- Ícone de escudo se for casa isolada
+- Badge de tensão com cores dinâmicas:
+  - Verde: Sem Tensão (score = 0)
+  - Lima: Baixa (score 1-5)
+  - Amarelo: Moderada (score 6-15)
+  - Laranja: Alta (score 16-30)
+  - Vermelho: Crítica (score > 30)
+
+**Alojamentos** (grid 2x2):
+- Total
+- Ocupados (verde)
+- Livres (azul)
+- Em Risco - nível 3+ (laranja)
+
+**Distribuição de Risco**:
+- Barras horizontais visuais mostrando quantidade de alojamentos em cada nível
+- Apenas níveis 3+ são exibidos (Crítico 5, Elevado 4, Atenção 3)
+- Se todos seguros (0-2), exibe mensagem com ícone de escudo
+- Largura da barra proporcional ao total de alojamentos
+
+**Conflitos Ativos**:
+- Contador de conflitos ativos de todos os adolescentes na casa
+- Vermelho se > 0, verde se = 0
+
+**Controles**:
+- Botão "Exportar" (verde) - baixa arquivo CSV com dados completos
+- Botão "Atualizar" (indigo) - recarrega dados com animação de loading
+- Ordenação por "Maior Tensão" (padrão) ou "Número da Casa"
+- Timestamp de última atualização logo abaixo do título
+
+**Exportação CSV** (novo):
+- Formato: UTF-8 com BOM para compatibilidade com Excel
+- Colunas: Casa, Score Tensão, Nível Tensão, Total Alojamentos, Ocupados, Livres, Em Risco, Crítico (5), Elevado (4), Atenção (3), Conflitos Ativos
+- Nome do arquivo: `dashboard-tensao-YYYY-MM-DD.csv`
+- Dados exportados refletem ordenação atual
+
+**Integração**:
+- Usa API existente `/api/casas/status`
+- Processa dados client-side para métricas
+- Link "Voltar para Estrutura" no topo
+
+**Navegação Adicionada**:
+- Botão "Dashboard de Tensão" no header da página `/estrutura`
+- Estilo gradiente roxo-indigo com ícone BarChart3
+- Link bidirecional entre estrutura ↔ dashboard
+
+---
+
+## 📚 Arquivos Modificados/Criados
+
+### Modificados
 1. `components/mapa/modal-alojamento-detalhes.tsx`
 2. `components/estrutura/modal-analise-impacto.tsx`
 3. `components/mapa/modal-alocacao.tsx`
 4. `app/api/verificar-alocacao/route.ts`
+5. `app/(dashboard)/estrutura/estrutura-tabs.tsx` *(NOVO na sessão continuação)*
 
-**Total de Linhas Modificadas**: ~400 linhas
+### Criados
+6. `app/dashboard-tensao/page.tsx` *(NOVO - 443 linhas)*
+7. `CHANGELOG-SESSION.md`
+8. `PENDENCIAS.md`
+
+**Total de Linhas Modificadas/Criadas**: ~900 linhas
 
 ---
 
 ## 🎯 Próximos Passos Sugeridos
 
-1. **Code Review**: Revisar implementações com equipe
-2. **Testes de Aceitação**: Validar com usuários finais
-3. **Limpeza**: Remover todos os logs de debug
-4. **Documentação**: Atualizar manual do usuário
-5. **Performance**: Monitorar tempos de resposta em produção
+1. **Testes Completos**: Executar todos os cenários de teste listados em `PENDENCIAS.md`
+2. **Validação Dashboard**: Verificar se métricas estão corretas e interface responsiva
+3. **Code Review**: Revisar implementações com equipe
+4. **Testes de Aceitação**: Validar com usuários finais
+5. **Limpeza**: Remover todos os logs de debug (lista completa em `PENDENCIAS.md`)
+6. **Documentação**: Atualizar manual do usuário com novas funcionalidades
+7. **Performance**: Monitorar tempos de resposta em produção

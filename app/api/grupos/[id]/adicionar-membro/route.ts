@@ -297,12 +297,27 @@ export async function POST(
 
     const membrosAtivos = grupo.membros.map((membro) => membro.adolescente);
     for (const membro of membrosAtivos) {
-      registrarConflitoExtra(
-        membro,
-        "bairro",
-        `mesmo grupo ${grupo.nomeGrupo}`,
-        3
-      );
+      // PRIORIDADE DE FACÇÃO: Se mesma facção, são aliados (ignora bairro)
+      const mesmaFaccao =
+        adolescente.faccaoGrupoId &&
+        membro.faccaoGrupoId &&
+        adolescente.faccaoGrupoId === membro.faccaoGrupoId;
+
+      if (mesmaFaccao) {
+        continue; // Mesma facção = aliados, não há conflito
+      }
+
+      // Só verifica conflito de bairro se AMBOS não têm facção
+      if (!adolescente.faccaoGrupoId && !membro.faccaoGrupoId) {
+        registrarConflitoExtra(
+          membro,
+          "bairro",
+          `mesmo grupo ${grupo.nomeGrupo}`,
+          3
+        );
+      }
+
+      // Sempre verifica conflito de facção (se houver)
       registrarConflitoExtra(
         membro,
         "faccao",
@@ -338,12 +353,28 @@ export async function POST(
         membro.adolescenteId,
         membro.grupo.nomeGrupo
       );
-      registrarConflitoExtra(
-        membro.adolescente,
-        "bairro",
-        `grupo ${membro.grupo.nomeGrupo}`,
-        3
-      );
+
+      // PRIORIDADE DE FACÇÃO: Se mesma facção, são aliados (ignora bairro)
+      const mesmaFaccao =
+        adolescente.faccaoGrupoId &&
+        membro.adolescente.faccaoGrupoId &&
+        adolescente.faccaoGrupoId === membro.adolescente.faccaoGrupoId;
+
+      if (mesmaFaccao) {
+        continue; // Mesma facção = aliados, não há conflito
+      }
+
+      // Só verifica conflito de bairro se AMBOS não têm facção
+      if (!adolescente.faccaoGrupoId && !membro.adolescente.faccaoGrupoId) {
+        registrarConflitoExtra(
+          membro.adolescente,
+          "bairro",
+          `grupo ${membro.grupo.nomeGrupo}`,
+          3
+        );
+      }
+
+      // Sempre verifica conflito de facção (se houver)
       registrarConflitoExtra(
         membro.adolescente,
         "faccao",

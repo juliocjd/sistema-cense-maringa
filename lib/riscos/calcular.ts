@@ -224,6 +224,36 @@ const construirSlotInfo = (
   casa: casa ? { id: casa.id, numero: casa.numero } : null,
 });
 
+/**
+ * Verifica se dois adolescentes são aliados pela mesma facção
+ * Prioridade: Se ambos pertencem à mesma facção, são aliados (ignora conflito de bairro)
+ */
+const saoAliadosPorFaccao = (
+  adolescente1: AdolescenteRisco,
+  adolescente2: AdolescenteRisco
+): boolean => {
+  if (!adolescente1.faccaoGrupoId || !adolescente2.faccaoGrupoId) {
+    return false;
+  }
+  return adolescente1.faccaoGrupoId === adolescente2.faccaoGrupoId;
+};
+
+/**
+ * Verifica se adolescente pertence a facção rival específica
+ */
+const saoRivaisPorFaccao = (
+  adolescente: AdolescenteRisco,
+  faccaoRivalId: string
+): boolean => {
+  if (!adolescente.faccaoGrupoId) {
+    return false;
+  }
+  return (
+    adolescente.faccao?.id === faccaoRivalId ||
+    adolescente.faccaoGrupoId === faccaoRivalId
+  );
+};
+
 export function calcularRiscoAlojamento({
   alojamento,
   casaAtual,
@@ -330,6 +360,11 @@ export function calcularRiscoAlojamento({
       if (adolescente.id === ocupante.id) return;
       if (opts?.ignorarIds?.has(adolescente.id)) return;
 
+      // PRIORIDADE DE FACÇÃO: Se ocupante e adolescente são da mesma facção, são aliados (ignora bairro)
+      if (saoAliadosPorFaccao(ocupante, adolescente)) {
+        return; // Mesma facção = aliados, não podem ser aliados de um rival
+      }
+
       const mesmoBairro =
         alvo.bairroId && adolescente.bairroOrigemId === alvo.bairroId;
       const mesmaFaccao =
@@ -337,6 +372,9 @@ export function calcularRiscoAlojamento({
         (adolescente.faccao?.id === alvo.faccaoId ||
           adolescente.faccaoGrupoId === alvo.faccaoId);
 
+      // Só considera aliado do rival se:
+      // - Mesmo bairro do rival (e nenhum dos dois tem facção, ou facções diferentes)
+      // - Mesma facção do rival
       if (!mesmoBairro && !mesmaFaccao) {
         return;
       }
@@ -354,19 +392,30 @@ export function calcularRiscoAlojamento({
       }
 
       const localAliado = formatarLocalReferencia(casa, outro);
-      const resumo = `${adolescente.nomeCompleto}${
-        localAliado ? ` - ${localAliado}` : ""
-      } alinhado ao rival (${contexto}).`;
 
-      if (proximidade === "FRONTAL") {
-        registrarMotivo(4, resumo, "ALIADO", proximidade);
-      } else if (proximidade === "MESMA_ALA") {
-        registrarMotivo(3, resumo, "ALIADO", proximidade);
-      } else if (proximidade === "MESMA_CASA" || proximidade === "ZONA_JANELA") {
+      // Diferenciar entre ALIANÇA FORTE (facção) e ALIANÇA FRACA (bairro)
+      if (mesmaFaccao) {
+        // ALIANÇA FORTE: Facção (vínculo organizacional)
+        const resumo = `ALIANÇA FORTE (Facção): ${adolescente.nomeCompleto}${
+          localAliado ? ` - ${localAliado}` : ""
+        } da mesma facção que o rival - ${contexto}`;
+
+        if (proximidade === "FRONTAL") {
+          registrarMotivo(4, resumo, "ALIADO", proximidade);
+        } else if (proximidade === "MESMA_ALA") {
+          registrarMotivo(3, resumo, "ALIADO", proximidade);
+        } else if (proximidade === "MESMA_CASA" || proximidade === "ZONA_JANELA") {
+          registrarMotivo(2, resumo, "ALIADO", proximidade);
+        }
+      } else if (mesmoBairro) {
+        // ALIANÇA FRACA: Bairro (coincidência geográfica)
+        // Sempre nível 2, independente da proximidade
+        const resumo = `ALIANÇA FRACA (Bairro): ${adolescente.nomeCompleto}${
+          localAliado ? ` - ${localAliado}` : ""
+        } do mesmo bairro que o rival - Tensão ambiental leve, monitoramento recomendado - ${contexto}`;
+
         registrarMotivo(2, resumo, "ALIADO", proximidade);
       }
-
-      registrarAmbiental(resumo);
     });
   };
 
@@ -436,9 +485,17 @@ export function calcularRiscoAlojamento({
       const { adolescente, alojamento: outro, casa } = slot;
       if (adolescente.id === ocupante.id) return;
 
+      // PRIORIDADE DE FACÇÃO: Se ocupante e adolescente são da mesma facção, são aliados
+      if (saoAliadosPorFaccao(ocupante, adolescente)) {
+        return; // Mesma facção = não são rivais (ignora conflito de bairro)
+      }
+
       const rivalBairro =
         impacto.conflitoTipo === "BAIRRO" &&
-        adolescente.bairroOrigemId === impacto.conflitoDestino.id;
+        adolescente.bairroOrigemId === impacto.conflitoDestino.id &&
+        !ocupante.faccaoGrupoId && // Só considera bairro se ocupante NÃO tem facção
+        !adolescente.faccaoGrupoId; // E adolescente também NÃO tem facção
+
       const rivalFaccao =
         impacto.conflitoTipo === "FACCAO" &&
         (adolescente.faccao?.id === impacto.conflitoDestino.id ||

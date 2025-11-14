@@ -28,6 +28,8 @@ model Operador {
   logAuditoria         LogAuditoria[]
   decisoesOperacionais DecisaoOperacional[]
   solicitacoesTransf   SolicitacaoTransferencia[]
+  justificativasAlgemaResponsavel JustificativaAlgema[] @relation("JustificativaAlgemaResponsavel")
+  justificativasAlgemaAprovador   JustificativaAlgema[] @relation("JustificativaAlgemaAprovador")
 
   @@map("operadores")
 }
@@ -268,6 +270,7 @@ model Adolescente {
   eventosParticipantes      EventoEspecialParticipante[]
   visitantesLink            AdolescenteVisitanteLink[]
   visitasRegistro           VisitaRegistro[]
+  justificativasAlgema      JustificativaAlgema[]
 
   @@map("adolescentes")
 }
@@ -279,6 +282,7 @@ model AdolescenteTatuagem {
   localCorpo         String? @map("local_corpo")
   fotoUrl            String? @map("foto_url")
   observacoes        String?
+  significadoPessoal String? @map("significado_pessoal")
 
   // Relações
   adolescente      Adolescente       @relation(fields: [adolescenteId], references: [id])
@@ -523,6 +527,69 @@ model EventoEspecialParticipante {
   adolescente Adolescente    @relation(fields: [adolescenteId], references: [id])
 
   @@map("eventos_especiais_participantes")
+}
+
+// ============================================
+// JUSTIFICATIVAS DE ALGEMA
+// ============================================
+
+model JustificativaAlgema {
+  id                    String   @id @default(uuid())
+  numeroDocumento       String   @unique @map("numero_documento") // Ex: "JA-001/2025"
+  adolescenteId         String   @map("adolescente_id")
+  operadorResponsavelId String   @map("operador_responsavel_id")
+
+  // Dados do Contexto
+  dataHoraOcorrencia    DateTime @map("data_hora_ocorrencia")
+  motivoPrincipal       String   @map("motivo_principal")     // TRANSFERENCIA_JUDICIAL, AUDIENCIA, ATENDIMENTO_EXTERNO, FUGA_TENTATIVA, AGRESSAO_GRAVE
+  destinoMovimentacao   String?  @map("destino_movimentacao") // Para onde está sendo conduzido
+
+  // Fundamentação Legal
+  fundamentacaoLegal    String   @map("fundamentacao_legal")  // Texto detalhado da justificativa
+  atoInfracionalBase    String?  @map("ato_infracional_base") // Ato que justifica
+  numeroProcesso        String?  @map("numero_processo")
+  decisaoJudicial       String?  @map("decisao_judicial")     // Número da decisão judicial que determinou
+
+  // Avaliação de Risco
+  riscoFuga             String   @map("risco_fuga")           // BAIXO, MEDIO, ALTO
+  riscoAgressao         String   @map("risco_agressao")       // BAIXO, MEDIO, ALTO
+  riscoAutolesao        String   @map("risco_autolesao")      // BAIXO, MEDIO, ALTO
+  historicoComportamental String? @map("historico_comportamental") // Descrição de incidentes anteriores
+
+  // Análise Automática de Inteligência
+  fatoresAgravantes     String[] @map("fatores_agravantes")  // Fatores identificados automaticamente pelo sistema
+  pontuacaoRiscoFuga    Int?     @map("pontuacao_risco_fuga")
+  pontuacaoRiscoAgressao Int?    @map("pontuacao_risco_agressao")
+  pontuacaoRiscoAutolesao Int?   @map("pontuacao_risco_autolesao")
+  fundamentacaoAutomatica String? @map("fundamentacao_automatica") // Fundamentação gerada pelo sistema de inteligência
+
+  // Medidas de Segurança e Protocolo
+  medidasSeguranca      String[] @map("medidas_seguranca")    // Medidas adotadas durante o transporte
+  equipeProfissional    String[] @map("equipe_profissional") // Quem acompanhou (agentes, psicólogos, etc)
+  veiculoUtilizado      String?  @map("veiculo_utilizado")   // Identificação do veículo
+
+  // Observações e Monitoramento
+  observacoesAdicionais String?  @map("observacoes_adicionais")
+  horaInicio            DateTime? @map("hora_inicio")         // Quando foi colocada a algema
+  horaFim               DateTime? @map("hora_fim")            // Quando foi retirada
+  duracaoMinutos        Int?     @map("duracao_minutos")
+
+  // Controle e Auditoria
+  status                String   @default("EMITIDO")          // EMITIDO, ANEXADO_PROCESSO, ARQUIVADO
+  arquivoPdfPath        String?  @map("arquivo_pdf_path")
+  criadoEm              DateTime @default(now()) @map("criado_em")
+  atualizadoEm          DateTime @updatedAt @map("atualizado_em")
+
+  // Revisão e Aprovação (opcional, para fluxo de aprovação)
+  aprovadoPor           String?  @map("aprovado_por")
+  dataAprovacao         DateTime? @map("data_aprovacao")
+
+  // Relações
+  adolescente      Adolescente @relation(fields: [adolescenteId], references: [id])
+  operadorResponsavel Operador @relation("JustificativaAlgemaResponsavel", fields: [operadorResponsavelId], references: [id])
+  aprovador        Operador?   @relation("JustificativaAlgemaAprovador", fields: [aprovadoPor], references: [id])
+
+  @@map("justificativas_algema")
 }
 
 // ============================================

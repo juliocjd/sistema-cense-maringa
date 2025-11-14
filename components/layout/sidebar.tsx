@@ -12,7 +12,9 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  PieChart,
   Settings,
+  Shield,
   Swords,
   User,
   UserCircle,
@@ -77,6 +79,7 @@ export function Sidebar() {
             icon: BarChart3,
           },
           { label: "Grupos", href: "/grupos", icon: UserCircle },
+          { label: "Tatuagens", href: "/tatuagens", icon: Shield },
           { label: "Comunicados Internos", href: "/comunicados", icon: FileText },
           { label: "Eventos Especiais", href: "/eventos", icon: Calendar },
         ],
@@ -84,8 +87,10 @@ export function Sidebar() {
       {
         section: "Relatorios",
         items: [
+          { label: "Analytics", href: "/analytics", icon: PieChart },
           { label: "Estatisticas", href: "/relatorios", icon: BarChart3 },
           { label: "Alertas Ativos", href: "/alertas", icon: AlertTriangle },
+          { label: "Justificativas de Algema", href: "/justificativas-algema", icon: Shield },
         ],
       },
       {

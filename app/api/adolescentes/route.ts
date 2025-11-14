@@ -37,6 +37,12 @@ const createAdolescenteSchema = z.object({
   alertaSaudeDetalhes: z.string().optional().nullable(),
   alojamentoAtualId: z.string().uuid().optional().nullable(),
   faseInternacaoAtualId: z.string().uuid().optional().nullable(),
+  tatuagens: z.array(z.object({
+    catalogoId: z.string().uuid(),
+    localCorpo: z.string().min(1),
+    observacoes: z.string().optional(),
+    significadoPessoal: z.string().optional(),
+  })).optional().default([]),
 });
 
 const sanitizeNullableString = (value: string | null | undefined) => {
@@ -216,6 +222,19 @@ export async function POST(request: NextRequest) {
       include: INCLUDE_ADOLESCENTE_DEFAULT,
     });
 
+    // Criar vinculações de tatuagens se houver
+    if (validated.tatuagens && validated.tatuagens.length > 0) {
+      await prisma.adolescenteTatuagem.createMany({
+        data: validated.tatuagens.map((tat) => ({
+          adolescenteId: criado.id,
+          tatuagemCatalogoId: tat.catalogoId,
+          localCorpo: tat.localCorpo,
+          observacoes: tat.observacoes || null,
+          significadoPessoal: tat.significadoPessoal || null,
+        })),
+      });
+    }
+
     await prisma.logAuditoria.create({
       data: {
         operadorId,
@@ -225,6 +244,7 @@ export async function POST(request: NextRequest) {
         detalhesAlteracao: {
           nomeCompleto: criado.nomeCompleto,
           numeroSms: criado.numeroSms,
+          tatuagens: validated.tatuagens?.length || 0,
         },
         ipOrigem: request.headers.get("x-forwarded-for") ?? "unknown",
       },

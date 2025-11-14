@@ -17,6 +17,10 @@ const updateAdolescenteSchema = z.object({
   dataEntrada: z.string().optional().nullable(),
   numeroProcesso: z.string().optional().nullable(),
   atoInfracionalAtual: z.string().optional().nullable(),
+  atoInfracionalAno: z.number().optional().nullable(),
+  atoInfracionalProcesso: z.string().optional().nullable(),
+  atoInfracionalGravidade: z.boolean().optional(),
+  atoInfracionalGravidadeObs: z.string().optional().nullable(),
   statusUnidade: z.enum(["ATIVO", "TRANSFERIDO", "LIBERADO", "EVADIDO"]).optional(),
   faccaoGrupoId: z.string().uuid().optional().nullable(),
   faccaoNumeroMembro: z.string().optional().nullable(),
@@ -179,6 +183,30 @@ export async function PUT(
         validated.atoInfracionalAtual
       );
       camposAlterados.push("atoInfracionalAtual");
+    }
+
+    if (validated.atoInfracionalAno !== undefined) {
+      data.atoInfracionalAno = validated.atoInfracionalAno ?? null;
+      camposAlterados.push("atoInfracionalAno");
+    }
+
+    if (validated.atoInfracionalProcesso !== undefined) {
+      data.atoInfracionalProcesso = nullableStringOrNull(
+        validated.atoInfracionalProcesso
+      );
+      camposAlterados.push("atoInfracionalProcesso");
+    }
+
+    if (validated.atoInfracionalGravidade !== undefined) {
+      data.atoInfracionalGravidade = validated.atoInfracionalGravidade;
+      camposAlterados.push("atoInfracionalGravidade");
+    }
+
+    if (validated.atoInfracionalGravidadeObs !== undefined) {
+      data.atoInfracionalGravidadeObs = nullableStringOrNull(
+        validated.atoInfracionalGravidadeObs
+      );
+      camposAlterados.push("atoInfracionalGravidadeObs");
     }
 
     if (validated.statusUnidade !== undefined) {

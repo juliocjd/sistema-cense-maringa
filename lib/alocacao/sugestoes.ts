@@ -156,7 +156,8 @@ const construirImpactosExternos = (
 ): ConflitosExternosMapa => {
   const impactos: ImpactoConflitoExterno[] = [];
 
-  if (bairroReferencia) {
+  // PRIORIDADE DE FACÇÃO: Só considera conflito de bairro se adolescente NÃO tem facção
+  if (bairroReferencia && !faccaoReferencia) {
     mapaBairros.forEach((info) => {
       const rival =
         info.origem.id === bairroReferencia ? info.destino : info.origem;

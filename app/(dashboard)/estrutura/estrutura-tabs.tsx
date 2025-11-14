@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Building2, Map, Eye, LayoutGrid } from "lucide-react";
+import { Building2, Map, Eye, LayoutGrid, BarChart3 } from "lucide-react";
+import Link from "next/link";
 import { VisaoGeralTab } from "./visao-geral-tab";
 import { MapaOperacionalTab } from "./mapa-operacional-tab";
 
@@ -34,13 +35,25 @@ export function EstruturaTabsComponent({ casas, totalAlojamentos }: EstruturaTab
     <div>
       {/* Header com título */}
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-          <Building2 className="text-indigo-600" size={36} />
-          Estrutura & Mapa Operacional
-        </h1>
-        <p className="text-gray-600 mt-2">
-          Gerencie a estrutura física e operacional da unidade
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
+              <Building2 className="text-indigo-600" size={36} />
+              Estrutura & Mapa Operacional
+            </h1>
+            <p className="text-gray-600 mt-2">
+              Gerencie a estrutura física e operacional da unidade
+            </p>
+          </div>
+
+          <Link
+            href="/dashboard-tensao"
+            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-all shadow-md hover:shadow-lg font-semibold"
+          >
+            <BarChart3 size={20} />
+            Dashboard de Tensão
+          </Link>
+        </div>
       </div>
 
       {/* Tabs Navigation */}
