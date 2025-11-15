@@ -43,6 +43,11 @@ export const INCLUDE_ADOLESCENTE_DEFAULT = {
       },
     },
   },
+  historicoInfracional: {
+    orderBy: {
+      ano: "desc",
+    },
+  },
 } satisfies Prisma.AdolescenteInclude;
 
 type PrismaAdolescente = Prisma.AdolescenteGetPayload<{
@@ -114,9 +119,22 @@ export function mapPrismaAdolescente(
       catalogoId: tatuagem.tatuagemCatalogoId,
       simbolo: tatuagem.tatuagemCatalogo?.nomeSimbolo ?? "",
       significado: tatuagem.tatuagemCatalogo?.significadoAssociado ?? null,
+      significadoPessoal: tatuagem.significadoPessoal ?? null,
       nivelRisco: tatuagem.tatuagemCatalogo?.nivelRisco ?? null,
       localCorpo: tatuagem.localCorpo ?? null,
       observacoes: tatuagem.observacoes ?? null,
+    })) ?? [];
+
+  const historicoInfracional =
+    adolescente.historicoInfracional?.map((registro) => ({
+      id: registro.id,
+      descricao: registro.atoInfracionalDescricao,
+      ano: registro.atoInfracionalAno ?? registro.ano ?? null,
+      processo: registro.atoInfracionalProcesso ?? null,
+      gravidade: registro.atoInfracionalGravidade ?? false,
+      gravidadeObs: registro.atoInfracionalGravidadeObs ?? null,
+      unidadeInternacao: registro.unidadeInternacao ?? null,
+      observacoes: registro.observacoes ?? null,
     })) ?? [];
 
   return {
@@ -206,6 +224,7 @@ export function mapPrismaAdolescente(
             }
           : null,
       })) ?? [],
+    historicoInfracional,
     criadoEm: formatDate(adolescente.criadoEm),
     atualizadoEm: formatDate(adolescente.atualizadoEm),
   };

@@ -3,12 +3,96 @@ import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
-// GET /api/justificativas-algema/analise-risco?adolescenteId=xxx
-// Análise inteligente de risco baseada em TODOS os dados do adolescente
+type CiResumo = {
+  numero: number;
+  ano: number;
+  tipoCI: string | null;
+  resumoCI: string | null;
+};
+
+type BairroBasico = {
+  id: string;
+  nomeBairro: string;
+  cidade: string;
+};
+
+type BairroFormatado = {
+  id: string;
+  nome: string;
+  cidade: string | null;
+};
+
+type DestinoContexto = {
+  bairroOrigem: BairroFormatado | null;
+  bairroDestino: BairroFormatado | null;
+  destinoDescricao: string | null;
+  conflitoTerritorial:
+    | {
+        id: string;
+        status: string;
+        origem: string;
+        destino: string;
+      }
+    | null;
+};
+
+const limparTexto = (valor?: string | null): string | null => {
+  if (typeof valor !== "string") return null;
+  const limpo = valor.trim();
+  return limpo.length > 0 ? limpo : null;
+};
+
+const formatarCi = (ci?: CiResumo | null): string | null => {
+  if (!ci) return null;
+  const tipo = ci.tipoCI ? ` (${ci.tipoCI})` : "";
+  return `CI ${ci.numero}/${ci.ano}${tipo}`;
+};
+
+function formatarBairro(
+  bairro?: BairroBasico | null
+): BairroFormatado | null {
+  if (!bairro) return null;
+  return {
+    id: bairro.id,
+    nome: bairro.nomeBairro,
+    cidade: bairro.cidade ?? null,
+  };
+}
+
+const descreverBairro = (bairro?: BairroFormatado | null): string | null => {
+  if (!bairro) return null;
+  return bairro.cidade ? `${bairro.nome} - ${bairro.cidade}` : bairro.nome;
+};
+
+const descreverPessoa = (nome?: string | null, sms?: string | null): string => {
+  if (nome && sms) return `${nome} (SMS ${sms})`;
+  if (nome) return nome;
+  if (sms) return `SMS ${sms}`;
+  return "adolescente não identificado";
+};
+
+const adicionarTexto = (lista: string[], texto?: string | null) => {
+  if (!texto) return;
+  const limpo = texto.trim();
+  if (limpo.length === 0) return;
+  lista.push(limpo);
+};
+
+const limitarLista = (itens: string[], limite = 3): string => {
+  if (itens.length === 0) return "";
+  const primeiros = itens.slice(0, limite);
+  const resto = itens.length - primeiros.length;
+  return resto > 0
+    ? `${primeiros.join("; ")} (+${resto} registro${resto > 1 ? "s" : ""})`
+    : primeiros.join("; ");
+};
+
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const adolescenteId = searchParams.get("adolescenteId");
+    const url = new URL(request.url);
+    const adolescenteId = url.searchParams.get("adolescenteId");
+    const bairroDestinoId = url.searchParams.get("bairroDestinoId");
+    const destinoDescricao = limparTexto(url.searchParams.get("destinoDescricao"));
 
     if (!adolescenteId) {
       return NextResponse.json(
@@ -17,8 +101,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Buscar TODOS os dados relevantes do adolescente
-    const adolescente = await prisma.adolescente.findUnique({
+    const adolescentePromise = prisma.adolescente.findUnique({
       where: { id: adolescenteId },
       include: {
         faccao: true,
@@ -29,8 +112,6 @@ export async function GET(request: NextRequest) {
           },
         },
         faseInternacaoAtual: true,
-
-        // Conflitos ativos
         conflitosA: {
           where: { status: "ATIVO" },
           include: {
@@ -38,6 +119,14 @@ export async function GET(request: NextRequest) {
               select: {
                 nomeCompleto: true,
                 numeroSms: true,
+              },
+            },
+            ciOrigem: {
+              select: {
+                numero: true,
+                ano: true,
+                tipoCI: true,
+                resumoCI: true,
               },
             },
           },
@@ -51,32 +140,32 @@ export async function GET(request: NextRequest) {
                 numeroSms: true,
               },
             },
+            ciOrigem: {
+              select: {
+                numero: true,
+                ano: true,
+                tipoCI: true,
+                resumoCI: true,
+              },
+            },
           },
         },
-
-        // Tatuagens
         tatuagens: {
           include: {
             tatuagemCatalogo: true,
           },
         },
-
-        // Histórico infracional
         historicoInfracional: {
           orderBy: {
             ano: "desc",
           },
         },
-
-        // Comunicados internos recentes
         comunicadosInternos: {
           include: {
             ci: true,
           },
           take: 5,
         },
-
-        // Alertas ativos
         alertasAtivos: {
           where: { desativadoEm: null },
           include: {
@@ -90,8 +179,6 @@ export async function GET(request: NextRequest) {
             },
           },
         },
-
-        // Grupos/facções
         gruposMembros: {
           where: {
             dataSaida: null,
@@ -107,6 +194,17 @@ export async function GET(request: NextRequest) {
       },
     });
 
+    const bairroDestinoPromise = bairroDestinoId
+      ? prisma.bairro.findUnique({
+          where: { id: bairroDestinoId },
+        })
+      : Promise.resolve(null);
+
+    const [adolescente, bairroDestino] = await Promise.all([
+      adolescentePromise,
+      bairroDestinoPromise,
+    ]);
+
     if (!adolescente) {
       return NextResponse.json(
         { erro: "Adolescente não encontrado" },
@@ -114,7 +212,70 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // ========== ANÁLISE DE RISCO ==========
+    const origemBairro = formatarBairro(adolescente.bairroOrigem as BairroBasico | null);
+    const destinoBairro = bairroDestino ? formatarBairro(bairroDestino) : null;
+
+    let conflitosOrigemBrutos:
+      | Array<{
+          id: string;
+          status: string;
+          bairroAId: string;
+          barroBId: string;
+          bairroA: BairroBasico;
+          bairroB: BairroBasico;
+        }>
+      | null = null;
+
+    if (origemBairro) {
+      conflitosOrigemBrutos = await prisma.bairroConflito.findMany({
+        where: {
+          status: "ATIVO",
+          OR: [{ bairroAId: origemBairro.id }, { barroBId: origemBairro.id }],
+        },
+        include: {
+          bairroA: true,
+          bairroB: true,
+        },
+      });
+    }
+
+    const conflitoTerritorial =
+      origemBairro &&
+      destinoBairro &&
+      conflitosOrigemBrutos?.find(
+        (registro) =>
+          (registro.bairroAId === origemBairro.id &&
+            registro.barroBId === destinoBairro.id) ||
+          (registro.bairroAId === destinoBairro.id &&
+            registro.barroBId === origemBairro.id)
+      );
+
+    const conflitosOrigemDescritos =
+      conflitosOrigemBrutos
+        ?.map((registro) => {
+          const outro =
+            registro.bairroAId === origemBairro?.id
+              ? registro.bairroB
+              : registro.bairroA;
+          if (!outro) return null;
+          const cidade = outro.cidade ? ` - ${outro.cidade}` : "";
+          return `${outro.nomeBairro}${cidade}`;
+        })
+        .filter((item): item is string => Boolean(item)) ?? [];
+
+    const destinoContexto: DestinoContexto = {
+      bairroOrigem: origemBairro,
+      bairroDestino: destinoBairro,
+      destinoDescricao,
+      conflitoTerritorial: conflitoTerritorial
+        ? {
+            id: conflitoTerritorial.id,
+            status: conflitoTerritorial.status,
+            origem: `${conflitoTerritorial.bairroA.nomeBairro} - ${conflitoTerritorial.bairroA.cidade}`,
+            destino: `${conflitoTerritorial.bairroB.nomeBairro} - ${conflitoTerritorial.bairroB.cidade}`,
+          }
+        : null,
+    };
 
     let pontuacaoRiscoFuga = 0;
     let pontuacaoRiscoAgressao = 0;
@@ -122,193 +283,372 @@ export async function GET(request: NextRequest) {
     const fundamentacoes: string[] = [];
     const fatoresAgravantes: string[] = [];
 
-    // 1. ATO INFRACIONAL - GRAVIDADE
-    if (adolescente.atoInfracionalGravidade) {
-      pontuacaoRiscoFuga += 30;
-      pontuacaoRiscoAgressao += 30;
-      fatoresAgravantes.push(
-        `Ato infracional com GRAVIDADE reconhecida: ${adolescente.atoInfracionalAtual || "não especificado"}`
+    // 1. Ato infracional atual
+    const atoAtualPartes = [
+      adolescente.atoInfracionalAtual,
+      adolescente.atoInfracionalAno ? `(${adolescente.atoInfracionalAno})` : null,
+      adolescente.atoInfracionalProcesso
+        ? `Processo ${adolescente.atoInfracionalProcesso}`
+        : null,
+    ].filter(Boolean);
+
+    if (atoAtualPartes.length > 0) {
+      pontuacaoRiscoFuga += adolescente.atoInfracionalGravidade ? 30 : 10;
+      pontuacaoRiscoAgressao += adolescente.atoInfracionalGravidade ? 30 : 5;
+
+      adicionarTexto(
+        fatoresAgravantes,
+        adolescente.atoInfracionalGravidade
+          ? `Ato infracional grave em apuração: ${atoAtualPartes.join(" ")}`
+          : `Ato infracional atual: ${atoAtualPartes.join(" ")}`
       );
-      if (adolescente.atoInfracionalGravidadeObs) {
-        fatoresAgravantes.push(`Detalhes da gravidade: ${adolescente.atoInfracionalGravidadeObs}`);
+
+      if (adolescente.atoInfracionalGravidade) {
+        let complementoGravidade = "";
+        if (adolescente.atoInfracionalGravidadeObs?.trim()) {
+          complementoGravidade = ` Consta indicação no sistema de que o ato possui repercussão ou gravidade elevada, nos seguintes termos: ${adolescente.atoInfracionalGravidadeObs.trim()}`;
+        }
+        adicionarTexto(
+          fundamentacoes,
+          `Consta ato infracional de natureza grave (${atoAtualPartes.join(
+            " "
+          )}), indicando risco concreto de resistência e reiteração.${complementoGravidade}`
+        );
+      } else {
+        adicionarTexto(
+          fundamentacoes,
+          `Ato infracional em apuração: ${atoAtualPartes.join(
+            " "
+          )}, considerado na avaliação de risco.`
+        );
       }
-      fundamentacoes.push(
-        `O adolescente cometeu ato infracional de natureza grave (${adolescente.atoInfracionalAtual}), demonstrando potencial de reincidência e resistência à contenção.`
-      );
-    } else if (adolescente.atoInfracionalAtual) {
-      pontuacaoRiscoFuga += 10;
-      fatoresAgravantes.push(`Ato infracional atual: ${adolescente.atoInfracionalAtual}`);
     }
 
-    // 2. HISTÓRICO INFRACIONAL
+    // 2. Histórico infracional
     if (adolescente.historicoInfracional.length > 0) {
-      const atosGraves = adolescente.historicoInfracional.filter(h => h.atoInfracionalGravidade);
+      const atosGraves = adolescente.historicoInfracional.filter(
+        (registro) => registro.atoInfracionalGravidade
+      );
       const totalAtos = adolescente.historicoInfracional.length;
 
       pontuacaoRiscoFuga += Math.min(totalAtos * 5, 20);
       pontuacaoRiscoAgressao += Math.min(atosGraves.length * 10, 30);
 
-      fatoresAgravantes.push(
-        `Histórico de ${totalAtos} ato(s) infracional(is) anterior(es), sendo ${atosGraves.length} de natureza grave`
+      adicionarTexto(
+        fatoresAgravantes,
+        `Histórico infracional registra ${totalAtos} ocorrência(s), ${atosGraves.length} com gravidade reconhecida`
       );
-      fundamentacoes.push(
-        `Registro de reincidência infracional com ${totalAtos} ato(s) anterior(es), caracterizando prática costumaz em atividade delitiva.`
+
+      const historicoDetalhado = adolescente.historicoInfracional
+        .slice(0, 3)
+        .map((registro) => {
+          const itens = [
+            registro.atoInfracionalDescricao,
+            registro.atoInfracionalAno ? `(${registro.atoInfracionalAno})` : null,
+            registro.atoInfracionalProcesso
+              ? `Processo ${registro.atoInfracionalProcesso}`
+              : null,
+            registro.atoInfracionalGravidade ? "gravidade reconhecida" : null,
+          ].filter(Boolean);
+          return itens.join(" - ");
+        });
+
+      adicionarTexto(
+        fundamentacoes,
+        `Reincidência comprovada: ${limitarLista(historicoDetalhado)}.`
       );
     }
 
-    // 3. RISCO DE SUICÍDIO / INSTABILIDADE PSICOLÓGICA
+    // 3. Risco de suicídio
     if (adolescente.alertaRiscoSuicidio) {
       pontuacaoRiscoAutolesao += 50;
       pontuacaoRiscoAgressao += 20;
-      fatoresAgravantes.push("ALERTA CRÍTICO: Risco de suicídio identificado");
-      fundamentacoes.push(
-        "O adolescente apresenta instabilidade psicológica com risco de autolesão grave, necessitando monitoramento contínuo durante qualquer movimentação externa."
+      adicionarTexto(
+        fatoresAgravantes,
+        "Protocolo ativo de risco de suicídio/autolesão"
+      );
+      adicionarTexto(
+        fundamentacoes,
+        "Há protocolo vigente de risco de suicídio, exigindo contenção para proteger a integridade física do adolescente, da equipe e de terceiros, conforme Súmula Vinculante nº 11 do STF."
       );
     }
 
-    // 4. ALERTA DE SAÚDE CONFIDENCIAL
+    // 4. Alerta de saúde
     if (adolescente.alertaSaudeConfidencial) {
       pontuacaoRiscoAutolesao += 15;
-      fatoresAgravantes.push("Alerta de saúde confidencial ativo");
-      if (adolescente.alertaSaudeDetalhes) {
-        fundamentacoes.push(
-          `Condição de saúde que requer atenção especial: ${adolescente.alertaSaudeDetalhes}`
-        );
-      }
+      adicionarTexto(fatoresAgravantes, "Alerta de saúde confidencial ativo");
+      adicionarTexto(
+        fundamentacoes,
+        adolescente.alertaSaudeDetalhes
+          ? `Condição clínica que demanda supervisão durante deslocamentos: ${adolescente.alertaSaudeDetalhes}`
+          : "Condição clínica monitorada exige supervisão em deslocamentos."
+      );
     }
 
-    // 5. FACÇÃO / GRUPO CRIMINOSO
+    // 5. Facção
     if (adolescente.faccao) {
       pontuacaoRiscoFuga += 25;
       pontuacaoRiscoAgressao += 35;
-      fatoresAgravantes.push(`Vinculação à facção/grupo: ${adolescente.faccao.nomeFaccao}`);
+      adicionarTexto(
+        fatoresAgravantes,
+        `Vínculo faccional identificado: ${adolescente.faccao.nomeFaccao}`
+      );
 
-      // Verificar se há conflito faccional ativo
-      const conflitosFaccionais = await prisma.faccaoConflito.count({
-        where: {
-          status: "ATIVO",
-          OR: [
-            { faccaoAId: adolescente.faccaoGrupoId! },
-            { faccaoBId: adolescente.faccaoGrupoId! },
-          ],
-        },
-      });
+      let conflitosFaccionais = 0;
+      if (adolescente.faccaoGrupoId) {
+        conflitosFaccionais = await prisma.faccaoConflito.count({
+          where: {
+            status: "ATIVO",
+            OR: [
+              { faccaoAId: adolescente.faccaoGrupoId },
+              { faccaoBId: adolescente.faccaoGrupoId },
+            ],
+          },
+        });
+      }
 
       if (conflitosFaccionais > 0) {
         pontuacaoRiscoAgressao += 20;
-        fatoresAgravantes.push(
-          `Facção em conflito ativo com ${conflitosFaccionais} grupo(s) rival(is)`
+        adicionarTexto(
+          fatoresAgravantes,
+          `Facção possui conflitos cadastrados com ${conflitosFaccionais} grupo(s)`
         );
       }
 
-      fundamentacoes.push(
-        `Participação identificada em facção/grupo criminoso organizado (${adolescente.faccao.nomeFaccao}), aumentando risco de articulação externa para fuga ou resgate.`
+      adicionarTexto(
+        fundamentacoes,
+        `Vínculo orgânico com ${adolescente.faccao.nomeFaccao}, com risco de articulação externa e retaliações durante deslocamentos.`
       );
     }
 
-    // 6. TATUAGENS INDICATIVAS
+    // 6. Tatuagens
     if (adolescente.tatuagens.length > 0) {
-      const tatuagensAltoRisco = adolescente.tatuagens.filter(
-        t => t.tatuagemCatalogo.nivelRisco === "ALTO"
+      const alto = adolescente.tatuagens.filter(
+        (item) => item.tatuagemCatalogo?.nivelRisco === "ALTO"
       );
-      const tatuagensMedioRisco = adolescente.tatuagens.filter(
-        t => t.tatuagemCatalogo.nivelRisco === "MEDIO"
+      const medio = adolescente.tatuagens.filter(
+        (item) => item.tatuagemCatalogo?.nivelRisco === "MEDIO"
       );
 
-      pontuacaoRiscoFuga += tatuagensAltoRisco.length * 10 + tatuagensMedioRisco.length * 5;
-      pontuacaoRiscoAgressao += tatuagensAltoRisco.length * 15 + tatuagensMedioRisco.length * 7;
+      pontuacaoRiscoFuga += alto.length * 10 + medio.length * 5;
+      pontuacaoRiscoAgressao += alto.length * 15 + medio.length * 7;
 
-      if (tatuagensAltoRisco.length > 0) {
-        fatoresAgravantes.push(
-          `${tatuagensAltoRisco.length} tatuagem(ns) de ALTO RISCO identificada(s): ${tatuagensAltoRisco.map(t => t.tatuagemCatalogo.nomeTatuagem).join(", ")}`
+      if (alto.length > 0) {
+        const lista = alto
+          .map((item) => item.tatuagemCatalogo?.nomeSimbolo ?? "Símbolo não identificado")
+          .join(", ");
+        adicionarTexto(
+          fatoresAgravantes,
+          `${alto.length} tatuagem(ns) de alto risco: ${lista}`
         );
-        fundamentacoes.push(
-          `Presença de tatuagens indicativas de prática costumaz em atividade criminosa e vínculos faccionais profundos (${tatuagensAltoRisco.map(t => t.tatuagemCatalogo.nomeTatuagem).join(", ")}), conforme catalogação do sistema de inteligência.`
+        adicionarTexto(
+          fundamentacoes,
+          `Marcas corporais catalogadas (${lista}) associam o adolescente a delitos violentos/faccionais, reforçando a necessidade de contenção reforçada.`
         );
       }
 
-      if (tatuagensMedioRisco.length > 0) {
-        fatoresAgravantes.push(
-          `${tatuagensMedioRisco.length} tatuagem(ns) de risco médio: ${tatuagensMedioRisco.map(t => t.tatuagemCatalogo.nomeTatuagem).join(", ")}`
+      if (medio.length > 0) {
+        adicionarTexto(
+          fatoresAgravantes,
+          `${medio.length} tatuagem(ns) classificadas como risco médio`
         );
       }
     }
 
-    // 7. CONFLITOS ATIVOS
-    const totalConflitosAtivos = adolescente.conflitosA.length + adolescente.conflitosB.length;
+    // 7. Conflitos interpessoais
+    const conflitosInterpessoais = [
+      ...adolescente.conflitosA.map((registro) => ({
+        nome: descreverPessoa(
+          registro.adolescenteB?.nomeCompleto,
+          registro.adolescenteB?.numeroSms
+        ),
+        tipo: registro.tipoConflito,
+        descricao: registro.descricao,
+        ci: formatarCi(registro.ciOrigem),
+      })),
+      ...adolescente.conflitosB.map((registro) => ({
+        nome: descreverPessoa(
+          registro.adolescenteA?.nomeCompleto,
+          registro.adolescenteA?.numeroSms
+        ),
+        tipo: registro.tipoConflito,
+        descricao: registro.descricao,
+        ci: formatarCi(registro.ciOrigem),
+      })),
+    ];
+
+    const totalConflitosAtivos =
+      adolescente.conflitosA.length + adolescente.conflitosB.length;
+
     if (totalConflitosAtivos > 0) {
       pontuacaoRiscoAgressao += Math.min(totalConflitosAtivos * 15, 40);
-      fatoresAgravantes.push(
-        `${totalConflitosAtivos} conflito(s) ativo(s) com outros adolescentes`
+      adicionarTexto(
+        fatoresAgravantes,
+        `${totalConflitosAtivos} conflito(s) interpessoal(is) ativo(s)`
       );
-
-      const nomesConflitantes = [
-        ...adolescente.conflitosA.map(c => c.adolescenteB.nomeCompleto),
-        ...adolescente.conflitosB.map(c => c.adolescenteA.nomeCompleto),
-      ];
-
-      fundamentacoes.push(
-        `Conflitos interpessoais ativos com ${totalConflitosAtivos} adolescente(s), caracterizando potencial de confronto físico durante movimentações.`
+      const detalhesConflitos = conflitosInterpessoais
+        .slice(0, 3)
+        .map((item) =>
+          [
+            `com ${item.nome}`,
+            item.tipo ? `(${item.tipo})` : null,
+            item.ci ? `registrado em ${item.ci}` : null,
+            item.descricao,
+          ]
+            .filter(Boolean)
+            .join(" - ")
+        );
+      adicionarTexto(
+        fundamentacoes,
+        `Conflitos ativos: ${limitarLista(detalhesConflitos)}.`
       );
     }
 
-    // 8. COMUNICADOS INTERNOS RECENTES
+    // 8. Comunicados internos
     const cisRecentes = adolescente.comunicadosInternos.length;
     if (cisRecentes > 0) {
       pontuacaoRiscoAgressao += Math.min(cisRecentes * 5, 20);
-      fatoresAgravantes.push(
-        `${cisRecentes} Comunicado(s) Interno(s) registrado(s) nos últimos registros`
+      const detalhesCis = adolescente.comunicadosInternos
+        .map((registro) => registro.ci)
+        .filter(Boolean)
+        .map((ci) => {
+          const referencia = formatarCi(ci as CiResumo);
+          const resumo = ci?.resumoCI ? ` - ${ci.resumoCI}` : "";
+          return `${referencia}${resumo}`;
+        });
+
+      adicionarTexto(
+        fatoresAgravantes,
+        `${cisRecentes} Comunicado(s) Interno(s) recentes`
+      );
+      adicionarTexto(
+        fundamentacoes,
+        `Comunicados internos recentes: ${limitarLista(detalhesCis)}.`
       );
     }
 
-    // 9. ALERTAS ATIVOS
+    // 9. Alertas ativos
     if (adolescente.alertasAtivos.length > 0) {
       const alertasCriticos = adolescente.alertasAtivos.filter(
-        a => a.nivelRisco === "CRITICO"
+        (alerta) => alerta.nivelRisco === "CRITICO"
       );
       const alertasAltos = adolescente.alertasAtivos.filter(
-        a => a.nivelRisco === "ALTO"
+        (alerta) => alerta.nivelRisco === "ALTO"
       );
 
       pontuacaoRiscoFuga += alertasCriticos.length * 20 + alertasAltos.length * 10;
       pontuacaoRiscoAgressao += alertasCriticos.length * 25 + alertasAltos.length * 12;
 
-      fatoresAgravantes.push(
-        `${adolescente.alertasAtivos.length} alerta(s) ativo(s) no sistema: ${alertasCriticos.length} crítico(s), ${alertasAltos.length} alto(s)`
+      adicionarTexto(
+        fatoresAgravantes,
+        `${adolescente.alertasAtivos.length} alerta(s) ativos (${alertasCriticos.length} crítico(s), ${alertasAltos.length} alto(s))`
       );
 
-      if (alertasCriticos.length > 0) {
-        fundamentacoes.push(
-          `Alertas críticos ativos no sistema de inteligência, indicando situação de risco elevado.`
-        );
-      }
+      const detalhesAlertas = adolescente.alertasAtivos
+        .slice(0, 3)
+        .map((alerta) => {
+          const referencia = formatarCi(alerta.ciOrigem);
+          return [
+            alerta.tipoAlerta ?? "Alerta operacional",
+            alerta.nivelRisco ? `nível ${alerta.nivelRisco}` : null,
+            alerta.descricaoAlerta,
+            referencia,
+          ]
+            .filter(Boolean)
+            .join(" - ");
+        });
+
+      adicionarTexto(
+        fundamentacoes,
+        `Alertas ativos registrados no sistema: ${limitarLista(detalhesAlertas)}.`
+      );
     }
 
-    // 10. RISCO DE FUGA CADASTRADO
+    // 10. Risco de fuga cadastrado
     if (adolescente.riscoFuga) {
-      if (adolescente.riscoFuga === "ALTO") {
+      const risco = adolescente.riscoFuga.toUpperCase();
+      if (risco === "ALTO") {
         pontuacaoRiscoFuga += 30;
-        fatoresAgravantes.push("Avaliação prévia de ALTO risco de fuga");
-      } else if (adolescente.riscoFuga === "MEDIO") {
+        adicionarTexto(fatoresAgravantes, "Avaliação prévia de alto risco de fuga");
+      } else if (risco === "MEDIO" || risco === "MÉDIO") {
         pontuacaoRiscoFuga += 15;
-        fatoresAgravantes.push("Avaliação prévia de risco médio de fuga");
+        adicionarTexto(fatoresAgravantes, "Avaliação prévia de risco médio de fuga");
       }
     }
 
-    // 11. BAIRRO DE ORIGEM (território)
-    if (adolescente.bairroOrigem) {
+    // 11. Origem e destino territoriais
+    if (origemBairro) {
       pontuacaoRiscoFuga += 10;
-      fatoresAgravantes.push(
-        `Origem territorial: ${adolescente.bairroOrigem.nomeBairro}, ${adolescente.bairroOrigem.cidade}`
+      adicionarTexto(
+        fatoresAgravantes,
+        `Origem territorial monitorada: ${descreverBairro(origemBairro)}${
+          conflitosOrigemDescritos.length > 0
+            ? ` (conflito(s) ativo(s) com ${limitarLista(conflitosOrigemDescritos)})`
+            : ""
+        }`
       );
-      fundamentacoes.push(
-        `Origem territorial em ${adolescente.bairroOrigem.nomeBairro} (${adolescente.bairroOrigem.cidade}), área com potencial articulação para tentativa de fuga ou resgate.`
+      adicionarTexto(
+        fundamentacoes,
+        `Adolescente oriundo de ${descreverBairro(
+          origemBairro
+        )}, área acompanhada pelo módulo de inteligência territorial${
+          conflitosOrigemDescritos.length > 0
+            ? `, com conflitos registrados contra ${limitarLista(conflitosOrigemDescritos)}`
+            : ""
+        }.`
       );
     }
 
-    // ========== CLASSIFICAÇÃO FINAL DE RISCO ==========
+    if (destinoBairro) {
+      adicionarTexto(
+        fatoresAgravantes,
+        `Destino informado: ${descreverBairro(destinoBairro)}`
+      );
+      adicionarTexto(
+        fundamentacoes,
+        `Movimentação prevista para ${descreverBairro(
+          destinoBairro
+        )}, incluída na análise automática.`
+      );
+    } else if (destinoDescricao) {
+      adicionarTexto(fatoresAgravantes, `Destino informado: ${destinoDescricao}`);
+    }
 
-    const classificarRisco = (pontuacao: number): string => {
+    if (destinoContexto.conflitoTerritorial) {
+      pontuacaoRiscoAgressao += 25;
+      pontuacaoRiscoFuga += 15;
+      adicionarTexto(
+        fatoresAgravantes,
+        `Conflito territorial mapeado (${destinoContexto.conflitoTerritorial.origem} x ${destinoContexto.conflitoTerritorial.destino})`
+      );
+      adicionarTexto(
+        fundamentacoes,
+        `Registro de conflito territorial ativo (${destinoContexto.conflitoTerritorial.origem} x ${destinoContexto.conflitoTerritorial.destino}), exigindo variação de rota e contenção reforçada.`
+      );
+    }
+
+    // 12. Alojamento e grupos
+    if (adolescente.alojamentoAtual?.numeroAlojamento && adolescente.alojamentoAtual?.casa) {
+      adicionarTexto(
+        fundamentacoes,
+        `Atualmente alojado no ${adolescente.alojamentoAtual.numeroAlojamento} da Casa ${adolescente.alojamentoAtual.casa.nome}, alvo de monitoramento constante.`
+      );
+    }
+
+    if (adolescente.gruposMembros.length > 0) {
+      const grupos = adolescente.gruposMembros.map((membro) => {
+        const casa = membro.grupo.casa?.nome
+          ? `/${membro.grupo.casa?.nome}`
+          : "";
+        return `${membro.grupo.nomeGrupo}${casa}`;
+      });
+      adicionarTexto(
+        fundamentacoes,
+        `Integrante de grupo(s) em andamento: ${grupos.join(", ")}.`
+      );
+    }
+
+    const classificarRisco = (pontuacao: number): "ALTO" | "MEDIO" | "BAIXO" => {
       if (pontuacao >= 60) return "ALTO";
       if (pontuacao >= 30) return "MEDIO";
       return "BAIXO";
@@ -318,93 +658,111 @@ export async function GET(request: NextRequest) {
     const riscoAgressaoFinal = classificarRisco(pontuacaoRiscoAgressao);
     const riscoAutolesaoFinal = classificarRisco(pontuacaoRiscoAutolesao);
 
-    // ========== FUNDAMENTAÇÃO LEGAL AUTOMÁTICA ==========
+    const detalharPontuacao = (
+      titulo: string,
+      pontos: number,
+      classificacao: string,
+      metodologia: string
+    ) =>
+      `${titulo}: ${pontos} pontos (${classificacao}) — ${metodologia}`;
 
-    const fundamentacaoLegalBase = `
-Considerando a Súmula Vinculante nº 11 do STF, que determina os requisitos para uso de algemas:
+    const explicacoesPontuacao: string[] = [];
 
-I - Resistência à movimentação ou fundado receio de fuga;
-II - Perigo à integridade física do próprio adolescente ou de terceiros;
-III - Necessidade de justificativa documentada por escrito.
+    if (riscoFugaFinal !== "BAIXO") {
+      explicacoesPontuacao.push(
+        detalharPontuacao(
+          "Risco de fuga",
+          pontuacaoRiscoFuga,
+          riscoFugaFinal,
+          "soma atos infracionais graves, avaliações prévias de fuga, alertas críticos e conflitos territoriais associados"
+        )
+      );
+    }
 
-E considerando o disposto na Lei 12.594/2012 (SINASE) e Lei 8.069/90 (ECA), que estabelecem o princípio da excepcionalidade no uso de contenção física,
+    if (riscoAgressaoFinal !== "BAIXO") {
+      explicacoesPontuacao.push(
+        detalharPontuacao(
+          "Risco de agressão",
+          pontuacaoRiscoAgressao,
+          riscoAgressaoFinal,
+          "pondera histórico de violência, vínculos faccionais, conflitos interpessoais e comunicados internos recentes"
+        )
+      );
+    }
 
-FUNDAMENTA-SE o uso de algema nos seguintes elementos objetivos:
-${fundamentacoes.map((f, i) => `\n${i + 1}. ${f}`).join("")}
+    if (riscoAutolesaoFinal !== "BAIXO") {
+      explicacoesPontuacao.push(
+        detalharPontuacao(
+          "Risco de autolesão",
+          pontuacaoRiscoAutolesao,
+          riscoAutolesaoFinal,
+          "considera protocolos de suicídio, alertas de saúde confidenciais e registros psicossociais críticos"
+        )
+      );
+    }
 
-A presente análise foi realizada com base em dados consolidados do Sistema de Inteligência do CENSE Maringá, incluindo:
-- Perfil infracional e histórico de reincidência
-- Vínculos faccionais e territoriais identificados
-- Conflitos interpessoais ativos na unidade
-- Avaliações psicossociais e alertas de segurança
-- Comunicados internos e registros comportamentais
-- Análise de tatuagens indicativas de prática delitiva
-    `.trim();
-
-    // ========== RECOMENDAÇÕES AUTOMÁTICAS DE MEDIDAS DE SEGURANÇA ==========
+    const fundamentacaoLegalBase = [
+      fundamentacoes.map((texto, indice) => `${indice + 1}. ${texto}`).join("\n"),
+    ]
+      .filter((parte) => Boolean(parte && parte.trim().length > 0))
+      .join("\n\n");
 
     const medidasRecomendadas: string[] = [
-      "Uso de algemas apenas durante o transporte externo",
-      "Acompanhamento por no mínimo 2 (dois) agentes socioeducativos",
-      "Veículo oficial identificado e apropriado",
-      "Comunicação prévia ao destino (fórum, hospital, etc.)",
+      "Uso de algemas restrito ao deslocamento externo, com registro fotográfico discreto",
+      "Acompanhamento por equipe socioeducativa dedicada (mínimo de dois agentes, ampliando conforme recomendações complementares)",
+      "Comunicação prévia ao destino (fórum, hospital ou órgão demandante)",
     ];
 
     if (riscoFugaFinal === "ALTO" || riscoAgressaoFinal === "ALTO") {
       medidasRecomendadas.push(
-        "Reforço de escolta com 3 ou mais agentes",
-        "Revista de segurança antes e após o transporte",
-        "Monitoramento contínuo sem perda de contato visual"
+        "Reforçar escolta com três ou mais agentes e monitoramento visual contínuo",
+        "Revista integral antes e depois da movimentação",
+        "Bloquear rotas simultâneas com adolescentes conflitados"
       );
     }
 
     if (adolescente.alertaRiscoSuicidio || riscoAutolesaoFinal === "ALTO") {
       medidasRecomendadas.push(
-        "Acompanhamento de profissional de saúde mental se disponível",
-        "Observação contínua durante todo o trajeto",
-        "Remoção de objetos potencialmente lesivos"
+        "Designar profissional de referência em saúde mental durante todo o trajeto",
+        "Remover objetos cortantes ou cabos que possibilitem autolesão",
+        "Manter vigilância ostensiva sem deixar o adolescente sozinho"
       );
     }
 
-    if (totalConflitosAtivos > 0) {
+    if (destinoContexto.conflitoTerritorial) {
       medidasRecomendadas.push(
-        "Verificar adolescentes conflitantes para evitar cruzamento de rotas",
-        "Horários diferenciados de movimentação"
+        "Acionar núcleo de inteligência territorial antes da saída",
+        "Evitar paradas em regiões com vínculos conflituosos",
+        "Registrar no CI de viagem os bairros monitorados"
       );
     }
 
     medidasRecomendadas.push(
-      "Registro fotográfico da contenção (sem exposição vexatória)",
-      "Comunicação imediata à direção técnica da unidade"
+      "Comunicar imediatamente qualquer intercorrência ao plantão da direção",
+      "Atualizar histórico operacional ao final da escolta"
     );
-
-    // ========== HISTÓRICO COMPORTAMENTAL SUGERIDO ==========
 
     const historicoSugerido: string[] = [];
-
     if (cisRecentes > 0) {
       historicoSugerido.push(
-        `Envolvimento em ${cisRecentes} Comunicado(s) Interno(s) recente(s)`
+        `Envolvido em ${cisRecentes} CI(s) recente(s) registrados no sistema`
       );
     }
-
     if (totalConflitosAtivos > 0) {
       historicoSugerido.push(
-        `Conflitos ativos com ${totalConflitosAtivos} adolescente(s) da unidade`
+        `Conflitos ativos com ${totalConflitosAtivos} adolescente(s)`
       );
     }
-
     if (adolescente.alertasAtivos.length > 0) {
       historicoSugerido.push(
-        `${adolescente.alertasAtivos.length} alerta(s) ativo(s) de segurança no sistema`
+        `${adolescente.alertasAtivos.length} alerta(s) de segurança vigentes`
       );
     }
-
     historicoSugerido.push(
-      `Fase atual de internação: ${adolescente.faseInternacaoAtual?.nomeFase || "Não informada"}`
+      `Fase atual da internação: ${
+        adolescente.faseInternacaoAtual?.nomeFase ?? "não informada"
+      }`
     );
-
-    // ========== RESPOSTA CONSOLIDADA ==========
 
     return NextResponse.json({
       adolescente: {
@@ -413,32 +771,23 @@ A presente análise foi realizada com base em dados consolidados do Sistema de I
         numeroSms: adolescente.numeroSms,
         numeroProcesso: adolescente.numeroProcesso,
         atoInfracionalAtual: adolescente.atoInfracionalAtual,
-        faccao: adolescente.faccao?.nomeFaccao,
-        bairroOrigem: adolescente.bairroOrigem
-          ? `${adolescente.bairroOrigem.nomeBairro}, ${adolescente.bairroOrigem.cidade}`
-          : null,
+        faccao: adolescente.faccao?.nomeFaccao ?? null,
+        bairroOrigem: descreverBairro(origemBairro),
       },
-
       analiseRisco: {
         riscoFuga: riscoFugaFinal,
         riscoAgressao: riscoAgressaoFinal,
         riscoAutolesao: riscoAutolesaoFinal,
-
         pontuacoes: {
           fuga: pontuacaoRiscoFuga,
           agressao: pontuacaoRiscoAgressao,
           autolesao: pontuacaoRiscoAutolesao,
         },
       },
-
       fatoresAgravantes,
-
       fundamentacaoLegal: fundamentacaoLegalBase,
-
       medidasSegurancaRecomendadas: medidasRecomendadas,
-
       historicoComportamentalSugerido: historicoSugerido.join("; "),
-
       dadosComplementares: {
         totalConflitosAtivos,
         totalComunicadosInternos: cisRecentes,
@@ -448,10 +797,10 @@ A presente análise foi realizada com base em dados consolidados do Sistema de I
         alertaRiscoSuicidio: adolescente.alertaRiscoSuicidio,
         atoInfracionalGravidade: adolescente.atoInfracionalGravidade,
       },
-
-      observacao: "Esta análise foi gerada automaticamente pelo Sistema de Inteligência do CENSE Maringá. O operador deve complementar com informações específicas da movimentação atual.",
+      contextoMovimentacao: destinoContexto,
+      observacao:
+        "Análise consolidada automaticamente pelo Sistema de Inteligência do CENSE Maringá. O operador deve complementar com detalhes específicos da movimentação (rota, equipe e ocorrências).",
     });
-
   } catch (error) {
     console.error("Erro na análise de risco:", error);
     return NextResponse.json(

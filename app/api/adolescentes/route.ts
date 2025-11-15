@@ -15,6 +15,19 @@ import type {
 
 const LIST_LIMIT_MAX = 100;
 
+const historicoRegistroSchema = z
+  .array(
+    z.object({
+      descricao: z
+        .string()
+        .min(3, "Descrição do histórico deve ter ao menos 3 caracteres"),
+      ano: z.union([z.string(), z.number()]).optional().nullable(),
+      unidade: z.string().optional().nullable(),
+      observacoes: z.string().optional().nullable(),
+    })
+  )
+  .optional();
+
 const createAdolescenteSchema = z.object({
   nomeCompleto: z.string().min(3, "Nome deve ter no minimo 3 caracteres"),
   nomeSocial: z.string().optional().nullable(),
@@ -22,6 +35,7 @@ const createAdolescenteSchema = z.object({
   numeroSms: z.string().optional().nullable(),
   dataNascimento: z.string().optional().nullable(),
   dataEntrada: z.string().optional().nullable(),
+  dataDesinternacao: z.string().optional().nullable(),
   numeroProcesso: z.string().optional().nullable(),
   atoInfracionalAtual: z.string().optional().nullable(),
   statusUnidade: z
@@ -43,6 +57,7 @@ const createAdolescenteSchema = z.object({
     observacoes: z.string().optional(),
     significadoPessoal: z.string().optional(),
   })).optional().default([]),
+  historicoInfracional: historicoRegistroSchema,
 });
 
 const sanitizeNullableString = (value: string | null | undefined) => {
@@ -62,6 +77,79 @@ const toDateOrUndefined = (value?: string | null) => {
   const parsed = new Date(sanitized);
   return Number.isNaN(parsed.getTime()) ? undefined : parsed;
 };
+
+type HistoricoEntrada = {
+  atoInfracionalDescricao: string;
+  atoInfracionalAno: number | null;
+  atoInfracionalProcesso: string | null;
+  atoInfracionalGravidade: boolean;
+  atoInfracionalGravidadeObs: string | null;
+  unidadeInternacao: string | null;
+  ano: number | null;
+  observacoes: string | null;
+};
+
+const parseHistoricoPayload = (
+  registros?: Array<{
+    descricao: string;
+    ano?: string | number | null;
+    unidade?: string | null;
+    observacoes?: string | null;
+  }>
+): HistoricoEntrada[] => {
+  if (!registros || registros.length === 0) {
+    return [];
+  }
+
+  const entradas: HistoricoEntrada[] = [];
+  const chaves = new Set<string>();
+
+  registros.forEach((item) => {
+    const descricao = sanitizeNullableString(item.descricao) ?? "";
+    if (!descricao) {
+      return;
+    }
+
+    const anoInformado =
+      item.ano === null || item.ano === undefined || item.ano === ""
+        ? null
+        : Number.parseInt(String(item.ano), 10);
+    const anoValido =
+      anoInformado !== null && !Number.isNaN(anoInformado)
+        ? anoInformado
+        : null;
+
+    const entrada: HistoricoEntrada = {
+      atoInfracionalDescricao: descricao,
+      atoInfracionalAno: anoValido,
+      atoInfracionalProcesso: null,
+      atoInfracionalGravidade: false,
+      atoInfracionalGravidadeObs: null,
+      unidadeInternacao: sanitizeNullableString(item.unidade ?? undefined) ?? null,
+      ano: anoValido,
+      observacoes: sanitizeNullableString(item.observacoes ?? undefined) ?? null,
+    };
+
+    const chave = buildHistoricoKey(entrada);
+    if (chaves.has(chave)) {
+      return;
+    }
+
+    chaves.add(chave);
+    entradas.push(entrada);
+  });
+
+  return entradas;
+};
+
+const buildHistoricoKey = (entrada: HistoricoEntrada) =>
+  [
+    entrada.atoInfracionalDescricao.trim().toLowerCase(),
+    entrada.atoInfracionalAno ?? "",
+    entrada.atoInfracionalProcesso ?? "",
+    entrada.unidadeInternacao ?? "",
+    entrada.observacoes ?? "",
+  ].join("|");
 
 const buildWhere = (params: URLSearchParams): Prisma.AdolescenteWhereInput => {
   const status = sanitizeNullableString(params.get("status"));
@@ -164,6 +252,9 @@ export async function POST(request: NextRequest) {
     }
 
     const validated = createAdolescenteSchema.parse(payload);
+    const historicoNovos = parseHistoricoPayload(
+      validated.historicoInfracional
+    );
 
     const session = await auth().catch(() => null);
     const operadorId = sanitizeNullableString(session?.user?.id);
@@ -216,23 +307,60 @@ export async function POST(request: NextRequest) {
         ? { connect: { id: validated.faseInternacaoAtualId } }
         : undefined,
     };
+    const dataDesinternacaoTransformada = toDateOrUndefined(
+      validated.dataDesinternacao
+    );
+    if (validated.statusUnidade !== "ATIVO") {
+      if (!dataDesinternacaoTransformada) {
+        return NextResponse.json(
+          { erro: "Data de desinternacao obrigatoria para status inativo" },
+          { status: 400 }
+        );
+      }
+      data.dataDesinternacao = dataDesinternacaoTransformada;
+    } else if (dataDesinternacaoTransformada) {
+      data.dataDesinternacao = dataDesinternacaoTransformada;
+    }
 
-    const criado = await prisma.adolescente.create({
-      data,
-      include: INCLUDE_ADOLESCENTE_DEFAULT,
+    const criado = await prisma.$transaction(async (tx) => {
+      const base = await tx.adolescente.create({ data });
+
+      if (validated.tatuagens && validated.tatuagens.length > 0) {
+        await tx.adolescenteTatuagem.createMany({
+          data: validated.tatuagens.map((tat) => ({
+            adolescenteId: base.id,
+            tatuagemCatalogoId: tat.catalogoId,
+            localCorpo: tat.localCorpo,
+            observacoes: tat.observacoes || null,
+            significadoPessoal: tat.significadoPessoal || null,
+          })),
+        });
+      }
+
+      if (historicoNovos.length > 0) {
+        await tx.adolescenteHistoricoInfracional.createMany({
+          data: historicoNovos.map((entrada) => ({
+            adolescenteId: base.id,
+            atoInfracionalDescricao: entrada.atoInfracionalDescricao,
+            atoInfracionalAno: entrada.atoInfracionalAno,
+            atoInfracionalProcesso: entrada.atoInfracionalProcesso,
+            atoInfracionalGravidade: entrada.atoInfracionalGravidade,
+            atoInfracionalGravidadeObs: entrada.atoInfracionalGravidadeObs,
+            unidadeInternacao: entrada.unidadeInternacao,
+            ano: entrada.ano,
+            observacoes: entrada.observacoes,
+          })),
+        });
+      }
+
+      return tx.adolescente.findUnique({
+        where: { id: base.id },
+        include: INCLUDE_ADOLESCENTE_DEFAULT,
+      });
     });
 
-    // Criar vinculações de tatuagens se houver
-    if (validated.tatuagens && validated.tatuagens.length > 0) {
-      await prisma.adolescenteTatuagem.createMany({
-        data: validated.tatuagens.map((tat) => ({
-          adolescenteId: criado.id,
-          tatuagemCatalogoId: tat.catalogoId,
-          localCorpo: tat.localCorpo,
-          observacoes: tat.observacoes || null,
-          significadoPessoal: tat.significadoPessoal || null,
-        })),
-      });
+    if (!criado) {
+      throw new Error("Falha ao carregar adolescente apos cadastro");
     }
 
     await prisma.logAuditoria.create({

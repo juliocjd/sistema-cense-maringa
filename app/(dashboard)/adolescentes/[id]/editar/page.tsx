@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { CadastroAdolescente } from "@/components/cadastro/cadastro-adolescente";
-import type { Adolescente } from "@/types";
+import type { Adolescente, AdolescenteCadastroPayload } from "@/types";
 
 export default function EditarAdolescentePage() {
   const params = useParams<{ id: string | string[] }>();
@@ -48,7 +48,7 @@ export default function EditarAdolescentePage() {
     carregar();
   }, [adolescenteId]);
 
-  const handleSalvar = async (dados: Partial<Adolescente>) => {
+  const handleSalvar = async (dados: AdolescenteCadastroPayload) => {
     if (!adolescenteId) {
       throw new Error("Identificador do adolescente nao encontrado.");
     }

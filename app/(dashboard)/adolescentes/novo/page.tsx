@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { CadastroAdolescente } from "@/components/cadastro/cadastro-adolescente";
 import { useRouter } from "next/navigation";
-import type { Adolescente } from "@/types";
+import type { AdolescenteCadastroPayload } from "@/types";
 import { useAuth } from "@/hooks/useAuth";
 
 export default function CadastroAdolescentePage() {
@@ -11,7 +11,7 @@ export default function CadastroAdolescentePage() {
   const [mostrarFormulario, setMostrarFormulario] = useState(true);
   const { user } = useAuth();
 
-  const handleSalvar = async (adolescente: Partial<Adolescente>) => {
+  const handleSalvar = async (adolescente: AdolescenteCadastroPayload) => {
     if (!user?.id) {
       alert("Operador não autenticado. Faça login novamente para cadastrar.");
       throw new Error("Operador não autenticado");

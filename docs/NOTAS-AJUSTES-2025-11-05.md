@@ -131,6 +131,24 @@ Contexto: ajustes em andamento no backend e no frontend para consolidar regras d
 
 ---
 
+
+### `/api/adolescentes/[id]/route.ts`
+- PUT agora detecta mudan�as de status: remove o alojamento ao sair de ATIVO, envia o ato infracional atual para `adolescentes_historico_infracional`, limpa os campos correntes e registra auditoria na mesma transa��o.
+- Ao retornar de EVADIDO/TRANSFERIDO para ATIVO (sem novo ato informado), o backend restaura automaticamente o �ltimo ato registrado no hist�rico; retornos a partir de LIBERADO n�o s�o restaurados.
+- O payload do adolescente passa a incluir `historicoInfracional`, permitindo que o dossi� apresente cada ato armazenado.
+
+### `/api/justificativas-algema/analise-risco/route.ts`
+- Reescrita completa (UTF-8) com helpers para formatar bairros, CIs e participantes, evitando caracteres corrompidos.
+- Passou a aceitar `bairroDestinoId` e `destinoDescricao`, consultar conflitos territoriais e expor `contextoMovimentacao` (origem, destino, descri??o e conflito) no payload.
+- Fundamenta??o autom?tica agora cita atos infracionais (ano/processo), CIs e alertas ativos, tatuagens catalogadas, v?nculos faccionais e riscos previstos na S?mula Vinculante n? 11.
+- A fundamenta??o tamb?m passa a listar, quando a classifica??o alcan?a pelo menos n?vel M?DIO, as pontua??es de fuga/agress?o/autoles?o (escala 0-100) e um resumo dos fatores somados em cada c?lculo.
+- PDF ajustado: pontua??o centralizada com explica??o clara da escala, cabe?alho de fatores sem espa?amento entre letras e campos opcionais omitidos quando n?o existem (ex.: Nome Social).
+- Nova rota DELETE /api/justificativas-algema/[id] permite ao operador autenticado remover justificativas (com auditoria e IP registrado).
+- Pontua??o considera protocolos de suic?dio e conflitos territoriais e adiciona recomenda??es espec?ficas (refor?o de rota, acionamento da intelig?ncia territorial, etc.).
+- A fundamenta??o tamb?m passa a listar, quando a classifica??o alcan?a pelo menos n?vel M?DIO, as pontua??es de fuga/agress?o/autoles?o (escala 0-100) e um resumo dos fatores somados em cada c?lculo.
+- PDF ajustado: pontua??o centralizada com explica??o clara da escala, cabe?alho de fatores sem espa?amento entre letras e campos opcionais omitidos quando n?o existem (ex.: Nome Social).
+- Corrigido `GET /api/justificativas-algema/[id]/pdf` para aguardar `params` (Next.js 16) e validar o ID antes de consultar o Prisma, evitando `id undefined` no PDF.
+
 ## Frontend
 - Páginas de mapa e estrutura assinam `/api/mapa/events` e recarregam dados automaticamente após alocações/desalocações.
 - `app/(dashboard)/mapa`, `app/(dashboard)/estrutura/visao-geral-tab`, `app/(dashboard)/estrutura/mapa-operacional-tab` e `components/mapa/mapa-interativo` exibem cor e nivel de risco fornecidos pelo backend.
@@ -139,6 +157,7 @@ Contexto: ajustes em andamento no backend e no frontend para consolidar regras d
 - `app/(dashboard)/adolescentes` consulta `/api/adolescentes`, remove mocks e apresenta estados de erro/carregamento com opcao de recarregar.
 - `components/adolescentes/listagem-adolescentes.tsx` usa o novo payload `{ data, meta }`, exibe alojamento real (nome, numero, ala) e adiciona filtros/paginacao alinhados ao backend.
 - `components/adolescentes/dossie-adolescente.tsx` consome integralmente as informacoes do backend (alojamento, faccao, bairro, tatuagens, conflitos) e abandona dados ficticios.
+- `app/(dashboard)/justificativas-algema/nova/page.tsx` consome a nova an?lise (bairro monitorado + bot?o "Atualizar an?lise") e exibe o painel territorial retornado pelo backend, mantendo a UI existente.
 
 ---
 

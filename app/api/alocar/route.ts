@@ -149,12 +149,23 @@ export async function POST(request: NextRequest) {
 
     const adolescente = await prisma.adolescente.findUnique({
       where: { id: adolescenteId },
+      select: {
+        statusUnidade: true,
+        alojamentoAtualId: true,
+      },
     });
 
     if (!adolescente) {
       return NextResponse.json(
         { erro: "Adolescente nao encontrado" },
         { status: 404 }
+      );
+    }
+
+    if (adolescente.statusUnidade !== "ATIVO") {
+      return NextResponse.json(
+        { erro: "Apenas adolescentes ativos podem ser alocados" },
+        { status: 400 }
       );
     }
 

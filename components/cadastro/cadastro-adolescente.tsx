@@ -16,6 +16,9 @@ import {
 } from "lucide-react";
 import type {
   Adolescente,
+  AdolescenteCadastroPayload,
+  AdolescenteHistoricoInfracionalItem,
+  AdolescenteHistoricoRegistroInput,
   FaccaoCatalogo,
   BairroCatalogo,
   TatuagemCatalogo,
@@ -33,7 +36,7 @@ const STATUS_OPCOES: Array<{ value: StatusUnidade; label: string }> = [
 
 interface CadastroAdolescenteProps {
   onSalvar: (
-    adolescente: Partial<Adolescente>,
+    adolescente: AdolescenteCadastroPayload,
     alojamentoId?: string
   ) => Promise<void>;
   onCancelar: () => void;
@@ -99,6 +102,9 @@ export function CadastroAdolescente({
       observacoes?: string;
     }[],
   });
+  const [historicoExistente, setHistoricoExistente] = useState<
+    AdolescenteHistoricoInfracionalItem[]
+  >([]);
 
   const [vinculacoes, setVinculacoes] = useState({
     faccaoId: "",
@@ -108,7 +114,7 @@ export function CadastroAdolescente({
   });
 
   const [tatuagens, setTatuagens] = useState<
-    { catalogoId: string; localCorpo: string; observacoes: string }[]
+    { catalogoId: string; localCorpo: string; observacoes: string; significadoPessoal: string }[]
   >([]);
 
   const [alertas, setAlertas] = useState({
@@ -158,6 +164,7 @@ export function CadastroAdolescente({
       gravidadeDescricao: initialData.atoInfracionalGravidadeObs ?? "",
       historico: [],
     });
+    setHistoricoExistente(initialData.historicoInfracional ?? []);
 
     setVinculacoes({
       faccaoId: initialData.faccaoGrupoId ?? "",
@@ -182,9 +189,19 @@ export function CadastroAdolescente({
         catalogoId: t.catalogoId ?? t.id ?? "",
         localCorpo: t.localCorpo ?? "",
         observacoes: t.observacoes ?? "",
+        significadoPessoal: t.significadoPessoal ?? "",
       })) ?? []
     );
   }, [initialData]);
+
+  useEffect(() => {
+    setDataStatus((prev) => {
+      if (statusUnidade === "ATIVO") {
+        return "";
+      }
+      return prev || new Date().toISOString().split("T")[0];
+    });
+  }, [statusUnidade]);
 
   const [alojamentosLivres, setAlojamentosLivres] = useState<
     { id: string; casa: string; numero: string; ala: string | null }[]
@@ -678,10 +695,15 @@ export function CadastroAdolescente({
     }
 
     const descricaoAto = atoInfracional.descricao.trim();
-    if (!descricaoAto) {
-      mensagens.push("Descreva o ato infracional atual.");
-      etapaErro = Math.max(etapaErro, 2);
-    } else if (descricaoAto.length < 5) {
+    if (statusUnidade === "ATIVO") {
+      if (!descricaoAto) {
+        mensagens.push("Descreva o ato infracional atual.");
+        etapaErro = Math.max(etapaErro, 2);
+      } else if (descricaoAto.length < 5) {
+        mensagens.push("Detalhe o ato infracional atual com pelo menos 5 caracteres.");
+        etapaErro = Math.max(etapaErro, 2);
+      }
+    } else if (descricaoAto && descricaoAto.length < 5) {
       mensagens.push("Detalhe o ato infracional atual com pelo menos 5 caracteres.");
       etapaErro = Math.max(etapaErro, 2);
     }
@@ -757,8 +779,24 @@ export function CadastroAdolescente({
       const gravidadeDescricaoSanitizada = sanitize(
         atoInfracional.gravidadeDescricao
       );
+      const historicoPayload: AdolescenteHistoricoRegistroInput[] =
+        atoInfracional.historico
+          .map((item) => {
+            const descricaoSanitizada = sanitize(item.descricao);
+            if (!descricaoSanitizada) {
+              return null;
+            }
 
-      const adolescente: Partial<Adolescente> = {
+            return {
+              descricao: descricaoSanitizada,
+              ano: sanitize(item.ano) ?? null,
+              unidade: sanitize(item.unidade) ?? null,
+              observacoes: sanitize(item.observacoes) ?? null,
+            };
+          })
+          .filter((item): item is AdolescenteHistoricoRegistroInput => item !== null);
+
+      const adolescente: AdolescenteCadastroPayload = {
         nomeCompleto: dadosPessoais.nomeCompleto.trim(),
         nomeSocial: sanitizeOrNull(dadosPessoais.nomeSocial) ?? undefined,
         dataNascimento: sanitize(dadosPessoais.dataNascimento),
@@ -780,9 +818,6 @@ export function CadastroAdolescente({
           statusUnidade === "ATIVO"
             ? undefined
             : sanitize(dataStatus),
-        conflitosA: [],
-        conflitosB: [],
-        grupos: [],
         tatuagens: tatuagens
           .filter((t) => t.catalogoId && t.localCorpo)
           .map((t) => ({
@@ -796,6 +831,10 @@ export function CadastroAdolescente({
         bairroOrigemId: sanitize(vinculacoes.bairroId),
         riscoFuga: vinculacoes.riscoFuga,
       };
+
+      if (historicoPayload.length > 0) {
+        adolescente.historicoInfracional = historicoPayload;
+      }
 
       const destinoAlojamento = podeSelecionarAlojamento
         ? alojamentoSelecionado ?? undefined
@@ -1224,13 +1263,42 @@ export function CadastroAdolescente({
                   </button>
                 </div>
 
+                {historicoExistente.length > 0 && (
+                  <div className="space-y-3 mb-6">
+                    <h4 className="text-sm font-semibold text-slate-700 uppercase tracking-wide">
+                      Histórico já registrado
+                    </h4>
+                    <div className="space-y-3">
+                      {historicoExistente.map((item) => (
+                        <div
+                          key={item.id}
+                          className="p-4 bg-white rounded-lg border border-slate-200 shadow-sm"
+                        >
+                          <p className="text-sm font-semibold text-slate-800">
+                            {item.descricao}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            Ano: {item.ano ?? "Não informado"} • Unidade:{" "}
+                            {item.unidadeInternacao ?? "Não informado"}
+                          </p>
+                          {item.observacoes ? (
+                            <p className="text-xs text-slate-600 mt-1">
+                              {item.observacoes}
+                            </p>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {atoInfracional.historico.length === 0 ? (
                   <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
                     <FileText
                       size={48}
                       className="mx-auto mb-2 text-gray-400"
                     />
-                    <p>Nenhum histórico registrado</p>
+                    <p>Nenhum histórico pendente para adicionar</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -1911,4 +1979,3 @@ export function CadastroAdolescente({
     </div>
   );
 }
-

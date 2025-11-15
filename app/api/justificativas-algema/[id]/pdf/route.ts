@@ -5,13 +5,28 @@ import autoTable from "jspdf-autotable";
 
 export const dynamic = "force-dynamic";
 
+const RISCO_EXPLICACOES = {
+  fuga: "soma atos infracionais graves, avaliacoes previas de fuga, alertas criticos e conflitos territoriais associados",
+  agressao:
+    "pondera historico de violencia, vinculos faccionais, conflitos interpessoais e comunicados internos recentes",
+  autolesao:
+    "considera protocolos de suicidio, alertas de saude confidenciais e registros psicossociais criticos",
+};
+
 // GET /api/justificativas-algema/[id]/pdf - Gerar PDF da justificativa
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await context.params;
+
+    if (!id || typeof id !== "string") {
+      return NextResponse.json(
+        { erro: "ID da justificativa não informado" },
+        { status: 400 }
+      );
+    }
 
     // Buscar justificativa com todos os relacionamentos
     const justificativa = await prisma.justificativaAlgema.findUnique({
@@ -91,14 +106,23 @@ export async function GET(
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(20);
     doc.setFont("helvetica", "bold");
-    doc.text("JUSTIFICATIVA DE USO DE ALGEMA", pageWidth / 2, 15, { align: "center" });
+    doc.text("JUSTIFICATIVA DE USO DE ALGEMA", pageWidth / 2, 15, {
+      align: "center",
+    });
 
     doc.setFontSize(12);
     doc.setFont("helvetica", "normal");
-    doc.text("Centro de Socioeducação de Maringá - CENSE", pageWidth / 2, 24, { align: "center" });
+    doc.text("Centro de Socioeducação de Maringá - CENSE", pageWidth / 2, 24, {
+      align: "center",
+    });
 
     doc.setFontSize(10);
-    doc.text(`Documento Nº ${justificativa.numeroDocumento}`, pageWidth / 2, 32, { align: "center" });
+    doc.text(
+      `Documento Nº ${justificativa.numeroDocumento}`,
+      pageWidth / 2,
+      32,
+      { align: "center" }
+    );
 
     yPosition = 50;
     doc.setTextColor(0, 0, 0);
@@ -115,16 +139,39 @@ export async function GET(
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
 
-    const dadosAdolescente = [
+    const dadosAdolescente: Array<[string, string]> = [
       ["Nome Completo:", justificativa.adolescente.nomeCompleto],
-      ["Nome Social:", justificativa.adolescente.nomeSocial || "Não informado"],
-      ["Número SMS:", justificativa.adolescente.numeroSms || "Não informado"],
-      ["Data de Nascimento:", justificativa.adolescente.dataNascimento
-        ? new Date(justificativa.adolescente.dataNascimento).toLocaleDateString("pt-BR")
-        : "Não informado"
-      ],
-      ["Número do Processo:", justificativa.numeroProcesso || "Não informado"],
     ];
+
+    if (justificativa.adolescente.nomeSocial) {
+      dadosAdolescente.push([
+        "Nome Social:",
+        justificativa.adolescente.nomeSocial,
+      ]);
+    }
+
+    if (justificativa.adolescente.numeroSms) {
+      dadosAdolescente.push([
+        "N?mero SMS:",
+        justificativa.adolescente.numeroSms,
+      ]);
+    }
+
+    if (justificativa.adolescente.dataNascimento) {
+      dadosAdolescente.push([
+        "Data de Nascimento:",
+        new Date(justificativa.adolescente.dataNascimento).toLocaleDateString(
+          "pt-BR"
+        ),
+      ]);
+    }
+
+    if (justificativa.numeroProcesso) {
+      dadosAdolescente.push([
+        "N?mero do Processo:",
+        justificativa.numeroProcesso,
+      ]);
+    }
 
     dadosAdolescente.forEach(([label, value]) => {
       doc.setFont("helvetica", "bold");
@@ -155,12 +202,19 @@ export async function GET(
       ATENDIMENTO_EXTERNO: "Atendimento Médico/Hospitalar Externo",
       FUGA_TENTATIVA: "Tentativa de Fuga",
       AGRESSAO_GRAVE: "Agressão Grave ou Risco Iminente",
-      OUTRO: "Outro Motivo"
+      OUTRO: "Outro Motivo",
     };
 
     const dadosOcorrencia = [
-      ["Data/Hora:", new Date(justificativa.dataHoraOcorrencia).toLocaleString("pt-BR")],
-      ["Motivo Principal:", motivosMap[justificativa.motivoPrincipal] || justificativa.motivoPrincipal],
+      [
+        "Data/Hora:",
+        new Date(justificativa.dataHoraOcorrencia).toLocaleString("pt-BR"),
+      ],
+      [
+        "Motivo Principal:",
+        motivosMap[justificativa.motivoPrincipal] ||
+          justificativa.motivoPrincipal,
+      ],
       ["Destino:", justificativa.destinoMovimentacao || "Não especificado"],
     ];
 
@@ -180,14 +234,21 @@ export async function GET(
     doc.setFontSize(14);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(79, 70, 229);
-    doc.text("3. FUNDAMENTAÇÃO LEGAL", 14, yPosition);
+    doc.text(
+      "3. FUNDAMENTAÇÃO FÁTICA - ELEMENTOS APURADOS PELOS DADOS NO SISTEMA",
+      14,
+      yPosition
+    );
     yPosition += 8;
 
     doc.setTextColor(0, 0, 0);
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
 
-    const fundamentacaoLinhas = doc.splitTextToSize(justificativa.fundamentacaoLegal, pageWidth - 28);
+    const fundamentacaoLinhas = doc.splitTextToSize(
+      justificativa.fundamentacaoLegal,
+      pageWidth - 28
+    );
     fundamentacaoLinhas.forEach((linha: string) => {
       checkPageBreak(6);
       doc.text(linha, 14, yPosition);
@@ -204,13 +265,19 @@ export async function GET(
       yPosition += 6;
     }
 
-    if (justificativa.adolescente.atoInfracionalGravidade && justificativa.adolescente.atoInfracionalGravidadeObs) {
+    if (
+      justificativa.adolescente.atoInfracionalGravidade &&
+      justificativa.adolescente.atoInfracionalGravidadeObs
+    ) {
       yPosition += 3;
       doc.setFont("helvetica", "bold");
       doc.text("Gravidade do Ato:", 14, yPosition);
       yPosition += 6;
       doc.setFont("helvetica", "normal");
-      const gravidadeLinhas = doc.splitTextToSize(justificativa.adolescente.atoInfracionalGravidadeObs, pageWidth - 28);
+      const gravidadeLinhas = doc.splitTextToSize(
+        justificativa.adolescente.atoInfracionalGravidadeObs,
+        pageWidth - 28
+      );
       gravidadeLinhas.forEach((linha: string) => {
         checkPageBreak(6);
         doc.text(linha, 14, yPosition);
@@ -261,48 +328,86 @@ export async function GET(
 
     yPosition = (doc as any).lastAutoTable.finalY + 8;
 
-    // Pontuações (se disponíveis)
-    if (justificativa.pontuacaoRiscoFuga || justificativa.pontuacaoRiscoAgressao || justificativa.pontuacaoRiscoAutolesao) {
-      checkPageBreak(30);
-      doc.setFont("helvetica", "bold");
-      doc.text("Pontuações do Sistema de Inteligência:", 14, yPosition);
-      yPosition += 6;
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(9);
+    const riscosDetalhados = [
+      {
+        titulo: "Risco de fuga",
+        pontos:
+          justificativa.pontuacaoRiscoFuga != null
+            ? `${justificativa.pontuacaoRiscoFuga} ponto(s)`
+            : "sem pontuacao registrada",
+        nivel: justificativa.riscoFuga,
+        explicacao: RISCO_EXPLICACOES.fuga,
+      },
+      {
+        titulo: "Risco de agressao",
+        pontos:
+          justificativa.pontuacaoRiscoAgressao != null
+            ? `${justificativa.pontuacaoRiscoAgressao} ponto(s)`
+            : "sem pontuacao registrada",
+        nivel: justificativa.riscoAgressao,
+        explicacao: RISCO_EXPLICACOES.agressao,
+      },
+      {
+        titulo: "Risco de autolesao",
+        pontos:
+          justificativa.pontuacaoRiscoAutolesao != null
+            ? `${justificativa.pontuacaoRiscoAutolesao} ponto(s)`
+            : "sem pontuacao registrada",
+        nivel: justificativa.riscoAutolesao,
+        explicacao: RISCO_EXPLICACOES.autolesao,
+      },
+    ];
 
-      if (justificativa.pontuacaoRiscoFuga) {
-        doc.text(`• Risco de Fuga: ${justificativa.pontuacaoRiscoFuga} pontos`, 20, yPosition);
+    riscosDetalhados.forEach((risco) => {
+      const linhaCompleta = `- ${risco.titulo}: ${risco.pontos} (${risco.nivel}) - ${risco.explicacao}`;
+      const linhas = doc.splitTextToSize(linhaCompleta, pageWidth - 34);
+      linhas.forEach((trecho: string) => {
+        checkPageBreak(6);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+        doc.text(trecho, 20, yPosition);
         yPosition += 5;
-      }
-      if (justificativa.pontuacaoRiscoAgressao) {
-        doc.text(`• Risco de Agressão: ${justificativa.pontuacaoRiscoAgressao} pontos`, 20, yPosition);
-        yPosition += 5;
-      }
-      if (justificativa.pontuacaoRiscoAutolesao) {
-        doc.text(`• Risco de Autolesão: ${justificativa.pontuacaoRiscoAutolesao} pontos`, 20, yPosition);
-        yPosition += 5;
-      }
+      });
+    });
 
-      doc.setFontSize(10);
-      yPosition += 3;
-    }
+    doc.setFontSize(10);
+    yPosition += 6;
 
     // Fatores Agravantes Identificados pelo Sistema
-    if (justificativa.fatoresAgravantes && justificativa.fatoresAgravantes.length > 0) {
+    if (
+      justificativa.fatoresAgravantes &&
+      justificativa.fatoresAgravantes.length > 0
+    ) {
       checkPageBreak(40);
       doc.setFont("helvetica", "bold");
       doc.setFillColor(255, 243, 224); // Laranja claro
       doc.rect(14, yPosition - 4, pageWidth - 28, 8, "F");
       doc.setTextColor(180, 83, 9); // Laranja escuro
-      doc.text("⚠ FATORES AGRAVANTES IDENTIFICADOS PELO SISTEMA DE INTELIGÊNCIA", 16, yPosition);
+      doc.text(
+        "FATORES AGRAVANTES IDENTIFICADOS PELO SISTEMA DE INTELIGENCIA",
+        pageWidth / 2,
+        yPosition,
+        { align: "center" }
+      );
       yPosition += 10;
 
       doc.setTextColor(0, 0, 0);
       doc.setFont("helvetica", "normal");
       doc.setFontSize(9);
 
-      justificativa.fatoresAgravantes.forEach((fator: string) => {
-        const fatorLinhas = doc.splitTextToSize(`• ${fator}`, pageWidth - 34);
+      const fatoresList = [...(justificativa.fatoresAgravantes ?? [])];
+      if (justificativa.adolescente.atoInfracionalGravidade) {
+        const detalheGravidade = justificativa.adolescente
+          .atoInfracionalGravidadeObs
+          ? `: ${justificativa.adolescente.atoInfracionalGravidadeObs}`
+          : "";
+        fatoresList.unshift(
+          `Ato com repercussao publica ou gravidade elevada${detalheGravidade}`
+        );
+      }
+
+      fatoresList.forEach((fator: string) => {
+        const fatorLinhas = doc.splitTextToSize(`- ${fator}`, pageWidth - 34);
         fatorLinhas.forEach((linha: string) => {
           checkPageBreak(5);
           doc.text(linha, 20, yPosition);
@@ -320,7 +425,10 @@ export async function GET(
       doc.text("Histórico Comportamental:", 14, yPosition);
       yPosition += 6;
       doc.setFont("helvetica", "normal");
-      const historicoLinhas = doc.splitTextToSize(justificativa.historicoComportamental, pageWidth - 28);
+      const historicoLinhas = doc.splitTextToSize(
+        justificativa.historicoComportamental,
+        pageWidth - 28
+      );
       historicoLinhas.forEach((linha: string) => {
         checkPageBreak(6);
         doc.text(linha, 14, yPosition);
@@ -388,17 +496,33 @@ export async function GET(
       doc.setFont("helvetica", "normal");
 
       if (justificativa.horaInicio) {
-        doc.text(`Hora de Aplicação: ${new Date(justificativa.horaInicio).toLocaleTimeString("pt-BR")}`, 14, yPosition);
+        doc.text(
+          `Hora de Aplicação: ${new Date(
+            justificativa.horaInicio
+          ).toLocaleTimeString("pt-BR")}`,
+          14,
+          yPosition
+        );
         yPosition += 6;
       }
 
       if (justificativa.horaFim) {
-        doc.text(`Hora de Retirada: ${new Date(justificativa.horaFim).toLocaleTimeString("pt-BR")}`, 14, yPosition);
+        doc.text(
+          `Hora de Retirada: ${new Date(
+            justificativa.horaFim
+          ).toLocaleTimeString("pt-BR")}`,
+          14,
+          yPosition
+        );
         yPosition += 6;
       }
 
       if (justificativa.duracaoMinutos) {
-        doc.text(`Duração Total: ${justificativa.duracaoMinutos} minuto(s)`, 14, yPosition);
+        doc.text(
+          `Duração Total: ${justificativa.duracaoMinutos} minuto(s)`,
+          14,
+          yPosition
+        );
         yPosition += 6;
       }
 
@@ -419,7 +543,10 @@ export async function GET(
       doc.setFontSize(10);
       doc.setFont("helvetica", "normal");
 
-      const observacoesLinhas = doc.splitTextToSize(justificativa.observacoesAdicionais, pageWidth - 28);
+      const observacoesLinhas = doc.splitTextToSize(
+        justificativa.observacoesAdicionais,
+        pageWidth - 28
+      );
       observacoesLinhas.forEach((linha: string) => {
         checkPageBreak(6);
         doc.text(linha, 14, yPosition);
@@ -442,11 +569,25 @@ export async function GET(
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
 
-    doc.text(`Nome: ${justificativa.operadorResponsavel.nomeCompleto}`, 14, yPosition);
+    doc.text(
+      `Nome: ${justificativa.operadorResponsavel.nomeCompleto}`,
+      14,
+      yPosition
+    );
     yPosition += 6;
-    doc.text(`Cargo/Função: ${justificativa.operadorResponsavel.funcaoRole}`, 14, yPosition);
+    doc.text(
+      `Cargo/Função: ${justificativa.operadorResponsavel.funcaoRole}`,
+      14,
+      yPosition
+    );
     yPosition += 6;
-    doc.text(`Data de Emissão: ${new Date(justificativa.criadoEm).toLocaleString("pt-BR")}`, 14, yPosition);
+    doc.text(
+      `Data de Emissão: ${new Date(justificativa.criadoEm).toLocaleString(
+        "pt-BR"
+      )}`,
+      14,
+      yPosition
+    );
     yPosition += 10;
 
     doc.text("_____________________________________________", 14, yPosition);

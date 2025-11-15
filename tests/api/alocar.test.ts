@@ -106,6 +106,7 @@ beforeEach(() => {
   mockedPrisma.adolescente.findUnique.mockResolvedValue({
     id: "ado-1",
     alojamentoAtualId: null,
+    statusUnidade: "ATIVO",
   });
 
   mockedPrisma.logAuditoria.create.mockResolvedValue({ id: "log-1" } as any);
@@ -307,6 +308,7 @@ describe("DELETE /api/alocar", () => {
     mockedPrisma.adolescente.findUnique.mockResolvedValueOnce({
       id: "ado-1",
       alojamentoAtualId: "aloj-1",
+      statusUnidade: "ATIVO",
       alojamentoAtual: {
         id: "aloj-1",
         numeroAlojamento: "01",

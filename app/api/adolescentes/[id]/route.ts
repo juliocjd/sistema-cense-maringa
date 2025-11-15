@@ -3,10 +3,24 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import type { Prisma } from "@prisma/client";
+import type { StatusUnidade } from "@/types";
 import {
   INCLUDE_ADOLESCENTE_DEFAULT,
   mapPrismaAdolescente,
 } from "@/lib/adolescentes/transformers";
+
+const historicoRegistroSchema = z
+  .array(
+    z.object({
+      descricao: z
+        .string()
+        .min(3, "Descrição do histórico deve ter ao menos 3 caracteres"),
+      ano: z.union([z.string(), z.number()]).optional().nullable(),
+      unidade: z.string().optional().nullable(),
+      observacoes: z.string().optional().nullable(),
+    })
+  )
+  .optional();
 
 const updateAdolescenteSchema = z.object({
   nomeCompleto: z.string().min(3, "Nome deve ter no minimo 3 caracteres").optional(),
@@ -15,6 +29,7 @@ const updateAdolescenteSchema = z.object({
   numeroSms: z.string().optional().nullable(),
   dataNascimento: z.string().optional().nullable(),
   dataEntrada: z.string().optional().nullable(),
+  dataDesinternacao: z.string().optional().nullable(),
   numeroProcesso: z.string().optional().nullable(),
   atoInfracionalAtual: z.string().optional().nullable(),
   atoInfracionalAno: z.number().optional().nullable(),
@@ -32,6 +47,7 @@ const updateAdolescenteSchema = z.object({
   alertaSaudeDetalhes: z.string().optional().nullable(),
   alojamentoAtualId: z.string().uuid().optional().nullable(),
   faseInternacaoAtualId: z.string().uuid().optional().nullable(),
+  historicoInfracional: historicoRegistroSchema,
 });
 
 const sanitizeNullableString = (value: string | null | undefined) => {
@@ -61,6 +77,102 @@ const toDateOrNull = (value?: string | null) => {
   const parsed = new Date(sanitized);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
+
+type HistoricoEntrada = {
+  atoInfracionalDescricao: string;
+  atoInfracionalAno: number | null;
+  atoInfracionalProcesso: string | null;
+  atoInfracionalGravidade: boolean;
+  atoInfracionalGravidadeObs: string | null;
+  unidadeInternacao: string | null;
+  ano: number | null;
+  observacoes: string | null;
+};
+
+const parseHistoricoPayload = (
+  registros?: Array<{
+    descricao: string;
+    ano?: string | number | null;
+    unidade?: string | null;
+    observacoes?: string | null;
+  }>
+): HistoricoEntrada[] => {
+  if (!registros || registros.length === 0) {
+    return [];
+  }
+
+  const entradas: HistoricoEntrada[] = [];
+  const chaves = new Set<string>();
+
+  registros.forEach((item) => {
+    const descricao = sanitizeNullableString(item.descricao) ?? "";
+    if (!descricao) {
+      return;
+    }
+
+    const anoInformado =
+      item.ano === null || item.ano === undefined || item.ano === ""
+        ? null
+        : Number.parseInt(String(item.ano), 10);
+    const anoValido =
+      anoInformado !== null && !Number.isNaN(anoInformado)
+        ? anoInformado
+        : null;
+
+    const entrada: HistoricoEntrada = {
+      atoInfracionalDescricao: descricao,
+      atoInfracionalAno: anoValido,
+      atoInfracionalProcesso: null,
+      atoInfracionalGravidade: false,
+      atoInfracionalGravidadeObs: null,
+      unidadeInternacao: sanitizeNullableString(item.unidade ?? undefined) ?? null,
+      ano: anoValido,
+      observacoes: sanitizeNullableString(item.observacoes ?? undefined) ?? null,
+    };
+
+    const chave = buildHistoricoKey(entrada);
+    if (chaves.has(chave)) {
+      return;
+    }
+
+    chaves.add(chave);
+    entradas.push(entrada);
+  });
+
+  return entradas;
+};
+
+const buildHistoricoKey = (entrada: HistoricoEntrada) =>
+  [
+    entrada.atoInfracionalDescricao.trim().toLowerCase(),
+    entrada.atoInfracionalAno ?? "",
+    entrada.atoInfracionalProcesso ?? "",
+    entrada.unidadeInternacao ?? "",
+    entrada.observacoes ?? "",
+  ].join("|");
+
+const toHistoricoEntradaFromDb = (
+  registro: Pick<
+    Prisma.AdolescenteHistoricoInfracional,
+    | "atoInfracionalDescricao"
+    | "atoInfracionalAno"
+    | "atoInfracionalProcesso"
+    | "atoInfracionalGravidade"
+    | "atoInfracionalGravidadeObs"
+    | "unidadeInternacao"
+    | "ano"
+    | "observacoes"
+  >
+): HistoricoEntrada => ({
+  atoInfracionalDescricao: registro.atoInfracionalDescricao,
+  atoInfracionalAno: registro.atoInfracionalAno ?? null,
+  atoInfracionalProcesso: registro.atoInfracionalProcesso ?? null,
+  atoInfracionalGravidade: registro.atoInfracionalGravidade ?? false,
+  atoInfracionalGravidadeObs: registro.atoInfracionalGravidadeObs ?? null,
+  unidadeInternacao: registro.unidadeInternacao ?? null,
+  ano: registro.ano ?? registro.atoInfracionalAno ?? null,
+  observacoes: registro.observacoes ?? null,
+});
 
 export async function GET(
   _request: NextRequest,
@@ -137,10 +249,34 @@ export async function PUT(
     }
 
     const validated = updateAdolescenteSchema.parse(payload);
+    const historicoNovos = parseHistoricoPayload(
+      validated.historicoInfracional
+    );
 
     const existente = await prisma.adolescente.findUnique({
       where: { id },
-      select: { id: true },
+      select: {
+        id: true,
+        nomeCompleto: true,
+        statusUnidade: true,
+        alojamentoAtualId: true,
+        alojamentoAtual: {
+          select: {
+            casa: {
+              select: {
+                nome: true,
+              },
+            },
+          },
+        },
+        atoInfracionalAtual: true,
+        atoInfracionalAno: true,
+        atoInfracionalProcesso: true,
+        atoInfracionalGravidade: true,
+        atoInfracionalGravidadeObs: true,
+        numeroProcesso: true,
+        dataDesinternacao: true,
+      },
     });
 
     if (!existente) {
@@ -151,6 +287,87 @@ export async function PUT(
     }
 
     const data: Prisma.AdolescenteUpdateInput = {};
+    const statusAtual = (existente.statusUnidade as StatusUnidade) ?? "ATIVO";
+    const novoStatus = (validated.statusUnidade ?? statusAtual) as StatusUnidade;
+    const statusMudou =
+      validated.statusUnidade !== undefined &&
+      validated.statusUnidade !== statusAtual;
+    const saiuDeAtivo = statusAtual === "ATIVO" && novoStatus !== "ATIVO";
+    const retornandoParaAtivo = novoStatus === "ATIVO" && statusAtual !== "ATIVO";
+    if (
+      statusMudou &&
+      statusAtual === "ATIVO" &&
+      novoStatus !== "ATIVO" &&
+      validated.dataDesinternacao === undefined
+    ) {
+      return NextResponse.json(
+        {
+          erro:
+            "Data de desinternacao obrigatoria ao alterar status para inativo",
+        },
+        { status: 400 }
+      );
+    }
+
+    let historicoParaRestaurar:
+      | {
+          atoInfracionalDescricao: string;
+          atoInfracionalAno: number | null;
+          atoInfracionalProcesso: string | null;
+          atoInfracionalGravidade: boolean;
+          atoInfracionalGravidadeObs: string | null;
+        }
+      | null = null;
+
+    if (
+      retornandoParaAtivo &&
+      statusAtual !== "LIBERADO" &&
+      validated.atoInfracionalAtual === undefined
+    ) {
+      const registro =
+        await prisma.adolescenteHistoricoInfracional.findFirst({
+          where: { adolescenteId: id },
+          orderBy: [
+            { ano: "desc" },
+            { atoInfracionalAno: "desc" },
+            { id: "desc" },
+          ],
+          select: {
+            atoInfracionalDescricao: true,
+            atoInfracionalAno: true,
+            atoInfracionalProcesso: true,
+            atoInfracionalGravidade: true,
+            atoInfracionalGravidadeObs: true,
+          },
+        });
+
+      if (registro) {
+        historicoParaRestaurar = registro;
+      }
+    }
+
+    const deveGerarHistorico =
+      saiuDeAtivo && Boolean(existente.atoInfracionalAtual);
+
+    const unidadeHistoricoPadrao =
+      existente.alojamentoAtual?.casa?.nome ?? "Cense de Maringa";
+
+    const historicoParaCriar: Prisma.AdolescenteHistoricoInfracionalUncheckedCreateInput | null =
+      deveGerarHistorico
+        ? {
+            adolescenteId: id,
+            atoInfracionalDescricao: existente.atoInfracionalAtual ?? "",
+            atoInfracionalAno: existente.atoInfracionalAno,
+            atoInfracionalProcesso:
+              existente.atoInfracionalProcesso ?? existente.numeroProcesso ?? null,
+            atoInfracionalGravidade: existente.atoInfracionalGravidade ?? false,
+            atoInfracionalGravidadeObs:
+              existente.atoInfracionalGravidadeObs ?? null,
+            unidadeInternacao: unidadeHistoricoPadrao,
+            ano: existente.atoInfracionalAno ?? new Date().getFullYear(),
+            observacoes: `Status alterado de ${statusAtual} para ${novoStatus}`,
+          }
+        : null;
     const camposAlterados: string[] = [];
 
     if (validated.nomeCompleto !== undefined) {
@@ -212,6 +429,80 @@ export async function PUT(
     if (validated.statusUnidade !== undefined) {
       data.statusUnidade = validated.statusUnidade;
       camposAlterados.push("statusUnidade");
+    }
+
+    if (novoStatus !== "ATIVO" && existente.alojamentoAtualId) {
+      data.alojamentoAtual = { disconnect: true };
+      camposAlterados.push("alojamentoAtualId");
+    }
+
+    if (validated.dataDesinternacao !== undefined) {
+      const dataStatus = toDateOrNull(validated.dataDesinternacao);
+      data.dataDesinternacao =
+        novoStatus === "ATIVO"
+          ? null
+          : dataStatus ?? existente.dataDesinternacao ?? new Date();
+      camposAlterados.push("dataDesinternacao");
+    } else if (statusMudou) {
+      if (novoStatus === "ATIVO") {
+        data.dataDesinternacao = null;
+        camposAlterados.push("dataDesinternacao");
+      } else if (statusAtual === "ATIVO" && !existente.dataDesinternacao) {
+        data.dataDesinternacao = new Date();
+        camposAlterados.push("dataDesinternacao");
+      }
+    }
+
+    if (historicoParaRestaurar) {
+      if (validated.atoInfracionalAtual === undefined) {
+        data.atoInfracionalAtual = historicoParaRestaurar.atoInfracionalDescricao;
+        camposAlterados.push("atoInfracionalAtual");
+      }
+      if (validated.atoInfracionalAno === undefined) {
+        data.atoInfracionalAno = historicoParaRestaurar.atoInfracionalAno ?? null;
+        camposAlterados.push("atoInfracionalAno");
+      }
+      if (validated.atoInfracionalProcesso === undefined) {
+        data.atoInfracionalProcesso =
+          historicoParaRestaurar.atoInfracionalProcesso ?? null;
+        camposAlterados.push("atoInfracionalProcesso");
+      }
+      if (validated.atoInfracionalGravidade === undefined) {
+        data.atoInfracionalGravidade =
+          historicoParaRestaurar.atoInfracionalGravidade ?? false;
+        camposAlterados.push("atoInfracionalGravidade");
+      }
+      if (validated.atoInfracionalGravidadeObs === undefined) {
+        data.atoInfracionalGravidadeObs =
+          historicoParaRestaurar.atoInfracionalGravidadeObs ?? null;
+        camposAlterados.push("atoInfracionalGravidadeObs");
+      }
+      if (
+        validated.numeroProcesso === undefined &&
+        historicoParaRestaurar.atoInfracionalProcesso
+      ) {
+        data.numeroProcesso = historicoParaRestaurar.atoInfracionalProcesso;
+        camposAlterados.push("numeroProcesso");
+      }
+    }
+
+    if (historicoParaCriar) {
+      data.atoInfracionalAtual = null;
+      data.atoInfracionalAno = null;
+      data.atoInfracionalProcesso = null;
+      data.atoInfracionalGravidade = false;
+      data.atoInfracionalGravidadeObs = null;
+      camposAlterados.push(
+        "atoInfracionalAtual",
+        "atoInfracionalAno",
+        "atoInfracionalProcesso",
+        "atoInfracionalGravidade",
+        "atoInfracionalGravidadeObs"
+      );
+      if (validated.numeroProcesso === undefined) {
+        data.numeroProcesso = null;
+        camposAlterados.push("numeroProcesso");
+      }
     }
 
     if (validated.faccaoGrupoId !== undefined) {
@@ -285,6 +576,10 @@ export async function PUT(
       camposAlterados.push("dataEntrada");
     }
 
+    if (historicoNovos.length > 0) {
+      camposAlterados.push("historicoInfracional");
+    }
+
     if (camposAlterados.length === 0) {
       return NextResponse.json(
         { mensagem: "Nenhuma alteracao aplicada" },
@@ -292,10 +587,57 @@ export async function PUT(
       );
     }
 
-    const atualizado = await prisma.adolescente.update({
-      where: { id },
-      data,
-      include: INCLUDE_ADOLESCENTE_DEFAULT,
+    const atualizado = await prisma.$transaction(async (tx) => {
+      const registro = await tx.adolescente.update({
+        where: { id },
+        data,
+        include: INCLUDE_ADOLESCENTE_DEFAULT,
+      });
+
+      const historicoExistentes =
+        await tx.adolescenteHistoricoInfracional.findMany({
+          where: { adolescenteId: id },
+          select: {
+            atoInfracionalDescricao: true,
+            atoInfracionalAno: true,
+            atoInfracionalProcesso: true,
+            atoInfracionalGravidade: true,
+            atoInfracionalGravidadeObs: true,
+            unidadeInternacao: true,
+            ano: true,
+            observacoes: true,
+          },
+        });
+
+      const historicoChaves = new Set(
+        historicoExistentes.map((registroExistente) =>
+          buildHistoricoKey(toHistoricoEntradaFromDb(registroExistente))
+        )
+      );
+
+      const registrarEntrada = async (entrada: HistoricoEntrada) => {
+        const chave = buildHistoricoKey(entrada);
+        if (historicoChaves.has(chave)) {
+          return;
+        }
+        await tx.adolescenteHistoricoInfracional.create({
+          data: {
+            adolescenteId: id,
+            ...entrada,
+          },
+        });
+        historicoChaves.add(chave);
+      };
+
+      if (historicoParaCriar) {
+        await registrarEntrada(historicoParaCriar);
+      }
+
+      for (const entrada of historicoNovos) {
+        await registrarEntrada(entrada);
+      }
+
+      return registro;
     });
 
     await prisma.logAuditoria.create({

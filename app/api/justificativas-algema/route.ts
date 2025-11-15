@@ -152,7 +152,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Gerar número do documento (formato: JA-001/2025)
+        if (adolescente.statusUnidade !== "ATIVO") {
+      return NextResponse.json(
+        { erro: "Somente adolescentes ativos podem gerar justificativa de algema" },
+        { status: 400 }
+      );
+    }
+
+// Gerar número do documento (formato: JA-001/2025)
     const ano = new Date().getFullYear();
     const ultimaJustificativa = await prisma.justificativaAlgema.findFirst({
       where: {

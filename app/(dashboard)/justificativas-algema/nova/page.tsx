@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   Shield,
@@ -17,6 +17,8 @@ import {
   Brain,
   AlertCircle,
   CheckCircle2,
+  MapPin,
+  RefreshCw,
 } from "lucide-react";
 
 interface Adolescente {
@@ -62,6 +64,23 @@ interface AnaliseRisco {
     atoInfracionalGravidade: boolean;
   };
   observacao: string;
+  contextoMovimentacao?: {
+    bairroOrigem: { id: string; nome: string; cidade: string | null } | null;
+    bairroDestino: { id: string; nome: string; cidade: string | null } | null;
+    destinoDescricao: string | null;
+    conflitoTerritorial: {
+      id: string;
+      status: string;
+      origem: string;
+      destino: string;
+    } | null;
+  };
+}
+
+interface BairroReferencia {
+  id: string;
+  nomeBairro: string;
+  cidade: string;
 }
 
 const MOTIVOS = [
@@ -87,6 +106,11 @@ export default function NovaJustificativaPage() {
   const [dataHoraOcorrencia, setDataHoraOcorrencia] = useState("");
   const [motivoPrincipal, setMotivoPrincipal] = useState("");
   const [destinoMovimentacao, setDestinoMovimentacao] = useState("");
+  const [bairroDestinoId, setBairroDestinoId] = useState("");
+
+  const [bairrosReferencia, setBairrosReferencia] = useState<BairroReferencia[]>([]);
+  const [carregandoBairros, setCarregandoBairros] = useState(false);
+  const [erroBairros, setErroBairros] = useState<string | null>(null);
 
   // Análise Inteligente
   const [analiseRisco, setAnaliseRisco] = useState<AnaliseRisco | null>(null);
@@ -106,6 +130,45 @@ export default function NovaJustificativaPage() {
   const [observacoesAdicionais, setObservacoesAdicionais] = useState("");
   const [horaInicio, setHoraInicio] = useState("");
   const [horaFim, setHoraFim] = useState("");
+
+  const bairroDestinoSelecionado = useMemo(
+    () => bairrosReferencia.find((bairro) => bairro.id === bairroDestinoId) ?? null,
+    [bairrosReferencia, bairroDestinoId]
+  );
+  const contextoMovimentacao = analiseRisco?.contextoMovimentacao;
+  const conflitoTerritorialDetectado = contextoMovimentacao?.conflitoTerritorial;
+
+  useEffect(() => {
+    let ativo = true;
+    const carregarBairros = async () => {
+      try {
+        setCarregandoBairros(true);
+        const resposta = await fetch("/api/bairros");
+        if (!resposta.ok) {
+          throw new Error("Falha ao carregar bairros");
+        }
+        const payload = await resposta.json();
+        if (!ativo) return;
+        setBairrosReferencia(
+          Array.isArray(payload?.bairros) ? payload.bairros : []
+        );
+        setErroBairros(null);
+      } catch (error) {
+        if (!ativo) return;
+        console.error("Erro ao carregar bairros:", error);
+        setErroBairros("Não foi possível carregar os bairros monitorados.");
+      } finally {
+        if (ativo) {
+          setCarregandoBairros(false);
+        }
+      }
+    };
+
+    carregarBairros();
+    return () => {
+      ativo = false;
+    };
+  }, []);
 
   // Buscar adolescentes
   const buscarAdolescentes = useCallback(async () => {
@@ -139,43 +202,54 @@ export default function NovaJustificativaPage() {
     }
   }, [buscaAdolescente, buscarAdolescentes]);
 
+  const buscarAnaliseRisco = useCallback(
+    async (overrideId?: string) => {
+      const alvoId = overrideId ?? adolescenteId;
+      if (!alvoId) return;
+      try {
+        setCarregandoAnalise(true);
+        const params = new URLSearchParams({ adolescenteId: alvoId });
+        if (bairroDestinoId) {
+          params.set("bairroDestinoId", bairroDestinoId);
+        }
+        const destinoLimpo = destinoMovimentacao.trim();
+        if (destinoLimpo.length > 0) {
+          params.set("destinoDescricao", destinoLimpo);
+        }
+
+        const response = await fetch(
+          `/api/justificativas-algema/analise-risco?${params.toString()}`
+        );
+
+        if (response.ok) {
+          const analise: AnaliseRisco = await response.json();
+          setAnaliseRisco(analise);
+          setRiscoFuga(analise.analiseRisco.riscoFuga);
+          setRiscoAgressao(analise.analiseRisco.riscoAgressao);
+          setRiscoAutolesao(analise.analiseRisco.riscoAutolesao);
+          setFundamentacaoLegal(analise.fundamentacaoLegal);
+          setHistoricoComportamental(analise.historicoComportamentalSugerido);
+          setMedidasSeguranca(analise.medidasSegurancaRecomendadas);
+        } else {
+          alert("Erro ao carregar análise de risco do adolescente");
+        }
+      } catch (error) {
+        console.error("Erro ao buscar análise de risco:", error);
+        alert("Erro ao carregar análise automática");
+      } finally {
+        setCarregandoAnalise(false);
+      }
+    },
+    [adolescenteId, bairroDestinoId, destinoMovimentacao]
+  );
+
   const selecionarAdolescente = async (adolescente: Adolescente) => {
     setAdolescenteId(adolescente.id);
     setAdolescenteSelecionado(adolescente);
     setBuscaAdolescente(adolescente.nomeCompleto);
     setMostrarResultados(false);
 
-    // Buscar análise de risco automática
     await buscarAnaliseRisco(adolescente.id);
-  };
-
-  const buscarAnaliseRisco = async (adolescenteId: string) => {
-    try {
-      setCarregandoAnalise(true);
-      const response = await fetch(
-        `/api/justificativas-algema/analise-risco?adolescenteId=${adolescenteId}`
-      );
-
-      if (response.ok) {
-        const analise: AnaliseRisco = await response.json();
-        setAnaliseRisco(analise);
-
-        // Pré-preencher campos com dados da análise
-        setRiscoFuga(analise.analiseRisco.riscoFuga);
-        setRiscoAgressao(analise.analiseRisco.riscoAgressao);
-        setRiscoAutolesao(analise.analiseRisco.riscoAutolesao);
-        setFundamentacaoLegal(analise.fundamentacaoLegal);
-        setHistoricoComportamental(analise.historicoComportamentalSugerido);
-        setMedidasSeguranca(analise.medidasSegurancaRecomendadas);
-      } else {
-        alert("Erro ao carregar análise de risco do adolescente");
-      }
-    } catch (error) {
-      console.error("Erro ao buscar análise de risco:", error);
-      alert("Erro ao carregar análise automática");
-    } finally {
-      setCarregandoAnalise(false);
-    }
   };
 
   const toggleMedida = (medida: string) => {
@@ -591,7 +665,50 @@ export default function NovaJustificativaPage() {
 
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-slate-700 mb-2">
-                        Destino da Movimentação
+                        Destino (bairros monitorados pela inteligência)
+                      </label>
+                      <div className="flex flex-col gap-3 md:flex-row">
+                        <select
+                          value={bairroDestinoId}
+                          onChange={(e) => setBairroDestinoId(e.target.value)}
+                          disabled={carregandoBairros}
+                          className="flex-1 px-4 py-3 border-2 border-slate-300 rounded-lg focus:ring-4 focus:ring-indigo-200 focus:border-indigo-500 transition bg-white"
+                        >
+                          <option value="">
+                            {carregandoBairros
+                              ? "Carregando bairros..."
+                              : "Selecione um bairro monitorado"}
+                          </option>
+                          {bairrosReferencia.map((bairro) => (
+                            <option key={bairro.id} value={bairro.id}>
+                              {bairro.nomeBairro} • {bairro.cidade}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => buscarAnaliseRisco()}
+                          disabled={!adolescenteId || carregandoAnalise}
+                          className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 border-indigo-500 text-indigo-600 font-semibold hover:bg-indigo-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                        >
+                          <RefreshCw
+                            size={18}
+                            className={carregandoAnalise ? "animate-spin" : ""}
+                          />
+                          <span>Atualizar análise</span>
+                        </button>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-2">
+                        Use os bairros cadastrados em <strong>Inteligência &gt; Conflitos</strong> para que o sistema identifique riscos territoriais automaticamente.
+                      </p>
+                      {erroBairros && (
+                        <p className="text-sm text-red-600 mt-1">{erroBairros}</p>
+                      )}
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-slate-700 mb-2">
+                        Destino da Movimentação (texto livre)
                       </label>
                       <input
                         type="text"
@@ -600,7 +717,71 @@ export default function NovaJustificativaPage() {
                         placeholder="Ex: Fórum Criminal de Maringá, Hospital Universitário..."
                         className="w-full px-4 py-3 border-2 border-slate-300 rounded-lg focus:ring-4 focus:ring-indigo-200 focus:border-indigo-500 transition"
                       />
+                      <p className="text-xs text-slate-500 mt-2">
+                        Esse campo aparece no documento final. Clique em <em>Atualizar análise</em> para que o destino seja considerado na fundamentação automática.
+                      </p>
                     </div>
+
+                    {contextoMovimentacao && (
+                      <div
+                        className={`md:col-span-2 rounded-xl border p-4 ${
+                          conflitoTerritorialDetectado
+                            ? "border-red-200 bg-red-50"
+                            : "border-slate-200 bg-slate-50"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                          <MapPin
+                            size={18}
+                            className={
+                              conflitoTerritorialDetectado ? "text-red-600" : "text-indigo-600"
+                            }
+                          />
+                          <span>Contexto territorial analisado</span>
+                        </div>
+                        <div className="mt-3 space-y-1 text-sm text-slate-700">
+                          <p>
+                            <strong>Origem monitorada:</strong>{" "}
+                            {contextoMovimentacao.bairroOrigem
+                              ? `${contextoMovimentacao.bairroOrigem.nome}${
+                                  contextoMovimentacao.bairroOrigem.cidade
+                                    ? ` - ${contextoMovimentacao.bairroOrigem.cidade}`
+                                    : ""
+                                }`
+                              : "Não informado"}
+                          </p>
+                          <p>
+                            <strong>Destino monitorado:</strong>{" "}
+                            {contextoMovimentacao.bairroDestino
+                              ? `${contextoMovimentacao.bairroDestino.nome}${
+                                  contextoMovimentacao.bairroDestino.cidade
+                                    ? ` - ${contextoMovimentacao.bairroDestino.cidade}`
+                                    : ""
+                                }`
+                              : "Não selecionado"}
+                          </p>
+                          <p>
+                            <strong>Destino informado:</strong>{" "}
+                            {contextoMovimentacao.destinoDescricao || "Não informado"}
+                          </p>
+                        </div>
+                        {conflitoTerritorialDetectado ? (
+                          <div className="mt-3 flex items-start gap-2 text-sm text-red-700">
+                            <AlertTriangle size={16} className="mt-0.5" />
+                            <span>
+                              Conflito territorial ativo identificado entre{" "}
+                              {conflitoTerritorialDetectado.origem} e{" "}
+                              {conflitoTerritorialDetectado.destino}. Reforce os registros e avalie rota alternativa.
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="mt-3 flex items-start gap-2 text-sm text-emerald-700">
+                            <CheckCircle2 size={16} className="mt-0.5" />
+                            <span>Nenhum conflito territorial mapeado para essa combinação.</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 

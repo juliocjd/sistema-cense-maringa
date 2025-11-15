@@ -48,6 +48,7 @@ export interface AdolescenteTatuagemResumo {
   catalogoId: string;
   simbolo: string;
   significado?: string | null;
+  significadoPessoal?: string | null;
   nivelRisco?: string | null;
   localCorpo?: string | null;
   observacoes?: string | null;
@@ -73,6 +74,24 @@ export interface TatuagemCatalogo {
   significadoAssociado?: string | null;
   nivelRisco?: string | null;
   totalUso?: number;
+}
+
+export interface AdolescenteHistoricoInfracionalItem {
+  id: string;
+  descricao: string;
+  ano?: number | null;
+  processo?: string | null;
+  gravidade: boolean;
+  gravidadeObs?: string | null;
+  unidadeInternacao?: string | null;
+  observacoes?: string | null;
+}
+
+export interface AdolescenteHistoricoRegistroInput {
+  descricao: string;
+  ano?: number | string | null;
+  unidade?: string | null;
+  observacoes?: string | null;
 }
 
 export interface Adolescente {
@@ -132,10 +151,33 @@ export interface Adolescente {
   conflitosA: Conflito[];
   conflitosB: Conflito[];
   conflitosResolvidos?: Conflito[];
+  historicoInfracional: AdolescenteHistoricoInfracionalItem[];
 
   criadoEm?: string;
   atualizadoEm?: string;
 }
+
+export type AdolescenteCadastroPayload = Partial<
+  Omit<
+    Adolescente,
+    | "alojamentoAtual"
+    | "agenteReferencia"
+    | "grupos"
+    | "tatuagens"
+    | "conflitosA"
+    | "conflitosB"
+    | "conflitosResolvidos"
+    | "historicoInfracional"
+  >
+> & {
+  historicoInfracional?: AdolescenteHistoricoRegistroInput[];
+  tatuagens?: Array<{
+    catalogoId: string;
+    localCorpo: string;
+    observacoes?: string;
+    significadoPessoal?: string;
+  }>;
+};
 
 export interface ListaAdolescentesMeta {
   total: number;

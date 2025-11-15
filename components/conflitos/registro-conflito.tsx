@@ -163,8 +163,8 @@ export function RegistroConflito({
               <div>
                 <p className="font-semibold text-orange-900">Atencao</p>
                 <p className="text-sm text-orange-800">
-                  Cada conflito registrado bloqueia a alocacao dos adolescentes na mesma ala
-                  ou alojamento ate nova avaliacao da equipe tecnica.
+                  Cada conflito registrado passa a gerar alertas nas verificacoes de alocacao
+                  e exige acompanhamento da equipe tecnica ate nova avaliacao.
                 </p>
               </div>
             </div>
