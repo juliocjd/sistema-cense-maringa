@@ -11,11 +11,15 @@ type Adolescente = {
   alojamento?: string;
 };
 
+type ConflitoPartePayload = {
+  nome?: string;
+  participantes: Array<{ adolescenteId: string; geraAlertas?: boolean }>;
+};
+
 type NovoConflitoPayload = {
-  principalId: string;
-  envolvidosIds: string[];
   tipoConflito: string;
   origem: string;
+  partes: ConflitoPartePayload[];
   ciOrigem?: string;
   descricao?: string;
   registroGrupoId: string;
@@ -30,73 +34,69 @@ export function RegistroConflito({
   adolescentes,
   onSalvar,
 }: RegistroConflitoProps) {
-  const [principal, setPrincipal] = useState<Adolescente | null>(null);
-  const [envolvidos, setEnvolvidos] = useState<Adolescente[]>([]);
+  const [ladoA, setLadoA] = useState<Adolescente[]>([]);
+  const [ladoB, setLadoB] = useState<Adolescente[]>([]);
   const [tipoConflito, setTipoConflito] = useState("");
   const [origem, setOrigem] = useState("");
   const [ciOrigem, setCiOrigem] = useState("");
   const [descricao, setDescricao] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const [buscaPrincipal, setBuscaPrincipal] = useState("");
-  const [buscaEnvolvido, setBuscaEnvolvido] = useState("");
-  const [mostrarListaPrincipal, setMostrarListaPrincipal] = useState(false);
-  const [mostrarListaEnvolvidos, setMostrarListaEnvolvidos] = useState(false);
+  const [buscaLadoA, setBuscaLadoA] = useState("");
+  const [buscaLadoB, setBuscaLadoB] = useState("");
+  const [mostrarListaLadoA, setMostrarListaLadoA] = useState(false);
+  const [mostrarListaLadoB, setMostrarListaLadoB] = useState(false);
 
   const participantesIds = useMemo(() => {
     const ids = new Set<string>();
-    if (principal) {
-      ids.add(principal.id);
-    }
-    envolvidos.forEach((item) => ids.add(item.id));
+    ladoA.forEach((item) => ids.add(item.id));
+    ladoB.forEach((item) => ids.add(item.id));
     return ids;
-  }, [principal, envolvidos]);
+  }, [ladoA, ladoB]);
 
-  const candidatosPrincipal = useMemo(() => {
-    const termo = buscaPrincipal.toLowerCase();
+  const candidatosLadoA = useMemo(() => {
+    const termo = buscaLadoA.toLowerCase();
     return adolescentes.filter((alvo) => {
-      if (envolvidos.some((item) => item.id === alvo.id)) {
+      if (participantesIds.has(alvo.id)) {
         return false;
       }
       return (
         termo === "" ||
         alvo.nomeCompleto.toLowerCase().includes(termo) ||
-        (buscaPrincipal && (alvo.numeroSms ?? "").includes(buscaPrincipal))
+        (buscaLadoA && (alvo.numeroSms ?? "").includes(buscaLadoA))
       );
     });
-  }, [adolescentes, buscaPrincipal, envolvidos]);
+  }, [adolescentes, buscaLadoA, participantesIds]);
 
-  const candidatosEnvolvidos = useMemo(() => {
-    const termo = buscaEnvolvido.toLowerCase();
+  const candidatosLadoB = useMemo(() => {
+    const termo = buscaLadoB.toLowerCase();
     return adolescentes.filter((alvo) => {
-      if (principal?.id === alvo.id) {
-        return false;
-      }
-      if (envolvidos.some((item) => item.id === alvo.id)) {
+      if (participantesIds.has(alvo.id)) {
         return false;
       }
       return (
         termo === "" ||
         alvo.nomeCompleto.toLowerCase().includes(termo) ||
-        (buscaEnvolvido && (alvo.numeroSms ?? "").includes(buscaEnvolvido))
+        (buscaLadoB && (alvo.numeroSms ?? "").includes(buscaLadoB))
       );
     });
-  }, [adolescentes, buscaEnvolvido, envolvidos, principal]);
+  }, [adolescentes, buscaLadoB, participantesIds]);
 
-  const handleAdicionarEnvolvido = (alvo: Adolescente) => {
-    setEnvolvidos((lista) => [...lista, alvo]);
-    setBuscaEnvolvido("");
-    setMostrarListaEnvolvidos(false);
+  const handleAdicionarAoLado = (lado: "A" | "B", alvo: Adolescente) => {
+    if (lado === "A") {
+      setLadoA((lista) => [...lista, alvo]);
+      setBuscaLadoA("");
+      setMostrarListaLadoA(false);
+    } else {
+      setLadoB((lista) => [...lista, alvo]);
+      setBuscaLadoB("");
+      setMostrarListaLadoB(false);
+    }
   };
 
   const handleSalvar = async () => {
-    if (!principal) {
-      alert("Selecione o adolescente principal.");
-      return;
-    }
-
-    if (envolvidos.length === 0) {
-      alert("Selecione ao menos um adolescente envolvido.");
+    if (ladoA.length === 0 || ladoB.length === 0) {
+      alert("Selecione ao menos um adolescente em cada lado do conflito.");
       return;
     }
 
@@ -118,10 +118,22 @@ export function RegistroConflito({
           : `${Date.now()}-${Math.random()}`;
 
       await onSalvar({
-        principalId: principal.id,
-        envolvidosIds: envolvidos.map((item) => item.id),
         tipoConflito,
         origem,
+        partes: [
+          {
+            nome: "Lado 1",
+            participantes: ladoA.map((item) => ({
+              adolescenteId: item.id,
+            })),
+          },
+          {
+            nome: "Lado 2",
+            participantes: ladoB.map((item) => ({
+              adolescenteId: item.id,
+            })),
+          },
+        ],
         ciOrigem: ciOrigem || undefined,
         descricao: descricao || undefined,
         registroGrupoId,
@@ -171,113 +183,60 @@ export function RegistroConflito({
           </div>
 
           <div className="grid gap-6 md:grid-cols-2">
-            <div>
-              <label className="mb-2 block text-sm font-semibold text-gray-700">
-                Adolescente principal *
-              </label>
-              <div className="relative">
+            <div className="rounded-2xl border border-gray-200 p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-base font-semibold text-gray-800">Lado 1</p>
+                  <p className="text-xs text-gray-500">
+                    Integrantes deste lado não geram alertas entre si.
+                  </p>
+                </div>
+                <span className="text-xs font-semibold text-gray-600">
+                  {ladoA.length} selecionado(s)
+                </span>
+              </div>
+              <div className="relative mt-3">
                 <Search
                   className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
                   size={18}
                 />
                 <input
                   type="text"
-                  value={buscaPrincipal}
-                  onChange={(event) => setBuscaPrincipal(event.target.value)}
-                  onFocus={() => setMostrarListaPrincipal(true)}
+                  value={buscaLadoA}
+                  onChange={(event) => setBuscaLadoA(event.target.value)}
+                  onFocus={() => setMostrarListaLadoA(true)}
                   placeholder="Buscar por nome ou SMS"
                   className="w-full rounded-lg border-2 border-gray-300 px-3 py-2 pl-9 focus:border-red-500 focus:ring-2 focus:ring-red-200"
                 />
-                {mostrarListaPrincipal && candidatosPrincipal.length > 0 && (
+                {mostrarListaLadoA && (
                   <div className="absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
-                    {candidatosPrincipal.map((item) => (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => {
-                          setPrincipal(item);
-                          setBuscaPrincipal(item.nomeCompleto);
-                          setMostrarListaPrincipal(false);
-                        }}
-                        className="flex w-full flex-col items-start gap-1 border-b border-gray-100 px-3 py-2 text-left hover:bg-red-50"
-                      >
-                        <span className="font-semibold text-gray-800">
-                          {item.nomeCompleto}
-                        </span>
-                        <span className="text-xs text-gray-500">
-                          SMS: {item.numeroSms}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-              {principal && (
-                <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-semibold text-gray-800">{principal.nomeCompleto}</p>
-                      <p className="text-sm text-gray-600">
-                        SMS: {principal.numeroSms}
-                        {principal.alojamento ? ` | ${principal.alojamento}` : ""}
+                    {candidatosLadoA.length === 0 ? (
+                      <p className="px-3 py-2 text-sm text-gray-500">
+                        Nenhum adolescente disponível para este lado.
                       </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPrincipal(null);
-                        setBuscaPrincipal("");
-                      }}
-                      className="text-xs font-semibold text-red-600 hover:text-red-800"
-                    >
-                      Limpar
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-semibold text-gray-700">
-                Outros envolvidos (minimo 1) *
-              </label>
-              <div className="relative">
-                <Search
-                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                  size={18}
-                />
-                <input
-                  type="text"
-                  value={buscaEnvolvido}
-                  onChange={(event) => setBuscaEnvolvido(event.target.value)}
-                  onFocus={() => setMostrarListaEnvolvidos(true)}
-                  placeholder="Buscar por nome ou SMS"
-                  disabled={!principal}
-                  className="w-full rounded-lg border-2 border-gray-300 px-3 py-2 pl-9 focus:border-red-500 focus:ring-2 focus:ring-red-200 disabled:cursor-not-allowed disabled:bg-gray-50"
-                />
-                {mostrarListaEnvolvidos && candidatosEnvolvidos.length > 0 && (
-                  <div className="absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
-                    {candidatosEnvolvidos.map((item) => (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => handleAdicionarEnvolvido(item)}
-                        className="flex w-full flex-col items-start gap-1 border-b border-gray-100 px-3 py-2 text-left hover:bg-red-50"
-                      >
-                        <span className="font-semibold text-gray-800">
-                          {item.nomeCompleto}
-                        </span>
-                        <span className="text-xs text-gray-500">
-                          SMS: {item.numeroSms}
-                        </span>
-                      </button>
-                    ))}
+                    ) : (
+                      candidatosLadoA.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => handleAdicionarAoLado("A", item)}
+                          className="flex w-full flex-col items-start gap-1 border-b border-gray-100 px-3 py-2 text-left hover:bg-red-50"
+                        >
+                          <span className="font-semibold text-gray-800">
+                            {item.nomeCompleto}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            SMS: {item.numeroSms}
+                          </span>
+                        </button>
+                      ))
+                    )}
                   </div>
                 )}
               </div>
-              {envolvidos.length > 0 && (
+              {ladoA.length > 0 && (
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {envolvidos.map((item) => (
+                  {ladoA.map((item) => (
                     <span
                       key={item.id}
                       className="inline-flex items-center gap-2 rounded-full bg-red-100 px-3 py-1 text-sm font-semibold text-red-700"
@@ -286,9 +245,83 @@ export function RegistroConflito({
                       <button
                         type="button"
                         onClick={() =>
-                          setEnvolvidos((lista) => lista.filter((alvo) => alvo.id !== item.id))
+                          setLadoA((lista) => lista.filter((alvo) => alvo.id !== item.id))
                         }
                         className="text-red-600 hover:text-red-800"
+                      >
+                        <X size={14} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-2xl border border-gray-200 p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-base font-semibold text-gray-800">Lado 2</p>
+                  <p className="text-xs text-gray-500">
+                    Estes adolescentes são avaliados contra o lado 1.
+                  </p>
+                </div>
+                <span className="text-xs font-semibold text-gray-600">
+                  {ladoB.length} selecionado(s)
+                </span>
+              </div>
+              <div className="relative mt-3">
+                <Search
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                  size={18}
+                />
+                <input
+                  type="text"
+                  value={buscaLadoB}
+                  onChange={(event) => setBuscaLadoB(event.target.value)}
+                  onFocus={() => setMostrarListaLadoB(true)}
+                  placeholder="Buscar por nome ou SMS"
+                  className="w-full rounded-lg border-2 border-gray-300 px-3 py-2 pl-9 focus:border-red-500 focus:ring-2 focus:ring-red-200"
+                />
+                {mostrarListaLadoB && (
+                  <div className="absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+                    {candidatosLadoB.length === 0 ? (
+                      <p className="px-3 py-2 text-sm text-gray-500">
+                        Nenhum adolescente disponível para este lado.
+                      </p>
+                    ) : (
+                      candidatosLadoB.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => handleAdicionarAoLado("B", item)}
+                          className="flex w-full flex-col items-start gap-1 border-b border-gray-100 px-3 py-2 text-left hover:bg-red-50"
+                        >
+                          <span className="font-semibold text-gray-800">
+                            {item.nomeCompleto}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            SMS: {item.numeroSms}
+                          </span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+              {ladoB.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {ladoB.map((item) => (
+                    <span
+                      key={item.id}
+                      className="inline-flex items-center gap-2 rounded-full bg-indigo-100 px-3 py-1 text-sm font-semibold text-indigo-700"
+                    >
+                      {item.nomeCompleto}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setLadoB((lista) => lista.filter((alvo) => alvo.id !== item.id))
+                        }
+                        className="text-indigo-600 hover:text-indigo-800"
                       >
                         <X size={14} />
                       </button>
@@ -374,8 +407,8 @@ export function RegistroConflito({
             onClick={handleSalvar}
             disabled={
               loading ||
-              !principal ||
-              envolvidos.length === 0 ||
+              ladoA.length === 0 ||
+              ladoB.length === 0 ||
               !tipoConflito ||
               !origem
             }

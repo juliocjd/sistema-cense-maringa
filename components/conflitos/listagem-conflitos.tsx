@@ -13,6 +13,7 @@ import {
   Clock,
   Plus,
   FileText,
+  Trash2,
 } from "lucide-react";
 
 type Participante = {
@@ -38,13 +39,18 @@ type Conflito = {
 
 interface ListagemConflitosProps {
   conflitos: Conflito[];
+  onExcluir?: (conflito: Conflito) => Promise<void> | void;
 }
 
-export function ListagemConflitos({ conflitos }: ListagemConflitosProps) {
+export function ListagemConflitos({
+  conflitos,
+  onExcluir,
+}: ListagemConflitosProps) {
   const [busca, setBusca] = useState("");
   const [filtroStatus, setFiltroStatus] = useState<string>("TODOS");
   const [filtroTipo, setFiltroTipo] = useState<string>("TODOS");
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
+  const [excluindoId, setExcluindoId] = useState<string | null>(null);
 
   const conflitosFiltrados = useMemo(() => {
     const termo = busca.toLowerCase();
@@ -110,6 +116,18 @@ export function ListagemConflitos({ conflitos }: ListagemConflitosProps) {
     setBusca("");
     setFiltroStatus("TODOS");
     setFiltroTipo("TODOS");
+  };
+
+  const acionarExclusao = async (conflito: Conflito) => {
+    if (!onExcluir) {
+      return;
+    }
+    try {
+      setExcluindoId(conflito.id);
+      await onExcluir(conflito);
+    } finally {
+      setExcluindoId(null);
+    }
   };
 
   return (
@@ -296,13 +314,26 @@ export function ListagemConflitos({ conflitos }: ListagemConflitosProps) {
                       </div>
                     </div>
                   </div>
-                  <Link
-                    href={`/conflitos/${conflito.id}`}
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2 font-semibold"
-                  >
-                    <Eye size={18} />
-                    Ver Detalhes
-                  </Link>
+                  <div className="flex items-center gap-2">
+                    {onExcluir && (
+                      <button
+                        type="button"
+                        onClick={() => acionarExclusao(conflito)}
+                        disabled={excluindoId === conflito.id}
+                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 font-semibold disabled:opacity-70 disabled:cursor-not-allowed"
+                      >
+                        <Trash2 size={18} />
+                        {excluindoId === conflito.id ? "Excluindo..." : "Excluir"}
+                      </button>
+                    )}
+                    <Link
+                      href={`/conflitos/${conflito.id}`}
+                      className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2 font-semibold"
+                    >
+                      <Eye size={18} />
+                      Ver Detalhes
+                    </Link>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">

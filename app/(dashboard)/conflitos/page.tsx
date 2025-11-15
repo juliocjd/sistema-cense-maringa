@@ -202,6 +202,44 @@ export default function ConflitosPage() {
     }
   };
 
+  const handleExcluir = async (conflito: Conflito) => {
+    if (
+      !confirm(
+        "Deseja realmente excluir este conflito? Todos os registros relacionados a este grupo serão removidos."
+      )
+    ) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/conflitos/${conflito.id}`, {
+        method: "DELETE",
+      });
+
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        const mensagem =
+          payload?.erro ??
+          "Nao foi possivel excluir o conflito. Tente novamente.";
+        throw new Error(mensagem);
+      }
+
+      const grupoAlvo = payload?.registroGrupoId ?? conflito.registroGrupoId;
+      setConflitos((lista) =>
+        lista.filter((item) => item.registroGrupoId !== grupoAlvo)
+      );
+
+      alert("Conflito excluido com sucesso.");
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Erro inesperado ao excluir conflito."
+      );
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -213,5 +251,7 @@ export default function ConflitosPage() {
     );
   }
 
-  return <ListagemConflitos conflitos={conflitos} />;
+  return (
+    <ListagemConflitos conflitos={conflitos} onExcluir={handleExcluir} />
+  );
 }

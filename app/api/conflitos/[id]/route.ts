@@ -377,3 +377,120 @@ export async function PUT(
     );
   }
 }
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+
+    const session = await auth().catch(() => null);
+    const operadorId = session?.user?.id;
+
+    if (!operadorId) {
+      return NextResponse.json(
+        { erro: "Operador nao autenticado" },
+        { status: 401 }
+      );
+    }
+
+    const operador = await prisma.operador.findUnique({
+      where: { id: operadorId },
+      select: { id: true },
+    });
+
+    if (!operador) {
+      return NextResponse.json(
+        { erro: "Operador nao encontrado" },
+        { status: 403 }
+      );
+    }
+
+    const conflitoExistente = await prisma.conflito.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        registroGrupoId: true,
+      },
+    });
+
+    if (!conflitoExistente) {
+      return NextResponse.json(
+        { erro: "Conflito nao encontrado" },
+        { status: 404 }
+      );
+    }
+
+    const grupoId = conflitoExistente.registroGrupoId;
+    const where: Prisma.ConflitoWhereInput = grupoId
+      ? {
+          OR: [
+            { registroGrupoId: grupoId },
+            { id: grupoId },
+          ],
+        }
+      : { id };
+
+    const conflitosAlvo = await prisma.conflito.findMany({
+      where,
+      select: { id: true },
+    });
+
+    const idsParaExcluir = conflitosAlvo.map((registro) => registro.id);
+    if (idsParaExcluir.length === 0) {
+      return NextResponse.json(
+        {
+          mensagem: "Nenhum conflito encontrado para exclusao",
+          registroGrupoId: grupoId ?? id,
+          totalRemovidos: 0,
+        },
+        { status: 200 }
+      );
+    }
+
+    const resultado = await prisma.$transaction(async (tx) => {
+      await tx.tentativaMediacao.deleteMany({
+        where: {
+          conflitoId: {
+            in: idsParaExcluir,
+          },
+        },
+      });
+
+      const deleteConflitos = await tx.conflito.deleteMany({
+        where: { id: { in: idsParaExcluir } },
+      });
+
+      return deleteConflitos;
+    });
+
+    await prisma.logAuditoria.create({
+      data: {
+        operadorId,
+        acao: "DELETE",
+        tabelaAfetada: "conflitos",
+        registroIdAfetado: grupoId ?? id,
+        detalhesAlteracao: {
+          conflitosRemovidos: resultado.count,
+        },
+        ipOrigem: request.headers.get("x-forwarded-for") ?? "unknown",
+      },
+    });
+
+    return NextResponse.json({
+      mensagem: "Conflitos removidos com sucesso",
+      registroGrupoId: grupoId ?? id,
+      totalRemovidos: resultado.count,
+    });
+  } catch (error) {
+    console.error("Erro ao excluir conflito:", error);
+    return NextResponse.json(
+      {
+        erro: "Erro ao excluir conflito",
+        detalhes: error instanceof Error ? error.message : "Erro desconhecido",
+      },
+      { status: 500 }
+    );
+  }
+}

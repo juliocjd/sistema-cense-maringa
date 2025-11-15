@@ -72,13 +72,13 @@ export function Sidebar() {
       {
         section: "Gestao",
         items: [
-          { label: "Conflitos", href: "/conflitos", icon: Swords },
+          { label: "Conflitos Internos", href: "/conflitos", icon: Swords },
           {
             label: "Conflitos Externos",
             href: "/inteligencia/conflitos",
             icon: BarChart3,
           },
-          { label: "Grupos", href: "/grupos", icon: UserCircle },
+          { label: "Grupos de Atividade", href: "/grupos", icon: UserCircle },
           { label: "Tatuagens", href: "/tatuagens", icon: Shield },
           { label: "Comunicados Internos", href: "/comunicados", icon: FileText },
           { label: "Eventos Especiais", href: "/eventos", icon: Calendar },
