@@ -253,23 +253,24 @@ const calcularSnapshot = async (): Promise<{
     nome: casa.nome,
     numero: casa.numero ?? 0,
     isolada: casa.isolada,
-    alojamentos: casa.alojamentos.map(
-      (alojamento) =>
-        ({
-          id: alojamento.id,
-          casaId: casa.id,
-          numeroAlojamento: alojamento.numeroAlojamento,
-          ala: alojamento.ala,
-          statusManutencao: alojamento.statusManutencao,
-          alojamentoFrontalId: alojamento.alojamentoFrontalId,
-          localizacaoPreferencial: alojamento.localizacaoPreferencial,
-          corRisco: alojamento.corRisco ?? undefined,
-          nivelRisco: alojamento.nivelRisco ?? undefined,
-          icones: alojamento.icones ?? [],
-          alertas: alojamento.alertas ?? [],
-          adolescentes: alojamento.adolescentes as Adolescente[],
-        } as Alojamento)
-    ),
+    alojamentos: casa.alojamentos.map((alojamento) => {
+      const alojamentoNormalizado =
+        alojamento as unknown as Partial<Alojamento>;
+      return {
+        id: alojamento.id,
+        casaId: casa.id,
+        numeroAlojamento: alojamento.numeroAlojamento,
+        ala: alojamento.ala,
+        statusManutencao: alojamento.statusManutencao,
+        alojamentoFrontalId: alojamento.alojamentoFrontalId,
+        localizacaoPreferencial: alojamento.localizacaoPreferencial,
+        corRisco: alojamentoNormalizado.corRisco ?? undefined,
+        nivelRisco: alojamentoNormalizado.nivelRisco ?? undefined,
+        icones: alojamentoNormalizado.icones ?? [],
+        alertas: alojamentoNormalizado.alertas ?? [],
+        adolescentes: alojamento.adolescentes as unknown as Adolescente[],
+      } as Alojamento;
+    }),
   }));
 
   const slots = criarMapaSlots(casasParaCalculo);
@@ -279,10 +280,12 @@ const calcularSnapshot = async (): Promise<{
 
     const alojamentosProcessados: AlojamentoResumo[] = casa.alojamentos.map(
       (alojamento) => {
+        const alojamentoParcial = alojamento as unknown as Partial<Alojamento>;
+
         const risco = calcularRiscoAlojamento({
           alojamento: {
             ...alojamento,
-            adolescentes: alojamento.adolescentes as Adolescente[],
+            adolescentes: alojamento.adolescentes as unknown as Adolescente[],
           } as any,
           casaAtual: casaParaCalculo,
           casas: casasParaCalculo,
@@ -290,8 +293,9 @@ const calcularSnapshot = async (): Promise<{
         });
 
         const corRisco = mapearCorRisco(risco.categoria, risco.nivel);
-        const icones = risco.icones ?? [];
-        const alertasSet = new Set<string>(alojamento.alertas ?? []);
+        const icones = (alojamentoParcial.icones ?? []) as string[];
+        const alertasBase = (alojamentoParcial.alertas ?? []) as string[];
+        const alertasSet = new Set<string>(alertasBase);
         if (risco.motivos?.length) {
           risco.motivos.forEach((motivo) => alertasSet.add(motivo));
         }
@@ -330,6 +334,9 @@ const calcularSnapshot = async (): Promise<{
             }
           });
 
+          const bairroOrigem = ocupante.bairroOrigem;
+          const faccao = ocupante.faccao;
+
           ocupanteFormatado = {
             id: ocupante.id,
             nome_completo: ocupante.nomeCompleto,
@@ -341,21 +348,21 @@ const calcularSnapshot = async (): Promise<{
             alerta_perfil_mapeado: ocupante.alertaPerfilMapeado,
             alerta_saude_confidencial: ocupante.alertaSaudeConfidencial,
             bairro_origem_id: ocupante.bairroOrigemId,
-            bairro_origem: ocupante.bairroOrigem
+            bairro_origem: bairroOrigem
               ? {
-                  id: ocupante.bairroOrigem.id,
+                  id: bairroOrigem.id,
                   nome:
-                    ocupante.bairroOrigem.nomeBairro ??
-                    ocupante.bairroOrigem.nome ??
+                    bairroOrigem.nomeBairro ??
+                    (bairroOrigem as any)?.nome ??
                     null,
-                  cidade: ocupante.bairroOrigem.cidade,
+                  cidade: bairroOrigem.cidade ?? null,
                 }
               : null,
             faccao_grupo_id: ocupante.faccaoGrupoId,
-            faccao: ocupante.faccao
+            faccao: faccao
               ? {
-                  id: ocupante.faccao.id,
-                  nome: ocupante.faccao.nomeFaccao ?? ocupante.faccao.nome,
+                  id: faccao.id,
+                  nome: faccao.nomeFaccao ?? (faccao as any)?.nome ?? null,
                 }
               : null,
             conflitosA: conflitosAtivosA,
@@ -442,7 +449,10 @@ export async function getEstruturaSnapshot(options?: {
   skipCache?: boolean;
   ttlMs?: number;
 }): Promise<EstruturaSnapshot> {
-  const store = globalThis as Record<string | symbol, CacheEntry | undefined>;
+  const store = globalThis as unknown as Record<
+    string | symbol,
+    CacheEntry | undefined
+  >;
   const entry = store[CACHE_SYMBOL];
   const ttl = options?.ttlMs ?? DEFAULT_TTL_MS;
 
@@ -465,7 +475,10 @@ export async function getEstruturaSnapshot(options?: {
 }
 
 export function invalidateEstruturaSnapshot() {
-  const store = globalThis as Record<string | symbol, CacheEntry | undefined>;
+  const store = globalThis as unknown as Record<
+    string | symbol,
+    CacheEntry | undefined
+  >;
   delete store[CACHE_SYMBOL];
 }
 
@@ -473,7 +486,10 @@ export async function getEstruturaCasasParaCalculo(options?: {
   skipCache?: boolean;
   ttlMs?: number;
 }): Promise<CasaRisco[]> {
-  const store = globalThis as Record<string | symbol, CacheEntry | undefined>;
+  const store = globalThis as unknown as Record<
+    string | symbol,
+    CacheEntry | undefined
+  >;
   let entry = store[CACHE_SYMBOL];
   const ttl = options?.ttlMs ?? DEFAULT_TTL_MS;
 

@@ -35,7 +35,7 @@ vi.mock("@/lib/eventos/calc-risco-evento", () => {
   };
 });
 
-const mockedAuth = vi.mocked(auth);
+const mockedAuth = auth as unknown as ReturnType<typeof vi.fn>;
 const mockedPrisma = prisma as unknown as {
   eventoEspecial: { findUnique: ReturnType<typeof vi.fn> };
   operador: { findUnique: ReturnType<typeof vi.fn> };

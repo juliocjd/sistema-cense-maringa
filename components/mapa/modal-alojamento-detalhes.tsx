@@ -13,6 +13,7 @@ import {
 
 import type { Adolescente, Alojamento, Casa, Conflito } from "@/types";
 import type { ImpactoConflitoExterno } from "@/types/inteligencia";
+import type { RiscoDetalhado as RiscoDetalhadoCalculo } from "@/lib/riscos/calcular";
 
 type TabKey = "ocupacao" | "transferencia" | "interdicao";
 
@@ -22,7 +23,7 @@ type RiscoEnvolvido = {
   local?: string | null;
 };
 
-type RiscoDetalhado = {
+type RiscoDetalhadoResumo = {
   titulo: string;
   descricao: string;
   nivel: "CRITICO" | "ALTO" | "MEDIO" | "BAIXO" | "DEFAULT";
@@ -62,6 +63,7 @@ interface ModalAlojamentoDetalhesProps {
     rotulo: string;
     descricao: string;
     corClass: string;
+    detalhes?: RiscoDetalhadoCalculo[];
     ambiental?: {
       ativo: boolean;
       nivel: number;
@@ -202,14 +204,16 @@ export default function ModalAlojamentoDetalhes({
     return mapa;
   }, [conflitosExternos]);
 
-  const localizarAdolescente = (adolescenteId?: string | null) => {
+  const localizarAdolescente = (
+    adolescenteId?: string | null
+  ): { casa: string | null; numero: string | null; ala: string | null } | null => {
     if (!adolescenteId) return null;
     for (const casa of casas) {
       for (const aloj of casa.alojamentos) {
         if (aloj.adolescentes.some((a) => a.id === adolescenteId)) {
           return {
-            casa: casa.nome,
-            numero: aloj.numeroAlojamento,
+            casa: casa.nome ?? null,
+            numero: aloj.numeroAlojamento ?? null,
             ala: aloj.ala ?? null,
           };
         }
@@ -398,7 +402,7 @@ export default function ModalAlojamentoDetalhes({
   const riscosDetalhados = useMemo(() => {
     if (!ocupante) return [];
 
-    const riscos: RiscoDetalhado[] = [];
+    const riscos: RiscoDetalhadoResumo[] = [];
 
     if (ocupante.alertaRiscoSuicidio) {
       riscos.push({
@@ -834,9 +838,8 @@ export default function ModalAlojamentoDetalhes({
 
                             {/* Agrupar detalhes por nível e renderizar em ordem decrescente */}
                             {[5, 4, 3, 2].map((nivel) => {
-                              const detalhesDoNivel = avaliacaoRisco.detalhes.filter(
-                                (d) => d.nivel === nivel
-                              );
+                              const detalhesDoNivel =
+                                avaliacaoRisco.detalhes?.filter((d) => d.nivel === nivel) ?? [];
 
                               if (detalhesDoNivel.length === 0) return null;
 
@@ -1089,9 +1092,9 @@ export default function ModalAlojamentoDetalhes({
                               : conflito.adolescenteAId);
                           const localAdversario =
                             conflito.adversarioLocal ??
-                            formatarLocalizacao(
-                              localizarAdolescente(adversarioId)
-                            );
+                              formatarLocalizacao(
+                                localizarAdolescente(adversarioId) ?? undefined
+                              );
                           const adversarioNome =
                             conflito.adversario?.nomeCompleto ??
                             buscarAdolescentePorId(adversarioId)?.nomeCompleto ??
@@ -1511,6 +1514,3 @@ export default function ModalAlojamentoDetalhes({
     </div>
   );
 }
-
-
-

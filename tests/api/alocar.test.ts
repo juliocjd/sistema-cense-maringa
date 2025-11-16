@@ -37,7 +37,7 @@ vi.mock("@/lib/prisma", () => {
   };
 });
 
-const mockedAuth = vi.mocked(auth);
+const mockedAuth = auth as unknown as ReturnType<typeof vi.fn>;
 const mockedPrisma = prisma as unknown as {
   alojamento: { findUnique: ReturnType<typeof vi.fn> };
   adolescente: {

@@ -352,12 +352,11 @@ export function ModalAnaliseImpacto({
           });
         });
 
-
-        let avaliacoes: Array<{
+        type AvaliacaoSugestao = {
           alojamento: {
             id: string;
-            numero: string;
-            ala: string;
+            numero: string | number;
+            ala: string | null;
             casa: string;
             casaNumero: number;
           };
@@ -365,7 +364,9 @@ export function ModalAnaliseImpacto({
           categoria: string;
           motivos: string[];
           permiteAlocacao: boolean;
-        }> = [];
+        };
+
+        let avaliacoes: AvaliacaoSugestao[] = [];
 
         if (alojamentosVagos.length > 0) {
           const batchResponse = await fetch("/api/verificar-alocacao/batch", {
@@ -390,7 +391,7 @@ export function ModalAnaliseImpacto({
           );
 
           avaliacoes = resultados
-            .map((resultado: any) => {
+            .map((resultado: any): AvaliacaoSugestao | null => {
               const aloj = mapaAlojamentos.get(resultado.alojamentoId);
               if (!aloj || !resultado?.sucesso || !resultado?.dados) {
                 return null;
@@ -413,9 +414,7 @@ export function ModalAnaliseImpacto({
               };
             })
             .filter(
-              (
-                avaliacao
-              ): avaliacao is NonNullable<typeof avaliacoes[number]> =>
+              (avaliacao: AvaliacaoSugestao | null): avaliacao is AvaliacaoSugestao =>
                 avaliacao !== null
             );
         }

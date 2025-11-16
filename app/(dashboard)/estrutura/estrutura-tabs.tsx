@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import { Building2, BarChart3 } from "lucide-react";
 import Link from "next/link";
 import { VisaoGeralTab } from "./visao-geral-tab";
@@ -38,7 +39,15 @@ export function EstruturaTabsComponent({
       </div>
 
       <div className="min-h-[600px]">
-        <VisaoGeralTab casas={casas} totalAlojamentos={totalAlojamentos} />
+        <Suspense
+          fallback={
+            <div className="flex h-full items-center justify-center text-gray-500">
+              Carregando estrutura...
+            </div>
+          }
+        >
+          <VisaoGeralTab casas={casas} totalAlojamentos={totalAlojamentos} />
+        </Suspense>
       </div>
     </div>
   );

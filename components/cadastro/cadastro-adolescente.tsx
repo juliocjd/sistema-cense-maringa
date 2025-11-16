@@ -822,20 +822,32 @@ export function CadastroAdolescente({
       );
       const historicoPayload: AdolescenteHistoricoRegistroInput[] =
         atoInfracional.historico
-          .map((item) => {
+          .map((item): AdolescenteHistoricoRegistroInput | null => {
             const descricaoSanitizada = sanitize(item.descricao);
             if (!descricaoSanitizada) {
               return null;
             }
 
+            const anoSanitizado = sanitize(item.ano);
+            const anoNumerico =
+              anoSanitizado !== undefined
+                ? Number.parseInt(anoSanitizado, 10)
+                : undefined;
+            const anoValido =
+              anoNumerico !== undefined && !Number.isNaN(anoNumerico)
+                ? anoNumerico
+                : undefined;
+
             return {
               descricao: descricaoSanitizada,
-              ano: sanitize(item.ano) ?? null,
+              ano: anoValido ?? null,
               unidade: sanitize(item.unidade) ?? null,
               observacoes: sanitize(item.observacoes) ?? null,
             };
           })
-          .filter((item): item is AdolescenteHistoricoRegistroInput => item !== null);
+          .filter(
+            (item): item is AdolescenteHistoricoRegistroInput => item !== null
+          );
 
       const adolescente: AdolescenteCadastroPayload = {
         nomeCompleto: dadosPessoais.nomeCompleto.trim(),
@@ -923,7 +935,7 @@ export function CadastroAdolescente({
   const adicionarTatuagem = () => {
     setTatuagens([
       ...tatuagens,
-      { catalogoId: "", localCorpo: "", observacoes: "" },
+      { catalogoId: "", localCorpo: "", observacoes: "", significadoPessoal: "" },
     ]);
   };
 

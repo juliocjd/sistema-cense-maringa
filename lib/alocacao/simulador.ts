@@ -3,7 +3,7 @@ import {
   criarMapaSlots,
   type CasaRisco,
 } from "@/lib/riscos/calcular";
-import type { RiscoDetalhado } from "@/lib/riscos/calcular";
+import type { RiscoDetalhado, NivelRiscoBasico } from "@/lib/riscos/calcular";
 import type { ConflitosExternosMapa } from "@/lib/riscos/calcular";
 import { mapearAdolescenteParaRisco } from "./utils";
 
@@ -46,7 +46,7 @@ const construirAlertas = (
     ambiental.motivos.forEach((mensagem) => {
       alertas.push({
         tipo: "AMBIENTAL",
-        nivel: ambiental.nivel ?? 2,
+        nivel: (ambiental.nivel ?? 2) as NivelRiscoBasico,
         mensagem,
         proximidade: undefined,
       });
@@ -94,7 +94,7 @@ export const simularAlocacao = ({
 
   const statusOriginal = alojamentoAlvo.statusManutencao;
   if (alojamentoAlvo.statusManutencao === "INTERDITADO") {
-    alojamentoAlvo.statusManutencao = "DISPONIVEL";
+    alojamentoAlvo.statusManutencao = "LIVRE";
   }
 
   const mapaSlots = criarMapaSlots(casasClonadas);

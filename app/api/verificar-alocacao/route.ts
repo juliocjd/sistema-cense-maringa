@@ -4,6 +4,7 @@ import {
   type CasaRisco,
   type AdolescenteRisco,
   type ConflitosExternosMapa,
+  type RiscoDetalhado,
 } from "@/lib/riscos/calcular";
 import type { ImpactoConflitoExterno } from "@/types/inteligencia";
 import {

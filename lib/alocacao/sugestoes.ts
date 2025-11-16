@@ -12,10 +12,10 @@ import {
   type ConflitosExternosMapa,
 } from "@/lib/riscos/calcular";
 import type { ImpactoConflitoExterno } from "@/types/inteligencia";
-import type { Adolescente } from "@/types";
+import type { Adolescente, StatusUnidade } from "@/types";
 
-type AdolescenteComConflitos = Awaited<
-  ReturnType<typeof carregarAdolescenteParaSugestoes>
+type AdolescenteComConflitos = NonNullable<
+  Awaited<ReturnType<typeof carregarAdolescenteParaSugestoes>>
 >;
 
 type CasaComAlojamentos = Awaited<
@@ -117,17 +117,108 @@ const normalizarCasaParaCalculo = (
       alojamentoFrontalId:
         aloj.alojamentoFrontalId ?? aloj.alojamentoFrontal?.id ?? null,
       localizacaoPreferencial: aloj.localizacaoPreferencial ?? false,
-      corRisco: aloj.corRisco ?? undefined,
-      nivelRisco: aloj.nivelRisco ?? undefined,
-      icones: aloj.icones ?? [],
-      alertas: aloj.alertas ?? [],
+      corRisco: (aloj as any).corRisco ?? undefined,
+      nivelRisco: (aloj as any).nivelRisco ?? undefined,
+      icones: (aloj as any).icones ?? [],
+      alertas: (aloj as any).alertas ?? [],
       adolescentes:
         aloj.id === alvoAlojamentoId
-          ? [candidato]
-          : (aloj.adolescentes as Adolescente[]),
+          ? [preencherAdolescenteBasico(candidato)]
+          : aloj.adolescentes.map((ado) => preencherAdolescenteBasico(ado)),
     })
   ),
 });
+
+const toOptionalString = (valor: string | Date | null | undefined) => {
+  if (valor === null || valor === undefined) return undefined;
+  if (valor instanceof Date) return valor.toISOString();
+  return valor;
+};
+
+const toNullableString = (valor: string | Date | null | undefined) => {
+  if (valor === null || valor === undefined) return null;
+  if (valor instanceof Date) return valor.toISOString();
+  return valor;
+};
+
+const preencherAdolescenteBasico = (
+  adolescente:
+    | CasaComAlojamentos["alojamentos"][number]["adolescentes"][number]
+    | AdolescenteComConflitos
+): Adolescente => {
+  if (!adolescente) {
+    throw new Error("Adolescente invalido para sugestoes de alocacao");
+  }
+
+  const base = adolescente as unknown as Partial<Adolescente> & {
+    dataNascimento?: string | Date | null;
+    dataEntrada?: string | Date | null;
+    dataDesinternacao?: string | Date | null;
+    criadoEm?: string | Date | null;
+    atualizadoEm?: string | Date | null;
+    faccao?: {
+      id: string;
+      nomeFaccao?: string | null;
+      nome?: string | null;
+      numeroMembro?: string | null;
+    } | null;
+    bairroOrigem?: {
+      id: string;
+      nomeBairro: string;
+      nome?: string | null;
+      cidade: string;
+    } | null;
+  };
+
+  const faccaoInfo = base.faccao
+    ? {
+        id: base.faccao.id,
+        nome: base.faccao.nomeFaccao ?? base.faccao.nome ?? "",
+        numeroMembro: base.faccao.numeroMembro ?? null,
+      }
+    : null;
+
+  const bairroInfo = base.bairroOrigem
+    ? {
+        id: base.bairroOrigem.id,
+        nome: base.bairroOrigem.nomeBairro ?? base.bairroOrigem.nome ?? "",
+        cidade: base.bairroOrigem.cidade,
+      }
+    : null;
+
+  return {
+    ...adolescente,
+    statusUnidade: (base.statusUnidade ?? "ATIVO") as StatusUnidade,
+    nomeSocial: base.nomeSocial ?? null,
+    fotoUrl: base.fotoUrl ?? null,
+    numeroSms: base.numeroSms ?? null,
+    dataNascimento: toOptionalString(base.dataNascimento),
+    dataEntrada: toOptionalString(base.dataEntrada),
+    alojamentoAtualId: base.alojamentoAtualId ?? null,
+    faseInternacaoAtualId: base.faseInternacaoAtualId ?? null,
+    tecnicoReferenciaId: base.tecnicoReferenciaId ?? null,
+    tecnicoReferencia: base.tecnicoReferencia ?? null,
+    dataDesinternacao: toNullableString(base.dataDesinternacao),
+    faccaoGrupoId: base.faccaoGrupoId ?? faccaoInfo?.id ?? null,
+    faccaoNumeroMembro: base.faccaoNumeroMembro ?? null,
+    faccao: faccaoInfo,
+    bairroOrigemId: base.bairroOrigemId ?? bairroInfo?.id ?? null,
+    bairroOrigem: bairroInfo,
+    riscoFuga: base.riscoFuga ?? null,
+    grupos: (base as any).grupos ?? [],
+    tatuagens: (base as any).tatuagens ?? [],
+    conflitosA: (base as any).conflitosA ?? [],
+    conflitosB: (base as any).conflitosB ?? [],
+    conflitosResolvidos: (base as any).conflitosResolvidos ?? [],
+    historicoInfracional: (base as any).historicoInfracional ?? [],
+    alertaRiscoSuicidio: base.alertaRiscoSuicidio ?? false,
+    alertaPerfilMapeado: base.alertaPerfilMapeado ?? false,
+    alertaSaudeConfidencial: base.alertaSaudeConfidencial ?? false,
+    alertaSaudeDetalhes: base.alertaSaudeDetalhes ?? null,
+    criadoEm: toOptionalString(base.criadoEm),
+    atualizadoEm: toOptionalString(base.atualizadoEm),
+  };
+};
 
 const criarCandidatoFallback = (
   adolescenteId: string | null | undefined,
@@ -139,13 +230,37 @@ const criarCandidatoFallback = (
     id: adolescenteId ?? "adolescente-temp",
     nomeCompleto: nomeFallback,
     statusUnidade: "ATIVO",
+    nomeSocial: null,
+    fotoUrl: null,
+    numeroSms: null,
+    dataNascimento: null,
+    dataEntrada: null,
+    numeroProcesso: null,
+    atoInfracionalAtual: null,
+    atoInfracionalAno: null,
+    atoInfracionalProcesso: null,
+    atoInfracionalGravidade: false,
+    atoInfracionalGravidadeObs: null,
     bairroOrigemId: bairroId,
     faccaoGrupoId: faccaoId,
-    bairroOrigem: null,
+    alojamentoAtualId: null,
+    faseInternacaoAtualId: null,
     faccao: null,
+    bairroOrigem: null,
+    riscoFuga: null,
+    grupos: [],
+    tatuagens: [],
+    alertaRiscoSuicidio: false,
+    alertaPerfilMapeado: false,
+    alertaSaudeConfidencial: false,
+    alertaSaudeDetalhes: null,
     conflitosA: [],
     conflitosB: [],
-  } as AdolescenteComConflitos);
+    conflitosResolvidos: [],
+    historicoInfracional: [],
+    criadoEm: new Date().toISOString(),
+    atualizadoEm: new Date().toISOString(),
+  } as unknown as AdolescenteComConflitos);
 
 const construirImpactosExternos = (
   adolescente: AdolescenteComConflitos,
@@ -296,7 +411,7 @@ export async function gerarSugestoesParaAlocacao({
   faccaoId,
   limite = 3,
 }: SugestaoParams) {
-  let adolescente = adolescenteId
+  let adolescente: AdolescenteComConflitos | null = adolescenteId
     ? await carregarAdolescenteParaSugestoes(adolescenteId)
     : null;
 
@@ -322,6 +437,10 @@ export async function gerarSugestoesParaAlocacao({
       bairroParaAnalise,
       faccaoParaAnalise
     );
+  }
+
+  if (!adolescente) {
+    throw new Error("Nao foi possivel determinar dados do adolescente");
   }
 
   const casas = await carregarCasasComAlojamentos();
@@ -355,12 +474,12 @@ export async function gerarSugestoesParaAlocacao({
         return;
       }
 
-      const avaliacao = avaliarCandidato(
-        casa,
-        alojamento,
-        adolescente as AdolescenteComConflitos,
-        conflitosExternos
-      );
+        const avaliacao = avaliarCandidato(
+          casa,
+          alojamento,
+          adolescente,
+          conflitosExternos
+        );
 
       candidatos.push(avaliacao);
     });

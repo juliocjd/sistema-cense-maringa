@@ -133,7 +133,7 @@ export default function FormConflito({
               {opcoes.map((item) => (
                 <option key={item.id} value={item.id}>
                   {tipo === "BAIRRO"
-                    ? `${item.nome} — ${item.cidade}`
+                    ? `${item.nome} — ${"cidade" in item ? item.cidade : ""}`
                     : item.nome}
                 </option>
               ))}
@@ -152,7 +152,7 @@ export default function FormConflito({
               {opcoes.map((item) => (
                 <option key={item.id} value={item.id}>
                   {tipo === "BAIRRO"
-                    ? `${item.nome} — ${item.cidade}`
+                    ? `${item.nome} — ${"cidade" in item ? item.cidade : ""}`
                     : item.nome}
                 </option>
               ))}
