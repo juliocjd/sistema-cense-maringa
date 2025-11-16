@@ -62,7 +62,7 @@ describe("GET /api/analytics/alertas", () => {
     mockedPrisma.alertaAtivo.findMany.mockResolvedValue([
       {
         id: "alerta-1",
-        tipoAlerta: "Risco Suicidio",
+        tipoAlerta: "Risco Suicídio",
         nivelRisco: "CRITICO",
         descricaoAlerta: "Monitoramento constante",
         criadoEm: new Date("2025-11-05T10:00:00Z"),
@@ -106,13 +106,13 @@ describe("GET /api/analytics/alertas", () => {
     expect(json.resumo.encerradosUltimos30Dias).toBe(2);
     expect(json.porTipo).toHaveLength(2);
     expect(json.porTipo[0]).toMatchObject({
-      tipo: "Risco Suicidio",
+      tipo: "Risco Suicídio",
       ativos: 3,
       percentual: 50,
     });
     expect(json.alertasRecentes[0]).toMatchObject({
       id: "alerta-1",
-      tipo: "Risco Suicidio",
+      tipo: "Risco Suicídio",
       nivel: "CRITICO",
       diasAtivo: 1,
       adolescente: {
