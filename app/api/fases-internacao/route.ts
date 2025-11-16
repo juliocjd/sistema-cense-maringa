@@ -8,13 +8,13 @@ export async function GET(request: NextRequest) {
   try {
     const fases = await prisma.faseInternacao.findMany({
       orderBy: {
-        ordemFase: "asc",
+        ordem: "asc",
       },
       select: {
         id: true,
         nomeFase: true,
-        ordemFase: true,
-        descricao: true,
+        ordem: true,
+        descricaoFase: true,
       },
     });
 
