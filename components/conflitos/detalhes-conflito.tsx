@@ -19,7 +19,7 @@ type Participante = {
   id: string;
   nome: string;
   numeroSms: string;
-  alojamento?: string;
+  alojamento?: string | null;
 };
 
 type Conflito = {
@@ -28,13 +28,13 @@ type Conflito = {
     id: string;
     nome: string;
     numeroSms: string;
-    alojamento?: string;
+    alojamento?: string | null;
   };
   adolescenteB: {
     id: string;
     nome: string;
     numeroSms: string;
-    alojamento?: string;
+    alojamento?: string | null;
   };
   tipoConflito: string;
   status: "ATIVO" | "RESOLVIDO";
