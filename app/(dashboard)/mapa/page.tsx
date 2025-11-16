@@ -74,9 +74,23 @@ export default function MapaPage() {
           conflitosA: (a.conflitosA || []) as Conflito[],
           conflitosB: (a.conflitosB || []) as Conflito[],
           riscoFuga: a.riscoFuga ?? null,
+          tecnicoReferenciaId: a.tecnicoReferenciaId ?? null,
+          tecnicoReferencia: a.tecnicoReferencia
+            ? {
+                id: a.tecnicoReferencia.id,
+                nome: a.tecnicoReferencia.nome,
+                atividade: a.tecnicoReferencia.atividade ?? null,
+                email: a.tecnicoReferencia.email,
+                telefone: a.tecnicoReferencia.telefone ?? null,
+              }
+            : null,
           atoInfracionalGravidade: Boolean(a.atoInfracionalGravidade ?? false),
           grupos: a.grupos ?? [],
           tatuagens: a.tatuagens ?? [],
+          historicoInfracional: a.historicoInfracional ?? [],
+          conflitosResolvidos: a.conflitosResolvidos ?? [],
+          faseInternacaoAtualId: a.faseInternacaoAtualId ?? null,
+          dataDesinternacao: a.dataDesinternacao ?? null,
         })
       );
 
@@ -124,6 +138,7 @@ export default function MapaPage() {
                     ocupanteBruto.alerta_perfil_mapeado ?? false,
                   alertaSaudeConfidencial:
                     ocupanteBruto.alerta_saude_confidencial ?? false,
+                  alertaSaudeDetalhes: ocupanteBruto.alerta_saude_detalhes ?? null,
                   bairroOrigemId: ocupanteBruto.bairro_origem_id ?? null,
                   bairroOrigem: ocupanteBruto.bairro_origem
                     ? {
@@ -145,9 +160,24 @@ export default function MapaPage() {
                     : null,
                   conflitosA: (ocupanteBruto.conflitosA ?? []) as Conflito[],
                   conflitosB: (ocupanteBruto.conflitosB ?? []) as Conflito[],
+                  conflitosResolvidos: (ocupanteBruto.conflitosResolvidos ?? []) as Conflito[],
                   atoInfracionalGravidade: Boolean(ocupanteBruto.ato_infracional_gravidade ?? false),
+                  tecnicoReferenciaId: ocupanteBruto.tecnico_referencia_id ?? null,
+                  tecnicoReferencia: ocupanteBruto.tecnicoReferencia
+                    ? {
+                        id: ocupanteBruto.tecnicoReferencia.id,
+                        nome: ocupanteBruto.tecnicoReferencia.nome,
+                        atividade: ocupanteBruto.tecnicoReferencia.atividade ?? null,
+                        email: ocupanteBruto.tecnicoReferencia.email,
+                        telefone: ocupanteBruto.tecnicoReferencia.telefone ?? null,
+                      }
+                    : null,
                   grupos: [],
                   tatuagens: [],
+                  historicoInfracional: ocupanteBruto.historicoInfracional ?? [],
+                  riscoFuga: ocupanteBruto.risco_fuga ?? null,
+                  faseInternacaoAtualId: ocupanteBruto.fase_internacao_atual_id ?? null,
+                  dataDesinternacao: ocupanteBruto.data_desinternacao ?? null,
                 } satisfies Adolescente)
               : null;
 
