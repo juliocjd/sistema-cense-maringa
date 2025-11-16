@@ -111,7 +111,8 @@ export async function GET(request: NextRequest) {
       alojamentosInterditados,
       gruposAtivos,
       conflitosPorTipo: conflitosPorTipo.reduce((acc, item) => {
-        acc[item.tipoConflito] = item._count;
+        const chave = item.tipoConflito ?? "NAO_CLASSIFICADO";
+        acc[chave] = item._count;
         return acc;
       }, {} as Record<string, number>),
     });
