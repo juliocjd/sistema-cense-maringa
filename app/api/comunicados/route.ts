@@ -38,12 +38,6 @@ export async function GET(request: NextRequest) {
       prisma.comunicadoInterno.findMany({
         where,
         include: {
-          operador: {
-            select: {
-              id: true,
-              nome: true,
-            },
-          },
           adolescentes: {
             include: {
               adolescente: {
@@ -75,6 +69,26 @@ export async function GET(request: NextRequest) {
       prisma.comunicadoInterno.count({ where }),
     ]);
 
+    const operadorIds = [
+      ...new Set(
+        comunicados
+          .map((ci) => ci.operadorId)
+          .filter((id): id is string => Boolean(id))
+      ),
+    ];
+
+    const operadoresMap =
+      operadorIds.length > 0
+        ? new Map(
+            (
+              await prisma.operador.findMany({
+                where: { id: { in: operadorIds } },
+                select: { id: true, nome: true },
+              })
+            ).map((operador) => [operador.id, operador])
+          )
+        : new Map<string, { id: string; nome: string }>();
+
     // Formatar resposta
     const comunicadosFormatados = comunicados.map((ci) => ({
       id: ci.id,
@@ -84,10 +98,10 @@ export async function GET(request: NextRequest) {
       tipoCi: ci.tipoCI,
       resumoCi: ci.resumoCI,
       caminhoPdf: ci.caminhoPdf,
-      operador: ci.operador
-        ? {
-            id: ci.operador.id,
-            nome: ci.operador.nome,
+      operador: ci.operadorId
+        ? operadoresMap.get(ci.operadorId) ?? {
+            id: ci.operadorId,
+            nome: "Operador nao identificado",
           }
         : null,
       adolescentes: ci.adolescentes.map((link) => ({
