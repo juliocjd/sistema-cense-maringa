@@ -367,6 +367,81 @@ export default function MapaPage() {
     }
   };
 
+  const handleDesinternar = async (adolescenteId: string): Promise<void> => {
+    const response = await fetch(`/api/adolescentes/${adolescenteId}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        statusUnidade: "LIBERADO",
+        alojamentoAtualId: null,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.erro || "Erro ao desinternar adolescente");
+    }
+
+    await response.json();
+    await carregarDados();
+  };
+
+  const handleTransferir = async (
+    adolescente: Adolescente,
+    destinoAlojamentoId: string,
+    justificativa?: string
+  ): Promise<void> => {
+    const response = await fetch("/api/alocar", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        adolescenteId: adolescente.id,
+        alojamentoId: destinoAlojamentoId,
+        justificativa,
+        medidas_adicionais: [],
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.erro || "Erro ao transferir adolescente");
+    }
+
+    await response.json();
+    await carregarDados();
+  };
+
+  const handleAlterarStatusAlojamento = async (
+    alojamentoId: string,
+    status: "LIVRE" | "INTERDITADO",
+    justificativa: string,
+    numeroCi: string
+  ): Promise<void> => {
+    const response = await fetch(`/api/alojamentos?id=${alojamentoId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        statusManutencao: status,
+        justificativa,
+        numeroCi,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.erro || "Erro ao atualizar alojamento");
+    }
+
+    await response.json();
+    await carregarDados();
+  };
+
   // Loading state
   if (loading) {
     return (
@@ -442,6 +517,9 @@ export default function MapaPage() {
         conflitosExternos={conflitosExternos}
         onAlocar={handleAlocar}
         onDesalocar={handleDesalocar}
+        onDesinternar={handleDesinternar}
+        onTransferir={handleTransferir}
+        onAlterarStatusAlojamento={handleAlterarStatusAlojamento}
       />
     </div>
   );
