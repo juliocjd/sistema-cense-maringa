@@ -83,9 +83,12 @@ export async function GET(request: NextRequest) {
             (
               await prisma.operador.findMany({
                 where: { id: { in: operadorIds } },
-                select: { id: true, nome: true },
+                select: { id: true, nomeCompleto: true },
               })
-            ).map((operador) => [operador.id, operador])
+            ).map((operador) => [
+              operador.id,
+              { id: operador.id, nome: operador.nomeCompleto },
+            ])
           )
         : new Map<string, { id: string; nome: string }>();
 
