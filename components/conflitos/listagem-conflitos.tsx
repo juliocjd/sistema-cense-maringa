@@ -28,7 +28,7 @@ type Conflito = {
   registroGrupoId: string;
   participantes: Participante[];
   tipoConflito: string;
-  status: "ATIVO" | "RESOLVIDO" | string;
+  status: "ATIVO" | "RESOLVIDO";
   origem: string;
   descricao?: string;
   criadoEm: string;
