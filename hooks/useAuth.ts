@@ -4,6 +4,8 @@
 "use client";
 
 import { useSession, signOut } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import { useCallback } from "react";
 
 export interface User {
   id: string;
@@ -14,11 +16,13 @@ export interface User {
 }
 
 export function useAuth() {
+  const router = useRouter();
   const { data: session, status } = useSession();
 
-  const logout = async () => {
-    await signOut({ callbackUrl: "/login" });
-  };
+  const logout = useCallback(async () => {
+    await signOut({ redirect: false });
+    router.replace("/login");
+  }, [router]);
 
   return {
     user: session?.user as User | null,
