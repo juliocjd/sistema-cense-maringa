@@ -48,6 +48,7 @@ const updateAdolescenteSchema = z.object({
   alojamentoAtualId: z.string().uuid().optional().nullable(),
   faseInternacaoAtualId: z.string().uuid().optional().nullable(),
   historicoInfracional: historicoRegistroSchema,
+  tecnicoReferenciaId: z.string().uuid().optional().nullable(),
 });
 
 const sanitizeNullableString = (value: string | null | undefined) => {
@@ -564,6 +565,13 @@ export async function PUT(
         ? { connect: { id: validated.faseInternacaoAtualId } }
         : { disconnect: true };
       camposAlterados.push("faseInternacaoAtualId");
+    }
+
+    if (validated.tecnicoReferenciaId !== undefined) {
+      data.tecnicoReferencia = validated.tecnicoReferenciaId
+        ? { connect: { id: validated.tecnicoReferenciaId } }
+        : { disconnect: true };
+      camposAlterados.push("tecnicoReferenciaId");
     }
 
     if (validated.dataNascimento !== undefined) {

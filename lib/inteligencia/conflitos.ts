@@ -162,6 +162,7 @@ export async function calcularImpactosExternos(
       ? prisma.adolescente.findMany({
           where: {
             bairroOrigemId: { in: Array.from(bairrosSet) },
+            statusUnidade: "ATIVO",
           },
           select: {
             id: true,
@@ -188,6 +189,7 @@ export async function calcularImpactosExternos(
       ? prisma.adolescente.findMany({
           where: {
             faccaoGrupoId: { in: Array.from(faccoesSet) },
+            statusUnidade: "ATIVO",
           },
           select: {
             id: true,

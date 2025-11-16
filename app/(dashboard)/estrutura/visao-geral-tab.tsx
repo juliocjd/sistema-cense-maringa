@@ -757,7 +757,16 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
           </div>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="relative">
+          {loading && casas.length > 0 && (
+            <div className="absolute inset-0 z-10 flex items-start justify-center pt-8 bg-white/70 backdrop-blur-sm rounded-xl border border-indigo-100 shadow-inner">
+              <div className="flex items-center gap-3 text-indigo-700 font-semibold bg-white/90 px-4 py-2 rounded-full shadow">
+                <Loader2 className="animate-spin" size={20} />
+                <span>Sincronizando dados com o servidor...</span>
+              </div>
+            </div>
+          )}
+        <div className={`space-y-4 ${loading ? "opacity-40 pointer-events-none" : ""}`}>
           <div className="flex items-center justify-between mb-4">
             <div className="flex-1">
               <h2 className="text-xl font-bold text-gray-800">
@@ -1057,6 +1066,7 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
               </div>
             ))}
           </div>
+        </div>
         </div>
       )}
 

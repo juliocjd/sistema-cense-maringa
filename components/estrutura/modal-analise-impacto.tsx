@@ -167,34 +167,60 @@ export function ModalAnaliseImpacto({
 
         // 5. Se risco atual >= 3 (ATENÇÃO), avaliar opções de realocação
         let sugestoes: any[] = [];
-        if (riscoAtual.nivel_numerico >= 3) {
-          const avaliacoes = await Promise.all(
-            alojamentosVagos.map(async (aloj) => {
-              const response = await fetch(
-                `/api/verificar-alocacao?adolescenteId=${adolescenteId}&alojamentoId=${aloj.id}`,
-                { method: "GET" }
-              );
+          if (riscoAtual.nivel_numerico >= 3) {
+            const batchResponse = await fetch(
+              "/api/verificar-alocacao/batch",
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  adolescenteId,
+                  alojamentoIds: alojamentosVagos.map((aloj) => aloj.id),
+                }),
+              }
+            );
 
-              if (!response.ok) {
+            if (!batchResponse.ok) {
+              const erroBatch = await batchResponse.json().catch(() => null);
+              throw new Error(
+                erroBatch?.erro ||
+                  "Erro ao avaliar alojamentos para realocação"
+              );
+            }
+
+            const batchData = await batchResponse.json();
+
+            const resultadosBatch: Array<{
+              alojamentoId: string;
+              sucesso: boolean;
+              erro?: string;
+              dados?: any;
+            }> = Array.isArray(batchData?.resultados)
+              ? batchData.resultados
+              : [];
+
+            const avaliacoes = resultadosBatch.map((item) => {
+              const aloj = alojamentosVagos.find((a) => a.id === item.alojamentoId);
+              if (!item.sucesso || !item.dados || !aloj) {
                 return null;
               }
 
-              const resultado = await response.json();
               return {
                 alojamento: {
                   id: aloj.id,
                   numero: aloj.numero || aloj.numeroAlojamento,
                   ala: aloj.ala,
-                  casa: aloj.casa.nome || `Casa ${String(aloj.casa.numero).padStart(2, '0')}`,
+                  casa:
+                    aloj.casa.nome ||
+                    `Casa ${String(aloj.casa.numero).padStart(2, "0")}`,
                   casaNumero: aloj.casa.numero,
                 },
-                nivelRisco: resultado.nivel_numerico ?? 3,
-                categoria: resultado.nivel_risco ?? "DESCONHECIDO",
-                motivos: resultado.motivos ?? [],
-                permiteAlocacao: resultado.permite_alocacao ?? false,
+                nivelRisco: item.dados.nivel_numerico ?? 3,
+                categoria: item.dados.nivel_risco ?? "DESCONHECIDO",
+                motivos: item.dados.motivos ?? [],
+                permiteAlocacao: item.dados.permite_alocacao ?? false,
               };
-            })
-          );
+            });
 
           // Filtrar sugestões válidas que melhoram o risco atual
           let sugestoesValidas = avaliacoes.filter(
@@ -327,36 +353,72 @@ export function ModalAnaliseImpacto({
         });
 
 
-        // Avaliar cada alojamento vago
-        const avaliacoes = await Promise.all(
-          alojamentosVagos.map(async (aloj) => {
-            const response = await fetch(
-              `/api/verificar-alocacao?adolescenteId=${adolescenteId}&alojamentoId=${aloj.id}`,
-              { method: "GET" }
+        let avaliacoes: Array<{
+          alojamento: {
+            id: string;
+            numero: string;
+            ala: string;
+            casa: string;
+            casaNumero: number;
+          };
+          nivelRisco: number;
+          categoria: string;
+          motivos: string[];
+          permiteAlocacao: boolean;
+        }> = [];
+
+        if (alojamentosVagos.length > 0) {
+          const batchResponse = await fetch("/api/verificar-alocacao/batch", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              adolescenteId,
+              alojamentoIds: alojamentosVagos.map((aloj) => aloj.id),
+            }),
+          });
+
+          if (!batchResponse.ok) {
+            throw new Error("Erro ao avaliar alojamentos vagos");
+          }
+
+          const batchData = await batchResponse.json();
+          const resultados = Array.isArray(batchData.resultados)
+            ? batchData.resultados
+            : [];
+          const mapaAlojamentos = new Map(
+            alojamentosVagos.map((aloj) => [aloj.id, aloj])
+          );
+
+          avaliacoes = resultados
+            .map((resultado: any) => {
+              const aloj = mapaAlojamentos.get(resultado.alojamentoId);
+              if (!aloj || !resultado?.sucesso || !resultado?.dados) {
+                return null;
+              }
+
+              return {
+                alojamento: {
+                  id: aloj.id,
+                  numero: aloj.numero || aloj.numeroAlojamento,
+                  ala: aloj.ala,
+                  casa:
+                    aloj.casa.nome ||
+                    `Casa ${String(aloj.casa.numero).padStart(2, "0")}`,
+                  casaNumero: aloj.casa.numero,
+                },
+                nivelRisco: resultado.dados.nivel_numerico ?? 3,
+                categoria: resultado.dados.nivel_risco ?? "DESCONHECIDO",
+                motivos: resultado.dados.motivos ?? [],
+                permiteAlocacao: resultado.dados.permite_alocacao ?? false,
+              };
+            })
+            .filter(
+              (
+                avaliacao
+              ): avaliacao is NonNullable<typeof avaliacoes[number]> =>
+                avaliacao !== null
             );
-
-            if (!response.ok) {
-              return null;
-            }
-
-            const resultado = await response.json();
-            const avaliacao = {
-              alojamento: {
-                id: aloj.id,
-                numero: aloj.numero || aloj.numeroAlojamento,
-                ala: aloj.ala,
-                casa: aloj.casa.nome || `Casa ${String(aloj.casa.numero).padStart(2, '0')}`,
-                casaNumero: aloj.casa.numero,
-              },
-              nivelRisco: resultado.nivel_numerico ?? 3,
-              categoria: resultado.nivel_risco ?? "DESCONHECIDO",
-              motivos: resultado.motivos ?? [],
-              permiteAlocacao: resultado.permite_alocacao ?? false,
-            };
-
-            return avaliacao;
-          })
-        );
+        }
 
         // Filtrar sugestões por tipo de internação
         let sugestoesValidas = avaliacoes.filter(

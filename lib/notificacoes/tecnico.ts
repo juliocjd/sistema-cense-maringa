@@ -1,6 +1,6 @@
 import nodemailer from "nodemailer";
 
-interface AgenteContato {
+interface TecnicoContato {
   nome: string;
   email: string;
 }
@@ -10,12 +10,12 @@ interface NotificacaoConflitoPayload {
   adolescente: {
     id: string;
     nomeCompleto: string;
-    agente?: AgenteContato | null;
+    tecnico?: TecnicoContato | null;
   };
   adversario: {
     id: string;
     nomeCompleto: string;
-    agente?: AgenteContato | null;
+    tecnico?: TecnicoContato | null;
   };
   mensagem: string;
   nivelConflito?: string;
@@ -46,14 +46,14 @@ const montarCorpo = (payload: NotificacaoConflitoPayload) => {
     `Contexto: ${payload.contexto}`,
     "Adolescente:",
     `  - ${payload.adolescente.nomeCompleto} (id: ${payload.adolescente.id})`,
-    payload.adolescente.agente
-      ? `  - Atendente: ${payload.adolescente.agente.nome} <${payload.adolescente.agente.email}>`
-      : "  - Atendente: nao cadastrado",
+    payload.adolescente.tecnico
+      ? `  - Tecnico: ${payload.adolescente.tecnico.nome} <${payload.adolescente.tecnico.email}>`
+      : "  - Tecnico: nao cadastrado",
     "Adversario:",
     `  - ${payload.adversario.nomeCompleto} (id: ${payload.adversario.id})`,
-    payload.adversario.agente
-      ? `  - Atendente: ${payload.adversario.agente.nome} <${payload.adversario.agente.email}>`
-      : "  - Atendente: nao cadastrado",
+    payload.adversario.tecnico
+      ? `  - Tecnico: ${payload.adversario.tecnico.nome} <${payload.adversario.tecnico.email}>`
+      : "  - Tecnico: nao cadastrado",
     "",
     `Nivel de risco: ${payload.nivelConflito ?? "ATIVO"}`,
     payload.link
@@ -63,12 +63,12 @@ const montarCorpo = (payload: NotificacaoConflitoPayload) => {
   ].join("\n");
 };
 
-export async function notificarAgentesSobreConflito(
+export async function notificarTecnicosSobreConflito(
   payload: NotificacaoConflitoPayload
 ) {
   const destinatarios = [
-    payload.adolescente.agente?.email,
-    payload.adversario.agente?.email,
+    payload.adolescente.tecnico?.email,
+    payload.adversario.tecnico?.email,
   ]
     .filter(Boolean)
     .filter((value, index, array) => array.indexOf(value) === index) as string[];

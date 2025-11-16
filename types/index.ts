@@ -114,8 +114,8 @@ export interface Adolescente {
   faseInternacaoAtualId?: string | null;
   alojamentoAtual?: AdolescenteAlojamentoResumo | null;
   dataDesinternacao?: string | null;
-  agenteReferenciaId?: string | null;
-  agenteReferencia?: {
+  tecnicoReferenciaId?: string | null;
+  tecnicoReferencia?: {
     id: string;
     nome: string;
     atividade?: string | null;
@@ -161,7 +161,7 @@ export type AdolescenteCadastroPayload = Partial<
   Omit<
     Adolescente,
     | "alojamentoAtual"
-    | "agenteReferencia"
+    | "tecnicoReferencia"
     | "grupos"
     | "tatuagens"
     | "conflitosA"
@@ -244,7 +244,7 @@ export interface Operador {
   status: string;
 }
 
-export interface AgenteProfissional {
+export interface TecnicoReferencia {
   id: string;
   nome: string;
   atividade?: string | null;

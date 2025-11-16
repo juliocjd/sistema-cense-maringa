@@ -79,6 +79,11 @@ export function Sidebar() {
             icon: BarChart3,
           },
           { label: "Grupos de Atividade", href: "/grupos", icon: UserCircle },
+          {
+            label: "Técnicos de Referência",
+            href: "/tecnicos",
+            icon: User,
+          },
           { label: "Tatuagens", href: "/tatuagens", icon: Shield },
           { label: "Comunicados Internos", href: "/comunicados", icon: FileText },
           { label: "Eventos Especiais", href: "/eventos", icon: Calendar },

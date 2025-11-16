@@ -34,7 +34,7 @@ model Operador {
   @@map("operadores")
 }
 
-model AgenteProfissional {
+model TecnicoReferencia {
   id          String    @id @default(uuid())
   nome        String
   atividade   String?
@@ -43,7 +43,7 @@ model AgenteProfissional {
   criadoEm    DateTime  @default(now()) @map("criado_em")
   atualizadoEm DateTime @updatedAt @map("atualizado_em")
 
-  adolescentesReferencia Adolescente[] @relation("AgenteReferencia")
+  adolescentesReferencia Adolescente[] @relation("TecnicoReferencia")
 
   @@map("agentes_profissionais")
 }
@@ -244,8 +244,8 @@ model Adolescente {
   // Alocação Atual
   alojamentoAtualId         String?   @map("alojamento_atual_id")
   faseInternacaoAtualId     String?   @map("fase_internacao_atual_id")
-  agenteReferenciaId        String?   @map("agente_referencia_id")
-  agenteReferencia          AgenteProfissional? @relation("AgenteReferencia", fields: [agenteReferenciaId], references: [id])
+  tecnicoReferenciaId       String?   @map("agente_referencia_id")
+  tecnicoReferencia         TecnicoReferencia? @relation("TecnicoReferencia", fields: [tecnicoReferenciaId], references: [id])
   dataDesinternacao         DateTime? @map("data_desinternacao")
   
   criadoEm                  DateTime  @default(now()) @map("criado_em")

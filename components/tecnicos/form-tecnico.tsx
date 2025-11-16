@@ -1,12 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
-interface FormProps {
-  onSucesso?: () => void;
-}
-
-export default function FormAgente({ onSucesso }: FormProps) {
+export default function FormTecnico() {
+  const router = useRouter();
   const [nome, setNome] = useState("");
   const [atividade, setAtividade] = useState("");
   const [email, setEmail] = useState("");
@@ -15,8 +13,7 @@ export default function FormAgente({ onSucesso }: FormProps) {
   const [loading, setLoading] = useState(false);
   const [sucesso, setSucesso] = useState(false);
 
-  const podeEnviar =
-    nome.trim().length >= 3 && email.trim().length > 0;
+  const podeEnviar = nome.trim().length >= 3 && email.trim().length > 0;
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -26,7 +23,7 @@ export default function FormAgente({ onSucesso }: FormProps) {
     setSucesso(false);
 
     try {
-      const response = await fetch("/api/agentes", {
+      const response = await fetch("/api/tecnicos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -40,7 +37,7 @@ export default function FormAgente({ onSucesso }: FormProps) {
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
         throw new Error(
-          payload?.erro || "Não foi possível criar o agente"
+          payload?.erro || "Nao foi possivel criar o tecnico"
         );
       }
 
@@ -49,7 +46,7 @@ export default function FormAgente({ onSucesso }: FormProps) {
       setEmail("");
       setTelefone("");
       setSucesso(true);
-      onSucesso?.();
+      router.refresh();
     } catch (error) {
       setErro((error as Error).message);
     } finally {
@@ -64,10 +61,10 @@ export default function FormAgente({ onSucesso }: FormProps) {
     >
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold text-slate-900">
-          Cadastrar novo agente
+          Cadastrar novo tecnico de referencia
         </h3>
         <span className="text-xs text-slate-500">
-          Obrigatório: nome + e-mail
+          Obrigatorio: nome + e-mail
         </span>
       </div>
       <div className="grid gap-3 md:grid-cols-2">
@@ -104,7 +101,7 @@ export default function FormAgente({ onSucesso }: FormProps) {
       )}
       {sucesso && (
         <p className="text-sm text-emerald-600">
-          Agente cadastrado com sucesso.
+          Tecnico cadastrado com sucesso.
         </p>
       )}
       <button
@@ -116,7 +113,7 @@ export default function FormAgente({ onSucesso }: FormProps) {
             : "bg-slate-200 text-slate-500 cursor-not-allowed"
         }`}
       >
-        {loading ? "Salvando..." : "Cadastrar agente"}
+        {loading ? "Salvando..." : "Cadastrar tecnico"}
       </button>
     </form>
   );

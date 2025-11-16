@@ -5,7 +5,7 @@ import {
   montarMapaBairrosConflitantes,
   montarMapaFaccoesConflitantes,
 } from "@/lib/conflitos";
-import { notificarAgentesSobreConflito } from "@/lib/notificacoes/agente";
+import { notificarTecnicosSobreConflito } from "@/lib/notificacoes/tecnico";
 
 type AlertItem = {
   tipo: string;
@@ -109,7 +109,7 @@ export async function POST(
                 },
                 bairroOrigem: true,
                 faccao: true,
-                agenteReferencia: true,
+                tecnicoReferencia: true,
               },
             },
           },
@@ -135,7 +135,7 @@ export async function POST(
                 alojamentoAtual: true,
                 bairroOrigem: true,
                 faccao: true,
-                agenteReferencia: true,
+                tecnicoReferencia: true,
               },
             },
           },
@@ -148,14 +148,14 @@ export async function POST(
                 alojamentoAtual: true,
                 bairroOrigem: true,
                 faccao: true,
-                agenteReferencia: true,
+                tecnicoReferencia: true,
               },
             },
           },
         },
         bairroOrigem: true,
         faccao: true,
-        agenteReferencia: true,
+        tecnicoReferencia: true,
         gruposMembros: {
           where: { dataSaida: null },
           include: {
@@ -268,25 +268,25 @@ export async function POST(
       });
       nivelRiscoMaximo = Math.max(nivelRiscoMaximo, nivelPadrao);
       requerJustificativa = true;
-      void notificarAgentesSobreConflito({
+      void notificarTecnicosSobreConflito({
         contexto: "GRUPO",
         adolescente: {
           id: adolescente.id,
           nomeCompleto: adolescente.nomeCompleto,
-          agente: adolescente.agenteReferencia
+          tecnico: adolescente.tecnicoReferencia
             ? {
-                nome: adolescente.agenteReferencia.nome,
-                email: adolescente.agenteReferencia.email,
+                nome: adolescente.tecnicoReferencia.nome,
+                email: adolescente.tecnicoReferencia.email,
               }
             : undefined,
         },
         adversario: {
           id: ocupante.id,
           nomeCompleto: ocupante.nomeCompleto,
-          agente: ocupante.agenteReferencia
+          tecnico: ocupante.tecnicoReferencia
             ? {
-                nome: ocupante.agenteReferencia.nome,
-                email: ocupante.agenteReferencia.email,
+                nome: ocupante.tecnicoReferencia.nome,
+                email: ocupante.tecnicoReferencia.email,
               }
             : undefined,
         },
@@ -341,7 +341,7 @@ export async function POST(
             alojamentoAtual: true,
             bairroOrigem: true,
             faccao: true,
-            agenteReferencia: true,
+            tecnicoReferencia: true,
           },
         },
       },
@@ -555,3 +555,4 @@ export async function POST(
     );
   }
 }
+

@@ -9,7 +9,7 @@ export const INCLUDE_ADOLESCENTE_DEFAULT = {
   },
   faccao: true,
   bairroOrigem: true,
-  agenteReferencia: true,
+  tecnicoReferencia: true,
   gruposMembros: {
     where: { dataSaida: null },
     include: {
@@ -28,6 +28,9 @@ export const INCLUDE_ADOLESCENTE_DEFAULT = {
           id: true,
           nomeCompleto: true,
           numeroSms: true,
+          statusUnidade: true,
+          bairroOrigemId: true,
+          faccaoGrupoId: true,
         },
       },
     },
@@ -39,6 +42,9 @@ export const INCLUDE_ADOLESCENTE_DEFAULT = {
           id: true,
           nomeCompleto: true,
           numeroSms: true,
+          statusUnidade: true,
+          bairroOrigemId: true,
+          faccaoGrupoId: true,
         },
       },
     },
@@ -155,14 +161,14 @@ export function mapPrismaAdolescente(
     alojamentoAtualId: adolescente.alojamentoAtualId ?? null,
     faseInternacaoAtualId: adolescente.faseInternacaoAtualId ?? null,
     dataDesinternacao: formatDate(adolescente.dataDesinternacao),
-    agenteReferenciaId: adolescente.agenteReferenciaId ?? null,
-    agenteReferencia: adolescente.agenteReferencia
+    tecnicoReferenciaId: adolescente.tecnicoReferenciaId ?? null,
+    tecnicoReferencia: adolescente.tecnicoReferencia
       ? {
-          id: adolescente.agenteReferencia.id,
-          nome: adolescente.agenteReferencia.nome,
-          atividade: adolescente.agenteReferencia.atividade ?? null,
-          email: adolescente.agenteReferencia.email,
-          telefone: adolescente.agenteReferencia.telefone ?? null,
+          id: adolescente.tecnicoReferencia.id,
+          nome: adolescente.tecnicoReferencia.nome,
+          atividade: adolescente.tecnicoReferencia.atividade ?? null,
+          email: adolescente.tecnicoReferencia.email,
+          telefone: adolescente.tecnicoReferencia.telefone ?? null,
         }
       : null,
     alojamentoAtual,
@@ -191,7 +197,11 @@ export function mapPrismaAdolescente(
     alertaSaudeConfidencial: adolescente.alertaSaudeConfidencial ?? false,
     alertaSaudeDetalhes: adolescente.alertaSaudeDetalhes ?? null,
     conflitosA:
-      adolescente.conflitosA?.map((conflito) => ({
+      adolescente.conflitosA
+        ?.filter(
+          (conflito) => conflito.adolescenteB?.statusUnidade === "ATIVO"
+        )
+        .map((conflito) => ({
         id: conflito.id,
         adolescenteAId: conflito.adolescenteAId,
         adolescenteBId: conflito.adolescenteBId,
@@ -206,9 +216,13 @@ export function mapPrismaAdolescente(
               numeroSms: conflito.adolescenteB.numeroSms ?? null,
             }
           : null,
-      })) ?? [],
+        })) ?? [],
     conflitosB:
-      adolescente.conflitosB?.map((conflito) => ({
+      adolescente.conflitosB
+        ?.filter(
+          (conflito) => conflito.adolescenteA?.statusUnidade === "ATIVO"
+        )
+        .map((conflito) => ({
         id: conflito.id,
         adolescenteAId: conflito.adolescenteAId,
         adolescenteBId: conflito.adolescenteBId,
@@ -223,7 +237,7 @@ export function mapPrismaAdolescente(
               numeroSms: conflito.adolescenteA.numeroSms ?? null,
             }
           : null,
-      })) ?? [],
+        })) ?? [],
     historicoInfracional,
     criadoEm: formatDate(adolescente.criadoEm),
     atualizadoEm: formatDate(adolescente.atualizadoEm),

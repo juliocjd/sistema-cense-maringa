@@ -58,6 +58,7 @@ const createAdolescenteSchema = z.object({
     significadoPessoal: z.string().optional(),
   })).optional().default([]),
   historicoInfracional: historicoRegistroSchema,
+  tecnicoReferenciaId: z.string().uuid().optional().nullable(),
 });
 
 const sanitizeNullableString = (value: string | null | undefined) => {
@@ -305,6 +306,9 @@ export async function POST(request: NextRequest) {
         : undefined,
       faseInternacaoAtual: validated.faseInternacaoAtualId
         ? { connect: { id: validated.faseInternacaoAtualId } }
+        : undefined,
+      tecnicoReferencia: validated.tecnicoReferenciaId
+        ? { connect: { id: validated.tecnicoReferenciaId } }
         : undefined,
     };
     const dataDesinternacaoTransformada = toDateOrUndefined(

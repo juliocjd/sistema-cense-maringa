@@ -1,13 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
-  calcularRiscoAlojamento,
-  criarMapaSlots,
   type CasaRisco,
-  type AlojamentoRisco,
   type AdolescenteRisco,
   type ConflitosExternosMapa,
-  type RiscoDetalhado,
 } from "@/lib/riscos/calcular";
 import type { ImpactoConflitoExterno } from "@/types/inteligencia";
 import {
@@ -16,158 +12,12 @@ import {
   type BairroConflitoInfo,
   type FaccaoConflitoInfo,
 } from "@/lib/conflitos";
+import { getEstruturaCasasParaCalculo } from "@/lib/estrutura/snapshot";
+import { simularAlocacao } from "@/lib/alocacao/simulador";
+import { formatarImpactosExternos } from "@/lib/alocacao/utils";
 
 // Tipo inferido da query do adolescente com todos os includes necessários
 type PrismaAdolescente = any; // Tipo complexo do Prisma com includes aninhados
-
-const mapearAdolescenteParaRisco = (
-  adolescente: PrismaAdolescente
-): AdolescenteRisco => ({
-  id: adolescente.id,
-  nomeCompleto: adolescente.nomeCompleto,
-  bairroOrigemId: adolescente.bairroOrigemId,
-  faccaoGrupoId: adolescente.faccaoGrupoId,
-  alertaRiscoSuicidio: adolescente.alertaRiscoSuicidio,
-  alertaPerfilMapeado: adolescente.alertaPerfilMapeado,
-  alertaSaudeConfidencial: adolescente.alertaSaudeConfidencial,
-  alertaSaudeDetalhes: adolescente.alertaSaudeDetalhes,
-  faccao: adolescente.faccao
-    ? {
-        id: adolescente.faccao.id,
-        nome:
-          adolescente.faccao.nomeFaccao ??
-          adolescente.faccao.nome ??
-          undefined,
-      }
-    : null,
-  conflitosA: mapearConflitosInternos(adolescente, "B"),
-  conflitosB: mapearConflitosInternos(adolescente, "A"),
-});
-
-const mapearConflitosInternos = (
-  adolescente: PrismaAdolescente,
-  adversarioCampo: "A" | "B"
-) => {
-  const lista =
-    adversarioCampo === "B" ? adolescente.conflitosA ?? [] : adolescente.conflitosB ?? [];
-
-  return lista.map((conflito: any) => {
-    const adversario =
-      adversarioCampo === "B" ? conflito.adolescenteB : conflito.adolescenteA;
-
-    return {
-      id: conflito.id,
-      status: conflito.status,
-      tipoConflito: conflito.tipoConflito,
-      adolescenteAId: conflito.adolescenteAId,
-      adolescenteBId: conflito.adolescenteBId,
-      adversario: adversario
-        ? {
-            id: adversario.id,
-            nomeCompleto: adversario.nomeCompleto,
-            bairroOrigemId: adversario.bairroOrigemId,
-            faccaoGrupoId: adversario.faccaoGrupoId,
-            faccao: adversario.faccao
-              ? {
-                  id: adversario.faccao.id,
-                  nome:
-                    adversario.faccao.nomeFaccao ??
-                    adversario.faccao.nome ??
-                    undefined,
-                }
-              : null,
-          }
-        : null,
-    };
-  });
-};
-
-const formatarImpactosExternos = (
-  adolescente: PrismaAdolescente,
-  bairros: Map<string, BairroConflitoInfo>,
-  faccoes: Map<string, FaccaoConflitoInfo>
-): ConflitosExternosMapa => {
-  const impactos: ImpactoConflitoExterno[] = [];
-
-  // PRIORIDADE DE FACÇÃO: Só considera conflito de bairro se adolescente NÃO tem facção
-  const temFaccao = !!(adolescente.faccaoGrupoId || adolescente.faccao?.id);
-
-  if (!temFaccao) {
-    bairros.forEach((info) => {
-      impactos.push({
-      conflitoId: info.id,
-      conflitoTipo: "BAIRRO",
-      statusConflito: info.status,
-      risco: "MEDIO",
-      conflitoOrigem: {
-        id: info.origem.id,
-        nome: info.origem.nome,
-      },
-      conflitoDestino: {
-        id: info.destino.id,
-        nome: info.destino.nome,
-      },
-      adolescente: {
-        id: adolescente.id,
-        nome: adolescente.nomeCompleto,
-        status: adolescente.statusUnidade,
-        numeroSms: adolescente.numeroSms,
-        bairro: adolescente.bairroOrigem
-          ? {
-              id: adolescente.bairroOrigem.id,
-              nome:
-                adolescente.bairroOrigem.nomeBairro ??
-                adolescente.bairroOrigem.nome,
-              cidade: adolescente.bairroOrigem.cidade ?? "Desconhecida",
-            }
-          : null,
-        faccao: null,
-        alojamento: null,
-      },
-    });
-    });
-  }
-
-  faccoes.forEach((info) => {
-    impactos.push({
-      conflitoId: info.id,
-      conflitoTipo: "FACCAO",
-      statusConflito: info.status,
-      risco: "ALTO",
-      conflitoOrigem: {
-        id: info.origem.id,
-        nome: info.origem.nome,
-      },
-      conflitoDestino: {
-        id: info.destino.id,
-        nome: info.destino.nome,
-      },
-      adolescente: {
-        id: adolescente.id,
-        nome: adolescente.nomeCompleto,
-        status: adolescente.statusUnidade,
-        numeroSms: adolescente.numeroSms,
-        bairro: null,
-        faccao: adolescente.faccao
-          ? {
-              id: adolescente.faccao.id,
-              nome:
-                adolescente.faccao.nomeFaccao ??
-                adolescente.faccao.nome ??
-                undefined,
-            }
-          : null,
-        alojamento: null,
-      },
-    });
-  });
-
-  if (impactos.length === 0) {
-    return {};
-  }
-
-  return { [adolescente.id]: impactos };
-};
 
 const mapearCasas = (casasDb: CasaRisco[]): CasaRisco[] =>
   casasDb.map((casa) => ({
@@ -223,6 +73,9 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const adolescenteId = searchParams.get("adolescenteId");
     const alojamentoId = searchParams.get("alojamentoId");
+    const skipCache =
+      searchParams.get("refresh") === "1" ||
+      searchParams.get("cache") === "off";
 
     if (!adolescenteId || !alojamentoId) {
       return NextResponse.json(
@@ -269,171 +122,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const casasDb = await prisma.casa.findMany({
-      orderBy: { numero: "asc" },
-      include: {
-        alojamentos: {
-          orderBy: [{ ala: "asc" }, { numeroAlojamento: "asc" }],
-          include: {
-            adolescentes: {
-              where: { statusUnidade: "ATIVO" },
-              select: {
-                id: true,
-                nomeCompleto: true,
-                bairroOrigemId: true,
-                faccaoGrupoId: true,
-                alertaRiscoSuicidio: true,
-                alertaPerfilMapeado: true,
-                alertaSaudeConfidencial: true,
-                alertaSaudeDetalhes: true,
-                faccao: {
-                  select: {
-                    id: true,
-                    nomeFaccao: true,
-                  },
-                },
-                conflitosA: {
-                  where: { status: "ATIVO" },
-                  select: {
-                    id: true,
-                    status: true,
-                    tipoConflito: true,
-                    adolescenteAId: true,
-                    adolescenteBId: true,
-                    adolescenteB: {
-                      select: {
-                        id: true,
-                        nomeCompleto: true,
-                        bairroOrigemId: true,
-                        faccaoGrupoId: true,
-                        faccao: {
-                          select: {
-                            id: true,
-                            nomeFaccao: true,
-                          },
-                        },
-                      },
-                    },
-                  },
-                },
-                conflitosB: {
-                  where: { status: "ATIVO" },
-                  select: {
-                    id: true,
-                    status: true,
-                    tipoConflito: true,
-                    adolescenteAId: true,
-                    adolescenteBId: true,
-                    adolescenteA: {
-                      select: {
-                        id: true,
-                        nomeCompleto: true,
-                        bairroOrigemId: true,
-                        faccaoGrupoId: true,
-                        faccao: {
-                          select: {
-                            id: true,
-                            nomeFaccao: true,
-                          },
-                        },
-                      },
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-    }) as any;
-
-    const casasParaCalculo: CasaRisco[] = casasDb.map((casa: any) => ({
-      id: casa.id,
-      nome: casa.nome,
-      numero: casa.numero ?? 0,
-      isolada: casa.isolada,
-      alojamentos: casa.alojamentos.map(
-        (alojamento: any): AlojamentoRisco => ({
-          id: alojamento.id,
-          casaId: casa.id,
-          numeroAlojamento: alojamento.numeroAlojamento,
-          ala: alojamento.ala,
-          statusManutencao: alojamento.statusManutencao,
-          alojamentoFrontalId: alojamento.alojamentoFrontalId,
-          localizacaoPreferencial: alojamento.localizacaoPreferencial,
-          corRisco: alojamento.corRisco ?? undefined,
-          nivelRisco: alojamento.nivelRisco ?? undefined,
-          icones: alojamento.icones ?? [],
-          alertas: alojamento.alertas ?? [],
-          adolescentes: alojamento.adolescentes.map(
-            (morador: any): AdolescenteRisco => {
-              const conflitosA = mapearConflitosInternos(morador, "B");
-              const conflitosB = mapearConflitosInternos(morador, "A");
-
-              return {
-                id: morador.id,
-                nomeCompleto: morador.nomeCompleto,
-                bairroOrigemId: morador.bairroOrigemId,
-                faccaoGrupoId: morador.faccaoGrupoId,
-                alertaRiscoSuicidio: morador.alertaRiscoSuicidio,
-                alertaPerfilMapeado: morador.alertaPerfilMapeado,
-                alertaSaudeConfidencial: morador.alertaSaudeConfidencial,
-                alertaSaudeDetalhes: morador.alertaSaudeDetalhes,
-                faccao: morador.faccao
-                  ? {
-                      id: morador.faccao.id,
-                      nome:
-                        morador.faccao.nomeFaccao ??
-                        morador.faccao.nome ??
-                        undefined,
-                    }
-                  : null,
-                conflitosA,
-                conflitosB,
-              };
-            }
-          ),
-        })
-      ),
-    }));
-
-    const casasClonadas = mapearCasas(casasParaCalculo);
-    removerAdolescenteDasCasas(casasClonadas, adolescente.id);
-
-    const casaAlvo = casasClonadas.find((casa) =>
-      casa.alojamentos.some((aloj) => aloj.id === alojamentoId)
-    );
-
-    if (!casaAlvo) {
-      return NextResponse.json(
-        { erro: "Alojamento não encontrado", permite_alocacao: false },
-        { status: 404 }
-      );
-    }
-
-    const alojamentoAlvo = casaAlvo.alojamentos.find(
-      (aloj) => aloj.id === alojamentoId
-    );
-
-    if (!alojamentoAlvo) {
-      return NextResponse.json(
-        { erro: "Alojamento não encontrado", permite_alocacao: false },
-        { status: 404 }
-      );
-    }
-
-    const adolescenteSimulado = mapearAdolescenteParaRisco(adolescente);
-
-    alojamentoAlvo.adolescentes = [adolescenteSimulado];
-
-    // Para simular alocação, o alojamento deve estar disponível (não INTERDITADO)
-    // Temporariamente mudar status para permitir cálculo de risco
-    const statusOriginal = alojamentoAlvo.statusManutencao;
-    if (alojamentoAlvo.statusManutencao === "INTERDITADO") {
-      alojamentoAlvo.statusManutencao = "DISPONIVEL";
-    }
-
-    const mapaSlots = criarMapaSlots(casasClonadas);
+    const casasParaCalculo = await getEstruturaCasasParaCalculo({
+      skipCache,
+    });
 
     const [mapaBairros, mapaFaccoes] = await Promise.all([
       montarMapaBairrosConflitantes(adolescente.bairroOrigemId),
@@ -448,31 +139,25 @@ export async function GET(request: NextRequest) {
       mapaFaccoes
     );
 
-    const resultado = calcularRiscoAlojamento({
-      alojamento: alojamentoAlvo,
-      casaAtual: casaAlvo,
-      casas: casasClonadas,
-      slots: mapaSlots,
+    const resultado = simularAlocacao({
+      adolescente,
+      alojamentoId,
+      casasBase: casasParaCalculo,
       conflitosExternos,
     });
 
-    const alertas = construirAlertas(resultado.detalhes, resultado.ambiental);
-    const requerJustificativa = resultado.nivel >= 3;
-    const permiteAlocacao = resultado.nivel < 5;
+    if (resultado.status !== 200) {
+      return NextResponse.json(
+        {
+          erro: resultado.erro ?? "Falha ao avaliar alojamento",
+          permite_alocacao: false,
+        },
+        { status: resultado.status ?? 500 }
+      );
+    }
 
     return NextResponse.json({
-      permite_alocacao: permiteAlocacao,
-      requer_justificativa: requerJustificativa,
-      nivel_risco: resultado.categoria,
-      nivel_numerico: resultado.nivel,
-      alertas,
-      motivos: resultado.motivos,
-      alojamento: {
-        id: alojamentoAlvo.id,
-        numero: alojamentoAlvo.numeroAlojamento,
-        ala: alojamentoAlvo.ala,
-        casa: casaAlvo.nome ?? `Casa ${casaAlvo.numero}`,
-      },
+      ...resultado.dados,
       adolescente: {
         id: adolescente.id,
         nome: adolescente.nomeCompleto,

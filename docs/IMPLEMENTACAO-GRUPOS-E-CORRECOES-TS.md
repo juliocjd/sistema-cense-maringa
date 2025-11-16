@@ -388,7 +388,7 @@ const territoriaisFormatados: ConflitoExternoResumo[] = territoriais.map(
 
 ---
 
-#### 4. **lib/notificacoes/agente.ts** - Tipos `nodemailer` faltando (1 erro)
+#### 4. **lib/notificacoes/tecnico.ts** - Tipos `nodemailer` faltando (1 erro)
 
 **Problema:**
 ```
@@ -770,3 +770,4 @@ Garantir que tipos sejam compatíveis ou criar funções de transformação expl
 ---
 
 **Fim do documento**
+

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { notificarAgentesSobreConflito } from "@/lib/notificacoes/agente";
+import { notificarTecnicosSobreConflito } from "@/lib/notificacoes/tecnico";
 
 type TipoConflito = "bairro" | "faccao" | "interno";
 
@@ -11,14 +11,14 @@ const ensureTipo = (valor: unknown): TipoConflito => {
   return "interno";
 };
 
-const montarContatoAgente = (agente?: { nome: string; email: string } | null) =>
-  agente?.email ? { nome: agente.nome, email: agente.email } : null;
+const montarContatoTecnico = (tecnico?: { nome: string; email: string } | null) =>
+  tecnico?.email ? { nome: tecnico.nome, email: tecnico.email } : null;
 
-const buscarAdolescenteComAgente = (where: object) => {
+const buscarAdolescenteComTecnico = (where: object) => {
   return prisma.adolescente.findFirst({
     where,
     include: {
-      agenteReferencia: {
+      tecnicoReferencia: {
         select: {
           nome: true,
           email: true,
@@ -46,7 +46,7 @@ export async function POST(
             select: {
               id: true,
               nomeCompleto: true,
-              agenteReferencia: {
+              tecnicoReferencia: {
                 select: { nome: true, email: true },
               },
             },
@@ -55,7 +55,7 @@ export async function POST(
             select: {
               id: true,
               nomeCompleto: true,
-              agenteReferencia: {
+              tecnicoReferencia: {
                 select: { nome: true, email: true },
               },
             },
@@ -85,7 +85,7 @@ export async function POST(
             select: {
               id: true,
               nomeCompleto: true,
-              agenteReferencia: {
+              tecnicoReferencia: {
                 select: { nome: true, email: true },
               },
             },
@@ -94,7 +94,7 @@ export async function POST(
             select: {
               id: true,
               nomeCompleto: true,
-              agenteReferencia: {
+              tecnicoReferencia: {
                 select: { nome: true, email: true },
               },
             },
@@ -107,21 +107,21 @@ export async function POST(
         {
           id: string;
           nomeCompleto: string;
-          agente: { nome: string; email: string } | null;
+          tecnico: { nome: string; email: string } | null;
         }
       >();
 
       const adicionarParticipante = (dados?: {
         id: string;
         nomeCompleto: string;
-        agenteReferencia: { nome: string; email: string } | null;
+        tecnicoReferencia: { nome: string; email: string } | null;
       }) => {
         if (!dados) return;
         if (!participantes.has(dados.id)) {
           participantes.set(dados.id, {
             id: dados.id,
             nomeCompleto: dados.nomeCompleto,
-            agente: montarContatoAgente(dados.agenteReferencia),
+            tecnico: montarContatoTecnico(dados.tecnicoReferencia),
           });
         }
       };
@@ -131,15 +131,16 @@ export async function POST(
         adicionarParticipante(entrada.adolescenteB);
       });
 
-      const contatos = Array.from(participantes.values()).filter(
-        (participante) => participante.agente?.email
+      const participantesArray = Array.from(participantes.values());
+      const contatos = participantesArray.filter(
+        (participante) => participante.tecnico?.email
       );
 
-      if (contatos.length < 2) {
+      if (contatos.length === 0) {
         return NextResponse.json(
           {
             erro:
-              "Os participantes deste conflito nao possuem agentes de referencia suficientes para notificacao",
+              "Os participantes deste conflito nao possuem tecnicos de referencia cadastrados para notificacao",
           },
           { status: 422 }
         );
@@ -148,20 +149,20 @@ export async function POST(
       const pivot =
         contatos.find((item) => item.id === conflito.adolescenteA.id) ??
         contatos[0];
-      const demais = contatos.filter((item) => item.id !== pivot.id);
+      const demais = participantesArray.filter((item) => item.id !== pivot.id);
 
       for (const alvo of demais) {
-        await notificarAgentesSobreConflito({
+        await notificarTecnicosSobreConflito({
           contexto: "CONFLITO_INTERNO",
           adolescente: {
             id: pivot.id,
             nomeCompleto: pivot.nomeCompleto,
-            agente: pivot.agente,
+            tecnico: pivot.tecnico,
           },
           adversario: {
             id: alvo.id,
             nomeCompleto: alvo.nomeCompleto,
-            agente: alvo.agente,
+            tecnico: alvo.tecnico,
           },
           mensagem: `Conflito interno do tipo ${
             conflito.tipoConflito ?? "OUTROS"
@@ -173,7 +174,7 @@ export async function POST(
 
       return NextResponse.json({
         sucesso: true,
-        mensagem: `Notificacao enviada para ${demais.length} agente(s) vinculados ao grupo.`,
+        mensagem: `Notificacao enviada para ${demais.length} tecnico(s) vinculados ao grupo.`,
       });
     }
 
@@ -228,30 +229,30 @@ export async function POST(
       );
     }
 
-    const adolescenteA = await buscarAdolescenteComAgente(filtroA);
-    const adolescenteB = await buscarAdolescenteComAgente(filtroB);
+    const adolescenteA = await buscarAdolescenteComTecnico(filtroA);
+    const adolescenteB = await buscarAdolescenteComTecnico(filtroB);
 
     if (!adolescenteA || !adolescenteB) {
       return NextResponse.json(
         {
           erro:
-            "Nao existem adolescentes vinculados a este conflito com agentes de referencia cadastrados",
+            "Nao existem adolescentes vinculados a este conflito com tecnicos de referencia cadastrados",
         },
         { status: 422 }
       );
     }
 
-    await notificarAgentesSobreConflito({
+    await notificarTecnicosSobreConflito({
       contexto: "ALOCACAO",
       adolescente: {
         id: adolescenteA.id,
         nomeCompleto: adolescenteA.nomeCompleto,
-        agente: montarContatoAgente(adolescenteA.agenteReferencia),
+        tecnico: montarContatoTecnico(adolescenteA.tecnicoReferencia),
       },
       adversario: {
         id: adolescenteB.id,
         nomeCompleto: adolescenteB.nomeCompleto,
-        agente: montarContatoAgente(adolescenteB.agenteReferencia),
+        tecnico: montarContatoTecnico(adolescenteB.tecnicoReferencia),
       },
       mensagem: `Conflito preventivo registrado entre ${origemNome} e ${destinoNome}.`,
       nivelConflito,
@@ -260,16 +261,23 @@ export async function POST(
 
     return NextResponse.json({
       sucesso: true,
-      mensagem: `Notificacao enviada para os agentes vinculados ao confronto ${origemNome} x ${destinoNome}`,
+      mensagem: `Notificacao enviada para os tecnicos vinculados ao confronto ${origemNome} x ${destinoNome}`,
     });
   } catch (error) {
     console.error("Erro ao notificar conflito:", error);
     return NextResponse.json(
       {
-        erro: "Erro ao notificar agentes sobre este conflito",
+        erro: "Erro ao notificar tecnicos sobre este conflito",
         detalhes: error instanceof Error ? error.message : String(error),
       },
       { status: 500 }
     );
   }
 }
+
+
+
+
+
+
+

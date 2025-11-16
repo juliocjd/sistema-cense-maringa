@@ -113,6 +113,13 @@ export function CadastroAdolescente({
     riscoFuga: "BAIXO" as RiscoFuga,
   });
 
+  const [tecnicoReferenciaId, setTecnicoReferenciaId] = useState("");
+  const [tecnicosDisponiveis, setTecnicosDisponiveis] = useState<
+    Array<{ id: string; nome: string; atividade?: string | null; email: string }>
+  >([]);
+  const [carregandoTecnicos, setCarregandoTecnicos] = useState(false);
+  const [erroTecnicos, setErroTecnicos] = useState<string | null>(null);
+
   const [tatuagens, setTatuagens] = useState<
     { catalogoId: string; localCorpo: string; observacoes: string; significadoPessoal: string }[]
   >([]);
@@ -175,6 +182,7 @@ export function CadastroAdolescente({
       bairroId: initialData.bairroOrigemId ?? "",
       riscoFuga: (initialData.riscoFuga as RiscoFuga) ?? "BAIXO",
     });
+    setTecnicoReferenciaId(initialData.tecnicoReferenciaId ?? "");
 
     setAlertas({
       riscoSuicidio: initialData.alertaRiscoSuicidio ?? false,
@@ -193,6 +201,39 @@ export function CadastroAdolescente({
       })) ?? []
     );
   }, [initialData]);
+
+  useEffect(() => {
+    let ativo = true;
+    const carregarTecnicos = async () => {
+      setCarregandoTecnicos(true);
+      try {
+        const response = await fetch("/api/tecnicos");
+        if (!response.ok) {
+          throw new Error("Erro ao carregar tecnicos");
+        }
+        const payload = await response.json().catch(() => null);
+        if (!ativo) return;
+        const lista = Array.isArray(payload?.data) ? payload.data : [];
+        setTecnicosDisponiveis(lista);
+        setErroTecnicos(null);
+      } catch (error) {
+        if (!ativo) return;
+        setErroTecnicos(
+          error instanceof Error
+            ? error.message
+            : "Erro ao carregar tecnicos"
+        );
+      } finally {
+        if (ativo) {
+          setCarregandoTecnicos(false);
+        }
+      }
+    };
+    carregarTecnicos();
+    return () => {
+      ativo = false;
+    };
+  }, []);
 
   useEffect(() => {
     setDataStatus((prev) => {
@@ -830,6 +871,7 @@ export function CadastroAdolescente({
         faccaoNumeroMembro: sanitize(vinculacoes.numeroMembro),
         bairroOrigemId: sanitize(vinculacoes.bairroId),
         riscoFuga: vinculacoes.riscoFuga,
+        tecnicoReferenciaId: tecnicoReferenciaId || undefined,
       };
 
       if (historicoPayload.length > 0) {
@@ -1506,6 +1548,32 @@ export function CadastroAdolescente({
                   </select>
                 </div>
 
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Técnico de referência
+                  </label>
+                  <select
+                    value={tecnicoReferenciaId}
+                    onChange={(event) =>
+                      setTecnicoReferenciaId(event.target.value)
+                    }
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
+                    disabled={carregandoTecnicos}
+                  >
+                    <option value="">Sem técnico definido</option>
+                    {tecnicosDisponiveis.map((tecnico) => (
+                      <option key={tecnico.id} value={tecnico.id}>
+                        {tecnico.nome}
+                        {tecnico.atividade ? ` - ${tecnico.atividade}` : ""} (
+                        {tecnico.email})
+                      </option>
+                    ))}
+                  </select>
+                  {erroTecnicos && (
+                    <p className="text-xs text-red-600 mt-1">{erroTecnicos}</p>
+                  )}
+                </div>
+
                 {podeSelecionarAlojamento && (
                 <div>
                   <div className="flex flex-wrap items-center gap-3 mb-2">
@@ -1979,3 +2047,7 @@ export function CadastroAdolescente({
     </div>
   );
 }
+
+
+
+

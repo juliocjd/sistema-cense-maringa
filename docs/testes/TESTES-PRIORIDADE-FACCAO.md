@@ -169,7 +169,7 @@ Implementação da hierarquia **Facção > Bairro** para detecção de conflitos
    - Testar: Alocar dois adolescentes com conflito interno próximos
 
 2. **Alertas e Notificações**
-   - Sistema deve continuar enviando notificações para agentes
+   -    - Sistema deve continuar enviando notificacoes para tecnicos
    - Verificar emails/logs de notificações
 
 3. **Cálculo de Risco Geral**
@@ -218,3 +218,7 @@ Em caso de dúvidas ou bugs encontrados, documente:
 - Resultado obtido vs. esperado
 - Screenshots/logs relevantes
 - Dados usados (IDs, nomes)
+
+
+
+

@@ -176,7 +176,7 @@ export function DetalhesConflito({
     }
   };
 
-  const handleNotificarAgentes = async () => {
+  const handleNotificarTecnicos = async () => {
     setStatusNotificacao(null);
     setNotificando(true);
     try {
@@ -187,12 +187,12 @@ export function DetalhesConflito({
       });
       const payload = await response.json().catch(() => null);
       if (!response.ok) {
-        throw new Error(payload?.erro ?? "Erro ao notificar agentes.");
+        throw new Error(payload?.erro ?? "Erro ao notificar tecnicos.");
       }
 
       setStatusNotificacao({
         tipo: "sucesso",
-        mensagem: payload?.mensagem ?? "Notificacao enviada aos agentes.",
+        mensagem: payload?.mensagem ?? "Notificacao enviada aos tecnicos.",
       });
     } catch (error) {
       setStatusNotificacao({
@@ -200,7 +200,7 @@ export function DetalhesConflito({
         mensagem:
           error instanceof Error
             ? error.message
-            : "Falha ao notificar agentes.",
+            : "Falha ao notificar tecnicos.",
       });
     } finally {
       setNotificando(false);
@@ -248,12 +248,12 @@ export function DetalhesConflito({
 
           <div className="flex flex-wrap items-center gap-3">
             <button
-              onClick={handleNotificarAgentes}
+              onClick={handleNotificarTecnicos}
               disabled={notificando}
               className="flex items-center gap-2 rounded-lg border border-indigo-200 bg-white px-4 py-2 font-semibold text-indigo-700 transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:text-gray-400"
             >
               <Mail size={18} />
-              {notificando ? "Enviando..." : "Notificar agentes"}
+              {notificando ? "Enviando..." : "Notificar tecnicos"}
             </button>
             {conflito.status === "ATIVO" && (
               <button
