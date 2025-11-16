@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
         bairroA: true,
         bairroB: true,
       },
-      orderBy: { criadoEm: "desc" },
+      orderBy: { id: "desc" },
     });
 
     return NextResponse.json({
