@@ -1078,9 +1078,9 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
         onClose={fecharModalDetalhes}
         casas={casasNormalizadas}
         conflitosExternos={conflitosExternos}
-        onDesalocar={(alojamentoId, adolescenteId, motivo) =>
-          handleDesalocar(alojamentoId, adolescenteId, motivo)
-        }
+        onDesalocar={async (alojamentoId, adolescenteId, motivo) => {
+          await handleDesalocar(alojamentoId, adolescenteId, motivo);
+        }}
         onDesinternar={handleDesinternar}
         onTransferir={handleTransferir}
         onSolicitarAlocacao={() => {
