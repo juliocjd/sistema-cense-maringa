@@ -638,7 +638,20 @@ export async function PUT(
       };
 
       if (historicoParaCriar) {
-        await registrarEntrada(historicoParaCriar);
+        await registrarEntrada({
+          atoInfracionalDescricao: historicoParaCriar.atoInfracionalDescricao,
+          atoInfracionalAno:
+            historicoParaCriar.atoInfracionalAno ?? historicoParaCriar.ano ?? null,
+          atoInfracionalProcesso:
+            historicoParaCriar.atoInfracionalProcesso ?? null,
+          atoInfracionalGravidade:
+            historicoParaCriar.atoInfracionalGravidade ?? false,
+          atoInfracionalGravidadeObs:
+            historicoParaCriar.atoInfracionalGravidadeObs ?? null,
+          unidadeInternacao: historicoParaCriar.unidadeInternacao ?? null,
+          ano: historicoParaCriar.ano ?? historicoParaCriar.atoInfracionalAno ?? null,
+          observacoes: historicoParaCriar.observacoes ?? null,
+        });
       }
 
       for (const entrada of historicoNovos) {
