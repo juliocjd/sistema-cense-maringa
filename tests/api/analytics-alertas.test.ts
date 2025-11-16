@@ -71,7 +71,7 @@ describe("GET /api/analytics/alertas", () => {
           nomeCompleto: "Joao da Silva",
           alojamentoAtual: {
             id: "aloj-1",
-            numero: "05",
+            numeroAlojamento: "05",
             ala: "B",
             casa: { nome: "Casa 01" },
           },
