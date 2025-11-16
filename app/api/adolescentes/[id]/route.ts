@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
-import type { Prisma } from "@prisma/client";
+import type { Prisma, AdolescenteHistoricoInfracional } from "@prisma/client";
 import type { StatusUnidade } from "@/types";
 import {
   INCLUDE_ADOLESCENTE_DEFAULT,
@@ -154,7 +154,7 @@ const buildHistoricoKey = (entrada: HistoricoEntrada) =>
 
 const toHistoricoEntradaFromDb = (
   registro: Pick<
-    Prisma.AdolescenteHistoricoInfracional,
+    AdolescenteHistoricoInfracional,
     | "atoInfracionalDescricao"
     | "atoInfracionalAno"
     | "atoInfracionalProcesso"
