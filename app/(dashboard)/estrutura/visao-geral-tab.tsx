@@ -229,6 +229,7 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
                   conflitosA: ocupanteBruto.conflitosA ?? [],
                   conflitosB: ocupanteBruto.conflitosB ?? [],
                   conflitosResolvidos: ocupanteBruto.conflitosResolvidos ?? [],
+                  historicoInfracional: ocupanteBruto.historicoInfracional ?? [],
                 } satisfies AdolescenteTipo)
               : null;
 
