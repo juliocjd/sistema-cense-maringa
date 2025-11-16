@@ -1,11 +1,11 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifySession } from "@/lib/auth";
+import { auth } from "@/auth";
 
 export async function POST() {
   try {
-    const session = await verifySession();
-    if (!session || session.role !== "ADMIN") {
+    const session = await auth();
+    if (!session?.user || session.user.cargo !== "ADMIN") {
       return NextResponse.json({ erro: "Não autorizado" }, { status: 403 });
     }
 
@@ -67,7 +67,7 @@ export async function POST() {
     // Buscar alojamentos criados para mapear frontais
     const alojamentos = await prisma.alojamento.findMany();
 
-    // Mapear alojamentos frontais (01↔06, 02↔05, 03↔04, 07↔08, 09↔10)
+    // Mapear alojamentos frontais (01â†”06, 02â†”05, 03â†”04, 07â†”08, 09â†”10)
     const mapeamentoFrontais = [
       ["01", "06"],
       ["02", "05"],
@@ -117,7 +117,7 @@ export async function POST() {
       zonasData.map((zona) => prisma.zonaRisco.create({ data: zona }))
     );
 
-    // Vincular alojamentos às zonas
+    // Vincular alojamentos Ã s zonas
     const vinculosZonas = [
       { zona: 0, casa: 1, alojamentos: ["08", "09"] }, // C02 Ala B
       { zona: 1, casa: 2, alojamentos: ["01", "02", "03"] }, // C03 Ala A
@@ -149,12 +149,12 @@ export async function POST() {
       }
     }
 
-    // Criar vínculos entre zonas (C02↔C03, C04↔C05, C05↔C06, C06↔C07)
+    // Criar vÃ­nculos entre zonas (C02â†”C03, C04â†”C05, C05â†”C06, C06â†”C07)
     const vinculosEntreZonas = [
-      [0, 1], // C02-AlaB ↔ C03-AlaA
-      [2, 3], // C04-AlaB ↔ C05-AlaA
-      [4, 5], // C05-AlaB ↔ C06-AlaA
-      [6, 7], // C06-AlaB ↔ C07-AlaA
+      [0, 1], // C02-AlaB â†” C03-AlaA
+      [2, 3], // C04-AlaB â†” C05-AlaA
+      [4, 5], // C05-AlaB â†” C06-AlaA
+      [6, 7], // C06-AlaB â†” C07-AlaA
     ];
 
     for (const [z1, z2] of vinculosEntreZonas) {
@@ -175,3 +175,5 @@ export async function POST() {
     );
   }
 }
+
+
