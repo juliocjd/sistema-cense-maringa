@@ -219,6 +219,7 @@ model Adolescente {
   nomeSocial                String?   @map("nome_social")
   fotoUrl                   String?   @map("foto_url")
   numeroSms                 String?   @map("numero_sms")
+  numeroInterno             Int?      @map("numero_interno")
   dataNascimento            DateTime? @map("data_nascimento") @db.Date
   dataEntrada               DateTime? @map("data_entrada")
   numeroProcesso            String?   @map("numero_processo")

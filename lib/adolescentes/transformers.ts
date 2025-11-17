@@ -148,6 +148,7 @@ export function mapPrismaAdolescente(
     nomeCompleto: adolescente.nomeCompleto,
     nomeSocial: adolescente.nomeSocial ?? null,
     numeroSms: adolescente.numeroSms ?? null,
+    numeroInterno: adolescente.numeroInterno ?? null,
     numeroProcesso: adolescente.numeroProcesso ?? null,
     fotoUrl: adolescente.fotoUrl ?? null,
     dataNascimento: formatDate(adolescente.dataNascimento),

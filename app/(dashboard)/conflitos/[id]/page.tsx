@@ -47,7 +47,10 @@ type ApiConflito = {
   dataRegistro: string;
   dataResolucao?: string | null;
   participantes?: Array<
-    ApiParticipante & { numeroSms?: string | null; alojamentoAtual?: { descricao?: string | null } | null }
+    ApiParticipante & {
+      numeroSms?: string | null;
+      alojamentoAtual?: { descricao?: string | null } | null;
+    }
   >;
   ciOrigem?: {
     numero: string;
@@ -221,7 +224,10 @@ export default function ConflitoPorIdPage() {
         },
       ];
 
-      setConflito({ ...mockConflito, participantes: [mockConflito.adolescenteA, mockConflito.adolescenteB] });
+      setConflito({
+        ...mockConflito,
+        participantes: [mockConflito.adolescenteA, mockConflito.adolescenteB],
+      });
       setMediacoes(mockMediacoes);
     } finally {
       setLoading(false);
@@ -369,19 +375,18 @@ export default function ConflitoPorIdPage() {
 
   const statusOptions: Array<"ATIVO" | "RESOLVIDO"> = ["ATIVO", "RESOLVIDO"];
 
-  return (
-    <div className="space-y-6">
-      <section className="bg-white rounded-2xl shadow-lg p-6 border-l-4 border-red-500">
-        <div className="flex flex-col gap-2 mb-6">
-          <p className="text-xs font-semibold uppercase tracking-wide text-red-500">
-            Edicao rapida
+  const quickEditSlot = (
+    <section className="bg-white rounded-2xl shadow-lg p-6 border-l-4 border-red-500">
+      <div className="flex flex-col gap-2 mb-6">
+        <p className="text-xs font-semibold uppercase tracking-wide text-red-500">
+          Edicao rapida
           </p>
           <h2 className="text-2xl font-bold text-gray-900">
             Atualizar dados do conflito
           </h2>
           <p className="text-sm text-gray-600">
-            Ajuste a classificacao, o status e os registros de observacao conforme a evolucao das
-            evidencias.
+            Ajuste a classificacao, o status e os registros de observacao
+            conforme a evolucao das evidencias.
           </p>
         </div>
 
@@ -490,13 +495,15 @@ export default function ConflitoPorIdPage() {
           </button>
         </div>
       </section>
+  );
 
-      <DetalhesConflito
-        conflito={conflito}
-        mediacoes={mediacoes}
-        onAdicionarMediacao={handleAdicionarMediacao}
-        onResolverConflito={handleResolverConflito}
-      />
-    </div>
+  return (
+    <DetalhesConflito
+      conflito={conflito}
+      mediacoes={mediacoes}
+      onAdicionarMediacao={handleAdicionarMediacao}
+      onResolverConflito={handleResolverConflito}
+      quickEditSlot={quickEditSlot}
+    />
   );
 }

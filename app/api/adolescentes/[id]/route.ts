@@ -8,6 +8,10 @@ import {
   INCLUDE_ADOLESCENTE_DEFAULT,
   mapPrismaAdolescente,
 } from "@/lib/adolescentes/transformers";
+import {
+  garantirNumeroInternoDisponivel,
+  NumeroInternoIndisponivelError,
+} from "@/lib/adolescentes/numeracao";
 
 const historicoRegistroSchema = z
   .array(
@@ -27,6 +31,16 @@ const updateAdolescenteSchema = z.object({
   nomeSocial: z.string().optional().nullable(),
   fotoUrl: z.string().url().optional().nullable(),
   numeroSms: z.string().optional().nullable(),
+  numeroInterno: z
+    .union([
+      z
+        .number({ invalid_type_error: "Numero interno deve ser numerico" })
+        .int("Numero interno deve ser inteiro")
+        .min(1, "Numero interno deve estar entre 1 e 86")
+        .max(86, "Numero interno deve estar entre 1 e 86"),
+      z.null(),
+    ])
+    .optional(),
   dataNascimento: z.string().optional().nullable(),
   dataEntrada: z.string().optional().nullable(),
   dataDesinternacao: z.string().optional().nullable(),
@@ -260,6 +274,7 @@ export async function PUT(
         id: true,
         nomeCompleto: true,
         statusUnidade: true,
+        numeroInterno: true,
         alojamentoAtualId: true,
         alojamentoAtual: {
           select: {
@@ -295,6 +310,38 @@ export async function PUT(
       validated.statusUnidade !== statusAtual;
     const saiuDeAtivo = statusAtual === "ATIVO" && novoStatus !== "ATIVO";
     const retornandoParaAtivo = novoStatus === "ATIVO" && statusAtual !== "ATIVO";
+    const numeroAtual = existente.numeroInterno ?? null;
+    const numeroInternoInput = validated.numeroInterno;
+    const numeroInternoDesejado =
+      numeroInternoInput === undefined
+        ? undefined
+        : numeroInternoInput === null
+        ? null
+        : numeroInternoInput;
+
+    if (
+      numeroInternoDesejado === null &&
+      (novoStatus === "ATIVO" || statusAtual === "ATIVO")
+    ) {
+      return NextResponse.json(
+        {
+          erro:
+            "Nao e permitido remover o numero interno enquanto o adolescente estiver ATIVO. Informe um novo numero ou altere o status.",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (
+      numeroInternoDesejado !== undefined &&
+      numeroInternoDesejado !== null &&
+      novoStatus !== "ATIVO"
+    ) {
+      return NextResponse.json(
+        { erro: "Somente adolescentes ativos podem ter numero interno" },
+        { status: 400 }
+      );
+    }
     if (
       statusMudou &&
       statusAtual === "ATIVO" &&
@@ -370,6 +417,34 @@ export async function PUT(
           }
         : null;
     const camposAlterados: string[] = [];
+    let numeroInternoParaSalvar: number | null | undefined = undefined;
+    let deveValidarNumeroInterno = false;
+
+    if (novoStatus === "ATIVO") {
+      let alvo =
+        numeroInternoDesejado !== undefined
+          ? numeroInternoDesejado
+          : numeroAtual;
+      if (alvo === null || alvo === undefined) {
+        return NextResponse.json(
+          {
+            erro:
+              "Informe o numero interno (1 a 86) para adolescentes com status ATIVO.",
+          },
+          { status: 400 }
+        );
+      }
+      numeroInternoParaSalvar = alvo;
+      if (alvo !== numeroAtual) {
+        deveValidarNumeroInterno = true;
+        camposAlterados.push("numeroInterno");
+      }
+    } else {
+      if (numeroAtual !== null || numeroInternoDesejado !== undefined) {
+        numeroInternoParaSalvar = null;
+        camposAlterados.push("numeroInterno");
+      }
+    }
 
     if (validated.nomeCompleto !== undefined) {
       data.nomeCompleto = validated.nomeCompleto.trim();
@@ -584,6 +659,10 @@ export async function PUT(
       camposAlterados.push("dataEntrada");
     }
 
+    if (numeroInternoParaSalvar !== undefined) {
+      data.numeroInterno = numeroInternoParaSalvar;
+    }
+
     if (historicoNovos.length > 0) {
       camposAlterados.push("historicoInfracional");
     }
@@ -596,6 +675,19 @@ export async function PUT(
     }
 
     const atualizado = await prisma.$transaction(async (tx) => {
+      if (
+        novoStatus === "ATIVO" &&
+        numeroInternoParaSalvar !== undefined &&
+        numeroInternoParaSalvar !== null &&
+        (deveValidarNumeroInterno || numeroAtual === null)
+      ) {
+        await garantirNumeroInternoDisponivel(
+          tx,
+          numeroInternoParaSalvar,
+          id
+        );
+      }
+
       const registro = await tx.adolescente.update({
         where: { id },
         data,
@@ -683,6 +775,14 @@ export async function PUT(
       return NextResponse.json(
         { erro: "Dados invalidos", detalhes: error.errors },
         { status: 400 }
+      );
+    }
+    if (error instanceof NumeroInternoIndisponivelError) {
+      return NextResponse.json(
+        {
+          erro: `Numero interno ${error.numero} indisponivel. Atualmente atribuido a ${error.titular}.`,
+        },
+        { status: 409 }
       );
     }
 

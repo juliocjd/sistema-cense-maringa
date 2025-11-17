@@ -99,6 +99,7 @@ export interface Adolescente {
   nomeCompleto: string;
   nomeSocial?: string | null;
   numeroSms?: string | null;
+  numeroInterno?: number | null;
   fotoUrl?: string | null;
   dataNascimento?: string;
   dataEntrada?: string;

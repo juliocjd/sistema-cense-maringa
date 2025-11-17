@@ -7,6 +7,10 @@ import {
   INCLUDE_ADOLESCENTE_DEFAULT,
   mapPrismaAdolescente,
 } from "@/lib/adolescentes/transformers";
+import {
+  garantirNumeroInternoDisponivel,
+  NumeroInternoIndisponivelError,
+} from "@/lib/adolescentes/numeracao";
 import type {
   Adolescente,
   ListaAdolescentesMeta,
@@ -33,6 +37,13 @@ const createAdolescenteSchema = z.object({
   nomeSocial: z.string().optional().nullable(),
   fotoUrl: z.string().url().optional().nullable(),
   numeroSms: z.string().optional().nullable(),
+  numeroInterno: z
+    .number({ invalid_type_error: "Numero interno deve ser numerico" })
+    .int("Numero interno deve ser inteiro")
+    .min(1, "Numero interno deve estar entre 1 e 86")
+    .max(86, "Numero interno deve estar entre 1 e 86")
+    .optional()
+    .nullable(),
   dataNascimento: z.string().optional().nullable(),
   dataEntrada: z.string().optional().nullable(),
   dataDesinternacao: z.string().optional().nullable(),
@@ -157,6 +168,9 @@ const buildWhere = (params: URLSearchParams): Prisma.AdolescenteWhereInput => {
   const busca = sanitizeNullableString(params.get("busca"));
   const casaId = sanitizeNullableString(params.get("casa_id"));
   const grupoId = sanitizeNullableString(params.get("grupo_id"));
+  const numeroInternoParam = sanitizeNullableString(
+    params.get("numero_interno")
+  );
 
   const where: Prisma.AdolescenteWhereInput = {};
 
@@ -168,11 +182,23 @@ const buildWhere = (params: URLSearchParams): Prisma.AdolescenteWhereInput => {
   }
 
   if (busca) {
-    where.OR = [
+    const or: Prisma.AdolescenteWhereInput[] = [
       { nomeCompleto: { contains: busca, mode: "insensitive" } },
       { numeroSms: { contains: busca } },
       { numeroProcesso: { contains: busca, mode: "insensitive" } },
     ];
+    const numeroBusca = Number.parseInt(busca, 10);
+    if (Number.isFinite(numeroBusca)) {
+      or.push({ numeroInterno: numeroBusca });
+    }
+    where.OR = or;
+  }
+
+  if (numeroInternoParam) {
+    const numero = Number.parseInt(numeroInternoParam, 10);
+    if (Number.isFinite(numero)) {
+      where.numeroInterno = numero;
+    }
   }
 
   if (casaId) {
@@ -279,6 +305,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const statusCriado = validated.statusUnidade ?? "ATIVO";
+    const numeroInternoInformado =
+      validated.numeroInterno === undefined
+        ? undefined
+        : validated.numeroInterno === null
+        ? null
+        : validated.numeroInterno;
+
+    if (statusCriado === "ATIVO") {
+      if (numeroInternoInformado === undefined || numeroInternoInformado === null) {
+        return NextResponse.json(
+          { erro: "Informe o numero interno (1 a 86) para adolescentes ativos" },
+          { status: 400 }
+        );
+      }
+    } else if (
+      numeroInternoInformado !== undefined &&
+      numeroInternoInformado !== null
+    ) {
+      return NextResponse.json(
+        { erro: "Somente adolescentes ativos podem ter numero interno" },
+        { status: 400 }
+      );
+    }
+
     const data: Prisma.AdolescenteCreateInput = {
       nomeCompleto: validated.nomeCompleto,
       nomeSocial: validated.nomeSocial ?? undefined,
@@ -288,7 +339,7 @@ export async function POST(request: NextRequest) {
       dataEntrada: toDateOrUndefined(validated.dataEntrada) ?? new Date(),
       numeroProcesso: validated.numeroProcesso ?? undefined,
       atoInfracionalAtual: validated.atoInfracionalAtual ?? undefined,
-      statusUnidade: validated.statusUnidade,
+      statusUnidade: statusCriado,
       faccao: validated.faccaoGrupoId
         ? { connect: { id: validated.faccaoGrupoId } }
         : undefined,
@@ -310,6 +361,10 @@ export async function POST(request: NextRequest) {
       tecnicoReferencia: validated.tecnicoReferenciaId
         ? { connect: { id: validated.tecnicoReferenciaId } }
         : undefined,
+      numeroInterno:
+        statusCriado === "ATIVO" && numeroInternoInformado !== undefined
+          ? numeroInternoInformado ?? undefined
+          : undefined,
     };
     const dataDesinternacaoTransformada = toDateOrUndefined(
       validated.dataDesinternacao
@@ -326,7 +381,14 @@ export async function POST(request: NextRequest) {
       data.dataDesinternacao = dataDesinternacaoTransformada;
     }
 
+    const numeroParaValidar =
+      statusCriado === "ATIVO" ? numeroInternoInformado ?? null : null;
+
     const criado = await prisma.$transaction(async (tx) => {
+      if (numeroParaValidar) {
+        await garantirNumeroInternoDisponivel(tx, numeroParaValidar);
+      }
+
       const base = await tx.adolescente.create({ data });
 
       if (validated.tatuagens && validated.tatuagens.length > 0) {
@@ -394,6 +456,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { erro: "Dados invalidos", detalhes: error.errors },
         { status: 400 }
+      );
+    }
+    if (error instanceof NumeroInternoIndisponivelError) {
+      return NextResponse.json(
+        {
+          erro: `Numero interno ${error.numero} indisponivel. Atualmente atribuido a ${error.titular}.`,
+        },
+        { status: 409 }
       );
     }
 

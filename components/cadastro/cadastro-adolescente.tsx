@@ -86,6 +86,7 @@ export function CadastroAdolescente({
     nomeSocial: "",
     dataNascimento: "",
     numeroSms: "",
+    numeroInterno: "",
     dataEntrada: new Date().toISOString().split("T")[0],
   });
 
@@ -146,6 +147,9 @@ export function CadastroAdolescente({
       nomeSocial: initialData.nomeSocial ?? "",
       dataNascimento: formatarDataInput(initialData.dataNascimento),
       numeroSms: initialData.numeroSms ?? "",
+      numeroInterno: initialData.numeroInterno
+        ? String(initialData.numeroInterno)
+        : "",
       dataEntrada:
         formatarDataInput(initialData.dataEntrada) ||
         new Date().toISOString().split("T")[0],
@@ -346,6 +350,19 @@ export function CadastroAdolescente({
     bairros: [],
     tatuagens: [],
   });
+
+  useEffect(() => {
+    if (statusUnidade !== "ATIVO") {
+      setDadosPessoais((prev) =>
+        prev.numeroInterno
+          ? {
+              ...prev,
+              numeroInterno: "",
+            }
+          : prev
+      );
+    }
+  }, [statusUnidade]);
   const [modalNovoBairro, setModalNovoBairro] = useState<{
     aberto: boolean;
     nome: string;
@@ -778,6 +795,24 @@ export function CadastroAdolescente({
       etapaErro = Math.max(etapaErro, 5);
     }
 
+    if (statusUnidade === "ATIVO") {
+      const numeroLimpo = dadosPessoais.numeroInterno.trim();
+      if (!numeroLimpo) {
+        mensagens.push("Informe o numero interno (1 a 86) para adolescentes ativos.");
+        etapaErro = Math.max(etapaErro, 1);
+      } else {
+        const numeroValor = Number.parseInt(numeroLimpo, 10);
+        if (
+          Number.isNaN(numeroValor) ||
+          numeroValor < 1 ||
+          numeroValor > 86
+        ) {
+          mensagens.push("Numero interno deve ser um valor de 1 a 86.");
+          etapaErro = Math.max(etapaErro, 1);
+        }
+      }
+    }
+
     if (mensagens.length > 0) {
       setErrosFormulario(mensagens);
       setEtapaAtual(etapaErro);
@@ -820,6 +855,10 @@ export function CadastroAdolescente({
       const gravidadeDescricaoSanitizada = sanitize(
         atoInfracional.gravidadeDescricao
       );
+      const numeroInternoSanitizado =
+        statusUnidade === "ATIVO"
+          ? sanitize(dadosPessoais.numeroInterno)
+          : undefined;
       const historicoPayload: AdolescenteHistoricoRegistroInput[] =
         atoInfracional.historico
           .map((item): AdolescenteHistoricoRegistroInput | null => {
@@ -854,6 +893,9 @@ export function CadastroAdolescente({
         nomeSocial: sanitizeOrNull(dadosPessoais.nomeSocial) ?? undefined,
         dataNascimento: sanitize(dadosPessoais.dataNascimento),
         numeroSms: sanitize(dadosPessoais.numeroSms),
+        numeroInterno: numeroInternoSanitizado
+          ? Number.parseInt(numeroInternoSanitizado, 10)
+          : undefined,
         dataEntrada: sanitize(dadosPessoais.dataEntrada),
         atoInfracionalAtual: sanitize(atoInfracional.descricao),
         atoInfracionalAno: anoValido,
@@ -1118,6 +1160,35 @@ export function CadastroAdolescente({
                     className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
                     placeholder="Ex: 12345"
                   />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Numero interno (1 a 86)
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={86}
+                    inputMode="numeric"
+                    disabled={statusUnidade !== "ATIVO"}
+                    value={dadosPessoais.numeroInterno}
+                    onChange={(e) => {
+                      const somenteNumeros = e.target.value.replace(/\D/g, "");
+                      const limitado = somenteNumeros.slice(0, 2);
+                      setDadosPessoais((prev) => ({
+                        ...prev,
+                        numeroInterno: limitado,
+                      }));
+                    }}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all disabled:bg-gray-100 disabled:text-gray-500"
+                    placeholder="Ex: 12"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    {statusUnidade === "ATIVO"
+                      ? "Obrigatorio para adolescentes ativos. Informe um numero entre 1 e 86."
+                      : "Numero interno reservado apenas para adolescentes com status ATIVO."}
+                  </p>
                 </div>
 
                 <div>

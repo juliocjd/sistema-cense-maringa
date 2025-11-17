@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -61,6 +61,7 @@ interface DetalhesConflitoProps {
   mediacoes: Mediacao[];
   onAdicionarMediacao: (mediacao: any) => Promise<void>;
   onResolverConflito: () => Promise<void>;
+  quickEditSlot?: ReactNode;
 }
 
 export function DetalhesConflito({
@@ -68,6 +69,7 @@ export function DetalhesConflito({
   mediacoes = [],
   onAdicionarMediacao,
   onResolverConflito,
+  quickEditSlot,
 }: DetalhesConflitoProps) {
   const listaMediacoes = Array.isArray(mediacoes) ? mediacoes : [];
   const participantes = conflito.participantes?.length
@@ -278,6 +280,8 @@ export function DetalhesConflito({
           </p>
         )}
       </div>
+
+      {quickEditSlot}
 
       <div className="rounded-2xl bg-white p-6 shadow-lg">
         <h2 className="mb-4 text-xl font-bold text-gray-800">Informacoes do conflito</h2>

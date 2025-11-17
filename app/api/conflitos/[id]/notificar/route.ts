@@ -14,6 +14,21 @@ const ensureTipo = (valor: unknown): TipoConflito => {
 const montarContatoTecnico = (tecnico?: { nome: string; email: string } | null) =>
   tecnico?.email ? { nome: tecnico.nome, email: tecnico.email } : null;
 
+const formatarAlojamentoAtual = (
+  alojamento?: {
+    numeroAlojamento?: string | number | null;
+    ala?: string | null;
+    casa?: { nome?: string | null } | null;
+  } | null
+) => {
+  if (!alojamento) return null;
+  const partes: string[] = [];
+  if (alojamento.casa?.nome) partes.push(alojamento.casa.nome);
+  if (alojamento.numeroAlojamento) partes.push(`Aloj. ${alojamento.numeroAlojamento}`);
+  if (alojamento.ala) partes.push(`Ala ${alojamento.ala}`);
+  return partes.length ? partes.join(" • ") : null;
+};
+
 const buscarAdolescenteComTecnico = (where: object) => {
   return prisma.adolescente.findFirst({
     where,
@@ -22,6 +37,13 @@ const buscarAdolescenteComTecnico = (where: object) => {
         select: {
           nome: true,
           email: true,
+        },
+      },
+      alojamentoAtual: {
+        select: {
+          numeroAlojamento: true,
+          ala: true,
+          casa: { select: { nome: true } },
         },
       },
     },
@@ -49,6 +71,13 @@ export async function POST(
               tecnicoReferencia: {
                 select: { nome: true, email: true },
               },
+              alojamentoAtual: {
+                select: {
+                  numeroAlojamento: true,
+                  ala: true,
+                  casa: { select: { nome: true } },
+                },
+              },
             },
           },
           adolescenteB: {
@@ -58,6 +87,19 @@ export async function POST(
               tecnicoReferencia: {
                 select: { nome: true, email: true },
               },
+              alojamentoAtual: {
+                select: {
+                  numeroAlojamento: true,
+                  ala: true,
+                  casa: { select: { nome: true } },
+                },
+              },
+            },
+          },
+          ciOrigem: {
+            select: {
+              numero: true,
+              ano: true,
             },
           },
         },
@@ -88,6 +130,13 @@ export async function POST(
               tecnicoReferencia: {
                 select: { nome: true, email: true },
               },
+              alojamentoAtual: {
+                select: {
+                  numeroAlojamento: true,
+                  ala: true,
+                  casa: { select: { nome: true } },
+                },
+              },
             },
           },
           adolescenteB: {
@@ -96,6 +145,13 @@ export async function POST(
               nomeCompleto: true,
               tecnicoReferencia: {
                 select: { nome: true, email: true },
+              },
+              alojamentoAtual: {
+                select: {
+                  numeroAlojamento: true,
+                  ala: true,
+                  casa: { select: { nome: true } },
+                },
               },
             },
           },
@@ -108,6 +164,7 @@ export async function POST(
           id: string;
           nomeCompleto: string;
           tecnico: { nome: string; email: string } | null;
+          alojamento: string | null;
         }
       >();
 
@@ -115,6 +172,11 @@ export async function POST(
         id: string;
         nomeCompleto: string;
         tecnicoReferencia: { nome: string; email: string } | null;
+        alojamentoAtual?: {
+          numeroAlojamento?: string | number | null;
+          ala?: string | null;
+          casa?: { nome?: string | null } | null;
+        } | null;
       }) => {
         if (!dados) return;
         if (!participantes.has(dados.id)) {
@@ -122,6 +184,7 @@ export async function POST(
             id: dados.id,
             nomeCompleto: dados.nomeCompleto,
             tecnico: montarContatoTecnico(dados.tecnicoReferencia),
+            alojamento: formatarAlojamentoAtual(dados.alojamentoAtual),
           });
         }
       };
@@ -158,17 +221,28 @@ export async function POST(
             id: pivot.id,
             nomeCompleto: pivot.nomeCompleto,
             tecnico: pivot.tecnico,
+            alojamento: pivot.alojamento,
           },
           adversario: {
             id: alvo.id,
             nomeCompleto: alvo.nomeCompleto,
             tecnico: alvo.tecnico,
+            alojamento: alvo.alojamento,
           },
           mensagem: `Conflito interno do tipo ${
             conflito.tipoConflito ?? "OUTROS"
           } registrado.`,
           nivelConflito: conflito.status,
           link: `${origem}/conflitos/${id}`,
+          detalhes: {
+            tipo: conflito.tipoConflito,
+            dataRegistro: conflito.criadoEm,
+            origem: conflito.ciOrigem
+              ? `CI ${conflito.ciOrigem.numero}/${conflito.ciOrigem.ano}`
+              : conflito.ciOrigemId ?? undefined,
+            descricao: conflito.descricao ?? undefined,
+            assuntoPersonalizado: `Conflito entre ${pivot.nomeCompleto} e ${alvo.nomeCompleto}`,
+          },
         });
       }
 
@@ -248,15 +322,24 @@ export async function POST(
         id: adolescenteA.id,
         nomeCompleto: adolescenteA.nomeCompleto,
         tecnico: montarContatoTecnico(adolescenteA.tecnicoReferencia),
+        alojamento: formatarAlojamentoAtual(adolescenteA.alojamentoAtual),
       },
       adversario: {
         id: adolescenteB.id,
         nomeCompleto: adolescenteB.nomeCompleto,
         tecnico: montarContatoTecnico(adolescenteB.tecnicoReferencia),
+        alojamento: formatarAlojamentoAtual(adolescenteB.alojamentoAtual),
       },
       mensagem: `Conflito preventivo registrado entre ${origemNome} e ${destinoNome}.`,
       nivelConflito,
       link: `${origem}/inteligencia/conflitos`,
+      detalhes: {
+        tipo: tipo === "bairro" ? "Conflito territorial" : "Conflito entre faccoes",
+        dataRegistro: new Date().toISOString(),
+        origem: `${origemNome} x ${destinoNome}`,
+        descricao: `Conflito preventivo envolvendo os participantes ${adolescenteA.nomeCompleto} e ${adolescenteB.nomeCompleto}.`,
+        assuntoPersonalizado: `Conflito entre ${adolescenteA.nomeCompleto} e ${adolescenteB.nomeCompleto}`,
+      },
     });
 
     return NextResponse.json({
