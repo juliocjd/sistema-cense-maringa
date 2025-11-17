@@ -1,6 +1,8 @@
 // Shared domain types for the CENSE Maringa system. All strings are kept in
 // ASCII to avoid encoding issues that were breaking build pipelines.
 
+import type { AlertaEspecialTipo } from "@/lib/alertas/especiais";
+
 export type StatusUnidade = "ATIVO" | "TRANSFERIDO" | "LIBERADO" | "EVADIDO";
 export type StatusManutencao = "LIVRE" | "INTERDITADO";
 export type Ala = "A" | "B" | null;
@@ -153,10 +155,17 @@ export interface Adolescente {
   conflitosB: Conflito[];
   conflitosResolvidos?: Conflito[];
   historicoInfracional: AdolescenteHistoricoInfracionalItem[];
+  alertasEspeciais?: AdolescenteAlertaEspecial[];
 
   criadoEm?: string;
   atualizadoEm?: string;
 }
+
+export type AdolescenteAlertaEspecial = {
+  tipo: AlertaEspecialTipo;
+  descricao?: string | null;
+  nivelRisco?: string | null;
+};
 
 export type AdolescenteCadastroPayload = Partial<
   Omit<
@@ -170,9 +179,12 @@ export type AdolescenteCadastroPayload = Partial<
     | "conflitosResolvidos"
     | "historicoInfracional"
   >
-> & {
-  historicoInfracional?: AdolescenteHistoricoRegistroInput[];
-  tatuagens?: Array<{
+  > & {
+    alertasEspeciais?: Array<
+      Pick<AdolescenteAlertaEspecial, "tipo" | "descricao">
+    >;
+    historicoInfracional?: AdolescenteHistoricoRegistroInput[];
+    tatuagens?: Array<{
     catalogoId: string;
     localCorpo: string;
     observacoes?: string;

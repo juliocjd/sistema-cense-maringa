@@ -132,7 +132,7 @@ export function SeletorTatuagens({ tatuagens, onChange }: SeletorTatuagensProps)
           <Shield size={48} className="mx-auto mb-2 text-gray-400" />
           <p className="mb-2">Nenhuma tatuagem registrada</p>
           <p className="text-xs text-gray-500">
-            Clique em "Adicionar Tatuagem" para registrar
+            Clique em &quot;Adicionar Tatuagem&quot; para registrar
           </p>
         </div>
       ) : (
@@ -284,7 +284,7 @@ export function SeletorTatuagens({ tatuagens, onChange }: SeletorTatuagensProps)
       {/* Link para gerenciar catálogo */}
       <div className="flex items-center justify-between pt-4 border-t border-gray-200">
         <p className="text-xs text-gray-500">
-          Não encontrou a tatuagem? Cadastre-a no catálogo usando o botão "Nova no Catálogo"
+          Não encontrou a tatuagem? Cadastre-a no catálogo usando o botão &quot;Nova no Catálogo&quot;
         </p>
         <a
           href="/tatuagens"

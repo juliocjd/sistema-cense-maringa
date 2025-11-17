@@ -1,7 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
+import {
+  aplicarAlertasEspeciais,
+  ALERTAS_ESPECIAIS,
+} from "@/lib/alertas/sincronizar-especiais";
 
 const prisma = new PrismaClient();
+const CI_ALERTA_ESPECIAL_MAP: Record<string, keyof typeof ALERTAS_ESPECIAIS> =
+  {
+    RISCO_SUICIDIO: "RISCO_SUICIDIO",
+    PERFIL_MAPEADO: "PERFIL_MAPEADO",
+    SAUDE_CONFIDENCIAL: "SAUDE_CONFIDENCIAL",
+  };
+const tiposQueGeramAlerta = [
+  "SAUDE",
+  "DISCIPLINAR",
+  "RISCO_SUICIDIO",
+  "PERFIL_MAPEADO",
+  "SAUDE_CONFIDENCIAL",
+  "FUGA",
+  "AGRESSAO",
+];
 
 /**
  * GET /api/comunicados
@@ -263,23 +282,31 @@ export async function POST(request: NextRequest) {
 
       // 4. Gerar alertas automaticamente
       const alertasGerados: string[] = [];
-      const tiposQueGeramAlerta = [
-        "SAUDE",
-        "DISCIPLINAR",
-        "RISCO_SUICIDIO",
-        "FUGA",
-        "AGRESSAO",
-      ];
+      if (gerarAlerta === true || tiposQueGeramAlerta.includes(tipoCI)) {
+        const tipoEspecialCI =
+          tipoCI && CI_ALERTA_ESPECIAL_MAP[tipoCI as keyof typeof CI_ALERTA_ESPECIAL_MAP];
 
-      if (
-        gerarAlerta === true ||
-        tiposQueGeramAlerta.includes(tipoCI)
-      ) {
-        // Criar alerta para cada adolescente envolvido
         for (const adolescenteId of adolescentesIds) {
+          if (tipoEspecialCI) {
+            await aplicarAlertasEspeciais(tx, adolescenteId, [
+              {
+                tipo: tipoEspecialCI,
+                descricao: `CI ${numero}/${ano} (${tipoCI}): ${resumoCI}`,
+              },
+            ]);
+            alertasGerados.push(`${tipoEspecialCI}-${adolescenteId}`);
+            continue;
+          }
+
           const nivelRisco =
             nivelRiscoAlerta ||
-            (tipoCI === "RISCO_SUICIDIO" ? "CRITICO" : tipoCI === "FUGA" ? "ALTO" : tipoCI === "SAUDE" ? "ALTO" : "MEDIO");
+            (tipoCI === "RISCO_SUICIDIO"
+              ? "CRITICO"
+              : tipoCI === "FUGA"
+              ? "ALTO"
+              : tipoCI === "SAUDE"
+              ? "ALTO"
+              : "MEDIO");
 
           const tipoAlerta =
             tipoCI === "SAUDE"

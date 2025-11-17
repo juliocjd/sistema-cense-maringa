@@ -12,6 +12,14 @@ import {
   garantirNumeroInternoDisponivel,
   NumeroInternoIndisponivelError,
 } from "@/lib/adolescentes/numeracao";
+import {
+  aplicarAlertasEspeciais,
+  mapearAlertasEspeciaisDoPayload,
+} from "@/lib/alertas/sincronizar-especiais";
+import {
+  ALERTA_ESPECIAL_TIPOS,
+  type AlertaEspecialTipo,
+} from "@/lib/alertas/especiais";
 
 const historicoRegistroSchema = z
   .array(
@@ -25,6 +33,18 @@ const historicoRegistroSchema = z
     })
   )
   .optional();
+
+const ALERTA_ESPECIAL_ENUM = z.enum(
+  ALERTA_ESPECIAL_TIPOS as [
+    AlertaEspecialTipo,
+    ...AlertaEspecialTipo[]
+  ]
+);
+
+const alertaEspecialSchema = z.object({
+  tipo: ALERTA_ESPECIAL_ENUM,
+  descricao: z.string().optional().nullable(),
+});
 
 const updateAdolescenteSchema = z.object({
   nomeCompleto: z.string().min(3, "Nome deve ter no minimo 3 caracteres").optional(),
@@ -63,6 +83,7 @@ const updateAdolescenteSchema = z.object({
   faseInternacaoAtualId: z.string().uuid().optional().nullable(),
   historicoInfracional: historicoRegistroSchema,
   tecnicoReferenciaId: z.string().uuid().optional().nullable(),
+  alertasEspeciais: z.array(alertaEspecialSchema).optional(),
 });
 
 const sanitizeNullableString = (value: string | null | undefined) => {
@@ -292,6 +313,10 @@ export async function PUT(
         atoInfracionalGravidadeObs: true,
         numeroProcesso: true,
         dataDesinternacao: true,
+        alertaRiscoSuicidio: true,
+        alertaPerfilMapeado: true,
+        alertaSaudeConfidencial: true,
+        alertaSaudeDetalhes: true,
       },
     });
 
@@ -318,6 +343,53 @@ export async function PUT(
         : numeroInternoInput === null
         ? null
         : numeroInternoInput;
+
+    const fallbackAlertasEspeciais: Parameters<
+      typeof mapearAlertasEspeciaisDoPayload
+    >[1] = {};
+
+    if (validated.alertaRiscoSuicidio !== undefined) {
+      fallbackAlertasEspeciais.riscoSuicidio = {
+        ativo: validated.alertaRiscoSuicidio,
+        descricao: undefined,
+      };
+    }
+
+    if (validated.alertaPerfilMapeado !== undefined) {
+      fallbackAlertasEspeciais.perfilMapeado = {
+        ativo: validated.alertaPerfilMapeado,
+        descricao: undefined,
+      };
+    }
+
+    if (
+      validated.alertaSaudeConfidencial !== undefined ||
+      validated.alertaSaudeDetalhes !== undefined
+    ) {
+      const ativo =
+        validated.alertaSaudeConfidencial !== undefined
+          ? validated.alertaSaudeConfidencial
+          : existente.alertaSaudeConfidencial ?? false;
+
+      fallbackAlertasEspeciais.saudeConfidencial = {
+        ativo,
+        descricao:
+          validated.alertaSaudeDetalhes !== undefined
+            ? validated.alertaSaudeDetalhes
+            : existente.alertaSaudeDetalhes ?? undefined,
+      };
+    }
+
+    const alertasEspeciaisAtualizados = mapearAlertasEspeciaisDoPayload(
+      validated.alertasEspeciais,
+      fallbackAlertasEspeciais
+    );
+
+    const deveAplicarAlertasEspeciais =
+      validated.alertasEspeciais !== undefined ||
+      fallbackAlertasEspeciais.riscoSuicidio !== undefined ||
+      fallbackAlertasEspeciais.perfilMapeado !== undefined ||
+      fallbackAlertasEspeciais.saudeConfidencial !== undefined;
 
     if (
       numeroInternoDesejado === null &&
@@ -688,10 +760,9 @@ export async function PUT(
         );
       }
 
-      const registro = await tx.adolescente.update({
+      await tx.adolescente.update({
         where: { id },
         data,
-        include: INCLUDE_ADOLESCENTE_DEFAULT,
       });
 
       const historicoExistentes =
@@ -750,8 +821,23 @@ export async function PUT(
         await registrarEntrada(entrada);
       }
 
-      return registro;
+      if (deveAplicarAlertasEspeciais) {
+        await aplicarAlertasEspeciais(
+          tx,
+          id,
+          alertasEspeciaisAtualizados
+        );
+      }
+
+      return tx.adolescente.findUnique({
+        where: { id },
+        include: INCLUDE_ADOLESCENTE_DEFAULT,
+      });
     });
+
+    if (!atualizado) {
+      throw new Error("Falha ao carregar adolescente apos atualizacao");
+    }
 
     await prisma.logAuditoria.create({
       data: {

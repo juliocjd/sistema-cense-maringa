@@ -1,5 +1,10 @@
 import type { Prisma } from "@prisma/client";
 import type { Adolescente, StatusUnidade, Ala } from "@/types";
+import {
+  ALERTA_ESPECIAL_TIPOS,
+  ALERTAS_ESPECIAIS,
+  mapearTipoEspecialPorCodigo,
+} from "@/lib/alertas/especiais";
 
 // Prisma include used across adolescentes endpoints to ensure we always fetch
 // the same related entities before mapping them to the API contract.
@@ -52,6 +57,15 @@ export const INCLUDE_ADOLESCENTE_DEFAULT = {
   historicoInfracional: {
     orderBy: {
       ano: "desc",
+    },
+  },
+  alertasAtivos: {
+    where: { desativadoEm: null },
+    select: {
+      id: true,
+      tipoAlerta: true,
+      descricaoAlerta: true,
+      nivelRisco: true,
     },
   },
 } satisfies Prisma.AdolescenteInclude;
@@ -142,6 +156,23 @@ export function mapPrismaAdolescente(
       unidadeInternacao: registro.unidadeInternacao ?? null,
       observacoes: registro.observacoes ?? null,
     })) ?? [];
+
+  const alertasEspeciais =
+    adolescente.alertasAtivos
+      ?.map((alerta) => {
+        const tipo = mapearTipoEspecialPorCodigo(alerta.tipoAlerta);
+        if (!tipo) return null;
+        return {
+          tipo,
+          descricao: alerta.descricaoAlerta ?? null,
+          nivelRisco: alerta.nivelRisco ?? null,
+        };
+      })
+      .filter(
+        (
+          alerta
+        ): alerta is NonNullable<typeof alerta> => Boolean(alerta)
+      ) ?? [];
 
   return {
     id: adolescente.id,
@@ -240,6 +271,7 @@ export function mapPrismaAdolescente(
           : null,
         })) ?? [],
     historicoInfracional,
+    alertasEspeciais,
     criadoEm: formatDate(adolescente.criadoEm),
     atualizadoEm: formatDate(adolescente.atualizadoEm),
   };

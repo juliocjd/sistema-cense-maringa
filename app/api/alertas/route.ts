@@ -1,7 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
+import {
+  aplicarAlertasEspeciais,
+  atualizarFlagsAlertasEspeciais,
+  ehAlertaEspecial,
+  mapearTipoEspecialPorCodigo,
+} from "@/lib/alertas/sincronizar-especiais";
 
 const prisma = new PrismaClient();
+
+const ALERTA_INCLUDE = {
+  adolescente: {
+    select: {
+      id: true,
+      nomeCompleto: true,
+      nomeSocial: true,
+      numeroSms: true,
+    },
+  },
+  ciOrigem: {
+    select: {
+      id: true,
+      numero: true,
+      resumoCI: true,
+      tipoCI: true,
+    },
+  },
+} as const;
 
 /**
  * GET /api/alertas
@@ -60,12 +85,10 @@ export async function GET(request: NextRequest) {
       prisma.alertaAtivo.findMany({
         where,
         include: {
+          ...ALERTA_INCLUDE,
           adolescente: {
             select: {
-              id: true,
-              nomeCompleto: true,
-              nomeSocial: true,
-              numeroSms: true,
+              ...ALERTA_INCLUDE.adolescente.select,
               fotoUrl: true,
               statusUnidade: true,
               alojamentoAtual: {
@@ -82,14 +105,6 @@ export async function GET(request: NextRequest) {
                   },
                 },
               },
-            },
-          },
-          ciOrigem: {
-            select: {
-              id: true,
-              numero: true,
-              resumoCI: true,
-              tipoCI: true,
             },
           },
         },
@@ -193,7 +208,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Criar alerta
+    const tipoEspecial = mapearTipoEspecialPorCodigo(tipoAlerta);
+
+    if (tipoEspecial) {
+      await aplicarAlertasEspeciais(prisma, adolescenteId, [
+        { tipo: tipoEspecial, descricao: descricaoAlerta },
+      ]);
+
+      const alertaEspecial = await prisma.alertaAtivo.findFirst({
+        where: {
+          adolescenteId,
+          tipoAlerta,
+          desativadoEm: null,
+        },
+        orderBy: { criadoEm: "desc" },
+        include: ALERTA_INCLUDE,
+      });
+
+      if (!alertaEspecial) {
+        throw new Error("Falha ao sincronizar alerta especial");
+      }
+
+      return NextResponse.json(alertaEspecial, { status: 201 });
+    }
+
     const alerta = await prisma.alertaAtivo.create({
       data: {
         adolescenteId,
@@ -202,24 +240,12 @@ export async function POST(request: NextRequest) {
         descricaoAlerta: descricaoAlerta.trim(),
         nivelRisco: nivelRisco || null,
       },
-      include: {
-        adolescente: {
-          select: {
-            id: true,
-            nomeCompleto: true,
-            nomeSocial: true,
-            numeroSms: true,
-          },
-        },
-        ciOrigem: {
-          select: {
-            id: true,
-            numero: true,
-            resumoCI: true,
-          },
-        },
-      },
+      include: ALERTA_INCLUDE,
     });
+
+    if (ehAlertaEspecial(alerta.tipoAlerta)) {
+      await atualizarFlagsAlertasEspeciais(prisma, alerta.adolescenteId);
+    }
 
     return NextResponse.json(alerta, { status: 201 });
   } catch (error) {

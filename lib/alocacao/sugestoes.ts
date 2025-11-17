@@ -443,6 +443,8 @@ export async function gerarSugestoesParaAlocacao({
     throw new Error("Nao foi possivel determinar dados do adolescente");
   }
 
+  const adolescenteAvaliado = adolescente;
+
   const casas = await carregarCasasComAlojamentos();
 
   const mapaBairros =
@@ -456,7 +458,7 @@ export async function gerarSugestoesParaAlocacao({
       : new Map<string, FaccaoConflitoInfo>();
 
   const conflitosExternos = construirImpactosExternos(
-    adolescente,
+    adolescenteAvaliado,
     bairroParaAnalise,
     faccaoParaAnalise,
     mapaBairros,
@@ -477,7 +479,7 @@ export async function gerarSugestoesParaAlocacao({
         const avaliacao = avaliarCandidato(
           casa,
           alojamento,
-          adolescente,
+          adolescenteAvaliado,
           conflitosExternos
         );
 
@@ -520,8 +522,8 @@ export async function gerarSugestoesParaAlocacao({
 
   return {
     adolescente: {
-      id: adolescente?.id ?? adolescenteId ?? null,
-      nome: adolescente?.nomeCompleto ?? "Adolescente em cadastro",
+      id: adolescenteAvaliado.id,
+      nome: adolescenteAvaliado.nomeCompleto,
     },
     sugestoes: selecionados.slice(0, limite),
   };

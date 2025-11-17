@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
+import {
+  atualizarFlagsAlertasEspeciais,
+  ehAlertaEspecial,
+} from "@/lib/alertas/sincronizar-especiais";
 
 const prisma = new PrismaClient();
 
@@ -132,6 +136,13 @@ export async function PATCH(
       },
     });
 
+    if (
+      ehAlertaEspecial(alertaExistente.tipoAlerta) ||
+      ehAlertaEspecial(alerta.tipoAlerta)
+    ) {
+      await atualizarFlagsAlertasEspeciais(prisma, alerta.adolescenteId);
+    }
+
     return NextResponse.json(alerta);
   } catch (error) {
     console.error("Erro ao atualizar alerta:", error);
@@ -166,9 +177,16 @@ export async function DELETE(
     }
 
     // Deletar alerta
-    await prisma.alertaAtivo.delete({
+    const alertaRemovido = await prisma.alertaAtivo.delete({
       where: { id },
     });
+
+    if (ehAlertaEspecial(alertaExistente.tipoAlerta)) {
+      await atualizarFlagsAlertasEspeciais(
+        prisma,
+        alertaExistente.adolescenteId
+      );
+    }
 
     return NextResponse.json({ mensagem: "Alerta removido com sucesso" });
   } catch (error) {

@@ -11,6 +11,14 @@ import {
   garantirNumeroInternoDisponivel,
   NumeroInternoIndisponivelError,
 } from "@/lib/adolescentes/numeracao";
+import {
+  aplicarAlertasEspeciais,
+  mapearAlertasEspeciaisDoPayload,
+} from "@/lib/alertas/sincronizar-especiais";
+import {
+  ALERTA_ESPECIAL_TIPOS,
+  type AlertaEspecialTipo,
+} from "@/lib/alertas/especiais";
 import type {
   Adolescente,
   ListaAdolescentesMeta,
@@ -18,6 +26,18 @@ import type {
 } from "@/types";
 
 const LIST_LIMIT_MAX = 100;
+
+const ALERTA_ESPECIAL_ENUM = z.enum(
+  ALERTA_ESPECIAL_TIPOS as [
+    AlertaEspecialTipo,
+    ...AlertaEspecialTipo[]
+  ]
+);
+
+const alertaEspecialSchema = z.object({
+  tipo: ALERTA_ESPECIAL_ENUM,
+  descricao: z.string().optional().nullable(),
+});
 
 const historicoRegistroSchema = z
   .array(
@@ -70,6 +90,7 @@ const createAdolescenteSchema = z.object({
   })).optional().default([]),
   historicoInfracional: historicoRegistroSchema,
   tecnicoReferenciaId: z.string().uuid().optional().nullable(),
+  alertasEspeciais: z.array(alertaEspecialSchema).optional().default([]),
 });
 
 const sanitizeNullableString = (value: string | null | undefined) => {
@@ -279,6 +300,23 @@ export async function POST(request: NextRequest) {
     }
 
     const validated = createAdolescenteSchema.parse(payload);
+    const alertasEspeciaisSelecionados = mapearAlertasEspeciaisDoPayload(
+      validated.alertasEspeciais,
+      {
+        riscoSuicidio: {
+          ativo: validated.alertaRiscoSuicidio,
+          descricao: undefined,
+        },
+        perfilMapeado: {
+          ativo: validated.alertaPerfilMapeado,
+          descricao: undefined,
+        },
+        saudeConfidencial: {
+          ativo: validated.alertaSaudeConfidencial,
+          descricao: validated.alertaSaudeDetalhes ?? undefined,
+        },
+      }
+    );
     const historicoNovos = parseHistoricoPayload(
       validated.historicoInfracional
     );
@@ -418,6 +456,12 @@ export async function POST(request: NextRequest) {
           })),
         });
       }
+
+      await aplicarAlertasEspeciais(
+        tx,
+        base.id,
+        alertasEspeciaisSelecionados
+      );
 
       return tx.adolescente.findUnique({
         where: { id: base.id },

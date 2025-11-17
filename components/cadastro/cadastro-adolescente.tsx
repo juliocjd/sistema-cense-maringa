@@ -13,7 +13,10 @@ import {
   ChevronRight,
   CheckCircle,
   Loader2,
+  Lock,
+  Activity,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import type {
   Adolescente,
   AdolescenteCadastroPayload,
@@ -26,12 +29,62 @@ import type {
   StatusUnidade,
 } from "@/types";
 import { SeletorTatuagens } from "@/components/cadastro/seletor-tatuagens";
+import {
+  ALERTAS_ESPECIAIS,
+  type AlertaEspecialTipo,
+} from "@/lib/alertas/especiais";
 
 const STATUS_OPCOES: Array<{ value: StatusUnidade; label: string }> = [
   { value: "ATIVO", label: "Ativo / Internado" },
   { value: "TRANSFERIDO", label: "Transferido" },
   { value: "LIBERADO", label: "Liberado" },
   { value: "EVADIDO", label: "Evadido" },
+];
+
+type AlertasEspeciaisFormState = Record<
+  AlertaEspecialTipo,
+  { ativo: boolean; descricao: string }
+>;
+
+const ALERTAS_ESPECIAIS_UI: Record<
+  AlertaEspecialTipo,
+  {
+    titulo: string;
+    descricao: string;
+    destaque: string;
+    corClasse: string;
+    Icone: LucideIcon;
+    fullWidth?: boolean;
+  }
+> = {
+  RISCO_SUICIDIO: {
+    titulo: "Risco de suicidio",
+    descricao: "Adolescente apresenta historico ou comportamento de risco para autolesao.",
+    destaque: "Priorizar alojamentos 1, 6, 7 ou 10 e garantir monitoramento constante.",
+    corClasse: "border-orange-200 bg-orange-50",
+    Icone: AlertTriangle,
+  },
+  PERFIL_MAPEADO: {
+    titulo: "Perfil mapeado (protecao)",
+    descricao: "Ato infracional que necessita sigilo e protecao especial.",
+    destaque: "Informa aos demais modulos que este perfil requer tratamento reservado.",
+    corClasse: "border-purple-200 bg-purple-50",
+    Icone: Lock,
+  },
+  SAUDE_CONFIDENCIAL: {
+    titulo: "Alerta de saude confidencial",
+    descricao: "Condicao de saude que requer atencao e acompanhamento diferenciado.",
+    destaque: "Utilize este campo para orientar equipes de plantao sobre cuidados especificos.",
+    corClasse: "border-blue-200 bg-blue-50",
+    Icone: Activity,
+    fullWidth: true,
+  },
+};
+
+const ALERTAS_ESPECIAIS_ORDEM: AlertaEspecialTipo[] = [
+  "RISCO_SUICIDIO",
+  "PERFIL_MAPEADO",
+  "SAUDE_CONFIDENCIAL",
 ];
 
 interface CadastroAdolescenteProps {
@@ -125,12 +178,62 @@ export function CadastroAdolescente({
     { catalogoId: string; localCorpo: string; observacoes: string; significadoPessoal: string }[]
   >([]);
 
-  const [alertas, setAlertas] = useState({
-    riscoSuicidio: false,
-    perfilMapeado: false,
-    saudeConfidencial: false,
-    detalheSaude: "",
+  const [alertasEspeciais, setAlertasEspeciais] =
+    useState<AlertasEspeciaisFormState>({
+      RISCO_SUICIDIO: { ativo: false, descricao: "" },
+      PERFIL_MAPEADO: { ativo: false, descricao: "" },
+      SAUDE_CONFIDENCIAL: { ativo: false, descricao: "" },
+    });
+  const [modalAlertaEspecial, setModalAlertaEspecial] = useState<{
+    aberto: boolean;
+    tipo: AlertaEspecialTipo | null;
+    descricao: string;
+  }>({
+    aberto: false,
+    tipo: null,
+    descricao: "",
   });
+
+  const abrirModalAlertaEspecial = (tipo: AlertaEspecialTipo) => {
+    setModalAlertaEspecial({
+      aberto: true,
+      tipo,
+      descricao: alertasEspeciais[tipo]?.descricao ?? "",
+    });
+  };
+
+  const fecharModalAlertaEspecial = () =>
+    setModalAlertaEspecial({ aberto: false, tipo: null, descricao: "" });
+
+  const confirmarModalAlertaEspecial = () => {
+    const tipo = modalAlertaEspecial.tipo;
+    if (!tipo) return;
+    setAlertasEspeciais((prev) => ({
+      ...prev,
+      [tipo]: {
+        ativo: true,
+        descricao: modalAlertaEspecial.descricao.trim(),
+      },
+    }));
+    fecharModalAlertaEspecial();
+  };
+
+  const handleToggleAlertaEspecial = (
+    tipo: AlertaEspecialTipo,
+    ativar: boolean
+  ) => {
+    if (ativar) {
+      abrirModalAlertaEspecial(tipo);
+      return;
+    }
+    setAlertasEspeciais((prev) => ({
+      ...prev,
+      [tipo]: {
+        ...prev[tipo],
+        ativo: false,
+      },
+    }));
+  };
 
   const formatarDataInput = (valor?: string | null) => {
     if (!valor) return "";
@@ -188,11 +291,30 @@ export function CadastroAdolescente({
     });
     setTecnicoReferenciaId(initialData.tecnicoReferenciaId ?? "");
 
-    setAlertas({
-      riscoSuicidio: initialData.alertaRiscoSuicidio ?? false,
-      perfilMapeado: initialData.alertaPerfilMapeado ?? false,
-      saudeConfidencial: initialData.alertaSaudeConfidencial ?? false,
-      detalheSaude: initialData.alertaSaudeDetalhes ?? "",
+    const descricaoEspecial = (tipo: AlertaEspecialTipo) => {
+      return (
+        initialData.alertasEspeciais?.find(
+          (alerta) => alerta.tipo === tipo
+        )?.descricao ??
+        (tipo === "SAUDE_CONFIDENCIAL"
+          ? initialData.alertaSaudeDetalhes ?? ""
+          : "")
+      );
+    };
+
+    setAlertasEspeciais({
+      RISCO_SUICIDIO: {
+        ativo: initialData.alertaRiscoSuicidio ?? false,
+        descricao: descricaoEspecial("RISCO_SUICIDIO") ?? "",
+      },
+      PERFIL_MAPEADO: {
+        ativo: initialData.alertaPerfilMapeado ?? false,
+        descricao: descricaoEspecial("PERFIL_MAPEADO") ?? "",
+      },
+      SAUDE_CONFIDENCIAL: {
+        ativo: initialData.alertaSaudeConfidencial ?? false,
+        descricao: descricaoEspecial("SAUDE_CONFIDENCIAL") ?? "",
+      },
     });
 
     setFoto(initialData.fotoUrl ?? null);
@@ -788,13 +910,6 @@ export function CadastroAdolescente({
       etapaErro = Math.max(etapaErro, 2);
     }
 
-    if (alertas.saudeConfidencial && !alertas.detalheSaude.trim()) {
-      mensagens.push(
-        "Informe os detalhes da condicao de saude confidencial selecionada."
-      );
-      etapaErro = Math.max(etapaErro, 5);
-    }
-
     if (statusUnidade === "ATIVO") {
       const numeroLimpo = dadosPessoais.numeroInterno.trim();
       if (!numeroLimpo) {
@@ -888,6 +1003,14 @@ export function CadastroAdolescente({
             (item): item is AdolescenteHistoricoRegistroInput => item !== null
           );
 
+      const alertasEspeciaisSelecionados = ALERTAS_ESPECIAIS_ORDEM.filter(
+        (tipo) => alertasEspeciais[tipo]?.ativo
+      ).map((tipo) => ({
+        tipo,
+        descricao:
+          sanitizeOrNull(alertasEspeciais[tipo]?.descricao ?? "") ?? undefined,
+      }));
+
       const adolescente: AdolescenteCadastroPayload = {
         nomeCompleto: dadosPessoais.nomeCompleto.trim(),
         nomeSocial: sanitizeOrNull(dadosPessoais.nomeSocial) ?? undefined,
@@ -904,10 +1027,14 @@ export function CadastroAdolescente({
         atoInfracionalGravidadeObs: gravidadeDescricaoSanitizada,
         numeroProcesso: processoSanitizado,
         fotoUrl: foto,
-        alertaRiscoSuicidio: alertas.riscoSuicidio,
-        alertaPerfilMapeado: alertas.perfilMapeado,
-        alertaSaudeConfidencial: alertas.saudeConfidencial,
-        alertaSaudeDetalhes: sanitizeOrNull(alertas.detalheSaude) ?? undefined,
+        alertaRiscoSuicidio: alertasEspeciais.RISCO_SUICIDIO.ativo,
+        alertaPerfilMapeado: alertasEspeciais.PERFIL_MAPEADO.ativo,
+        alertaSaudeConfidencial: alertasEspeciais.SAUDE_CONFIDENCIAL.ativo,
+        alertaSaudeDetalhes:
+          sanitizeOrNull(
+            alertasEspeciais.SAUDE_CONFIDENCIAL.descricao ?? ""
+          ) ?? undefined,
+        alertasEspeciais: alertasEspeciaisSelecionados,
         statusUnidade,
         dataDesinternacao:
           statusUnidade === "ATIVO"
@@ -1822,104 +1949,79 @@ export function CadastroAdolescente({
                 </div>
               )}
 
-              <div className="space-y-4">
-                <div className="flex items-start gap-3 p-4 bg-orange-50 rounded-lg border-2 border-orange-200">
-                  <input
-                    type="checkbox"
-                    id="riscoSuicidio"
-                    checked={alertas.riscoSuicidio}
-                    onChange={(e) =>
-                      setAlertas({
-                        ...alertas,
-                        riscoSuicidio: e.target.checked,
-                      })
-                    }
-                    className="mt-1 w-5 h-5 text-orange-600 rounded focus:ring-orange-500"
-                  />
-                  <div className="flex-1">
-                    <label
-                      htmlFor="riscoSuicidio"
-                      className="font-semibold text-orange-900 cursor-pointer"
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {ALERTAS_ESPECIAIS_ORDEM.map((tipo) => {
+                  const info = ALERTAS_ESPECIAIS_UI[tipo];
+                  const estado = alertasEspeciais[tipo];
+                  const Icone = info.Icone;
+                  const inputId = `alerta-${tipo.toLowerCase()}`;
+                  return (
+                    <div
+                      key={tipo}
+                      className={`flex items-start gap-3 p-4 rounded-lg border-2 ${info.corClasse} ${
+                        info.fullWidth ? "md:col-span-2" : ""
+                      }`}
                     >
-                      Risco de Suicidio
-                    </label>
-                    <p className="text-sm text-orange-700 mt-1">
-                      Adolescente apresenta historico ou comportamento de risco para autolesao
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3 p-4 bg-purple-50 rounded-lg border-2 border-purple-200">
-                  <input
-                    type="checkbox"
-                    id="perfilMapeado"
-                    checked={alertas.perfilMapeado}
-                    onChange={(e) =>
-                      setAlertas({
-                        ...alertas,
-                        perfilMapeado: e.target.checked,
-                      })
-                    }
-                    className="mt-1 w-5 h-5 text-purple-600 rounded focus:ring-purple-500"
-                  />
-                  <div className="flex-1">
-                    <label
-                      htmlFor="perfilMapeado"
-                      className="font-semibold text-purple-900 cursor-pointer"
-                    >
-                      Perfil Mapeado (Protecao)
-                    </label>
-                    <p className="text-sm text-purple-700 mt-1">
-                      Ato infracional que necessita sigilo e protecao especial
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3 p-4 bg-blue-50 rounded-lg border-2 border-blue-200">
-                  <input
-                    type="checkbox"
-                    id="saudeConfidencial"
-                    checked={alertas.saudeConfidencial}
-                    onChange={(e) =>
-                      setAlertas({
-                        ...alertas,
-                        saudeConfidencial: e.target.checked,
-                      })
-                    }
-                    className="mt-1 w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
-                  />
-                  <div className="flex-1">
-                    <label
-                      htmlFor="saudeConfidencial"
-                      className="font-semibold text-blue-900 cursor-pointer"
-                    >
-                      Alerta de Saude Confidencial
-                    </label>
-                    <p className="text-sm text-blue-700 mt-1">
-                      Condicao de saude que requer atencao especial
-                    </p>
-                  </div>
-                </div>
-
-                {alertas.saudeConfidencial && (
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Detalhes da condicao de saude (confidencial)
-                    </label>
-                    <textarea
-                      value={alertas.detalheSaude}
-                      onChange={(e) =>
-                        setAlertas({
-                          ...alertas,
-                          detalheSaude: e.target.value,
-                        })
-                      }
-                      rows={3}
-                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all resize-none"
-                      placeholder="Descreva a condicao de saude que requer atencao especial..."
-                    />
-                  </div>
-                )}
+                      <input
+                        type="checkbox"
+                        id={inputId}
+                        checked={estado?.ativo ?? false}
+                        onChange={(e) =>
+                          handleToggleAlertaEspecial(tipo, e.target.checked)
+                        }
+                        className="mt-1 w-5 h-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <div className="flex-1">
+                        <label
+                          htmlFor={inputId}
+                          className="flex items-center gap-2 font-semibold text-gray-900 cursor-pointer"
+                        >
+                          <Icone className="h-5 w-5 opacity-80" />
+                          {info.titulo}
+                        </label>
+                        <p className="text-sm text-gray-700 mt-1">
+                          {info.descricao}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {info.destaque}
+                        </p>
+                        {estado?.ativo ? (
+                          <div className="mt-3 space-y-2">
+                            {estado.descricao ? (
+                              <div className="rounded-lg bg-white/80 border border-gray-200 p-3 text-sm text-gray-700">
+                                <p className="font-semibold text-gray-900">
+                                  Descricao registrada
+                                </p>
+                                <p>{estado.descricao}</p>
+                              </div>
+                            ) : (
+                              <p className="text-xs text-gray-600">
+                                Nenhuma descricao adicional registrada.
+                              </p>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => abrirModalAlertaEspecial(tipo)}
+                              className="inline-flex items-center gap-2 text-sm font-semibold text-indigo-600 hover:text-indigo-800"
+                            >
+                              <FileText size={14} />
+                              Atualizar detalhes
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => abrirModalAlertaEspecial(tipo)}
+                            className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-800"
+                          >
+                            <FileText size={12} />
+                            Registrar detalhes antes de confirmar
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}          {/* Botões de Navegação */}
@@ -1981,6 +2083,79 @@ export function CadastroAdolescente({
           </div>
         </div>
       </div>
+      {modalAlertaEspecial.aberto && modalAlertaEspecial.tipo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+            {(() => {
+              const tipo = modalAlertaEspecial.tipo as AlertaEspecialTipo;
+              const info = ALERTAS_ESPECIAIS_UI[tipo];
+              const meta = ALERTAS_ESPECIAIS[tipo];
+              return (
+                <>
+                  <div className="flex items-center gap-3 mb-4">
+                    <info.Icone className="h-6 w-6 text-indigo-600" />
+                    <div>
+                      <h3 className="text-lg font-semibold text-slate-900">
+                        {info.titulo}
+                      </h3>
+                      <p className="text-sm text-slate-600">
+                        {info.descricao}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 text-xs text-slate-600">
+                      <p className="font-semibold text-slate-800">
+                        Orientacao:
+                      </p>
+                      <p>{info.destaque}</p>
+                    </div>
+
+                    <label className="block text-sm font-semibold text-gray-700">
+                      Descricao adicional (opcional)
+                    </label>
+                    <textarea
+                      value={modalAlertaEspecial.descricao}
+                      onChange={(event) =>
+                        setModalAlertaEspecial((prev) => ({
+                          ...prev,
+                          descricao: event.target.value,
+                        }))
+                      }
+                      rows={4}
+                      placeholder={meta.descricaoPadrao}
+                      className="w-full resize-none rounded-lg border-2 border-gray-200 px-4 py-3 text-sm text-gray-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+                    />
+                    <p className="text-xs text-gray-500">
+                      Esta informacao abastece automaticamente o modulo de
+                      alertas e o mapa de estrutura. Pode ser atualizada a
+                      qualquer momento.
+                    </p>
+                  </div>
+
+                  <div className="mt-6 flex justify-end gap-3">
+                    <button
+                      type="button"
+                      onClick={fecharModalAlertaEspecial}
+                      className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={confirmarModalAlertaEspecial}
+                      className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500"
+                    >
+                      Confirmar e ativar alerta
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        </div>
+      )}
       {modalNovoBairro.aberto && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">

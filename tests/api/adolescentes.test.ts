@@ -9,6 +9,24 @@ vi.mock("@/auth", () => ({
   auth: vi.fn(),
 }));
 
+const alertasEspeciaisMocks = vi.hoisted(() => {
+  const aplicarAlertasEspeciais = vi.fn().mockResolvedValue(undefined);
+  const mapearAlertasEspeciaisDoPayload = vi.fn(() => []);
+  return {
+    aplicarAlertasEspeciais,
+    mapearAlertasEspeciaisDoPayload,
+    factory: () => ({
+      aplicarAlertasEspeciais,
+      mapearAlertasEspeciaisDoPayload,
+    }),
+  };
+});
+
+vi.mock(
+  "@/lib/alertas/sincronizar-especiais",
+  alertasEspeciaisMocks.factory
+);
+
 vi.mock("@/lib/adolescentes/transformers", () => ({
   INCLUDE_ADOLESCENTE_DEFAULT: {},
   mapPrismaAdolescente: vi.fn((input) => input),
@@ -21,7 +39,7 @@ const prismaSetup = vi.hoisted(() => {
     logAuditoria: { create: vi.fn() },
     adolescenteHistoricoGlobal: { createMany: vi.fn() },
     adolescenteTatuagemGlobal: { createMany: vi.fn() },
-    txAdolescente: { update: vi.fn() },
+    txAdolescente: { update: vi.fn(), findUnique: vi.fn() },
     txHistorico: { findMany: vi.fn(), create: vi.fn() },
     txTatuagem: { createMany: vi.fn() },
   };
@@ -84,6 +102,10 @@ const buildRequest = (
 
 beforeEach(() => {
   mockedAuth.mockReset();
+  alertasEspeciaisMocks.aplicarAlertasEspeciais.mockClear();
+  alertasEspeciaisMocks.mapearAlertasEspeciaisDoPayload
+    .mockReset()
+    .mockReturnValue([]);
   [
     operadorMock.findUnique,
     adolescenteMock.findUnique,
@@ -91,6 +113,7 @@ beforeEach(() => {
     adolescenteHistoricoGlobalMock.createMany,
     adolescenteTatuagemGlobalMock.createMany,
     txAdolescenteMock.update,
+    txAdolescenteMock.findUnique,
     txHistoricoMock.findMany,
     txHistoricoMock.create,
     txTatuagemMock.createMany,
@@ -184,6 +207,7 @@ describe("API de adolescentes - historico infracional", () => {
     operadorMock.findUnique.mockResolvedValue({ id: "operador-3" });
     adolescenteMock.findUnique.mockResolvedValue(baseExistente);
     txAdolescenteMock.update.mockResolvedValue({ id: "adol-99" });
+    txAdolescenteMock.findUnique.mockResolvedValue({ id: "adol-99" });
     txHistoricoMock.findMany.mockResolvedValue([]);
 
     const request = buildRequest(
@@ -214,6 +238,7 @@ describe("API de adolescentes - historico infracional", () => {
       alojamentoAtual: null,
     });
     txAdolescenteMock.update.mockResolvedValue({ id: "adol-99" });
+    txAdolescenteMock.findUnique.mockResolvedValue({ id: "adol-99" });
     txHistoricoMock.findMany.mockResolvedValue([]);
 
     const request = buildRequest(

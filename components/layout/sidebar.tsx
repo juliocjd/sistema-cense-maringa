@@ -78,6 +78,7 @@ export function Sidebar() {
             href: "/inteligencia/conflitos",
             icon: BarChart3,
           },
+          { label: "Alertas Ativos", href: "/alertas", icon: AlertTriangle },
           { label: "Grupos de Atividade", href: "/grupos", icon: UserCircle },
           {
             label: "Técnicos de Referência",
@@ -94,7 +95,6 @@ export function Sidebar() {
         items: [
           { label: "Analytics", href: "/analytics", icon: PieChart },
           { label: "Estatisticas", href: "/relatorios", icon: BarChart3 },
-          { label: "Alertas Ativos", href: "/alertas", icon: AlertTriangle },
           { label: "Justificativas de Algema", href: "/justificativas-algema", icon: Shield },
         ],
       },

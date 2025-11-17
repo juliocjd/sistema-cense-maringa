@@ -7,7 +7,7 @@
     "build": "next build",
     "prebuild": "vitest run",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint --ext .ts,.tsx,.js,.jsx .",
     "test": "vitest run",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
@@ -58,7 +58,7 @@
     "postcss": "^8",
     "prisma": "^5.22.0",
     "tailwindcss": "^3.3.0",
-    "typescript": "^5",
+    "typescript": "^5.3.3",
     "vitest": "^2.1.4"
   },
   "overrides": {

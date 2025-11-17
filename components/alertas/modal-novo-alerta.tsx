@@ -1,7 +1,19 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Search, AlertTriangle, Bell } from "lucide-react";
+import {
+  X,
+  Search,
+  AlertTriangle,
+  Bell,
+  Lock,
+  Activity,
+} from "lucide-react";
+import {
+  ALERTAS_ESPECIAIS,
+  ALERTA_ESPECIAL_TIPOS,
+  type AlertaEspecialTipo,
+} from "@/lib/alertas/especiais";
 
 type Adolescente = {
   id: string;
@@ -17,6 +29,35 @@ type ModalNovoAlertaProps = {
   onSucesso: () => void;
 };
 
+type NivelRisco = "CRITICO" | "ALTO" | "MEDIO" | "BAIXO";
+
+const NIVEIS_RISCO: NivelRisco[] = ["CRITICO", "ALTO", "MEDIO", "BAIXO"];
+
+const ALERTAS_ESPECIAIS_INFO: Record<
+  AlertaEspecialTipo,
+  {
+    Icone: typeof AlertTriangle;
+    cor: string;
+    destaque: string;
+  }
+> = {
+  RISCO_SUICIDIO: {
+    Icone: AlertTriangle,
+    cor: "text-orange-600",
+    destaque: "Priorize alojamentos monitorados (1, 6, 7 ou 10) e acompanhamento constante.",
+  },
+  PERFIL_MAPEADO: {
+    Icone: Lock,
+    cor: "text-purple-600",
+    destaque: "Sinaliza necessidade de sigilo e protecao especial no acompanhamento.",
+  },
+  SAUDE_CONFIDENCIAL: {
+    Icone: Activity,
+    cor: "text-blue-600",
+    destaque: "Orienta equipes sobre condicoes de saude que exigem tratamento confidencial.",
+  },
+};
+
 export function ModalNovoAlerta({ onClose, onSucesso }: ModalNovoAlertaProps) {
   const [etapa, setEtapa] = useState<"selecionar" | "dados">("selecionar");
   const [adolescentes, setAdolescentes] = useState<Adolescente[]>([]);
@@ -27,12 +68,30 @@ export function ModalNovoAlerta({ onClose, onSucesso }: ModalNovoAlertaProps) {
   const [carregandoAdolescentes, setCarregandoAdolescentes] = useState(true);
 
   // Dados do alerta
-  const [tipoAlerta, setTipoAlerta] = useState("");
+  const [tipoAlertaPersonalizado, setTipoAlertaPersonalizado] = useState("");
+  const [tipoEspecialSelecionado, setTipoEspecialSelecionado] =
+    useState<AlertaEspecialTipo | null>(null);
   const [descricaoAlerta, setDescricaoAlerta] = useState("");
-  const [nivelRisco, setNivelRisco] = useState<"CRITICO" | "ALTO" | "MEDIO" | "BAIXO">(
-    "MEDIO"
-  );
+  const [nivelRisco, setNivelRisco] = useState<NivelRisco>("MEDIO");
   const [erros, setErros] = useState<Record<string, string>>({});
+
+  const normalizarNivel = (valor?: string | null): NivelRisco => {
+    if (valor && NIVEIS_RISCO.includes(valor as NivelRisco)) {
+      return valor as NivelRisco;
+    }
+    return "MEDIO";
+  };
+
+  const handleToggleEspecial = (tipo: AlertaEspecialTipo) => {
+    setTipoEspecialSelecionado((atual) => {
+      if (atual === tipo) {
+        return null;
+      }
+      const meta = ALERTAS_ESPECIAIS[tipo];
+      setNivelRisco(normalizarNivel(meta.nivelPadrao));
+      return tipo;
+    });
+  };
 
   useEffect(() => {
     carregarAdolescentes();
@@ -79,6 +138,12 @@ export function ModalNovoAlerta({ onClose, onSucesso }: ModalNovoAlertaProps) {
 
     try {
       setLoading(true);
+      const especialMeta = tipoEspecialSelecionado
+        ? ALERTAS_ESPECIAIS[tipoEspecialSelecionado]
+        : null;
+      const tipoParaEnvio = especialMeta
+        ? especialMeta.tipoAlerta
+        : tipoAlertaPersonalizado.trim() || null;
 
       const response = await fetch("/api/alertas", {
         method: "POST",
@@ -87,7 +152,7 @@ export function ModalNovoAlerta({ onClose, onSucesso }: ModalNovoAlertaProps) {
         },
         body: JSON.stringify({
           adolescenteId: adolescenteSelecionado.id,
-          tipoAlerta: tipoAlerta.trim() || null,
+          tipoAlerta: tipoParaEnvio,
           descricaoAlerta: descricaoAlerta.trim(),
           nivelRisco,
         }),
@@ -119,12 +184,18 @@ export function ModalNovoAlerta({ onClose, onSucesso }: ModalNovoAlertaProps) {
     );
   });
 
-  const corNivel: Record<string, string> = {
+  const corNivel: Record<NivelRisco, string> = {
     CRITICO: "bg-red-100 text-red-800 border-red-300",
     ALTO: "bg-orange-100 text-orange-800 border-orange-300",
     MEDIO: "bg-yellow-100 text-yellow-800 border-yellow-300",
     BAIXO: "bg-blue-100 text-blue-800 border-blue-300",
   };
+  const tipoEspecialMeta = tipoEspecialSelecionado
+    ? ALERTAS_ESPECIAIS[tipoEspecialSelecionado]
+    : null;
+  const tipoAlertaEmUso = tipoEspecialMeta
+    ? tipoEspecialMeta.label
+    : tipoAlertaPersonalizado;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -225,6 +296,69 @@ export function ModalNovoAlerta({ onClose, onSucesso }: ModalNovoAlertaProps) {
 
           {etapa === "dados" && adolescenteSelecionado && (
             <>
+              {/* Alertas especiais */}
+              <div className="mb-6">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h3 className="text-base font-bold text-gray-800">
+                      Alertas especiais
+                    </h3>
+                    <p className="text-sm text-gray-600">
+                      Utilize os casos mapeados ou selecione um tipo personalizado abaixo.
+                    </p>
+                  </div>
+                  {tipoEspecialSelecionado && (
+                    <button
+                      type="button"
+                      onClick={() => setTipoEspecialSelecionado(null)}
+                      className="text-sm font-semibold text-red-600 hover:text-red-800"
+                    >
+                      Limpar selecao
+                    </button>
+                  )}
+                </div>
+                <div className="grid gap-3 md:grid-cols-3">
+                  {ALERTA_ESPECIAL_TIPOS.map((tipo) => {
+                    const meta = ALERTAS_ESPECIAIS[tipo];
+                    const info = ALERTAS_ESPECIAIS_INFO[tipo];
+                    const ativo = tipoEspecialSelecionado === tipo;
+                    return (
+                      <button
+                        type="button"
+                        key={tipo}
+                        onClick={() => handleToggleEspecial(tipo)}
+                        className={`text-left p-4 rounded-2xl border-2 transition-all ${
+                          ativo
+                            ? "border-red-500 bg-red-50 shadow-md"
+                            : "border-gray-200 bg-white hover:border-red-200"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <info.Icone className={`h-5 w-5 ${info.cor}`} />
+                          <span className="font-semibold text-gray-900">
+                            {meta.label}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-600 mt-2">
+                          {meta.descricaoPadrao}
+                        </p>
+                        <p className="text-[11px] text-gray-500 mt-2">
+                          {info.destaque}
+                        </p>
+                        <span className="mt-3 inline-flex text-[11px] font-semibold text-gray-700 border border-gray-200 rounded-full px-2 py-0.5">
+                          Nivel sugerido: {meta.nivelPadrao || "MEDIO"}
+                        </span>
+                        {ativo && (
+                          <span className="mt-2 inline-flex text-[10px] font-bold text-red-700 px-2 py-0.5 rounded-full bg-red-100 border border-red-300">
+                            Selecionado
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               {/* Tipo de Alerta */}
               <div className="mb-6">
                 <label className="block text-sm font-bold text-gray-700 mb-2">
@@ -232,12 +366,24 @@ export function ModalNovoAlerta({ onClose, onSucesso }: ModalNovoAlertaProps) {
                 </label>
                 <input
                   type="text"
-                  value={tipoAlerta}
-                  onChange={(e) => setTipoAlerta(e.target.value)}
-                  placeholder="Ex: Saúde, Comportamento, Segurança..."
+                  value={tipoAlertaEmUso}
+                  onChange={(e) => setTipoAlertaPersonalizado(e.target.value)}
+                  disabled={Boolean(tipoEspecialMeta)}
+                  placeholder="Ex: Saude, Comportamento, Seguranca..."
                   maxLength={50}
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none"
+                  className={`w-full px-4 py-3 border-2 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none ${
+                    tipoEspecialMeta ? "bg-gray-100 text-gray-500" : "border-gray-300"
+                  }`}
                 />
+                {tipoEspecialMeta ? (
+                  <p className="text-xs text-gray-600 mt-1">
+                    Tipo definido automaticamente pelo alerta especial selecionado.
+                  </p>
+                ) : (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Opcional. Utilize para outros cenarios.
+                  </p>
+                )}
               </div>
 
               {/* Nível de Risco */}
@@ -246,7 +392,7 @@ export function ModalNovoAlerta({ onClose, onSucesso }: ModalNovoAlertaProps) {
                   Nível de Risco *
                 </label>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {(["CRITICO", "ALTO", "MEDIO", "BAIXO"] as const).map((nivel) => (
+                  {NIVEIS_RISCO.map((nivel) => (
                     <button
                       key={nivel}
                       type="button"
@@ -303,9 +449,14 @@ export function ModalNovoAlerta({ onClose, onSucesso }: ModalNovoAlertaProps) {
                       <strong>Adolescente:</strong>{" "}
                       {adolescenteSelecionado.nomeCompleto}
                     </p>
-                    {tipoAlerta && (
+                    {tipoAlertaEmUso && (
                       <p className="text-sm mb-2">
-                        <strong>Tipo:</strong> {tipoAlerta}
+                        <strong>Tipo:</strong> {tipoAlertaEmUso}
+                      </p>
+                    )}
+                    {tipoEspecialMeta && (
+                      <p className="text-xs text-red-600 mb-2">
+                        Alerta especial sincronizado com o cadastro do adolescente.
                       </p>
                     )}
                     <p className="text-sm">
@@ -325,7 +476,8 @@ export function ModalNovoAlerta({ onClose, onSucesso }: ModalNovoAlertaProps) {
               onClick={() => {
                 setEtapa("selecionar");
                 setAdolescenteSelecionado(null);
-                setTipoAlerta("");
+                setTipoEspecialSelecionado(null);
+                setTipoAlertaPersonalizado("");
                 setDescricaoAlerta("");
                 setNivelRisco("MEDIO");
                 setErros({});
