@@ -48,11 +48,9 @@ export default function LoginForm() {
           <div className="inline-flex items-center justify-center w-20 h-20 bg-white rounded-2xl shadow-xl mb-4">
             <Shield className="text-indigo-600" size={48} />
           </div>
-          <h1 className="text-4xl font-bold text-white mb-2">
-            CENSE Maringá
-          </h1>
+          <h1 className="text-4xl font-bold text-white mb-2">CENSE Maringá</h1>
           <p className="text-indigo-200 text-lg">
-            Sistema de Gestão Socioeducativa
+            Sistema de Inteligência Socioeducativa do Estado do Paraná
           </p>
         </div>
 
@@ -65,9 +63,14 @@ export default function LoginForm() {
           {/* Mensagem de Erro */}
           {erro && (
             <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-lg flex items-start gap-3">
-              <AlertCircle className="text-red-600 flex-shrink-0 mt-0.5" size={20} />
+              <AlertCircle
+                className="text-red-600 flex-shrink-0 mt-0.5"
+                size={20}
+              />
               <div>
-                <p className="text-red-800 font-semibold">Erro ao fazer login</p>
+                <p className="text-red-800 font-semibold">
+                  Erro ao fazer login
+                </p>
                 <p className="text-red-600 text-sm">{erro}</p>
               </div>
             </div>
@@ -139,18 +142,17 @@ export default function LoginForm() {
               📋 Credenciais de Teste
             </p>
             <p className="text-xs text-blue-700">
-              Email: <code className="bg-white px-2 py-0.5 rounded">admin@cense.pr.gov.br</code>
+              Email:{" "}
+              <code className="bg-white px-2 py-0.5 rounded">
+                admin@cense.pr.gov.br
+              </code>
             </p>
             <p className="text-xs text-blue-700">
-              Senha: <code className="bg-white px-2 py-0.5 rounded">admin123</code>
+              Senha:{" "}
+              <code className="bg-white px-2 py-0.5 rounded">admin123</code>
             </p>
           </div>
         </div>
-
-        {/* Footer */}
-        <p className="text-center text-indigo-200 text-sm mt-6">
-          © 2025 CENSE Maringá - Sistema Seguro
-        </p>
       </div>
     </div>
   );
