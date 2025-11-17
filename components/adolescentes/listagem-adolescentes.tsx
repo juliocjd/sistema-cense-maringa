@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Activity,
@@ -18,10 +18,6 @@ import {
   Flame,
 } from "lucide-react";
 import type { Adolescente } from "@/types";
-
-interface ListagemAdolescentesProps {
-  adolescentes: Adolescente[];
-}
 
 type StatusFiltro = "TODOS" | "ATIVO" | "TRANSFERIDO" | "LIBERADO" | "EVADIDO";
 type AlertaFiltro =
@@ -48,6 +44,7 @@ const ALERTA_OPTIONS: Array<{ label: string; value: AlertaFiltro }> = [
 ];
 
 const ITENS_POR_PAGINA = 10;
+const API_LIST_LIMIT = 100;
 
 const STATUS_BADGES: Record<
   StatusFiltro,
@@ -192,20 +189,57 @@ const renderAlojamento = (adolescente: Adolescente) => {
   );
 };
 
-export function ListagemAdolescentes({
-  adolescentes,
-}: ListagemAdolescentesProps) {
+export function ListagemAdolescentes() {
+  const [adolescentes, setAdolescentes] = useState<Adolescente[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  const [erroCarregamento, setErroCarregamento] = useState<string | null>(null);
+  const carregarAdolescentes = useCallback(async () => {
+    try {
+      setCarregando(true);
+      setErroCarregamento(null);
+      const resposta = await fetch(
+        `/api/adolescentes?limit=${API_LIST_LIMIT}`,
+        { cache: "no-store" }
+      );
+      if (!resposta.ok) {
+        throw new Error(`Falha ao buscar adolescentes (${resposta.status})`);
+      }
+      const payload = (await resposta.json()) as {
+        data?: Adolescente[];
+      };
+      setAdolescentes(Array.isArray(payload.data) ? payload.data : []);
+    } catch (error) {
+      console.error("Erro ao carregar adolescentes:", error);
+      setErroCarregamento(
+        "Nao foi possivel carregar os adolescentes. Tente novamente."
+      );
+    } finally {
+      setCarregando(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    carregarAdolescentes();
+  }, [carregarAdolescentes]);
+
   const [busca, setBusca] = useState("");
   const [filtroStatus, setFiltroStatus] =
-    useState<StatusFiltro>("TODOS");
+    useState<StatusFiltro>("ATIVO");
   const [filtroAlertas, setFiltroAlertas] =
     useState<AlertaFiltro>("TODOS");
   const [paginaAtual, setPaginaAtual] = useState(1);
   const [mostrarFiltrosAvancados, setMostrarFiltrosAvancados] =
     useState(false);
+  const [mostrarTodosStatus, setMostrarTodosStatus] = useState(false);
+
+  useEffect(() => {
+    setFiltroStatus(mostrarTodosStatus ? "TODOS" : "ATIVO");
+    setPaginaAtual(1);
+  }, [mostrarTodosStatus]);
 
   const filtrados = useMemo(() => {
     const termo = normalizaTexto(busca);
+    const numeroBusca = Number.parseInt(busca.trim(), 10);
 
     return adolescentes.filter((adolescente) => {
       const matchBusca =
@@ -213,7 +247,9 @@ export function ListagemAdolescentes({
         normalizaTexto(adolescente.nomeCompleto).includes(termo) ||
         normalizaTexto(adolescente.nomeSocial).includes(termo) ||
         (adolescente.numeroSms ?? "").includes(busca.trim()) ||
-        normalizaTexto(adolescente.numeroProcesso).includes(termo);
+        normalizaTexto(adolescente.numeroProcesso).includes(termo) ||
+        (!Number.isNaN(numeroBusca) &&
+          adolescente.numeroInterno === numeroBusca);
 
       const matchStatus =
         filtroStatus === "TODOS" ||
@@ -236,10 +272,44 @@ export function ListagemAdolescentes({
   const inicio = (paginaCorrente - 1) * ITENS_POR_PAGINA;
   const paginados = filtrados.slice(inicio, inicio + ITENS_POR_PAGINA);
 
+  const exibindoLoaderInicial = carregando && adolescentes.length === 0;
+  const exibindoErroInicial = erroCarregamento && adolescentes.length === 0;
+
+  if (exibindoLoaderInicial) {
+    return (
+      <div className="bg-white rounded-2xl shadow-lg p-6 text-gray-600">
+        Carregando adolescentes...
+      </div>
+    );
+  }
+
+  if (exibindoErroInicial) {
+    return (
+      <div className="bg-white rounded-2xl shadow-lg p-6 space-y-4">
+        <div className="text-red-600 font-semibold">
+          {erroCarregamento}
+        </div>
+        <button
+          type="button"
+          onClick={carregarAdolescentes}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white font-semibold hover:bg-indigo-700 transition-colors"
+        >
+          Tentar novamente
+        </button>
+      </div>
+    );
+  }
+
+  const mostrarAlertaErro = Boolean(
+    erroCarregamento && adolescentes.length > 0
+  );
+
   const limparFiltros = () => {
     setBusca("");
-    setFiltroStatus("TODOS");
     setFiltroAlertas("TODOS");
+    setMostrarFiltrosAvancados(false);
+    setMostrarTodosStatus(false);
+    setFiltroStatus("ATIVO");
     setPaginaAtual(1);
   };
 
@@ -251,8 +321,13 @@ export function ListagemAdolescentes({
             <h1 className="text-3xl font-bold text-gray-800">
               Lista de Adolescentes
             </h1>
-            <p className="text-gray-600">
+            <p className="text-gray-600 flex items-center gap-2">
               {filtrados.length} adolescente(s) encontrado(s)
+              {carregando && (
+                <span className="text-xs font-semibold text-indigo-600">
+                  Atualizando...
+                </span>
+              )}
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
@@ -275,23 +350,64 @@ export function ListagemAdolescentes({
         </div>
       </header>
 
+      {mostrarAlertaErro && (
+        <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 flex flex-col gap-3 text-rose-700">
+          <div className="font-semibold">{erroCarregamento}</div>
+          <div className="flex flex-wrap items-center gap-3 text-sm">
+            <span>
+              Os dados exibidos abaixo podem estar desatualizados. Clique em
+              atualizar para tentar novamente.
+            </span>
+            <button
+              type="button"
+              onClick={carregarAdolescentes}
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-rose-300 text-rose-700 font-semibold hover:bg-rose-100 transition-colors"
+            >
+              Atualizar lista
+            </button>
+          </div>
+        </div>
+      )}
+
       <section className="bg-white rounded-2xl shadow-lg p-6 space-y-4">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="relative flex-1">
-            <Search
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-              size={18}
-            />
-            <input
-              type="search"
-              value={busca}
-              onChange={(event) => {
-                setBusca(event.target.value);
-                setPaginaAtual(1);
-              }}
-              placeholder="Buscar por nome, SMS ou processo..."
-              className="w-full pl-10 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
-            />
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div className="flex-1 flex flex-col gap-2">
+            <div className="relative">
+              <Search
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                size={18}
+              />
+              <input
+                type="search"
+                value={busca}
+                onChange={(event) => {
+                  setBusca(event.target.value);
+                  setPaginaAtual(1);
+                }}
+                placeholder="Buscar por nome, SMS, processo ou numero interno..."
+                className="w-full pl-10 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
+              />
+            </div>
+            <label
+              htmlFor="toggle-status"
+              className="inline-flex items-center gap-2 text-sm font-medium text-gray-700"
+            >
+              <input
+                id="toggle-status"
+                type="checkbox"
+                checked={mostrarTodosStatus}
+                onChange={(event) =>
+                  setMostrarTodosStatus(event.target.checked)
+                }
+                className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+              />
+              Mostrar todos os status
+            </label>
+            {!mostrarTodosStatus && (
+              <span className="text-xs text-gray-500">
+                Exibindo apenas adolescentes ativos por padrao.
+              </span>
+            )}
           </div>
           <div className="flex flex-wrap gap-2">
             <button
@@ -321,24 +437,36 @@ export function ListagemAdolescentes({
                 Status na unidade
               </label>
               <div className="grid grid-cols-2 gap-2">
-                {STATUS_OPTIONS.map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => {
-                      setFiltroStatus(option.value);
-                      setPaginaAtual(1);
-                    }}
-                    className={`px-3 py-2 rounded-lg border text-sm font-semibold transition-colors ${
-                      filtroStatus === option.value
-                        ? "border-indigo-500 bg-indigo-50 text-indigo-700"
-                        : "border-gray-300 text-gray-600 hover:border-indigo-300 hover:text-indigo-600"
-                    }`}
-                  >
-                    {option.label}
-                  </button>
-                ))}
+                {STATUS_OPTIONS.map((option) => {
+                  const disabled =
+                    !mostrarTodosStatus && option.value !== "ATIVO";
+                  const selecionado = filtroStatus === option.value;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => {
+                        if (disabled) return;
+                        setFiltroStatus(option.value);
+                        setPaginaAtual(1);
+                      }}
+                      className={`px-3 py-2 rounded-lg border text-sm font-semibold transition-colors ${
+                        selecionado
+                          ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+                          : "border-gray-300 text-gray-600 hover:border-indigo-300 hover:text-indigo-600"
+                      } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
               </div>
+              {!mostrarTodosStatus && (
+                <p className="mt-2 text-xs text-gray-500">
+                  Ative a opcao acima para escolher outros status.
+                </p>
+              )}
             </div>
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">

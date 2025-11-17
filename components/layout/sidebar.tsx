@@ -72,6 +72,7 @@ export function Sidebar() {
       {
         section: "Gestao",
         items: [
+          { label: "Comunicados Internos", href: "/comunicados", icon: FileText },
           { label: "Conflitos Internos", href: "/conflitos", icon: Swords },
           {
             label: "Conflitos Externos",
@@ -86,7 +87,6 @@ export function Sidebar() {
             icon: User,
           },
           { label: "Tatuagens", href: "/tatuagens", icon: Shield },
-          { label: "Comunicados Internos", href: "/comunicados", icon: FileText },
           { label: "Eventos Especiais", href: "/eventos", icon: Calendar },
         ],
       },

@@ -726,26 +726,48 @@ export default function ModalAlojamentoDetalhes({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 py-8">
       <div className="w-full max-w-5xl rounded-2xl bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
-          <div>
-            <p className="text-xs uppercase tracking-widest text-indigo-500">
-              Alojamento {alojamento.numeroAlojamento} -{" "}
-              {alojamento.casa?.nome ?? ""}
-            </p>
-            <h2 className="text-2xl font-semibold text-slate-900">
-              Status:{" "}
-              <span className={`inline-flex rounded-full px-3 py-1 text-sm font-semibold ${colorClass}`}>
-                {statusInterditado ? "Interditado" : "Operacional"}
-              </span>
-            </h2>
+        <div className="border-b border-slate-200 px-6 py-4 flex flex-col gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-xs uppercase tracking-widest text-indigo-500">
+                Alojamento {alojamento.numeroAlojamento} • {alojamento.casa?.nome ?? ""}
+              </p>
+            </div>
+            <span
+              className={`inline-flex rounded-full px-3 py-1 text-sm font-semibold ${colorClass}`}
+            >
+              {statusInterditado ? "Interditado" : "Operacional"}
+            </span>
           </div>
-          <button
-            onClick={onClose}
-            className="rounded-full p-2 text-slate-500 hover:bg-slate-100"
-            aria-label="Fechar modal"
-          >
-            <X size={20} />
-          </button>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex-1">
+              {ocupante ? (
+                <div className="flex flex-col gap-1">
+                  <p className="text-xl font-semibold text-slate-900">
+                    {ocupante.nomeCompleto}
+                  </p>
+                  <div className="flex flex-wrap gap-4 text-sm text-slate-500">
+                    <span>SMS: {ocupante.numeroSms ?? "Nao informado"}</span>
+                    <span>
+                      Numero interno:{" "}
+                      {ocupante.numeroInterno ?? "Nao informado"}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-slate-500">
+                  Alojamento atualmente sem ocupante.
+                </p>
+              )}
+            </div>
+            <button
+              onClick={onClose}
+              className="rounded-full p-2 text-slate-500 hover:bg-slate-100 self-start"
+              aria-label="Fechar modal"
+            >
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         <div className="max-h-[80vh] overflow-y-auto px-6 py-6 space-y-6">
@@ -774,19 +796,9 @@ export default function ModalAlojamentoDetalhes({
 
           {abaAtiva === "ocupacao" && (
             <section className="rounded-2xl border border-slate-200 p-4">
-              <h3 className="text-lg font-semibold text-slate-900 mb-3">
-                Ocupacao atual
-              </h3>
-
               {ocupante ? (
                 <div className="space-y-4">
                   <div className="flex flex-col gap-2">
-                    <p className="text-xl font-bold text-slate-900">
-                      {ocupante.nomeCompleto}
-                    </p>
-                    <p className="text-sm text-slate-500">
-                      SMS: {ocupante.numeroSms ?? "Nao informado"}
-                    </p>
                     {ocupante.bairroOrigem && (
                       <p className="text-sm text-slate-500 flex items-center gap-2">
                         <MapPin size={14} />

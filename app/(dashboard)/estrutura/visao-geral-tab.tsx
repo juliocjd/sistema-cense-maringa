@@ -154,6 +154,9 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
   });
 
   const [dropdownConflitosAberto, setDropdownConflitosAberto] = useState(false);
+  const ultimoRefreshRef = useRef(0);
+  const operacaoEmAndamentoRef = useRef(false);
+  const refreshPendenteRef = useRef(false);
 
   const totalCasas = casas.length;
 
@@ -161,7 +164,9 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
     setLoading(true);
     setError(null);
     try {
-      const adolescentesResponse = await fetch("/api/adolescentes");
+      const adolescentesResponse = await fetch("/api/adolescentes", {
+        cache: "no-store",
+      });
       if (!adolescentesResponse.ok) {
         throw new Error("Erro ao carregar adolescentes");
       }
@@ -171,7 +176,9 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
         : [];
       setAdolescentes(adolescentesData);
 
-      const casasResponse = await fetch("/api/casas/status");
+      const casasResponse = await fetch("/api/casas/status?refresh=1", {
+        cache: "no-store",
+      });
       if (!casasResponse.ok) {
         throw new Error("Erro ao carregar dados das casas");
       }
@@ -256,7 +263,8 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
       let impactos: Record<string, ImpactoConflitoExterno[]> = {};
       try {
         const impactosResponse = await fetch(
-          "/api/inteligencia/conflitos/impacto?status=ATIVO"
+          "/api/inteligencia/conflitos/impacto?status=ATIVO",
+          { cache: "no-store" }
         );
         if (impactosResponse.ok) {
           const impactosData = await impactosResponse.json();
@@ -283,7 +291,9 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
       // Carregar conflitos internos
       let conflitosMap: Record<string, Array<{ id: string; adversario: { id: string; nome: string } }>> = {};
       try {
-        const conflitosResponse = await fetch("/api/conflitos?status=ATIVO");
+        const conflitosResponse = await fetch("/api/conflitos?status=ATIVO", {
+          cache: "no-store",
+        });
         if (conflitosResponse.ok) {
           const conflitosData = await conflitosResponse.json();
           if (Array.isArray(conflitosData)) {
@@ -333,9 +343,26 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
     }
   }, []);
 
-  useEffect(() => {
+  const solicitarAtualizacao = useCallback(() => {
+    const agora = Date.now();
+    if (agora - ultimoRefreshRef.current < 1000) {
+      return;
+    }
+    ultimoRefreshRef.current = agora;
     carregarDados();
   }, [carregarDados]);
+
+  const agendarAtualizacao = useCallback(() => {
+    if (operacaoEmAndamentoRef.current) {
+      refreshPendenteRef.current = true;
+      return;
+    }
+    solicitarAtualizacao();
+  }, [solicitarAtualizacao]);
+
+  useEffect(() => {
+    solicitarAtualizacao();
+  }, [solicitarAtualizacao]);
 
   useEffect(() => {
     let active = true;
@@ -353,7 +380,7 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
             payload?.tipo === "desalocacao" ||
             payload?.tipo === "refresh"
           ) {
-            carregarDados();
+            agendarAtualizacao();
           }
         } catch {
           /* ignore */
@@ -373,7 +400,44 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
       active = false;
       eventSource?.close();
     };
-  }, [carregarDados]);
+  }, [agendarAtualizacao]);
+
+  const finalizarOperacao = useCallback(() => {
+    operacaoEmAndamentoRef.current = false;
+    if (refreshPendenteRef.current) {
+      refreshPendenteRef.current = false;
+      solicitarAtualizacao();
+    }
+  }, [solicitarAtualizacao]);
+
+  const executarOperacao = useCallback(
+    async <T,>(acao: () => Promise<T>): Promise<T> => {
+      operacaoEmAndamentoRef.current = true;
+      try {
+        return await acao();
+      } finally {
+        finalizarOperacao();
+      }
+    },
+    [finalizarOperacao]
+  );
+
+  useEffect(() => {
+    const handleFocus = () => agendarAtualizacao();
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        agendarAtualizacao();
+      }
+    };
+
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [agendarAtualizacao]);
 
   // Auto-scroll para casa específica quando vem da URL
   useEffect(() => {
@@ -500,28 +564,30 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
     alojamentoId: string,
     justificativa?: string
   ) => {
-    const response = await fetch("/api/alocar", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        adolescenteId,
-        alojamentoId,
-        justificativa,
-        medidas_adicionais: [],
-      }),
+    await executarOperacao(async () => {
+      const response = await fetch("/api/alocar", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          adolescenteId,
+          alojamentoId,
+          justificativa,
+          medidas_adicionais: [],
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.erro || "Erro ao alocar adolescente");
+      }
+
+      await response.json();
+      setModalAlocacaoAberto(false);
+      setAlojamentoSelecionado(null);
+      await carregarDados();
     });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => null);
-      throw new Error(errorData?.erro || "Erro ao alocar adolescente");
-    }
-
-    await response.json();
-    setModalAlocacaoAberto(false);
-    setAlojamentoSelecionado(null);
-    await carregarDados();
   };
 
   const handleDesalocar = async (
@@ -529,47 +595,51 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
     adolescenteId: string,
     motivo?: string
   ): Promise<string> => {
-    const response = await fetch("/api/alocar", {
-      method: "DELETE",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        adolescenteId,
-        alojamentoId,
-        motivo: motivo ?? "Desalocacao manual via visao geral",
-      }),
+    return executarOperacao(async () => {
+      const response = await fetch("/api/alocar", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          adolescenteId,
+          alojamentoId,
+          motivo: motivo ?? "Desalocacao manual via visao geral",
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.erro || "Erro ao desalocar adolescente");
+      }
+
+      const data = await response.json();
+      await carregarDados();
+      return data.mensagem || "Adolescente removido do alojamento";
     });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => null);
-      throw new Error(errorData?.erro || "Erro ao desalocar adolescente");
-    }
-
-    const data = await response.json();
-    await carregarDados();
-    return data.mensagem || "Adolescente removido do alojamento";
   };
 
   const handleDesinternar = async (adolescenteId: string) => {
-    const response = await fetch(`/api/adolescentes/${adolescenteId}`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        statusUnidade: "LIBERADO",
-        alojamentoAtualId: null,
-      }),
+    await executarOperacao(async () => {
+      const response = await fetch(`/api/adolescentes/${adolescenteId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          statusUnidade: "LIBERADO",
+          alojamentoAtualId: null,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.erro || "Erro ao desinternar adolescente");
+      }
+
+      await response.json();
+      await carregarDados();
     });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => null);
-      throw new Error(errorData?.erro || "Erro ao desinternar adolescente");
-    }
-
-    await response.json();
-    await carregarDados();
   };
 
   const handleTransferir = async (
@@ -577,26 +647,28 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
     destinoAlojamentoId: string,
     justificativa?: string
   ) => {
-    const response = await fetch("/api/alocar", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        adolescenteId: adolescente.id,
-        alojamentoId: destinoAlojamentoId,
-        justificativa,
-        medidas_adicionais: [],
-      }),
+    await executarOperacao(async () => {
+      const response = await fetch("/api/alocar", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          adolescenteId: adolescente.id,
+          alojamentoId: destinoAlojamentoId,
+          justificativa,
+          medidas_adicionais: [],
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.erro || "Erro ao transferir adolescente");
+      }
+
+      await response.json();
+      await carregarDados();
     });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => null);
-      throw new Error(errorData?.erro || "Erro ao transferir adolescente");
-    }
-
-    await response.json();
-    await carregarDados();
   };
 
   const handleAlterarStatusAlojamento = async (
@@ -605,25 +677,27 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
     justificativa: string,
     numeroCi: string
   ) => {
-    const response = await fetch(`/api/alojamentos?id=${alojamentoId}`, {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        statusManutencao: status,
-        justificativa,
-        numeroCi,
-      }),
+    await executarOperacao(async () => {
+      const response = await fetch(`/api/alojamentos?id=${alojamentoId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          statusManutencao: status,
+          justificativa,
+          numeroCi,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.erro || "Erro ao atualizar alojamento");
+      }
+
+      await response.json();
+      await carregarDados();
     });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => null);
-      throw new Error(errorData?.erro || "Erro ao atualizar alojamento");
-    }
-
-    await response.json();
-    await carregarDados();
   };
 
   if (loading && casas.length === 0) {
@@ -768,15 +842,7 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
             </div>
           )}
         <div className={`space-y-4 ${loading ? "opacity-40 pointer-events-none" : ""}`}>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex-1">
-              <h2 className="text-xl font-bold text-gray-800">
-                Estrutura das Casas
-              </h2>
-              <p className="text-sm text-gray-600">
-                Clique em um alojamento para ver detalhes ou realizar acoes.
-              </p>
-            </div>
+          <div className="flex items-center justify-end mb-4">
             <div className="flex items-center gap-3">
               {loading && (
                 <div className="flex items-center gap-2 text-indigo-600">

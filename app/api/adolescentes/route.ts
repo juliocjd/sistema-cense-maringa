@@ -19,6 +19,7 @@ import {
   ALERTA_ESPECIAL_TIPOS,
   type AlertaEspecialTipo,
 } from "@/lib/alertas/especiais";
+import { emitMapaEvent } from "@/lib/mapa-event-bus";
 import type {
   Adolescente,
   ListaAdolescentesMeta,
@@ -487,6 +488,14 @@ export async function POST(request: NextRequest) {
         ipOrigem: request.headers.get("x-forwarded-for") ?? "unknown",
       },
     });
+
+    if (criado.alojamentoAtualId) {
+      emitMapaEvent({
+        tipo: "alocacao",
+        adolescenteId: criado.id,
+        alojamentoId: criado.alojamentoAtualId,
+      });
+    }
 
     return NextResponse.json(
       {

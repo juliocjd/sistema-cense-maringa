@@ -20,6 +20,7 @@ import {
   ALERTA_ESPECIAL_TIPOS,
   type AlertaEspecialTipo,
 } from "@/lib/alertas/especiais";
+import { emitMapaEvent } from "@/lib/mapa-event-bus";
 
 const historicoRegistroSchema = z
   .array(
@@ -326,6 +327,7 @@ export async function PUT(
         { status: 404 }
       );
     }
+    const alojamentoAnterior = existente.alojamentoAtualId ?? null;
 
     const data: Prisma.AdolescenteUpdateInput = {};
     const statusAtual = (existente.statusUnidade as StatusUnidade) ?? "ATIVO";
@@ -837,6 +839,15 @@ export async function PUT(
 
     if (!atualizado) {
       throw new Error("Falha ao carregar adolescente apos atualizacao");
+    }
+
+    const alojamentoAtualizadoId = atualizado.alojamentoAtualId ?? null;
+    if (alojamentoAnterior !== alojamentoAtualizadoId) {
+      emitMapaEvent({
+        tipo: alojamentoAtualizadoId ? "alocacao" : "desalocacao",
+        adolescenteId: atualizado.id,
+        alojamentoId: alojamentoAtualizadoId,
+      });
     }
 
     await prisma.logAuditoria.create({
