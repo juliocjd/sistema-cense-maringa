@@ -9,7 +9,7 @@ export default auth((req) => {
   const isLoggedIn = Boolean(req.auth?.user?.id);
 
   // Rotas públicas
-  const publicRoutes = ["/login"];
+  const publicRoutes = ["/login", "/apresentacao"];
   const isPublicRoute = publicRoutes.includes(pathname);
 
   // Se está na rota de login e já está autenticado, redirecionar para dashboard
