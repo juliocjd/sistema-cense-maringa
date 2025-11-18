@@ -831,6 +831,21 @@ export async function PUT(
         );
       }
 
+      if (novoStatus !== "ATIVO") {
+        const grupoRepo = (tx as typeof prisma).grupoMembro;
+        if (grupoRepo?.updateMany) {
+          await grupoRepo.updateMany({
+            where: {
+              adolescenteId: id,
+              dataSaida: null,
+            },
+            data: {
+              dataSaida: new Date(),
+            },
+          });
+        }
+      }
+
       return tx.adolescente.findUnique({
         where: { id },
         include: INCLUDE_ADOLESCENTE_DEFAULT,

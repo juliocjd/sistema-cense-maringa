@@ -33,15 +33,15 @@ const formatGrupo = (
 
   const casa = (grupo as typeof grupo & { casa?: any }).casa ?? null;
   const membros = Array.isArray((grupo as any).membros)
-    ? ((grupo as any).membros as Array<
-        {
-          dataSaida: Date | null;
-          id: string;
-          dataEntrada: Date;
-          adolescente: any;
-        }
-      >)
+    ? ((grupo as any).membros as Array<{
+        dataSaida: Date | null;
+        id: string;
+        dataEntrada: Date;
+        adolescente: any;
+      }>)
     : [];
+  const ativos = membros.filter((m) => m.dataSaida === null);
+  const inativos = membros.filter((m) => m.dataSaida !== null);
 
   return {
     id: grupo.id,
@@ -56,33 +56,35 @@ const formatGrupo = (
           numero: casa.numero,
         }
       : null,
-    totalMembros:
-      incluirMembros && membros.length > 0
-        ? membros.filter((m) => m.dataSaida === null).length
-        : undefined,
+    totalMembros: incluirMembros ? membros.length : undefined,
+    membrosAtivos: incluirMembros ? ativos.length : undefined,
+    membrosInativos: incluirMembros ? inativos.length : undefined,
     membros:
       incluirMembros && membros.length > 0
-        ? membros
-            .filter((m) => m.dataSaida === null)
-            .map((membro) => ({
-              id: membro.id,
-              dataEntrada: membro.dataEntrada,
-              adolescente: {
-                id: membro.adolescente.id,
-                nomeCompleto: membro.adolescente.nomeCompleto,
-                nomeSocial: membro.adolescente.nomeSocial,
-                numeroSms: membro.adolescente.numeroSms,
-                fotoUrl: membro.adolescente.fotoUrl,
-                statusUnidade: membro.adolescente.statusUnidade,
-                alojamento: membro.adolescente.alojamentoAtual
-                  ? {
-                      id: membro.adolescente.alojamentoAtual.id,
-                      numero: membro.adolescente.alojamentoAtual.numeroAlojamento,
-                      ala: membro.adolescente.alojamentoAtual.ala,
-                    }
-                  : null,
-              },
-            }))
+        ? membros.map((membro) => ({
+            id: membro.id,
+            dataEntrada: membro.dataEntrada,
+            dataSaida: membro.dataSaida,
+            ativo: membro.dataSaida === null,
+            adolescente: {
+              id: membro.adolescente.id,
+              nomeCompleto: membro.adolescente.nomeCompleto,
+              nomeSocial: membro.adolescente.nomeSocial,
+              numeroSms: membro.adolescente.numeroSms,
+              fotoUrl: membro.adolescente.fotoUrl,
+              statusUnidade: membro.adolescente.statusUnidade,
+              alojamento: membro.adolescente.alojamentoAtual
+                ? {
+                    id: membro.adolescente.alojamentoAtual.id,
+                    numero: membro.adolescente.alojamentoAtual.numeroAlojamento,
+                    ala: membro.adolescente.alojamentoAtual.ala,
+                  }
+                : null,
+              conflitosAtivos:
+                (membro.adolescente.conflitosA?.length ?? 0) +
+                (membro.adolescente.conflitosB?.length ?? 0),
+            },
+          }))
         : undefined,
   };
 };
@@ -102,6 +104,7 @@ export async function GET(
         casa: true,
         membros: incluirMembros
           ? {
+              orderBy: { dataEntrada: "asc" },
               include: {
                 adolescente: {
                   include: {
@@ -111,6 +114,14 @@ export async function GET(
                         numeroAlojamento: true,
                         ala: true,
                       },
+                    },
+                    conflitosA: {
+                      where: { status: "ATIVO" },
+                      select: { id: true },
+                    },
+                    conflitosB: {
+                      where: { status: "ATIVO" },
+                      select: { id: true },
                     },
                   },
                 },

@@ -30,7 +30,9 @@
       "Bash(npx prisma migrate dev:*)",
       "Bash(npx prisma db push:*)",
       "Bash(npx jest:*)",
-      "Bash(npm run test:*)"
+      "Bash(npm run test:*)",
+      "Bash(node convert-to-html.js:*)",
+      "Bash(start docs/APRESENTACAO-EXECUTIVA.html)"
     ],
     "deny": [],
     "ask": []

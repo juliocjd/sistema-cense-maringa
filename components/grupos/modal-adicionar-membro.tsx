@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { X, Search, UserPlus, AlertTriangle, CheckCircle, Users } from "lucide-react";
 
 type Adolescente = {
@@ -8,8 +8,18 @@ type Adolescente = {
   nomeCompleto: string;
   nomeSocial: string | null;
   numeroSms: string | null;
+  numeroInterno?: number | null;
   fotoUrl: string | null;
   statusUnidade: string;
+  alojamentoAtual?: {
+    id: string;
+    numero: string | null;
+    ala: string | null;
+    casa?: {
+      id?: string | null;
+      nome?: string | null;
+    } | null;
+  } | null;
 };
 
 type AlertaConflito = {
@@ -33,6 +43,7 @@ type RespostaVerificacao = {
 type ModalAdicionarMembroProps = {
   grupoId: string;
   nomeGrupo: string;
+  casaId: string | null;
   onClose: () => void;
   onSucesso: () => void;
 };
@@ -40,6 +51,7 @@ type ModalAdicionarMembroProps = {
 export function ModalAdicionarMembro({
   grupoId,
   nomeGrupo,
+  casaId,
   onClose,
   onSucesso,
 }: ModalAdicionarMembroProps) {
@@ -50,6 +62,9 @@ export function ModalAdicionarMembro({
     useState<Adolescente | null>(null);
   const [loading, setLoading] = useState(false);
   const [carregandoAdolescentes, setCarregandoAdolescentes] = useState(true);
+  const [selecionados, setSelecionados] = useState<Adolescente[]>([]);
+  const [filaProcessamento, setFilaProcessamento] = useState<Adolescente[]>([]);
+  const [processandoFila, setProcessandoFila] = useState(false);
 
   // Estado dos conflitos
   const [conflitos, setConflitos] = useState<AlertaConflito[]>([]);
@@ -58,22 +73,39 @@ export function ModalAdicionarMembro({
   );
   const [justificativa, setJustificativa] = useState("");
   const [medidasAdicionais, setMedidasAdicionais] = useState<string[]>([]);
+  const sucessoAcumuladoRef = useRef(0);
 
   useEffect(() => {
     carregarAdolescentes();
-  }, []);
+  }, [casaId]);
 
   const carregarAdolescentes = async () => {
     try {
       setCarregandoAdolescentes(true);
-      const response = await fetch("/api/adolescentes?status=ATIVO");
+      const params = new URLSearchParams({
+        status: "ATIVO",
+      });
+      if (casaId) {
+        params.set("casa_id", casaId);
+      }
+      const response = await fetch(`/api/adolescentes?${params.toString()}`);
 
       if (!response.ok) {
         throw new Error("Erro ao carregar adolescentes");
       }
 
       const data = await response.json();
-      setAdolescentes(data.data || []);
+      const lista: Adolescente[] = data.data || [];
+      const filtrada =
+        casaId && casaId !== "null"
+          ? lista.filter(
+              (item) => item.alojamentoAtual?.casa?.id === casaId
+            )
+          : lista;
+      setAdolescentes(filtrada);
+      setSelecionados((prev) =>
+        prev.filter((sel) => filtrada.some((item) => item.id === sel.id))
+      );
     } catch (error) {
       console.error("Erro ao carregar adolescentes:", error);
       alert("Erro ao carregar adolescentes");
@@ -82,7 +114,15 @@ export function ModalAdicionarMembro({
     }
   };
 
-  const verificarConflitos = async (adolescenteId: string) => {
+  const tentarAdicionar = async ({
+    adolescenteId,
+    justificativa: justificativaTexto,
+    medidas,
+  }: {
+    adolescenteId: string;
+    justificativa?: string;
+    medidas?: string[];
+  }): Promise<"sucesso" | "conflito" | "erro"> => {
     try {
       setLoading(true);
 
@@ -93,34 +133,110 @@ export function ModalAdicionarMembro({
         },
         body: JSON.stringify({
           adolescenteId,
+          justificativa: justificativaTexto,
+          medidas_adicionais: medidas,
         }),
       });
 
       const data = await response.json();
 
-      // Se retornou 400 com conflitos, mostrar tela de justificativa
       if (response.status === 400 && data.status === "REQUER_JUSTIFICATIVA") {
-        setConflitos(data.conflitos);
-        setNivelRisco(data.nivel);
+        setConflitos(Array.isArray(data.conflitos) ? data.conflitos : []);
+        setNivelRisco(data.nivel ?? null);
         setEtapa("conflitos");
-        return;
+        return "conflito";
       }
 
-      // Se foi 201, sucesso direto
       if (response.status === 201) {
-        alert("Membro adicionado com sucesso!");
-        onSucesso();
-        return;
+        return "sucesso";
       }
 
-      // Outros erros
       alert(data.erro || "Erro ao adicionar membro");
+      return "erro";
     } catch (error) {
-      console.error("Erro ao verificar conflitos:", error);
-      alert("Erro ao verificar conflitos");
+      console.error("Erro ao adicionar membro:", error);
+      alert("Erro ao adicionar membro");
+      return "erro";
     } finally {
       setLoading(false);
     }
+  };
+
+  const estaSelecionado = (id: string) =>
+    selecionados.some((item) => item.id === id);
+
+  const toggleSelecao = (adolescente: Adolescente) => {
+    if (processandoFila) {
+      return;
+    }
+    setSelecionados((prev) => {
+      const existe = prev.some((item) => item.id === adolescente.id);
+      if (existe) {
+        return prev.filter((item) => item.id !== adolescente.id);
+      }
+      return [...prev, adolescente];
+    });
+  };
+
+  const finalizarProcessamento = async () => {
+    setProcessandoFila(false);
+    setFilaProcessamento([]);
+    setAdolescenteSelecionado(null);
+    setEtapa("selecionar");
+    setConflitos([]);
+    setNivelRisco(null);
+    setJustificativa("");
+    setMedidasAdicionais([]);
+    setSelecionados([]);
+    await carregarAdolescentes();
+    if (sucessoAcumuladoRef.current > 0) {
+      const total = sucessoAcumuladoRef.current;
+      alert(
+        total === 1
+          ? "1 membro adicionado com sucesso!"
+          : `${total} membros adicionados com sucesso!`
+      );
+      sucessoAcumuladoRef.current = 0;
+      onSucesso();
+    }
+  };
+
+  const processarFila = async (fila: Adolescente[]) => {
+    if (fila.length === 0) {
+      await finalizarProcessamento();
+      return;
+    }
+
+    setProcessandoFila(true);
+    const [atual, ...restante] = fila;
+    setAdolescenteSelecionado(atual);
+    const resultado = await tentarAdicionar({ adolescenteId: atual.id });
+
+    if (resultado === "conflito") {
+      setFilaProcessamento(restante);
+      return;
+    }
+
+    if (resultado === "sucesso") {
+      sucessoAcumuladoRef.current += 1;
+    }
+
+    setFilaProcessamento(restante);
+    await processarFila(restante);
+  };
+
+  const iniciarAdicaoSelecionados = async () => {
+    if (selecionados.length === 0 || loading) {
+      return;
+    }
+    sucessoAcumuladoRef.current = 0;
+    setConflitos([]);
+    setNivelRisco(null);
+    setJustificativa("");
+    setMedidasAdicionais([]);
+    const fila = [...selecionados];
+    setFilaProcessamento(fila);
+    await processarFila(fila);
   };
 
   const handleAdicionarComJustificativa = async () => {
@@ -131,35 +247,19 @@ export function ModalAdicionarMembro({
       return;
     }
 
-    try {
-      setLoading(true);
+    const medidasLimpa = medidasAdicionais.filter((m) => m.trim());
+    const resultado = await tentarAdicionar({
+      adolescenteId: adolescenteSelecionado.id,
+      justificativa: justificativa.trim(),
+      medidas: medidasLimpa,
+    });
 
-      const response = await fetch(`/api/grupos/${grupoId}/adicionar-membro`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          adolescenteId: adolescenteSelecionado.id,
-          justificativa: justificativa.trim(),
-          medidas_adicionais: medidasAdicionais.filter((m) => m.trim()),
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        alert(data.erro || "Erro ao adicionar membro");
-        return;
-      }
-
-      alert("Membro adicionado com sucesso!");
-      onSucesso();
-    } catch (error) {
-      console.error("Erro ao adicionar membro:", error);
-      alert("Erro ao adicionar membro");
-    } finally {
-      setLoading(false);
+    if (resultado === "sucesso") {
+      sucessoAcumuladoRef.current += 1;
+      setJustificativa("");
+      setMedidasAdicionais([]);
+      setEtapa("selecionar");
+      await processarFila(filaProcessamento);
     }
   };
 
@@ -214,6 +314,29 @@ export function ModalAdicionarMembro({
                     className="w-full pl-10 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none"
                   />
                 </div>
+                <div className="mt-4 flex items-center justify-between text-sm text-gray-600 flex-wrap gap-3">
+                  <p>{selecionados.length} selecionado(s)</p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSelecionados([])}
+                      disabled={selecionados.length === 0 || processandoFila}
+                      className="px-3 py-1.5 rounded-lg border border-gray-200 hover:border-gray-400 disabled:opacity-50"
+                    >
+                      Limpar seleção
+                    </button>
+                    <button
+                      type="button"
+                      onClick={iniciarAdicaoSelecionados}
+                      disabled={
+                        selecionados.length === 0 || loading || processandoFila
+                      }
+                      className="px-4 py-2 rounded-lg bg-indigo-600 text-white font-semibold hover:bg-indigo-700 disabled:opacity-50"
+                    >
+                      Adicionar selecionados ({selecionados.length})
+                    </button>
+                  </div>
+                </div>
               </div>
 
               {/* Lista de Adolescentes */}
@@ -229,16 +352,20 @@ export function ModalAdicionarMembro({
                 </div>
               ) : (
                 <div className="space-y-2 max-h-96 overflow-y-auto">
-                  {adolescentesFiltrados.map((adolescente) => (
-                    <button
-                      key={adolescente.id}
-                      onClick={() => {
-                        setAdolescenteSelecionado(adolescente);
-                        verificarConflitos(adolescente.id);
-                      }}
-                      disabled={loading}
-                      className="w-full flex items-center gap-4 p-4 border-2 border-gray-200 rounded-lg hover:border-indigo-500 hover:bg-indigo-50 transition-all text-left disabled:opacity-50"
-                    >
+                  {adolescentesFiltrados.map((adolescente) => {
+                    const selecionado = estaSelecionado(adolescente.id);
+                    return (
+                      <button
+                        key={adolescente.id}
+                        type="button"
+                        onClick={() => toggleSelecao(adolescente)}
+                        disabled={processandoFila}
+                        className={`w-full flex items-center gap-4 p-4 border-2 rounded-lg transition-all text-left disabled:opacity-50 ${
+                          selecionado
+                            ? "border-indigo-500 bg-indigo-50"
+                            : "border-gray-200 hover:border-indigo-500 hover:bg-indigo-50"
+                        }`}
+                      >
                       <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-700 font-bold flex-shrink-0">
                         {adolescente.fotoUrl ? (
                           <img
@@ -251,23 +378,45 @@ export function ModalAdicionarMembro({
                         )}
                       </div>
                       <div className="flex-1">
-                        <p className="font-bold text-gray-900">
-                          {adolescente.nomeCompleto}
-                        </p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-bold text-gray-900">
+                            {adolescente.nomeCompleto}
+                          </p>
+                          {typeof adolescente.numeroInterno === "number" && (
+                            <span className="text-xs font-semibold text-gray-500">
+                              Nº {String(adolescente.numeroInterno).padStart(2, "0")}
+                            </span>
+                          )}
+                        </div>
                         {adolescente.nomeSocial && (
                           <p className="text-sm text-gray-600">
                             Nome social: {adolescente.nomeSocial}
                           </p>
                         )}
-                        {adolescente.numeroSms && (
-                          <p className="text-xs text-gray-500 font-mono">
-                            SMS: {adolescente.numeroSms}
-                          </p>
-                        )}
+                    <div className="text-xs text-gray-500 space-y-1">
+                          {adolescente.numeroSms && (
+                            <p className="font-mono">SMS: {adolescente.numeroSms}</p>
+                          )}
+                          {adolescente.alojamentoAtual && (
+                            <p>
+                              {adolescente.alojamentoAtual.casa?.nome ?? "Casa ?"}
+                              {" - Alojamento "}
+                              {adolescente.alojamentoAtual.numero ?? "-"}
+                              {adolescente.alojamentoAtual.ala
+                                ? ` (${adolescente.alojamentoAtual.ala})`
+                                : ""}
+                            </p>
+                          )}
+                        </div>
                       </div>
-                      <UserPlus className="text-indigo-600" size={20} />
+                      {selecionado ? (
+                        <CheckCircle className="text-green-600" size={20} />
+                      ) : (
+                        <UserPlus className="text-indigo-600" size={20} />
+                      )}
                     </button>
-                  ))}
+                  );
+                  })}
                 </div>
               )}
             </>

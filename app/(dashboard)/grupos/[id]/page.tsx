@@ -147,8 +147,16 @@ export default function DetalhesGrupoPage({
     return null;
   }
 
-  const membrosAtivos = grupo.membros.filter((m) => m.ativo);
-  const membrosInativos = grupo.membros.filter((m) => !m.ativo);
+  const membros = Array.isArray(grupo.membros) ? grupo.membros : [];
+  const membrosAtivos = membros.filter((m) =>
+    m.ativo !== undefined ? m.ativo : true
+  );
+  const membrosInativos = membros.filter((m) =>
+    m.ativo !== undefined ? !m.ativo : false
+  );
+  const membrosComConflitos = membrosAtivos.filter(
+    (m) => (m.adolescente.conflitosAtivos ?? 0) > 0
+  );
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -220,13 +228,39 @@ export default function DetalhesGrupoPage({
             {grupo.membrosAtivos}
           </p>
         </div>
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-          <p className="text-sm text-gray-600 font-semibold">Membros Removidos</p>
-          <p className="text-3xl font-bold text-gray-600 mt-2">
-            {grupo.membrosInativos}
-          </p>
-        </div>
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+        <p className="text-sm text-gray-600 font-semibold">Membros Removidos</p>
+        <p className="text-3xl font-bold text-gray-600 mt-2">
+          {grupo.membrosInativos}
+        </p>
       </div>
+    </div>
+
+      {membrosComConflitos.length > 0 && (
+        <div className="mb-6 rounded-lg border-l-4 border-amber-500 bg-amber-50 p-4 shadow-sm">
+          <div className="flex items-center gap-3 text-amber-800">
+            <AlertTriangle size={24} />
+            <div>
+              <p className="font-semibold">
+                Conflitos internos detectados neste grupo
+              </p>
+              <p className="text-sm">
+                Realize a realocação dos adolescentes listados abaixo ou
+                registre a justificativa operacional.
+              </p>
+            </div>
+          </div>
+          <ul className="mt-3 list-disc list-inside text-sm text-amber-900 space-y-1">
+            {membrosComConflitos.map((membro) => (
+              <li key={membro.id}>
+                <strong>{membro.adolescente.nomeCompleto}</strong> possui{" "}
+                {membro.adolescente.conflitosAtivos} conflito(s) ativo(s) com
+                outros adolescentes. Considere reavaliar o agrupamento.
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Lista de Membros Ativos */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
@@ -305,6 +339,11 @@ export default function DetalhesGrupoPage({
                           {membro.adolescente.nomeSocial && (
                             <p className="text-sm text-gray-500">
                               ({membro.adolescente.nomeSocial})
+                            </p>
+                          )}
+                          {(membro.adolescente.conflitosAtivos ?? 0) > 0 && (
+                            <p className="text-xs font-semibold text-red-600 mt-1">
+                              Conflitos ativos: {membro.adolescente.conflitosAtivos} — reavaliar!
                             </p>
                           )}
                         </div>
@@ -420,6 +459,7 @@ export default function DetalhesGrupoPage({
         <ModalAdicionarMembro
           grupoId={grupo.id}
           nomeGrupo={grupo.nomeGrupo}
+          casaId={grupo.casa?.id ?? null}
           onClose={() => {
             setModalAberto(false);
             router.replace(`/grupos/${grupo.id}`);
