@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { writeFile, mkdir } from "fs/promises";
-import { join } from "path";
-import { existsSync } from "fs";
+import { put } from "@vercel/blob";
 
 export async function POST(request: NextRequest) {
   try {
@@ -34,36 +32,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Determinar pasta de destino
-    const subFolder = tipo === "evidencia" ? "evidencias" : "visitantes";
-    const uploadDir = join(process.cwd(), "public", "uploads", subFolder);
-
-    // Criar diretório se não existir
-    if (!existsSync(uploadDir)) {
-      await mkdir(uploadDir, { recursive: true });
-    }
-
     // Gerar nome único para o arquivo
     const timestamp = Date.now();
     const randomStr = Math.random().toString(36).substring(2, 15);
     const extension = file.name.split(".").pop();
-    const fileName = `${timestamp}-${randomStr}.${extension}`;
+    const subFolder = tipo === "evidencia" ? "evidencias" : "visitantes";
+    const fileName = `${subFolder}/${timestamp}-${randomStr}.${extension}`;
 
-    // Converter File para Buffer
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-
-    // Salvar arquivo
-    const filePath = join(uploadDir, fileName);
-    await writeFile(filePath, buffer);
-
-    // Retornar URL relativa
-    const fileUrl = `/uploads/${subFolder}/${fileName}`;
+    // Upload para Vercel Blob
+    const blob = await put(fileName, file, {
+      access: "public",
+    });
 
     return NextResponse.json({
       success: true,
-      url: fileUrl,
-      fileName,
+      url: blob.url,
+      fileName: blob.pathname,
       size: file.size,
       type: file.type,
     });

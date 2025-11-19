@@ -38,7 +38,8 @@
       "Bash(node scripts/verify-models.js:*)",
       "Bash(vitest.config.ts)",
       "Bash(npm test:*)",
-      "Bash(npx vitest:*)"
+      "Bash(npx vitest:*)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []
