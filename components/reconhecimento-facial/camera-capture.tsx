@@ -1,0 +1,296 @@
+"use client";
+
+import { useState, useRef, useEffect } from "react";
+import { Camera, X, RotateCcw, Check, AlertCircle } from "lucide-react";
+import { useWebcam } from "@/hooks/useWebcam";
+import { detectFaceEmbeddings, validateImageQuality } from "@/lib/face-recognition";
+
+export interface CameraCaptureProps {
+  onCapture: (imageDataUrl: string, embeddings: Float32Array) => void;
+  onCancel?: () => void;
+  width?: number;
+  height?: number;
+  title?: string;
+  subtitle?: string;
+}
+
+/**
+ * Componente para captura de foto com detecção facial
+ * Valida automaticamente se há uma face detectável na imagem
+ */
+export function CameraCapture({
+  onCapture,
+  onCancel,
+  width = 640,
+  height = 480,
+  title = "Captura Facial",
+  subtitle = "Posicione seu rosto no centro da câmera",
+}: CameraCaptureProps) {
+  const { videoRef, isStreaming, error, startCamera, stopCamera, captureImage } =
+    useWebcam({ width, height });
+
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const [processing, setProcessing] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // Iniciar câmera ao montar componente
+  useEffect(() => {
+    startCamera();
+    return () => stopCamera();
+  }, [startCamera, stopCamera]);
+
+  /**
+   * Captura foto e valida detecção facial
+   */
+  const handleCapture = async () => {
+    setValidationError(null);
+    setProcessing(true);
+
+    try {
+      const imageDataUrl = captureImage();
+      if (!imageDataUrl) {
+        setValidationError("Erro ao capturar imagem. Tente novamente.");
+        setProcessing(false);
+        return;
+      }
+
+      // Criar elemento de imagem temporário para análise
+      const img = new Image();
+      img.src = imageDataUrl;
+
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+      });
+
+      // Validar qualidade da imagem
+      const qualityCheck = await validateImageQuality(img);
+      if (!qualityCheck.valid) {
+        setValidationError(qualityCheck.message || "Imagem inválida");
+        setProcessing(false);
+        return;
+      }
+
+      // Detectar embeddings faciais
+      console.log("🔍 CameraCapture: Detectando embeddings faciais...");
+      const embeddings = await detectFaceEmbeddings(img);
+      console.log("🧠 CameraCapture: Embeddings detectados:", embeddings);
+      console.log("🧠 CameraCapture: Embeddings length:", embeddings?.length);
+
+      if (!embeddings) {
+        setValidationError("Nenhuma face detectada. Posicione-se melhor e tente novamente.");
+        setProcessing(false);
+        return;
+      }
+
+      console.log("✅ CameraCapture: Face detectada com sucesso!");
+
+      // Sucesso - mostrar preview
+      setCapturedImage(imageDataUrl);
+      setProcessing(false);
+
+      // Auto-confirmar após captura bem-sucedida
+      // Usuário pode revisar antes de confirmar
+    } catch (err) {
+      console.error("Erro ao processar captura:", err);
+      setValidationError("Erro ao processar imagem. Tente novamente.");
+      setProcessing(false);
+    }
+  };
+
+  /**
+   * Confirma a captura e envia para o componente pai
+   */
+  const handleConfirm = async () => {
+    if (!capturedImage) return;
+
+    setProcessing(true);
+
+    try {
+      // Reprocessar para obter embeddings
+      const img = new Image();
+      img.src = capturedImage;
+
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+      });
+
+      console.log("🔄 CameraCapture: Reprocessando embeddings na confirmação...");
+      const embeddings = await detectFaceEmbeddings(img);
+      console.log("🧠 CameraCapture (confirmação): Embeddings:", embeddings);
+      console.log("🧠 CameraCapture (confirmação): Embeddings length:", embeddings?.length);
+
+      if (!embeddings) {
+        setValidationError("Erro ao processar face. Capture novamente.");
+        setCapturedImage(null);
+        setProcessing(false);
+        return;
+      }
+
+      console.log("📤 CameraCapture: Enviando para componente pai...");
+      console.log("📸 imageDataUrl length:", capturedImage.length);
+      console.log("🧠 embeddings tipo:", typeof embeddings);
+      console.log("🧠 embeddings é Float32Array?", embeddings instanceof Float32Array);
+
+      // Enviar para componente pai
+      onCapture(capturedImage, embeddings);
+
+      console.log("✅ CameraCapture: onCapture chamado com sucesso!");
+    } catch (err) {
+      console.error("Erro ao confirmar captura:", err);
+      setValidationError("Erro ao processar. Tente novamente.");
+      setCapturedImage(null);
+      setProcessing(false);
+    }
+  };
+
+  /**
+   * Refazer captura
+   */
+  const handleRetake = () => {
+    setCapturedImage(null);
+    setValidationError(null);
+  };
+
+  return (
+    <div className="flex flex-col items-center gap-4 p-6 bg-white rounded-xl shadow-lg">
+      {/* Header */}
+      <div className="text-center">
+        <h2 className="text-2xl font-bold text-gray-900 flex items-center justify-center gap-2">
+          <Camera className="text-indigo-600" size={28} />
+          {title}
+        </h2>
+        <p className="text-gray-600 mt-1">{subtitle}</p>
+      </div>
+
+      {/* Área de vídeo/imagem */}
+      <div className="relative bg-gray-900 rounded-lg overflow-hidden shadow-xl">
+        {!capturedImage ? (
+          <>
+            {/* Vídeo ao vivo */}
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className="w-full h-auto"
+              style={{ maxWidth: `${width}px`, maxHeight: `${height}px` }}
+            />
+
+            {/* Overlay de guia */}
+            <div className="absolute inset-0 pointer-events-none">
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-64 h-80 border-4 border-indigo-500 rounded-full opacity-30"></div>
+              </div>
+            </div>
+
+            {/* Status da câmera */}
+            {!isStreaming && !error && (
+              <div className="absolute inset-0 flex items-center justify-center bg-gray-900 bg-opacity-75">
+                <p className="text-white">Iniciando câmera...</p>
+              </div>
+            )}
+          </>
+        ) : (
+          /* Preview da foto capturada */
+          <img
+            src={capturedImage}
+            alt="Foto capturada"
+            className="w-full h-auto"
+            style={{ maxWidth: `${width}px`, maxHeight: `${height}px` }}
+          />
+        )}
+
+        <canvas ref={canvasRef} className="hidden" />
+      </div>
+
+      {/* Mensagens de erro */}
+      {(error || validationError) && (
+        <div className="flex items-center gap-2 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 max-w-md">
+          <AlertCircle size={20} className="flex-shrink-0" />
+          <p className="text-sm">{error || validationError}</p>
+        </div>
+      )}
+
+      {/* Botões de ação */}
+      <div className="flex gap-3">
+        {!capturedImage ? (
+          <>
+            {/* Botão capturar */}
+            <button
+              onClick={handleCapture}
+              disabled={!isStreaming || processing}
+              className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-semibold shadow-md"
+            >
+              <Camera size={20} />
+              {processing ? "Processando..." : "Capturar Foto"}
+            </button>
+
+            {/* Botão cancelar */}
+            {onCancel && (
+              <button
+                onClick={() => {
+                  stopCamera();
+                  onCancel();
+                }}
+                className="flex items-center gap-2 px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors font-semibold shadow-md"
+              >
+                <X size={20} />
+                Cancelar
+              </button>
+            )}
+          </>
+        ) : (
+          <>
+            {/* Botão confirmar */}
+            <button
+              onClick={handleConfirm}
+              disabled={processing}
+              className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-semibold shadow-md"
+            >
+              <Check size={20} />
+              {processing ? "Processando..." : "Confirmar"}
+            </button>
+
+            {/* Botão refazer */}
+            <button
+              onClick={handleRetake}
+              disabled={processing}
+              className="flex items-center gap-2 px-6 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-semibold shadow-md"
+            >
+              <RotateCcw size={20} />
+              Tirar Outra
+            </button>
+
+            {/* Botão cancelar */}
+            {onCancel && (
+              <button
+                onClick={() => {
+                  stopCamera();
+                  onCancel();
+                }}
+                disabled={processing}
+                className="flex items-center gap-2 px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors font-semibold shadow-md"
+              >
+                <X size={20} />
+                Cancelar
+              </button>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Instruções */}
+      {!capturedImage && isStreaming && (
+        <div className="text-center text-sm text-gray-600 max-w-md">
+          <p>✓ Posicione seu rosto no centro do círculo</p>
+          <p>✓ Certifique-se de que há boa iluminação</p>
+          <p>✓ Evite usar óculos escuros ou chapéus</p>
+          <p>✓ Olhe diretamente para a câmera</p>
+        </div>
+      )}
+    </div>
+  );
+}

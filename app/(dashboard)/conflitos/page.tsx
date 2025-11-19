@@ -30,6 +30,20 @@ type Conflito = Omit<ApiConflito, "adolescenteA" | "adolescenteB"> & {
   participantes: Participante[];
 };
 
+const ordenarConflitos = (lista: Conflito[]) => {
+  const pesoStatus = (status: Conflito["status"]) =>
+    status === "ATIVO" ? 0 : 1;
+  return [...lista].sort((a, b) => {
+    const diffStatus = pesoStatus(a.status) - pesoStatus(b.status);
+    if (diffStatus !== 0) {
+      return diffStatus;
+    }
+    return (
+      new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime()
+    );
+  });
+};
+
 const normalizarConflito = (conflito: ApiConflito): Conflito => {
   const participantes: Participante[] = [];
 
@@ -73,7 +87,7 @@ export default function ConflitosPage() {
       }
 
       const data = await response.json();
-      setConflitos(data.map(normalizarConflito));
+      setConflitos(ordenarConflitos(data.map(normalizarConflito)));
     } catch (error) {
       // Mock de dados para desenvolvimento
       const mockConflitos: ApiConflito[] = [
@@ -196,7 +210,7 @@ export default function ConflitosPage() {
           tentativasMediacao: 0,
         },
       ];
-      setConflitos(mockConflitos.map(normalizarConflito));
+      setConflitos(ordenarConflitos(mockConflitos.map(normalizarConflito)));
     } finally {
       setLoading(false);
     }

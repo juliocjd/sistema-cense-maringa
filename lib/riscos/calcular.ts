@@ -527,12 +527,7 @@ export function calcularRiscoAlojamento({
           proximidade
         );
       } else if (proximidade === "MESMA_ALA") {
-        registrarMotivo(
-          riscoElevado ? 5 : 4,
-          descricao,
-          "CONFLITO_EXTERNO",
-          proximidade
-        );
+        registrarMotivo(4, descricao, "CONFLITO_EXTERNO", proximidade);
       } else if (proximidade === "MESMA_CASA") {
         registrarMotivo(
           riscoElevado ? 3 : 2,

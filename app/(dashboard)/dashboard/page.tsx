@@ -99,7 +99,7 @@ export default function DashboardPage() {
       subtitulo: "Requerem atenção especial",
       icone: AlertTriangle,
       cor: stats.adolescentesComAlertas > 0 ? "orange" : "green",
-      link: "/adolescentes",
+      link: "/alertas",
     },
     {
       titulo: "Conflitos Ativos",

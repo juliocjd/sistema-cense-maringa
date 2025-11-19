@@ -598,19 +598,40 @@ model JustificativaAlgema {
 // ============================================
 
 model Visitante {
-  id               String    @id @default(uuid())
-  nomeCompleto     String    @map("nome_completo")
-  cpf              String?   @unique
-  dataNascimento   DateTime? @map("data_nascimento") @db.Date
-  enderecoCompleto String?   @map("endereco_completo")
-  telefones        String[]
-  fotoUrl          String?   @map("foto_url")
-  criadoEm         DateTime  @default(now()) @map("criado_em")
-  atualizadoEm     DateTime  @updatedAt @map("atualizado_em")
+  id                      String    @id @default(uuid())
+  nomeCompleto            String    @map("nome_completo")
+  cpf                     String?   @unique
+  dataNascimento          DateTime? @map("data_nascimento") @db.Date
+  enderecoCompleto        String?   @map("endereco_completo")
+  telefones               String[]
+  email                   String?   // Email para notificações
+  fotoUrl                 String?   @map("foto_url")
+
+  // Reconhecimento Facial
+  faceEmbeddings          Json?     @map("face_embeddings")
+  consentimentoBiometria  Boolean   @default(false) @map("consentimento_biometria")
+  dataConsentimento       DateTime? @map("data_consentimento")
+
+  // Controle de Acesso
+  ativo                   Boolean   @default(true) // Visitante ativo/inativo
+  bloqueado               Boolean   @default(false) // Bloqueio temporário
+  motivoBloqueio          String?   @map("motivo_bloqueio")
+  dataBloqueio            DateTime? @map("data_bloqueio")
+  dataDesbloqueio         DateTime? @map("data_desbloqueio") // Prazo do bloqueio
+  operadorBloqueioId      String?   @map("operador_bloqueio_id")
+
+  criadoEm                DateTime  @default(now()) @map("criado_em")
+  atualizadoEm            DateTime  @updatedAt @map("atualizado_em")
 
   // Relações
-  adolescentesLink AdolescenteVisitanteLink[]
-  visitasRegistro  VisitaRegistro[]
+  adolescentesLink        AdolescenteVisitanteLink[]
+  visitasRegistro         VisitaRegistro[]
+  verificacoesFaciais     VerificacaoFacial[]
+  notificacoesEnviadas    NotificacaoVisitante[]
+  historicoBloqueios      HistoricoBloqueio[]
+  qrCodes                 QRCodeVisitante[]
+  fotosEvidencia          FotoEvidencia[]
+  notificacoesWhatsApp    NotificacaoWhatsApp[]
 
   @@map("visitantes")
 }
@@ -631,18 +652,154 @@ model AdolescenteVisitanteLink {
 }
 
 model VisitaRegistro {
-  id                 String    @id @default(uuid())
-  visitanteId        String    @map("visitante_id")
-  adolescenteId      String    @map("adolescente_id")
-  dataHoraEntrada    DateTime  @map("data_hora_entrada")
-  dataHoraSaida      DateTime? @map("data_hora_saida")
-  operadorRegistroId String?   @map("operador_registro_id")
+  id                    String    @id @default(uuid())
+  visitanteId           String    @map("visitante_id")
+  adolescenteId         String    @map("adolescente_id")
+  dataHoraEntrada       DateTime  @map("data_hora_entrada")
+  dataHoraSaida         DateTime? @map("data_hora_saida")
+  operadorEntradaId     String?   @map("operador_entrada_id")
+  operadorSaidaId       String?   @map("operador_saida_id")
+
+  // Controles e Validações
+  tipoVisita            String    @default("REGULAR") @map("tipo_visita") // REGULAR, ESPECIAL, JUDICIAL
+  periodoAutorizado     String    @map("periodo_autorizado") // MANHA, TARDE
+  periodoRealizado      String    @map("periodo_realizado") // MANHA, TARDE
+  horarioDiferente      Boolean   @default(false) @map("horario_diferente")
+  justificativaHorario  String?   @map("justificativa_horario")
+
+  // Acompanhantes (para controle de limite)
+  quantidadeAdultos     Int       @default(1) @map("quantidade_adultos")
+  quantidadeCriancas    Int       @default(0) @map("quantidade_criancas")
+
+  // Alertas
+  alertaFaccaoRival     Boolean   @default(false) @map("alerta_faccao_rival")
+  alertaHorario         Boolean   @default(false) @map("alerta_horario")
+  alertaLimiteVisitas   Boolean   @default(false) @map("alerta_limite_visitas")
+  observacoesAlertas    String?   @map("observacoes_alertas")
+
+  // Observações gerais
+  observacoes           String?
+
+  criadoEm              DateTime  @default(now()) @map("criado_em")
+  atualizadoEm          DateTime  @updatedAt @map("atualizado_em")
 
   // Relações
-  visitante   Visitante   @relation(fields: [visitanteId], references: [id])
-  adolescente Adolescente @relation(fields: [adolescenteId], references: [id])
+  visitante             Visitante   @relation(fields: [visitanteId], references: [id])
+  adolescente           Adolescente @relation(fields: [adolescenteId], references: [id])
 
   @@map("visitas_registro")
+}
+
+model VerificacaoFacial {
+  id                String   @id @default(uuid())
+  visitanteId       String   @map("visitante_id")
+  dataHora          DateTime @default(now()) @map("data_hora")
+  resultado         String   // "SUCESSO", "FALHA", "BLOQUEADO", "MANUAL"
+  confianca         Float?   // Score de matching (0-100)
+  fotoCapturadaUrl  String?  @map("foto_capturada_url")
+  operadorId        String?  @map("operador_id")
+  ipOrigem          String?  @map("ip_origem")
+
+  // Relações
+  visitante Visitante @relation(fields: [visitanteId], references: [id], onDelete: Cascade)
+
+  @@map("verificacoes_faciais")
+}
+
+// Configurações de Visitas (editável, não fixo no código)
+model ConfiguracaoVisitas {
+  id                      String   @id @default(uuid())
+
+  // Dias permitidos
+  diasPermitidos          Json     @map("dias_permitidos") // [6] = sábado (0=dom, 6=sab)
+
+  // Limites de visitantes
+  limiteAdultosPadrao     Int      @default(2) @map("limite_adultos_padrao")
+  limiteCriancasPadrao    Int      @default(1) @map("limite_criancas_padrao")
+
+  // Regra especial para segundo sábado
+  habilitarRegraSegundoSabado Boolean @default(true) @map("habilitar_regra_segundo_sabado")
+  limiteAdultosSegundoSab Int      @default(2) @map("limite_adultos_segundo_sab")
+  limiteCriancasSegundoSab Int     @default(1) @map("limite_criancas_segundo_sab")
+  permitirAlternativa     Boolean  @default(true) @map("permitir_alternativa") // 2 adultos + 1 criança OU 1 adulto + 2 crianças
+
+  // Idade considerada criança
+  idadeLimiteCrianca      Int      @default(12) @map("idade_limite_crianca")
+
+  // Horários por casa
+  casasManhaInicio        Int      @default(1) @map("casas_manha_inicio") // Casa 1
+  casasManhaFim           Int      @default(4) @map("casas_manha_fim") // Casa 4
+  casasTardeInicio        Int      @default(5) @map("casas_tarde_inicio") // Casa 5
+  casasTardeFim           Int      @default(8) @map("casas_tarde_fim") // Casa 8
+
+  horarioManhaInicio      String   @default("08:00") @map("horario_manha_inicio")
+  horarioManhaFim         String   @default("12:00") @map("horario_manha_fim")
+  horarioTardeInicio      String   @default("13:00") @map("horario_tarde_inicio")
+  horarioTardeFim         String   @default("17:00") @map("horario_tarde_fim")
+
+  // Limite de visitas por período
+  quantidadeVisitasMensal Int      @default(2) @map("quantidade_visitas_mensal")
+
+  ativo                   Boolean  @default(true)
+  criadoEm                DateTime @default(now()) @map("criado_em")
+  atualizadoEm            DateTime @updatedAt @map("atualizado_em")
+
+  @@map("configuracoes_visitas")
+}
+
+// Templates de E-mail
+model TemplateEmail {
+  id                String   @id @default(uuid())
+  nome              String   @unique // "ORIENTACOES_VISITA", "CONFIRMACAO_AGENDAMENTO", etc
+  assunto           String
+  corpo             String   @db.Text // Corpo do email (pode ter variáveis: {{nome}}, {{data}}, etc)
+  ativo             Boolean  @default(true)
+  criadoEm          DateTime @default(now()) @map("criado_em")
+  atualizadoEm      DateTime @updatedAt @map("atualizado_em")
+
+  @@map("templates_email")
+}
+
+// Notificações Enviadas
+model NotificacaoVisitante {
+  id                String   @id @default(uuid())
+  visitanteId       String   @map("visitante_id")
+  tipoNotificacao   String   @map("tipo_notificacao") // ORIENTACOES, AGENDAMENTO, CANCELAMENTO, ALERTA
+  assunto           String
+  mensagem          String   @db.Text
+  emailDestinatario String   @map("email_destinatario")
+
+  statusEnvio       String   @default("PENDENTE") @map("status_envio") // PENDENTE, ENVIADO, ERRO
+  erroEnvio         String?  @map("erro_envio")
+  dataEnvio         DateTime? @map("data_envio")
+
+  criadoEm          DateTime @default(now()) @map("criado_em")
+
+  // Relações
+  visitante         Visitante @relation(fields: [visitanteId], references: [id])
+
+  @@map("notificacoes_visitantes")
+}
+
+// Alertas de Facções Rivais
+model AlertaFaccaoRival {
+  id                String   @id @default(uuid())
+  visitanteId       String   @map("visitante_id")
+  faccao1Id         String   @map("faccao_1_id")
+  faccao2Id         String   @map("faccao_2_id")
+  adolescente1Id    String   @map("adolescente_1_id")
+  adolescente2Id    String   @map("adolescente_2_id")
+
+  nivelAlerta       String   @default("MEDIO") // BAIXO, MEDIO, ALTO, CRITICO
+  observacoes       String?
+
+  visualizado       Boolean  @default(false)
+  dataVisualizacao  DateTime? @map("data_visualizacao")
+  operadorId        String?   @map("operador_id")
+
+  criadoEm          DateTime @default(now()) @map("criado_em")
+
+  @@map("alertas_faccoes_rivais")
 }
 
 // ============================================
@@ -687,4 +844,85 @@ model HistoricoTransferencia {
   relatorioTransferencia SolicitacaoTransferencia? @relation(fields: [relatorioTransferenciaId], references: [id])
 
   @@map("historico_transferencias")
+}
+
+// ============================================
+// MELHORIAS DO SISTEMA DE VISITAS
+// ============================================
+
+// Histórico de Bloqueios de Visitantes
+model HistoricoBloqueio {
+  id                String    @id @default(uuid())
+  visitanteId       String    @map("visitante_id")
+  motivoBloqueio    String    @map("motivo_bloqueio")
+  dataBloqueio      DateTime  @map("data_bloqueio")
+  dataDesbloqueio   DateTime? @map("data_desbloqueio")
+  prazoPrevisao     DateTime? @map("prazo_previsao") // Previsão de desbloqueio
+  desbloqueado      Boolean   @default(false)
+  operadorBloqueioId String   @map("operador_bloqueio_id")
+  operadorDesbloqueioId String? @map("operador_desbloqueio_id")
+  observacoes       String?
+  criadoEm          DateTime  @default(now()) @map("criado_em")
+
+  // Relações
+  visitante         Visitante @relation(fields: [visitanteId], references: [id], onDelete: Cascade)
+
+  @@map("historico_bloqueios")
+}
+
+// QR Codes para Visitantes
+model QRCodeVisitante {
+  id                String    @id @default(uuid())
+  visitanteId       String    @map("visitante_id")
+  codigoQR          String    @unique @map("codigo_qr") // Hash único para o QR Code
+  imagemQRUrl       String?   @map("imagem_qr_url") // URL da imagem do QR Code
+  ativo             Boolean   @default(true)
+  validoAte         DateTime? @map("valido_ate") // Expiração opcional
+  quantidadeUsos    Int       @default(0) @map("quantidade_usos")
+  criadoEm          DateTime  @default(now()) @map("criado_em")
+  atualizadoEm      DateTime  @updatedAt @map("atualizado_em")
+
+  // Relações
+  visitante         Visitante @relation(fields: [visitanteId], references: [id], onDelete: Cascade)
+
+  @@map("qrcodes_visitantes")
+}
+
+// Fotos de Evidência (Auto-exclusão após 2 meses)
+model FotoEvidencia {
+  id                String    @id @default(uuid())
+  visitaId          String?   @map("visita_id") // Opcional: pode ser foto de tentativa de acesso
+  visitanteId       String    @map("visitante_id")
+  fotoUrl           String    @map("foto_url")
+  tipoFoto          String    @map("tipo_foto") // ENTRADA, TENTATIVA_ACESSO, BLOQUEIO
+  dataCaptura       DateTime  @default(now()) @map("data_captura")
+  dataExclusao      DateTime  @map("data_exclusao") // Auto-calculado: dataCaptura + 2 meses
+  excluida          Boolean   @default(false)
+  criadoEm          DateTime  @default(now()) @map("criado_em")
+
+  // Relações
+  visitante         Visitante @relation(fields: [visitanteId], references: [id], onDelete: Cascade)
+
+  @@map("fotos_evidencia")
+}
+
+// Notificações WhatsApp
+model NotificacaoWhatsApp {
+  id                String    @id @default(uuid())
+  visitanteId       String    @map("visitante_id")
+  telefone          String
+  tipoNotificacao   String    @map("tipo_notificacao") // ORIENTACOES, AGENDAMENTO, CANCELAMENTO, ALERTA
+  mensagem          String    @db.Text
+
+  statusEnvio       String    @default("PENDENTE") @map("status_envio") // PENDENTE, ENVIADO, ERRO, LIDO
+  erroEnvio         String?   @map("erro_envio")
+  dataEnvio         DateTime? @map("data_envio")
+  dataLeitura       DateTime? @map("data_leitura")
+
+  criadoEm          DateTime  @default(now()) @map("criado_em")
+
+  // Relações
+  visitante         Visitante @relation(fields: [visitanteId], references: [id])
+
+  @@map("notificacoes_whatsapp")
 }

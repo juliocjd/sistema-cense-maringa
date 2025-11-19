@@ -11,7 +11,10 @@ export default function CadastroAdolescentePage() {
   const [mostrarFormulario, setMostrarFormulario] = useState(true);
   const { user } = useAuth();
 
-  const handleSalvar = async (adolescente: AdolescenteCadastroPayload) => {
+  const handleSalvar = async (
+    adolescente: AdolescenteCadastroPayload,
+    alojamentoId?: string
+  ) => {
     if (!user?.id) {
       alert("Operador não autenticado. Faça login novamente para cadastrar.");
       throw new Error("Operador não autenticado");
@@ -19,12 +22,18 @@ export default function CadastroAdolescentePage() {
 
     try {
       // Chamar API
+      const payload = {
+        ...adolescente,
+        alojamentoAtualId:
+          alojamentoId ?? adolescente.alojamentoAtualId ?? undefined,
+      };
+
       const response = await fetch("/api/adolescentes", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(adolescente),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
@@ -32,8 +41,17 @@ export default function CadastroAdolescentePage() {
       }
 
       const data = await response.json();
-      // Redirecionar para dossiê
-      router.push(`/adolescentes/${data.id}`);
+      const novoId =
+        data?.adolescente?.id ??
+        data?.id ??
+        data?.adolescenteId ??
+        null;
+
+      if (!novoId) {
+        throw new Error("Resposta inválida da API: ID ausente");
+      }
+
+      router.push(`/adolescentes/${novoId}`);
     } catch (error) {
       throw error;
     }

@@ -34,15 +34,16 @@ export default function RelatorioImpactoCard({
     );
   }, [dados]);
 
-  const gerarRelatorio = async () => {
+  const gerarRelatorio = async (overrideConflitoId?: string) => {
     setLoading(true);
     setErro(null);
     try {
       const params = new URLSearchParams();
       params.set("tipo", tipoFiltro);
       params.set("status", statusFiltro);
-      if (conflitoId.trim()) {
-        params.set("conflitoId", conflitoId.trim());
+      const idAlvo = overrideConflitoId ?? conflitoId;
+      if (idAlvo.trim()) {
+        params.set("conflitoId", idAlvo.trim());
       }
 
       const resposta = await fetch(
@@ -96,7 +97,7 @@ export default function RelatorioImpactoCard({
   useEffect(() => {
     if (conflitoIdDefault) {
       setConflitoId(conflitoIdDefault);
-      gerarRelatorio();
+      gerarRelatorio(conflitoIdDefault);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conflitoIdDefault]);
@@ -158,7 +159,7 @@ export default function RelatorioImpactoCard({
         <div className="flex gap-2">
           <button
             type="button"
-            onClick={gerarRelatorio}
+            onClick={() => gerarRelatorio()}
             disabled={loading}
             className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:opacity-60"
           >

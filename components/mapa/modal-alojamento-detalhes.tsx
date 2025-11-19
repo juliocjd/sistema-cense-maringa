@@ -45,6 +45,7 @@ type SugestaoApi = {
   alojamentoId: string;
   casaId: string;
   casaNome: string;
+  casaNumero?: number;
   numero: string;
   ala: string | null;
   nivel: number;
@@ -742,16 +743,39 @@ export default function ModalAlojamentoDetalhes({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex-1">
               {ocupante ? (
-                <div className="flex flex-col gap-1">
-                  <p className="text-xl font-semibold text-slate-900">
-                    {ocupante.nomeCompleto}
-                  </p>
-                  <div className="flex flex-wrap gap-4 text-sm text-slate-500">
-                    <span>SMS: {ocupante.numeroSms ?? "Nao informado"}</span>
-                    <span>
-                      Numero interno:{" "}
-                      {ocupante.numeroInterno ?? "Nao informado"}
+                <div className="flex flex-col gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-xl font-semibold text-slate-900">
+                      {ocupante.nomeCompleto}
+                    </p>
+                    {ocupante.nomeSocial && (
+                      <span className="text-xs font-semibold text-slate-500">
+                        ({ocupante.nomeSocial})
+                      </span>
+                    )}
+                    <span className="text-xs font-semibold text-indigo-600 px-2 py-0.5 rounded-full bg-indigo-50 border border-indigo-200">
+                      SMS: {ocupante.numeroSms ?? "Nao informado"}
                     </span>
+                    <span className="text-xs font-semibold text-indigo-600 px-2 py-0.5 rounded-full bg-indigo-50 border border-indigo-200">
+                      Nº interno: {ocupante.numeroInterno ?? "Nao informado"}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {ocupante.bairroOrigem && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-amber-200 bg-amber-50 text-amber-700 text-xs font-semibold">
+                        <MapPin size={12} />
+                        {ocupante.bairroOrigem.nome}
+                        {ocupante.bairroOrigem.cidade
+                          ? ` - ${ocupante.bairroOrigem.cidade}`
+                          : ""}
+                      </span>
+                    )}
+                    {ocupante.faccao && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-purple-200 bg-purple-50 text-purple-700 text-xs font-semibold">
+                        <Shield size={12} />
+                        {ocupante.faccao.nome}
+                      </span>
+                    )}
                   </div>
                 </div>
               ) : (
@@ -799,18 +823,6 @@ export default function ModalAlojamentoDetalhes({
               {ocupante ? (
                 <div className="space-y-4">
                   <div className="flex flex-col gap-2">
-                    {ocupante.bairroOrigem && (
-                      <p className="text-sm text-slate-500 flex items-center gap-2">
-                        <MapPin size={14} />
-                        {ocupante.bairroOrigem.nome} - {ocupante.bairroOrigem.cidade}
-                      </p>
-                    )}
-                    {ocupante.faccao && (
-                      <p className="text-sm text-slate-500 flex items-center gap-2">
-                        <Shield size={14} />
-                        {ocupante.faccao.nome}
-                      </p>
-                    )}
                     {avaliacaoRisco && (
                       <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                         <button

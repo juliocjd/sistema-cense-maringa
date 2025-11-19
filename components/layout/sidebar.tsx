@@ -70,6 +70,13 @@ export function Sidebar() {
         ],
       },
       {
+        section: "Visitantes",
+        items: [
+          { label: "Cadastro de Visitantes", href: "/visitantes", icon: Users },
+          { label: "Portaria", href: "/portaria", icon: Shield },
+        ],
+      },
+      {
         section: "Gestao",
         items: [
           { label: "Comunicados Internos", href: "/comunicados", icon: FileText },

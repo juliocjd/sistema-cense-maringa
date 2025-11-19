@@ -8,6 +8,7 @@ import {
   mapVisitanteDetalhado,
   type VisitanteComRelacoes,
 } from "@/lib/visitantes/mappers";
+import { enviarOrientacoesVisitante } from "@/lib/email/auto-notificacoes";
 
 const normalizeString = (value: unknown) =>
   typeof value === "string" ? value.trim() : "";
@@ -57,11 +58,24 @@ const createVisitanteSchema = z.object({
     ),
   enderecoCompleto: z.string().optional().nullable(),
   telefones: z.array(z.string()).optional(),
-  fotoUrl: z
+  email: z
     .string()
-    .url("fotoUrl invalida")
+    .email("Email invalido")
     .optional()
     .nullable()
+    .or(z.literal("").transform(() => null)),
+  fotoUrl: z
+    .string()
+    .optional()
+    .nullable()
+    .refine(
+      (value) => {
+        if (!value) return true; // null/undefined é válido
+        // Aceita URLs completas ou caminhos relativos começando com /
+        return value.startsWith("http://") || value.startsWith("https://") || value.startsWith("/");
+      },
+      { message: "fotoUrl invalida" }
+    )
     .or(z.literal("").transform(() => null)),
   vinculos: z.array(vinculoSchema).optional(),
 });
@@ -193,6 +207,12 @@ export async function GET(request: NextRequest) {
         select: {
           adolescentesLink: true,
           visitasRegistro: true,
+          verificacoesFaciais: true,
+          notificacoesEnviadas: true,
+          historicoBloqueios: true,
+          qrCodes: true,
+          fotosEvidencia: true,
+          notificacoesWhatsApp: true,
         },
       },
     };
@@ -217,7 +237,7 @@ export async function GET(request: NextRequest) {
     const visitantesSerializados = visitantes.map((visitante) => {
       if (detalhes || incluirVisitas) {
         return mapVisitanteDetalhado(
-          visitante as VisitanteComRelacoes,
+          visitante as any,
           {
             incluirVinculos: detalhes,
             incluirVisitas: incluirVisitas,
@@ -279,6 +299,7 @@ export async function POST(request: NextRequest) {
           dataNascimento,
           enderecoCompleto: body.enderecoCompleto?.trim() ?? null,
           telefones,
+          email: body.email?.trim() ?? null,
           fotoUrl: body.fotoUrl ?? null,
           adolescentesLink: vinculos.length
             ? {
@@ -299,6 +320,12 @@ export async function POST(request: NextRequest) {
             select: {
               adolescentesLink: true,
               visitasRegistro: true,
+              verificacoesFaciais: true,
+              notificacoesEnviadas: true,
+              historicoBloqueios: true,
+              qrCodes: true,
+              fotosEvidencia: true,
+              notificacoesWhatsApp: true,
             },
           },
           adolescentesLink: buildLinkInclude(),
@@ -322,6 +349,18 @@ export async function POST(request: NextRequest) {
 
       return novoVisitante;
     });
+
+    // Enviar e-mail de orientações automaticamente (não bloqueia a resposta)
+    if (visitante.email) {
+      enviarOrientacoesVisitante(
+        visitante.id,
+        visitante.nomeCompleto,
+        visitante.email
+      ).catch((error) => {
+        console.error("Erro ao enviar e-mail de orientações:", error);
+        // Não falha a criação do visitante se o e-mail falhar
+      });
+    }
 
     return NextResponse.json(
       mapVisitanteDetalhado(

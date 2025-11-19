@@ -4,6 +4,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { ensureOperador } from "@/lib/auth/ensure-operador";
 import { mapVisita } from "@/lib/visitantes/mappers";
+import { validarRegistroVisita } from "@/lib/visitantes/validacoes";
 
 const registrarEntradaSchema = z.object({
   adolescenteId: z.string().uuid("adolescenteId invalido"),
@@ -16,6 +17,10 @@ const registrarEntradaSchema = z.object({
         !value || !Number.isNaN(Date.parse(value)) || value.trim().length === 0,
       { message: "dataHoraEntrada invalida" }
     ),
+  quantidadeAdultos: z.number().int().min(0).optional().default(1),
+  quantidadeCriancas: z.number().int().min(0).optional().default(0),
+  observacoes: z.string().optional().nullable(),
+  justificativaHorario: z.string().optional().nullable(),
 });
 
 const parseJsonBody = async (request: NextRequest) => {
@@ -182,13 +187,41 @@ export async function POST(
         ? new Date(body.dataHoraEntrada)
         : new Date();
 
+    // VALIDAÇÃO COMPLETA DO SISTEMA
+    const validacao = await validarRegistroVisita({
+      visitanteId: id,
+      adolescenteId: body.adolescenteId,
+      dataHoraEntrada,
+      quantidadeAdultos: body.quantidadeAdultos,
+      quantidadeCriancas: body.quantidadeCriancas,
+    });
+
+    // Se houver erros bloqueantes, retornar
+    if (!validacao.valido) {
+      return NextResponse.json(
+        {
+          erro: "Validacao falhou",
+          erros: validacao.erros,
+          alertas: validacao.alertas,
+        },
+        { status: 422 }
+      );
+    }
+
     const novaVisita = await prisma.$transaction(async (tx) => {
       const criada = await tx.visitaRegistro.create({
         data: {
           visitanteId: id,
           adolescenteId: body.adolescenteId,
           dataHoraEntrada,
-          operadorRegistroId: operadorId,
+          operadorEntradaId: operadorId,
+          periodoAutorizado: validacao.metadata.periodoAutorizado,
+          periodoRealizado: validacao.metadata.periodoRealizado,
+          alertaHorario: validacao.metadata.alertaHorario,
+          alertaFaccaoRival: validacao.metadata.alertaFaccaoRival,
+          alertaLimiteVisitas: validacao.metadata.alertaLimiteVisitas,
+          observacoes: body.observacoes || null,
+          justificativaHorario: body.justificativaHorario || null,
         },
         include: {
           adolescente: {
@@ -211,6 +244,12 @@ export async function POST(
             visitanteId: id,
             adolescenteId: body.adolescenteId,
             dataHoraEntrada: criada.dataHoraEntrada.toISOString(),
+            periodoAutorizado: validacao.metadata.periodoAutorizado,
+            periodoRealizado: validacao.metadata.periodoRealizado,
+            alertas: validacao.alertas,
+            alertaHorario: validacao.metadata.alertaHorario,
+            alertaFaccaoRival: validacao.metadata.alertaFaccaoRival,
+            alertaLimiteVisitas: validacao.metadata.alertaLimiteVisitas,
           },
           ipOrigem: ip,
         },
@@ -219,7 +258,14 @@ export async function POST(
       return criada;
     });
 
-    return NextResponse.json(mapVisita(novaVisita), { status: 201 });
+    return NextResponse.json(
+      {
+        ...mapVisita(novaVisita),
+        alertas: validacao.alertas,
+        metadata: validacao.metadata,
+      },
+      { status: 201 }
+    );
   } catch (error) {
     if (error instanceof NextResponse) {
       return error;

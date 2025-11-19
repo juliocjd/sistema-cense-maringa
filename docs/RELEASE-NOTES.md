@@ -3,6 +3,7 @@
 ## 2025-11-XX ??- Monitoramento de conflitos e aloca????es automatizadas
 
 - **Risco centralizado:** o motor lib/riscos/calcular agora retorna itens detalhados (tipo do alerta, proximidade e nivel 0-5) e alimenta a rota GET /api/verificar-alocacao, eliminando divergencias entre mapa operacional, sugestoes de destino e a verificacao previa usada no modal de transferencia/alocacao.
+- **Critério de nível 5 revisado:** rivais na mesma ala agora ficam em **Nível 4 - Elevado** (ainda exigindo justificativa), deixando o **Nível 5** reservado exclusivamente para alojamentos frontais. O ajuste afeta mapa operacional, `/api/casas/status`, `/api/verificar-alocacao` e o motor de sugestões automaticamente.
 - **Modal + Visao Geral:** o modal de detalhes exibe um bloco verde de 'Conflitos resolvidos' com adversario, local e data, e o mesmo componente foi reusado na aba Visao Geral (sem pop-ups do navegador), mantendo as acoes de alocar, transferir, desalocar e interditar em um unico fluxo.
 
 - **Cadastro + alocação automática:** o formulário `/adolescentes/novo` agora oferece seleção de alojamento livre, dispara `/api/alocar` automaticamente após o `POST /api/adolescentes` (com justificativa padronizada) e redireciona para o dossiê, mantendo alertas/justificativas existentes.

@@ -85,7 +85,7 @@ export async function PATCH(
         where: { id: visitaId },
         data: {
           dataHoraSaida,
-          operadorRegistroId: operadorId,
+          operadorSaidaId: operadorId,
         },
         include: {
           adolescente: {

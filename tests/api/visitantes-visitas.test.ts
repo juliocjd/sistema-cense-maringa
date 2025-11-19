@@ -7,9 +7,14 @@ import {
 import { PATCH as PATCH_VISITA } from "@/app/api/visitantes/[id]/visitas/[visitaId]/route";
 import { ensureOperador } from "@/lib/auth/ensure-operador";
 import { prisma } from "@/lib/prisma";
+import { validarRegistroVisita } from "@/lib/visitantes/validacoes";
 
 vi.mock("@/lib/auth/ensure-operador", () => ({
   ensureOperador: vi.fn(),
+}));
+
+vi.mock("@/lib/visitantes/validacoes", () => ({
+  validarRegistroVisita: vi.fn(),
 }));
 
 vi.mock("@/lib/prisma", () => {
@@ -47,6 +52,7 @@ vi.mock("@/lib/prisma", () => {
 });
 
 const mockedEnsureOperador = vi.mocked(ensureOperador);
+const mockedValidarRegistroVisita = vi.mocked(validarRegistroVisita);
 const mockedPrisma = prisma as unknown as {
   visitante: {
     findUnique: ReturnType<typeof vi.fn>;
@@ -78,6 +84,23 @@ beforeEach(() => {
     ok: true,
     operadorId: "oper-1",
     ip: "127.0.0.1",
+  });
+
+  mockedValidarRegistroVisita.mockReset();
+  mockedValidarRegistroVisita.mockResolvedValue({
+    valido: true,
+    erros: [],
+    alertas: [],
+    metadata: {
+      periodoAutorizado: "MANHA",
+      periodoRealizado: "MANHA",
+      alertaHorario: false,
+      alertaFaccaoRival: false,
+      alertaLimiteVisitas: false,
+      numeroCasa: 1,
+      visitasRealizadasMes: 0,
+      limiteVisitasMensal: 2,
+    },
   });
 
   Object.values(mockedPrisma).forEach((value) => {

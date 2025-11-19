@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
@@ -11,12 +10,14 @@ import {
   Search,
   Shield,
   Trash2,
+  X,
 } from "lucide-react";
 
 import {
   ConflitoExternoResumo,
   ImpactoConflitoPayload,
 } from "@/types/inteligencia";
+import RelatorioImpactoCard from "./relatorio-impacto-card";
 
 type FiltroTipo = "TODOS" | "BAIRRO" | "FACCAO";
 type FiltroStatus = "TODOS" | "ATIVO" | "INATIVO";
@@ -35,6 +36,8 @@ export default function PainelConflitos({
   const [tipoFiltro, setTipoFiltro] = useState<FiltroTipo>("TODOS");
   const [statusFiltro, setStatusFiltro] = useState<FiltroStatus>("TODOS");
   const [estadoAcao, setEstadoAcao] = useState<Record<string, string>>({});
+  const [impactoSelecionado, setImpactoSelecionado] =
+    useState<ConflitoExternoResumo | null>(null);
 
   const resumoImpacto = useMemo(() => {
     const mapa = new Map<string, number>();
@@ -118,7 +121,8 @@ export default function PainelConflitos({
   };
 
   return (
-    <section className="space-y-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <>
+      <section className="space-y-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <header className="flex flex-col gap-4 border-b border-slate-100 pb-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs uppercase tracking-wide text-indigo-500">
@@ -252,13 +256,14 @@ export default function PainelConflitos({
                 </div>
 
                 <div className="mt-4 flex flex-wrap gap-3">
-                  <Link
-                    href={`/inteligencia/conflitos?conflitoId=${conflito.id}`}
+                  <button
+                    type="button"
+                    onClick={() => setImpactoSelecionado(conflito)}
                     className="inline-flex items-center gap-1 rounded-full border border-indigo-200 px-4 py-2 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-600 hover:text-white"
                   >
                     <Eye size={14} />
                     Ver impactos
-                  </Link>
+                  </button>
                   {conflito.status === "ATIVO" && (
                     <button
                       type="button"
@@ -281,5 +286,42 @@ export default function PainelConflitos({
         </div>
       )}
     </section>
+    {impactoSelecionado && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 py-8">
+          <div className="relative flex w-full max-w-4xl flex-col rounded-2xl bg-white p-4 shadow-2xl md:p-6">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-widest text-indigo-500">
+                  Impactos ativos
+                </p>
+                <h3 className="text-lg font-semibold text-slate-900">
+                  {impactoSelecionado.origem.nome} - {" "}
+                  {impactoSelecionado.destino.nome}
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Lista de adolescentes ativos impactados por este conflito.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setImpactoSelecionado(null)}
+                className="rounded-full p-2 text-slate-500 hover:bg-slate-100"
+                aria-label="Fechar impactos do conflito"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="max-h-[75vh] overflow-y-auto pr-1">
+              <RelatorioImpactoCard
+                resumo={impactoResumo}
+                conflitoIdDefault={impactoSelecionado.id}
+                id="impacto-conflito-selecionado"
+                key={impactoSelecionado.id}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

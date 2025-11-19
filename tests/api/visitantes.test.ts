@@ -42,6 +42,12 @@ vi.mock("@/lib/prisma", () => {
   const logAuditoria = {
     create: mockFn(),
   };
+  const verificacaoFacial = {
+    deleteMany: mockFn(),
+  };
+  const notificacaoVisitante = {
+    deleteMany: mockFn(),
+  };
 
   return {
     prisma: {
@@ -50,6 +56,8 @@ vi.mock("@/lib/prisma", () => {
       adolescenteVisitanteLink,
       visitaRegistro,
       logAuditoria,
+      verificacaoFacial,
+      notificacaoVisitante,
       $transaction: mockFn(),
     },
   };
@@ -259,6 +267,12 @@ describe("API Visitantes - /api/visitantes", () => {
       logAuditoria: {
         create: vi.fn(),
       },
+      verificacaoFacial: {
+        deleteMany: vi.fn(),
+      },
+      notificacaoVisitante: {
+        deleteMany: vi.fn(),
+      },
     };
 
     mockedPrisma.$transaction.mockImplementation(async (fn: any) =>
@@ -267,6 +281,8 @@ describe("API Visitantes - /api/visitantes", () => {
         visitaRegistro: tx.visitaRegistro,
         visitante: tx.visitante,
         logAuditoria: tx.logAuditoria,
+        verificacaoFacial: tx.verificacaoFacial,
+        notificacaoVisitante: tx.notificacaoVisitante,
       })
     );
 

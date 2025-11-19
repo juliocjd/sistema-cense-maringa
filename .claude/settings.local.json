@@ -32,7 +32,13 @@
       "Bash(npx jest:*)",
       "Bash(npm run test:*)",
       "Bash(node convert-to-html.js:*)",
-      "Bash(start docs/APRESENTACAO-EXECUTIVA.html)"
+      "Bash(start docs/APRESENTACAO-EXECUTIVA.html)",
+      "Bash(npx prisma:*)",
+      "Bash(node scripts/download-face-models.js:*)",
+      "Bash(node scripts/verify-models.js:*)",
+      "Bash(vitest.config.ts)",
+      "Bash(npm test:*)",
+      "Bash(npx vitest:*)"
     ],
     "deny": [],
     "ask": []

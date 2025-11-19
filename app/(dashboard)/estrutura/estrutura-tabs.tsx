@@ -1,19 +1,24 @@
 "use client";
 
-import { Suspense } from "react";
-import { Building2, BarChart3 } from "lucide-react";
+import { Suspense, useState } from "react";
+import { Building2, BarChart3, PieChart } from "lucide-react";
 import Link from "next/link";
 import { VisaoGeralTab } from "./visao-geral-tab";
+import { EstatisticasTab } from "./estatisticas-tab";
 
 type EstruturaTabsProps = {
   casas: any[];
   totalAlojamentos: number;
 };
 
+type TabType = "visao-geral" | "estatisticas";
+
 export function EstruturaTabsComponent({
   casas,
   totalAlojamentos,
 }: EstruturaTabsProps) {
+  const [activeTab, setActiveTab] = useState<TabType>("visao-geral");
+
   return (
     <div>
       <div className="mb-6">
@@ -38,6 +43,36 @@ export function EstruturaTabsComponent({
         </div>
       </div>
 
+      {/* Sistema de Tabs */}
+      <div className="mb-6">
+        <div className="bg-white rounded-xl shadow-md border border-gray-200 p-2">
+          <div className="flex gap-2">
+            <button
+              onClick={() => setActiveTab("visao-geral")}
+              className={`flex items-center gap-2 px-6 py-3 rounded-lg font-semibold transition-all ${
+                activeTab === "visao-geral"
+                  ? "bg-indigo-600 text-white shadow-lg"
+                  : "text-gray-600 hover:bg-gray-100"
+              }`}
+            >
+              <Building2 size={20} />
+              Visão Geral
+            </button>
+            <button
+              onClick={() => setActiveTab("estatisticas")}
+              className={`flex items-center gap-2 px-6 py-3 rounded-lg font-semibold transition-all ${
+                activeTab === "estatisticas"
+                  ? "bg-indigo-600 text-white shadow-lg"
+                  : "text-gray-600 hover:bg-gray-100"
+              }`}
+            >
+              <PieChart size={20} />
+              Estatísticas
+            </button>
+          </div>
+        </div>
+      </div>
+
       <div className="min-h-[600px]">
         <Suspense
           fallback={
@@ -46,7 +81,11 @@ export function EstruturaTabsComponent({
             </div>
           }
         >
-          <VisaoGeralTab casas={casas} totalAlojamentos={totalAlojamentos} />
+          {activeTab === "visao-geral" ? (
+            <VisaoGeralTab casas={casas} totalAlojamentos={totalAlojamentos} />
+          ) : (
+            <EstatisticasTab casas={casas} totalAlojamentos={totalAlojamentos} />
+          )}
         </Suspense>
       </div>
     </div>

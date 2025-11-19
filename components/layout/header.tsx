@@ -10,6 +10,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/hooks/useAuth";
 
 type ResultadoBusca = {
   adolescentes: Array<{
@@ -67,9 +68,6 @@ export function Header() {
     useState<ResultadoBusca>(RESULTADOS_INICIAIS);
   const [erroBusca, setErroBusca] = useState<string | null>(null);
   const [mostrarResultados, setMostrarResultados] = useState(false);
-  const [usuario, setUsuario] = useState<{ nome: string; role: string } | null>(
-    null
-  );
   const [mostrarNotificacoes, setMostrarNotificacoes] =
     useState(false);
   const [carregandoNotificacoes, setCarregandoNotificacoes] =
@@ -80,26 +78,9 @@ export function Header() {
   const router = useRouter();
   const buscaContainerRef = useRef<HTMLDivElement | null>(null);
   const notificacoesRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    const carregarSessao = async () => {
-      try {
-        const response = await fetch("/api/auth/session");
-        if (!response.ok) return;
-        const session = await response.json();
-        if (session?.user) {
-          setUsuario({
-            nome: session.user.name ?? "Operador",
-            role: session.user.cargo ?? "Operador",
-          });
-        }
-      } catch (error) {
-        console.error("Erro ao carregar sessao:", error);
-      }
-    };
-
-    carregarSessao();
-  }, []);
+  const { user: authUser, logout } = useAuth();
+  const usuarioNome = authUser?.name ?? "Operador";
+  const usuarioRole = authUser?.cargo ?? "Perfil";
 
   useEffect(() => {
     const handleClickFora = (event: MouseEvent) => {
@@ -439,16 +420,14 @@ export function Header() {
               className="flex items-center gap-3 px-3 py-2 hover:bg-gray-100 rounded-lg transition-colors"
             >
               <div className="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center text-white font-bold">
-                {usuario?.nome
-                  ? usuario.nome.charAt(0).toUpperCase()
-                  : "?"}
+                {usuarioNome.charAt(0).toUpperCase()}
               </div>
               <div className="text-left hidden md:block">
                 <p className="text-sm font-semibold text-gray-800">
-                  {usuario?.nome ?? "Operador"}
+                  {usuarioNome}
                 </p>
                 <p className="text-xs text-gray-600">
-                  {usuario?.role ?? "Perfil"}
+                  {usuarioRole}
                 </p>
               </div>
               <ChevronDown
@@ -467,10 +446,10 @@ export function Header() {
                 <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-20">
                   <div className="px-4 py-3 border-b border-gray-200">
                     <p className="text-sm font-semibold text-gray-800">
-                      {usuario?.nome ?? "Operador"}
+                      {usuarioNome}
                     </p>
                     <p className="text-xs text-gray-600">
-                      {usuario?.role ?? "Perfil"}
+                      {usuarioRole}
                     </p>
                   </div>
                   <button
@@ -485,7 +464,7 @@ export function Header() {
                   <button
                     onClick={() => {
                       if (confirm("Deseja realmente sair?")) {
-                        window.location.href = "/login";
+                        logout();
                       }
                     }}
                     className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 transition-colors"

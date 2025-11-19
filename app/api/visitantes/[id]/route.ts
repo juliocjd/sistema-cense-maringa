@@ -39,11 +39,24 @@ const updateVisitanteSchema = z
       ),
     enderecoCompleto: z.string().optional().nullable(),
     telefones: z.array(z.string()).optional(),
-    fotoUrl: z
+    email: z
       .string()
-      .url("fotoUrl invalida")
+      .email("Email invalido")
       .optional()
       .nullable()
+      .or(z.literal("").transform(() => null)),
+    fotoUrl: z
+      .string()
+      .optional()
+      .nullable()
+      .refine(
+        (value) => {
+          if (!value) return true; // null/undefined é válido
+          // Aceita URLs completas ou caminhos relativos começando com /
+          return value.startsWith("http://") || value.startsWith("https://") || value.startsWith("/");
+        },
+        { message: "fotoUrl invalida" }
+      )
       .or(z.literal("").transform(() => null)),
     vinculos: z.array(vinculoSchema).optional(),
   })
@@ -54,6 +67,7 @@ const updateVisitanteSchema = z
       value.dataNascimento !== undefined ||
       value.enderecoCompleto !== undefined ||
       value.telefones !== undefined ||
+      value.email !== undefined ||
       value.fotoUrl !== undefined ||
       value.vinculos !== undefined,
     { message: "Nenhum campo informado para atualizar." }
@@ -208,7 +222,10 @@ export async function PUT(
 
   try {
     const rawBody = await parseJsonBody(request);
+    console.log("📥 PUT visitante - Body recebido:", rawBody);
+
     const body = updateVisitanteSchema.parse(rawBody);
+    console.log("✅ PUT visitante - Body validado:", body);
 
     const telefones =
       body.telefones !== undefined
@@ -224,6 +241,8 @@ export async function PUT(
         : undefined;
 
     const vinculos = body.vinculos;
+    console.log("🔗 PUT visitante - Vínculos:", vinculos);
+
     if (vinculos) {
       await ensureAdolescentesExistem(vinculos.map((v) => v.adolescenteId));
     }
@@ -255,6 +274,9 @@ export async function PUT(
       if (telefones !== undefined) {
         data.telefones = telefones;
       }
+      if (body.email !== undefined) {
+        data.email = body.email?.trim() !== "" ? body.email?.trim() ?? null : null;
+      }
       if (body.fotoUrl !== undefined) {
         data.fotoUrl = body.fotoUrl ?? null;
       }
@@ -265,17 +287,26 @@ export async function PUT(
         data.dataNascimento = dataNascimento;
       }
 
+      console.log("💾 PUT visitante - Data para atualizar:", data);
+
       if (Object.keys(data).length > 0) {
+        console.log("✅ PUT visitante - Atualizando visitante com data...");
         await tx.visitante.update({
           where: { id },
           data,
         });
+        console.log("✅ PUT visitante - Visitante atualizado!");
+      } else {
+        console.log("⚠️ PUT visitante - Nenhum campo de visitante para atualizar");
       }
 
       if (vinculos) {
+        console.log("🔗 PUT visitante - Processando vínculos...");
+
         const existentes = await tx.adolescenteVisitanteLink.findMany({
           where: { visitanteId: id },
         });
+        console.log("📋 PUT visitante - Vínculos existentes:", existentes.length);
 
         const existentesPorAdolescente = new Map<string, string>();
 
@@ -284,20 +315,25 @@ export async function PUT(
         });
 
         const incomingSet = new Set(vinculos.map((item) => item.adolescenteId));
+        console.log("📥 PUT visitante - Vínculos recebidos:", Array.from(incomingSet));
 
+        // Deletar vínculos que não estão mais na lista
         for (const atual of existentes) {
           if (!incomingSet.has(atual.adolescenteId)) {
+            console.log("🗑️ PUT visitante - Deletando vínculo:", atual.adolescenteId);
             await tx.adolescenteVisitanteLink.delete({
               where: { id: atual.id },
             });
           }
         }
 
+        // Atualizar ou criar vínculos
         for (const vinculo of vinculos) {
           const existenteId = existentesPorAdolescente.get(
             vinculo.adolescenteId
           );
           if (existenteId) {
+            console.log("🔄 PUT visitante - Atualizando vínculo:", vinculo.adolescenteId);
             await tx.adolescenteVisitanteLink.update({
               where: { id: existenteId },
               data: {
@@ -310,6 +346,7 @@ export async function PUT(
               },
             });
           } else {
+            console.log("➕ PUT visitante - Criando novo vínculo:", vinculo.adolescenteId);
             await tx.adolescenteVisitanteLink.create({
               data: {
                 visitanteId: id,
@@ -324,6 +361,10 @@ export async function PUT(
             });
           }
         }
+
+        console.log("✅ PUT visitante - Vínculos processados!");
+      } else {
+        console.log("⚠️ PUT visitante - Nenhum vínculo enviado");
       }
 
       const visitanteFinal = await fetchVisitanteDetalhado(id);
@@ -436,15 +477,32 @@ export async function DELETE(
     }
 
     await prisma.$transaction(async (tx) => {
+      // Deletar vínculos com adolescentes
       await tx.adolescenteVisitanteLink.deleteMany({
         where: { visitanteId: id },
       });
+
+      // Deletar visitas
       await tx.visitaRegistro.deleteMany({
         where: { visitanteId: id },
       });
+
+      // Deletar verificações faciais
+      await tx.verificacaoFacial.deleteMany({
+        where: { visitanteId: id },
+      });
+
+      // Deletar notificações de email
+      await tx.notificacaoVisitante.deleteMany({
+        where: { visitanteId: id },
+      });
+
+      // Deletar visitante
       await tx.visitante.delete({
         where: { id },
       });
+
+      // Log de auditoria
       await tx.logAuditoria.create({
         data: {
           operadorId,

@@ -3,7 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-export default function FormTecnico() {
+interface FormTecnicoProps {
+  onSuccess?: () => void;
+}
+
+export default function FormTecnico({ onSuccess }: FormTecnicoProps) {
   const router = useRouter();
   const [nome, setNome] = useState("");
   const [atividade, setAtividade] = useState("");
@@ -46,7 +50,11 @@ export default function FormTecnico() {
       setEmail("");
       setTelefone("");
       setSucesso(true);
-      router.refresh();
+      if (onSuccess) {
+        onSuccess();
+      } else {
+        router.refresh();
+      }
     } catch (error) {
       setErro((error as Error).message);
     } finally {

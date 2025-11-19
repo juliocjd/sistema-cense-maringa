@@ -14,7 +14,9 @@ type VisitanteBasico = Pick<
   | "dataNascimento"
   | "enderecoCompleto"
   | "telefones"
+  | "email"
   | "fotoUrl"
+  | "faceEmbeddings"
   | "criadoEm"
   | "atualizadoEm"
   | "_count"
@@ -101,7 +103,9 @@ export function mapVisitanteBasico(
     dataNascimento: formatarData(visitante.dataNascimento),
     enderecoCompleto: visitante.enderecoCompleto ?? null,
     telefones: normalizarTelefones(visitante.telefones),
+    email: visitante.email ?? null,
     fotoUrl: visitante.fotoUrl ?? null,
+    temFaceCadastrada: !!visitante.faceEmbeddings && Array.isArray(visitante.faceEmbeddings) && visitante.faceEmbeddings.length === 128,
     criadoEm: visitante.criadoEm.toISOString(),
     atualizadoEm: visitante.atualizadoEm.toISOString(),
     totalVinculos:

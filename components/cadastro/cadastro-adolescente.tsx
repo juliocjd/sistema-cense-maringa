@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -87,6 +87,79 @@ const ALERTAS_ESPECIAIS_ORDEM: AlertaEspecialTipo[] = [
   "SAUDE_CONFIDENCIAL",
 ];
 
+type TipoInternacao = "PROVISORIA" | "DEFINITIVA";
+
+type SugestaoAlojamentoCadastro = {
+  alojamentoId: string;
+  casaId: string;
+  casaNome: string;
+  casaNumero: number;
+  numero: string;
+  ala: string | null;
+  nivel: number;
+  rotulo: string;
+  descricao: string;
+  alertas: string[];
+  ambientais: string[];
+};
+
+type ResultadoFiltroSugestoes = {
+  lista: SugestaoAlojamentoCadastro[];
+  aviso: string | null;
+};
+
+const aplicarFiltroSugestoes = (
+  sugestoes: SugestaoAlojamentoCadastro[],
+  tipo: TipoInternacao | null
+): ResultadoFiltroSugestoes => {
+  if (sugestoes.length === 0) {
+    return { lista: [], aviso: null };
+  }
+
+  let filtradas = [...sugestoes];
+
+  if (tipo === "PROVISORIA") {
+    filtradas = filtradas.filter((item) => item.casaNumero === 1);
+  } else if (tipo === "DEFINITIVA") {
+    filtradas = filtradas.filter((item) => {
+      const casa = item.casaNumero;
+      if (casa >= 2 && casa <= 7) {
+        return true;
+      }
+      if (casa === 8) {
+        return item.nivel <= 1;
+      }
+      return false;
+    });
+  }
+
+  if (filtradas.length === 0) {
+    return {
+      lista: [],
+      aviso:
+        tipo !== null
+          ? "Nenhum alojamento atende aos criterios definidos para este tipo de internacao."
+          : null,
+    };
+  }
+
+  const ordenadas = [...filtradas].sort((a, b) => a.nivel - b.nivel);
+  const seguras = ordenadas.filter((item) => item.nivel <= 3);
+
+  if (seguras.length > 0) {
+    return {
+      lista: seguras.slice(0, 10),
+      aviso: null,
+    };
+  }
+
+  return {
+    lista: ordenadas.slice(0, 3),
+    aviso:
+      "Nenhum alojamento seguro disponivel. Listando as opcoes menos arriscadas.",
+  };
+};
+
 interface CadastroAdolescenteProps {
   onSalvar: (
     adolescente: AdolescenteCadastroPayload,
@@ -133,7 +206,7 @@ export function CadastroAdolescente({
     useState<StatusUnidade>("ATIVO");
   const [dataStatus, setDataStatus] = useState("");
 
-  // Estados do formulário
+  // Estados do formulario
   const [dadosPessoais, setDadosPessoais] = useState({
     nomeCompleto: "",
     nomeSocial: "",
@@ -376,21 +449,16 @@ export function CadastroAdolescente({
   const [alojamentoSelecionado, setAlojamentoSelecionado] = useState<
     string | null
   >(null);
+  const [tipoInternacao, setTipoInternacao] = useState<TipoInternacao | null>(null);
+  const [sugestoesOriginais, setSugestoesOriginais] = useState<
+    SugestaoAlojamentoCadastro[]
+  >([]);
   const [sugestoesAlojamento, setSugestoesAlojamento] = useState<
-    Array<{
-      alojamentoId: string;
-      casaNome: string;
-      numero: string;
-      ala: string | null;
-      nivel: number;
-      rotulo: string;
-      descricao: string;
-      alertas: string[];
-      ambientais: string[];
-    }>
+    SugestaoAlojamentoCadastro[]
   >([]);
   const [carregandoSugestoes, setCarregandoSugestoes] = useState(false);
   const [erroSugestoes, setErroSugestoes] = useState<string | null>(null);
+  const [avisoSugestoes, setAvisoSugestoes] = useState<string | null>(null);
 
   useEffect(() => {
     const carregarAlojamentosLivres = async () => {
@@ -417,20 +485,44 @@ export function CadastroAdolescente({
   }, []);
 
   useEffect(() => {
+    setSugestoesOriginais([]);
     setSugestoesAlojamento([]);
     setErroSugestoes(null);
+    setAvisoSugestoes(null);
   }, [vinculacoes.bairroId, vinculacoes.faccaoId]);
+
+  useEffect(() => {
+    if (sugestoesOriginais.length === 0) {
+      setSugestoesAlojamento([]);
+      setAvisoSugestoes(null);
+      return;
+    }
+    const { lista, aviso } = aplicarFiltroSugestoes(
+      sugestoesOriginais,
+      tipoInternacao
+    );
+    setSugestoesAlojamento(lista);
+    setAvisoSugestoes(aviso);
+  }, [sugestoesOriginais, tipoInternacao]);
 
   const buscarSugestoesAlojamento = async () => {
     if (!vinculacoes.bairroId && !vinculacoes.faccaoId) {
       setErroSugestoes(
-        "Informe o bairro ou facção antes de solicitar sugestões."
+        "Informe o bairro ou a faccao antes de solicitar sugestoes."
+      );
+      return;
+    }
+
+    if (!tipoInternacao) {
+      setErroSugestoes(
+        "Selecione o tipo de internacao antes de sugerir um alojamento."
       );
       return;
     }
 
     setCarregandoSugestoes(true);
     setErroSugestoes(null);
+    setAvisoSugestoes(null);
     try {
       const response = await fetch("/api/alocar/sugestoes", {
         method: "POST",
@@ -443,19 +535,44 @@ export function CadastroAdolescente({
 
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
-        throw new Error(payload?.erro ?? "Falha ao buscar sugestões");
+        throw new Error(payload?.erro ?? "Falha ao buscar sugestoes");
       }
 
       const payload = await response.json();
-      setSugestoesAlojamento(
-        Array.isArray(payload?.sugestoes) ? payload.sugestoes : []
+      const lista = Array.isArray(payload?.sugestoes)
+        ? payload.sugestoes
+        : [];
+      const normalizadas: SugestaoAlojamentoCadastro[] = lista.map(
+        (item: any) => ({
+          alojamentoId: item.alojamentoId,
+          casaId: item.casaId,
+          casaNome: item.casaNome,
+          casaNumero:
+            typeof item.casaNumero === "number"
+              ? item.casaNumero
+              : Number(item.casaNumero ?? 0),
+          numero: item.numero,
+          ala: item.ala ?? null,
+          nivel: item.nivel,
+          rotulo: item.rotulo,
+          descricao: item.descricao,
+          alertas: Array.isArray(item.alertas) ? item.alertas : [],
+          ambientais: Array.isArray(item.ambientais) ? item.ambientais : [],
+        })
       );
+
+      setSugestoesOriginais(normalizadas);
+      if (normalizadas.length === 0) {
+        setErroSugestoes("Nenhum alojamento disponivel para os filtros atuais.");
+      }
     } catch (error) {
       const msg =
         error instanceof Error
           ? error.message
-          : "Erro ao buscar sugestões de alojamento";
+          : "Erro ao buscar sugestoes de alojamento";
       setErroSugestoes(msg);
+      setSugestoesOriginais([]);
+      setSugestoesAlojamento([]);
     } finally {
       setCarregandoSugestoes(false);
     }
@@ -567,7 +684,7 @@ export function CadastroAdolescente({
     () => [
       {
         id: "",
-        nome: "Sem facção / não informado",
+        nome: "Sem faccao / nao informado",
         total: undefined,
       },
       ...referencias.faccoes.map((faccao) => ({
@@ -768,7 +885,7 @@ export function CadastroAdolescente({
       referencias.tatuagens.map((item) => ({
         id: item.id,
         nome: item.nomeSimbolo,
-        significado: item.significadoAssociado ?? "Significado não informado",
+        significado: item.significadoAssociado ?? "Significado nao informado",
         nivel: item.nivelRisco ?? "DESCONHECIDO",
       })),
     [referencias.tatuagens]
@@ -817,7 +934,7 @@ export function CadastroAdolescente({
   const etapas = [
     { numero: 1, titulo: "Dados Pessoais", icone: User },
     { numero: 2, titulo: "Ato Infracional", icone: FileText },
-    { numero: 3, titulo: "Vinculações", icone: Users },
+    { numero: 3, titulo: "Vinculacoes", icone: Users },
     { numero: 4, titulo: "Tatuagens", icone: Camera },
     { numero: 5, titulo: "Alertas", icone: AlertTriangle },
   ];
@@ -1115,7 +1232,7 @@ export function CadastroAdolescente({
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 p-6">
       <div className="max-w-5xl mx-auto">
-        {/* Cabeçalho */}
+        {/* Cabecalho */}
         <div className="bg-white rounded-2xl shadow-xl p-6 mb-6 border-b-4 border-indigo-600">
           <h1 className="text-3xl font-bold text-gray-800 mb-2">
             {tituloPagina}
@@ -1181,7 +1298,7 @@ export function CadastroAdolescente({
           </div>
         )}
 
-        {/* Formulário */}
+        {/* Formulario */}
         <div className="bg-white rounded-2xl shadow-xl p-8">
           {/* ETAPA 1: Dados Pessoais */}
           {etapaAtual === 1 && (
@@ -1232,7 +1349,7 @@ export function CadastroAdolescente({
                       })
                     }
                     className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
-                    placeholder="Ex: João da Silva Santos"
+                    placeholder="Ex: Joao da Silva Santos"
                   />
                 </div>
 
@@ -1250,7 +1367,7 @@ export function CadastroAdolescente({
                       })
                     }
                     className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
-                    placeholder="Ex: João"
+                    placeholder="Ex: Joao"
                   />
                 </div>
 
@@ -1273,7 +1390,7 @@ export function CadastroAdolescente({
 
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Número SMS
+                    Numero SMS
                   </label>
                   <input
                     type="text"
@@ -1504,7 +1621,7 @@ export function CadastroAdolescente({
               <div>
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-semibold text-gray-800">
-                    Histórico Infracional
+                    Historico Infracional
                   </h3>
                   <button
                     type="button"
@@ -1518,7 +1635,7 @@ export function CadastroAdolescente({
                 {historicoExistente.length > 0 && (
                   <div className="space-y-3 mb-6">
                     <h4 className="text-sm font-semibold text-slate-700 uppercase tracking-wide">
-                      Histórico já registrado
+                      Historico ja registrado
                     </h4>
                     <div className="space-y-3">
                       {historicoExistente.map((item) => (
@@ -1530,8 +1647,8 @@ export function CadastroAdolescente({
                             {item.descricao}
                           </p>
                           <p className="text-xs text-slate-500">
-                            Ano: {item.ano ?? "Não informado"} • Unidade:{" "}
-                            {item.unidadeInternacao ?? "Não informado"}
+                            Ano: {item.ano ?? "Nao informado"} • Unidade:{" "}
+                            {item.unidadeInternacao ?? "Nao informado"}
                           </p>
                           {item.observacoes ? (
                             <p className="text-xs text-slate-600 mt-1">
@@ -1550,7 +1667,7 @@ export function CadastroAdolescente({
                       size={48}
                       className="mx-auto mb-2 text-gray-400"
                     />
-                    <p>Nenhum histórico pendente para adicionar</p>
+                    <p>Nenhum historico pendente para adicionar</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -1572,7 +1689,7 @@ export function CadastroAdolescente({
                                   historico: novo,
                                 });
                               }}
-                              placeholder="Descrição do ato"
+                              placeholder="Descricao do ato"
                               className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-indigo-500 outline-none"
                             />
                           </div>
@@ -1642,12 +1759,12 @@ export function CadastroAdolescente({
             </div>
           )}
 
-          {/* ETAPA 3: Vinculações */}
+          {/* ETAPA 3: Vinculacoes */}
           {etapaAtual === 3 && (
             <div className="space-y-6">
               <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
                 <Users className="text-indigo-600" />
-                Vinculações
+                Vinculacoes
               </h2>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1690,7 +1807,7 @@ export function CadastroAdolescente({
 
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Número de Membro
+                    Numero de Membro
                   </label>
                   <input
                     type="text"
@@ -1753,14 +1870,14 @@ export function CadastroAdolescente({
                     className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
                   >
                     <option value="BAIXO">Baixo</option>
-                    <option value="MEDIO">Médio</option>
+                    <option value="MEDIO">Medio</option>
                     <option value="ALTO">Alto</option>
                   </select>
                 </div>
 
                 <div className="md:col-span-2">
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Técnico de referência
+                    Tecnico de referencia
                   </label>
                   <select
                     value={tecnicoReferenciaId}
@@ -1770,7 +1887,7 @@ export function CadastroAdolescente({
                     className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
                     disabled={carregandoTecnicos}
                   >
-                    <option value="">Sem técnico definido</option>
+                    <option value="">Sem tecnico definido</option>
                     {tecnicosDisponiveis.map((tecnico) => (
                       <option key={tecnico.id} value={tecnico.id}>
                         {tecnico.nome}
@@ -1786,18 +1903,67 @@ export function CadastroAdolescente({
 
                 {podeSelecionarAlojamento && (
                 <div>
+                  <div className="mb-4">
+                    <p className="text-sm font-semibold text-gray-700 mb-2">
+                      Tipo de internacao
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        {
+                          label: "Provisoria",
+                          value: "PROVISORIA" as TipoInternacao,
+                          dica: "Prioriza Casa 01",
+                        },
+                        {
+                          label: "Definitiva",
+                          value: "DEFINITIVA" as TipoInternacao,
+                          dica: "Casas 02-07 (Casa 08 apenas segura)",
+                        },
+                      ].map((opcao) => {
+                        const ativo = tipoInternacao === opcao.value;
+                        return (
+                          <button
+                            key={opcao.value}
+                            type="button"
+                            onClick={() => setTipoInternacao(opcao.value)}
+                            className={`flex-1 min-w-[140px] rounded-xl border px-4 py-2 text-left text-sm transition ${
+                              ativo
+                                ? "border-indigo-500 bg-indigo-50 text-indigo-700 shadow-sm"
+                                : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                            }`}
+                          >
+                            <span className="block font-semibold">
+                              {opcao.label}
+                            </span>
+                            <span className="text-xs text-slate-500">
+                              {opcao.dica}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {!tipoInternacao && (
+                      <p className="mt-1 text-xs text-slate-500">
+                        Escolha o tipo de internacao para aplicar as regras de
+                        sugestao automaticamente.
+                      </p>
+                    )}
+                  </div>
                   <div className="flex flex-wrap items-center gap-3 mb-2">
                     <label className="text-sm font-semibold text-gray-700">
                       Alojamento preferencial
                     </label>
                     <button
                       type="button"
-                      onClick={buscarSugestoesAlojamento}
+                      onClick={() => {
+                        if (!vinculacoes.bairroId && !vinculacoes.faccaoId) {
+                          setErroSugestoes("Informe bairro ou faccao antes de gerar sugestoes.");
+                          return;
+                        }
+                        buscarSugestoesAlojamento();
+                      }}
                       className="rounded-full border border-indigo-300 bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 disabled:opacity-60"
-                      disabled={
-                        carregandoSugestoes ||
-                        (!vinculacoes.bairroId && !vinculacoes.faccaoId)
-                      }
+                      disabled={carregandoSugestoes || !tipoInternacao}
                     >
                       {carregandoSugestoes
                         ? "Sugerindo..."
@@ -1805,7 +1971,7 @@ export function CadastroAdolescente({
                     </button>
                     {!vinculacoes.bairroId && !vinculacoes.faccaoId && (
                       <span className="text-[11px] text-slate-500">
-                        Selecione o bairro ou a facção para liberar a sugestão.
+                        Informe bairro ou faccao para liberar as sugestoes.
                       </span>
                     )}
                   </div>
@@ -1818,16 +1984,21 @@ export function CadastroAdolescente({
                     }}
                     className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
                   >
-                    <option value="">Nenhum (sem alocação automática)</option>
+                    <option value="">Nenhum (sem alocacao automatica)</option>
                     {alojamentosLivres.map((aloj) => (
                       <option key={aloj.id} value={aloj.id}>
-                        {aloj.casa} – Alo {aloj.numero}
+                        {aloj.casa} - Aloj. {aloj.numero}
                         {aloj.ala ? ` (Ala ${aloj.ala})` : ""}
                       </option>
                     ))}
                   </select>
                   {erroSugestoes && (
                     <p className="mt-1 text-xs text-rose-600">{erroSugestoes}</p>
+                  )}
+                  {avisoSugestoes && (
+                    <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                      {avisoSugestoes}
+                    </div>
                   )}
                   {sugestoesAlojamento.length > 0 && (
                     <div className="mt-3 space-y-2">
@@ -1884,8 +2055,7 @@ export function CadastroAdolescente({
                     </div>
                   )}
                   <p className="text-xs text-gray-500 mt-2">
-                    A seleção será usada para acionar `/api/alocar`
-                    automaticamente após salvar.
+                    A selecao sera usada para acionar /api/alocar automaticamente apos salvar.
                   </p>
                 </div>
                 )}
@@ -1929,7 +2099,7 @@ export function CadastroAdolescente({
                           {atoInfracional.processo && (
                             <span>
                               Processo: {atoInfracional.processo}
-                              {atoInfracional.ano ? " • " : ""}
+                              {atoInfracional.ano ? " â€¢ " : ""}
                             </span>
                           )}
                           {atoInfracional.ano && (
@@ -2024,7 +2194,7 @@ export function CadastroAdolescente({
                 })}
               </div>
             </div>
-          )}          {/* Botões de Navegação */}
+          )}          {/* Botoes de Navegacao */}
           <div className="flex items-center justify-between mt-8 pt-6 border-t-2 border-gray-200">
             <button
               type="button"
@@ -2046,7 +2216,7 @@ export function CadastroAdolescente({
                 onClick={proximaEtapa}
                 className="px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 transition-colors flex items-center gap-2"
               >
-                Próxima
+                Proxima
                 <ChevronRight size={20} />
               </button>
             ) : (
@@ -2071,7 +2241,7 @@ export function CadastroAdolescente({
             )}
           </div>
 
-          {/* Botão Cancelar */}
+          {/* Botao Cancelar */}
           <div className="mt-4 text-center">
             <button
               type="button"
@@ -2163,7 +2333,7 @@ export function CadastroAdolescente({
               Cadastrar novo bairro
             </h3>
             <p className="text-sm text-slate-500">
-              Preencha os dados abaixo para inserir um novo bairro no catálogo.
+              Preencha os dados abaixo para inserir um novo bairro no catalogo.
             </p>
 
             <div className="mt-4 space-y-3">
@@ -2305,6 +2475,13 @@ export function CadastroAdolescente({
     </div>
   );
 }
+
+
+
+
+
+
+
 
 
 

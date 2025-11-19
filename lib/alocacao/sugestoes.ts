@@ -28,6 +28,7 @@ export interface SugestaoAlojamento {
   alojamentoId: string;
   casaId: string;
   casaNome: string;
+  casaNumero: number;
   numero: string;
   ala: string | null;
   nivel: number;
@@ -395,6 +396,7 @@ const avaliarCandidato = (
     alojamentoId: alojamento.id,
     casaId: casa.id,
     casaNome: casa.nome,
+    casaNumero: casa.numero ?? 0,
     numero: alojamento.numeroAlojamento,
     ala: alojamento.ala,
     nivel: resultado.nivel,
