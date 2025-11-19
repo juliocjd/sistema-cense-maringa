@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { ShieldCheck, Camera, UserCheck, Clock, AlertCircle, CheckCircle } from "lucide-react";
+import { ShieldCheck, Camera, UserCheck, Clock, AlertCircle, CheckCircle, QrCode } from "lucide-react";
 import { CameraCapture } from "@/components/reconhecimento-facial/camera-capture";
 import { ModalRegistrarVisita } from "@/components/visitantes/modal-registrar-visita";
+import { ScannerQRCode } from "@/components/visitantes/scanner-qrcode";
 
 type IdentificacaoResultado = {
   success: boolean;
@@ -37,6 +38,7 @@ type IdentificacaoResultado = {
 export default function PortariaPage() {
   const [modoCadastro, setModoCadastro] = useState(false);
   const [modoIdentificacao, setModoIdentificacao] = useState(false);
+  const [modoQRCode, setModoQRCode] = useState(false);
   const [processando, setProcessando] = useState(false);
   const [resultado, setResultado] = useState<IdentificacaoResultado | null>(null);
   const [erro, setErro] = useState<string | null>(null);
@@ -99,6 +101,62 @@ export default function PortariaPage() {
   };
 
   /**
+   * Processa leitura de QR Code
+   */
+  const handleScanQRCode = async (codigo: string) => {
+    setProcessando(true);
+    setErro(null);
+    setResultado(null);
+
+    try {
+      const response = await fetch(`/api/qrcode/${encodeURIComponent(codigo)}`);
+      const data = await response.json();
+
+      if (!response.ok) {
+        setErro(data.erro || "QR Code inválido");
+        setModoQRCode(false);
+        return;
+      }
+
+      // Transformar resposta da API de QR Code para formato IdentificacaoResultado
+      setResultado({
+        success: data.valido,
+        message: "Visitante identificado via QR Code",
+        match: {
+          id: data.visitante.id,
+          nomeCompleto: data.visitante.nomeCompleto,
+          confidence: 100, // QR Code tem 100% de confiança
+          distance: 0,
+        },
+        visitante: {
+          id: data.visitante.id,
+          nomeCompleto: data.visitante.nomeCompleto,
+          cpf: data.visitante.cpf,
+          dataNascimento: "", // Não vem na API de QR Code
+          fotoUrl: data.visitante.urlFoto || "",
+          adolescentes: data.visitante.adolescentesVinculados.map((v: any) => ({
+            id: v.id,
+            nomeCompleto: v.nomeCompleto,
+            nomeSocial: null,
+          })),
+          ultimasVisitas: data.visitasRecentes.map((v: any) => ({
+            id: v.id,
+            dataHoraEntrada: v.dataHoraEntrada,
+            dataHoraSaida: v.dataHoraSaida,
+            observacoes: null,
+          })),
+        },
+      });
+    } catch (err) {
+      console.error("Erro ao validar QR Code:", err);
+      setErro("Erro ao processar QR Code. Tente novamente.");
+    } finally {
+      setProcessando(false);
+      setModoQRCode(false);
+    }
+  };
+
+  /**
    * Formata data/hora para exibição
    */
   const formatarDataHora = (dataHora: string) => {
@@ -153,7 +211,7 @@ export default function PortariaPage() {
 
         {/* Botões de Ação */}
         {!modoIdentificacao && !modoCadastro && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             <button
               onClick={() => {
                 setModoIdentificacao(true);
@@ -165,10 +223,29 @@ export default function PortariaPage() {
               <Camera className="text-indigo-600" size={64} />
               <div className="text-center">
                 <h2 className="text-2xl font-bold text-gray-900">
-                  Identificar Visitante
+                  Reconhecimento Facial
                 </h2>
                 <p className="text-gray-600 mt-2">
-                  Use a câmera para identificar automaticamente o visitante
+                  Identificação automática via câmera
+                </p>
+              </div>
+            </button>
+
+            <button
+              onClick={() => {
+                setModoQRCode(true);
+                setResultado(null);
+                setErro(null);
+              }}
+              className="flex flex-col items-center justify-center gap-4 p-8 bg-white rounded-xl shadow-lg hover:shadow-xl transition-all border-2 border-purple-200 hover:border-purple-400"
+            >
+              <QrCode className="text-purple-600" size={64} />
+              <div className="text-center">
+                <h2 className="text-2xl font-bold text-gray-900">
+                  Escanear QR Code
+                </h2>
+                <p className="text-gray-600 mt-2">
+                  Identificação rápida via QR Code
                 </p>
               </div>
             </button>
@@ -183,7 +260,7 @@ export default function PortariaPage() {
                   Cadastro Manual
                 </h2>
                 <p className="text-gray-600 mt-2">
-                  Registrar visitante sem reconhecimento facial
+                  Registro sem identificação
                 </p>
               </div>
             </button>
@@ -383,6 +460,18 @@ export default function PortariaPage() {
               Processando identificação facial...
             </p>
           </div>
+        )}
+
+        {/* Scanner QR Code */}
+        {modoQRCode && (
+          <ScannerQRCode
+            onScan={handleScanQRCode}
+            onCancel={() => {
+              setModoQRCode(false);
+              setErro(null);
+            }}
+            processando={processando}
+          />
         )}
 
         {/* Modal de Registro de Visita */}

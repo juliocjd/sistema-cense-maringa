@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Users, Plus, Search, Camera, Trash2, Edit } from "lucide-react";
+import { Users, Plus, Search, Camera, Trash2, Edit, QrCode } from "lucide-react";
 import { FormVisitante } from "./form-visitante";
+import { ModalQRCode } from "./modal-qrcode";
 
 type Visitante = {
   id: string;
@@ -24,6 +25,7 @@ export function ListagemVisitantes() {
   const [busca, setBusca] = useState("");
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
   const [visitanteEditando, setVisitanteEditando] = useState<Visitante | null>(null);
+  const [modalQRCode, setModalQRCode] = useState<{ id: string; nome: string } | null>(null);
 
   const carregarVisitantes = async () => {
     setCarregando(true);
@@ -242,6 +244,13 @@ export function ListagemVisitantes() {
                   Editar
                 </button>
                 <button
+                  onClick={() => setModalQRCode({ id: visitante.id, nome: visitante.nomeCompleto })}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                  title="Gerar QR Code"
+                >
+                  <QrCode size={16} />
+                </button>
+                <button
                   onClick={() => handleExcluir(visitante.id)}
                   className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
                 >
@@ -251,6 +260,15 @@ export function ListagemVisitantes() {
             </div>
           ))}
         </div>
+      )}
+
+      {/* Modal QR Code */}
+      {modalQRCode && (
+        <ModalQRCode
+          visitanteId={modalQRCode.id}
+          visitanteNome={modalQRCode.nome}
+          onClose={() => setModalQRCode(null)}
+        />
       )}
     </div>
   );
