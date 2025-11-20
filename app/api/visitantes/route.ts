@@ -64,6 +64,10 @@ const createVisitanteSchema = z.object({
     .optional()
     .nullable()
     .or(z.literal("").transform(() => null)),
+  rg: z.string().max(30).optional().nullable().or(z.literal("").transform(() => null)),
+  nomePai: z.string().max(150).optional().nullable().or(z.literal("").transform(() => null)),
+  nomeMae: z.string().max(150).optional().nullable().or(z.literal("").transform(() => null)),
+  profissao: z.string().max(120).optional().nullable().or(z.literal("").transform(() => null)),
   fotoUrl: z
     .string()
     .optional()
@@ -188,6 +192,12 @@ export async function GET(request: NextRequest) {
             contains: busca,
           },
         },
+        {
+          rg: {
+            contains: busca,
+            mode: "insensitive",
+          },
+        },
       ];
     }
 
@@ -217,7 +227,8 @@ export async function GET(request: NextRequest) {
       },
     };
 
-    if (detalhes) {
+    // Sempre incluir adolescentes quando há busca ou quando detalhes é true
+    if (detalhes || busca) {
       include.adolescentesLink = buildLinkInclude();
     }
 
@@ -235,11 +246,11 @@ export async function GET(request: NextRequest) {
     });
 
     const visitantesSerializados = visitantes.map((visitante) => {
-      if (detalhes || incluirVisitas) {
+      if (detalhes || incluirVisitas || busca) {
         return mapVisitanteDetalhado(
           visitante as any,
           {
-            incluirVinculos: detalhes,
+            incluirVinculos: detalhes || !!busca,
             incluirVisitas: incluirVisitas,
             limiteVisitas: incluirVisitas ? limiteVisitas : 5,
           }
@@ -296,6 +307,10 @@ export async function POST(request: NextRequest) {
         data: {
           nomeCompleto: body.nomeCompleto.trim(),
           cpf: cpfNormalizado,
+          rg: body.rg?.trim() || null,
+          nomePai: body.nomePai?.trim() || null,
+          nomeMae: body.nomeMae?.trim() || null,
+          profissao: body.profissao?.trim() || null,
           dataNascimento,
           enderecoCompleto: body.enderecoCompleto?.trim() ?? null,
           telefones,

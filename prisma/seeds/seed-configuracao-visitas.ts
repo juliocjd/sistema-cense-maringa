@@ -28,11 +28,18 @@ async function seedConfiguracaoVisitas() {
       limiteCriancasSegundoSab: 1,
       permitirAlternativa: true, // 2 adultos + 1 criança OU 1 adulto + 2 crianças
       idadeLimiteCrianca: 12,
-      casasManhaInicio: 1,
-      casasManhaFim: 4,
-      casasTardeInicio: 5,
-      casasTardeFim: 8,
+      periodosPorCasa: {
+        "1": "MANHA",
+        "2": "MANHA",
+        "3": "MANHA",
+        "4": "MANHA",
+        "5": "TARDE",
+        "6": "TARDE",
+        "7": "TARDE",
+        "8": "TARDE",
+      },
       quantidadeVisitasMensal: 2,
+      duracaoVisitaMinutos: 120,
       ativo: true,
     },
   });
@@ -44,6 +51,7 @@ async function seedConfiguracaoVisitas() {
   console.log("  - Casas manhã: 1-4");
   console.log("  - Casas tarde: 5-8");
   console.log("  - Limite mensal: 2 visitas");
+  console.log("  - Duração da visita: 120 minutos");
 
   return configPadrao;
 }

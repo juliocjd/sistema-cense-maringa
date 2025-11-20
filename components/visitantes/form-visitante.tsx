@@ -1,13 +1,17 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Save, X, Camera, CheckCircle, AlertCircle, Plus, Trash2 } from "lucide-react";
+import { Save, X, Camera, CheckCircle, AlertCircle, Plus, Trash2, Search } from "lucide-react";
 import { CameraCapture } from "@/components/reconhecimento-facial/camera-capture";
 
 type Visitante = {
   id: string;
   nomeCompleto: string;
   cpf: string | null;
+  rg?: string | null;
+  nomePai?: string | null;
+  nomeMae?: string | null;
+  profissao?: string | null;
   dataNascimento: string | null;
   enderecoCompleto: string | null;
   telefones: string[];
@@ -31,21 +35,26 @@ type Vinculo = {
 
 export function FormVisitante({ visitante, onSuccess, onCancel }: FormVisitanteProps) {
   const [formData, setFormData] = useState({
-    nomeCompleto: visitante?.nomeCompleto || "",
-    cpf: visitante?.cpf || "",
-    dataNascimento: visitante?.dataNascimento?.split("T")[0] || "",
-    enderecoCompleto: visitante?.enderecoCompleto || "",
-    telefone: visitante?.telefones?.[0] || "",
-    email: visitante?.email || "",
-  });
+  nomeCompleto: visitante?.nomeCompleto || "",
+  cpf: visitante?.cpf || "",
+  rg: visitante?.rg || "",
+  dataNascimento: visitante?.dataNascimento?.split("T")[0] || "",
+  enderecoCompleto: visitante?.enderecoCompleto || "",
+  telefone: visitante?.telefones?.[0] || "",
+  email: visitante?.email || "",
+  nomePai: visitante?.nomePai || "",
+  nomeMae: visitante?.nomeMae || "",
+  profissao: visitante?.profissao || "",
+});
 
-  const [vinculos, setVinculos] = useState<Vinculo[]>([]);
-  const [adolescentes, setAdolescentes] = useState<any[]>([]);
-  const [novoVinculo, setNovoVinculo] = useState({
-    adolescenteId: "",
-    parentesco: "",
-    autorizado: true,
-  });
+const [vinculos, setVinculos] = useState<Vinculo[]>([]);
+const [adolescentes, setAdolescentes] = useState<any[]>([]);
+const [buscaVinculo, setBuscaVinculo] = useState("");
+const [novoVinculo, setNovoVinculo] = useState({
+  adolescenteId: "",
+  parentesco: "",
+  autorizado: true,
+});
 
   const [mostrarCamera, setMostrarCamera] = useState(false);
   const [fotoCapturada, setFotoCapturada] = useState<string | null>(
@@ -183,6 +192,10 @@ export function FormVisitante({ visitante, onSuccess, onCancel }: FormVisitanteP
       const visitanteData = {
         nomeCompleto: formData.nomeCompleto,
         cpf: formData.cpf || null,
+        rg: formData.rg?.trim() || null,
+        nomePai: formData.nomePai?.trim() || null,
+        nomeMae: formData.nomeMae?.trim() || null,
+        profissao: formData.profissao?.trim() || null,
         dataNascimento: formData.dataNascimento || null,
         enderecoCompleto: formData.enderecoCompleto || null,
         telefones: formData.telefone ? [formData.telefone] : [],
@@ -346,6 +359,21 @@ export function FormVisitante({ visitante, onSuccess, onCancel }: FormVisitanteP
                 />
               </div>
 
+              {/* RG */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  RG
+                </label>
+                <input
+                  type="text"
+                  name="rg"
+                  value={formData.rg}
+                  onChange={handleChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="Documento de identidade"
+                />
+              </div>
+
               {/* Data de Nascimento */}
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -406,6 +434,51 @@ export function FormVisitante({ visitante, onSuccess, onCancel }: FormVisitanteP
                   rows={3}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   placeholder="Rua, número, bairro, cidade..."
+                />
+              </div>
+
+              {/* Pais */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Nome do pai
+                  </label>
+                  <input
+                    type="text"
+                    name="nomePai"
+                    value={formData.nomePai}
+                    onChange={handleChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    placeholder="Nome completo do pai"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Nome da mãe
+                  </label>
+                  <input
+                    type="text"
+                    name="nomeMae"
+                    value={formData.nomeMae}
+                    onChange={handleChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    placeholder="Nome completo da mãe"
+                  />
+                </div>
+              </div>
+
+              {/* Profissão */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Profissão
+                </label>
+                <input
+                  type="text"
+                  name="profissao"
+                  value={formData.profissao}
+                  onChange={handleChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="Ex.: Técnico, Advogado, etc."
                 />
               </div>
             </div>
@@ -563,32 +636,106 @@ export function FormVisitante({ visitante, onSuccess, onCancel }: FormVisitanteP
               <h3 className="text-sm font-semibold text-gray-700 mb-3">
                 Adicionar Novo Vínculo
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Select Adolescente */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Adolescente *
-                  </label>
-                  <select
-                    value={novoVinculo.adolescenteId}
-                    onChange={(e) =>
-                      setNovoVinculo({ ...novoVinculo, adolescenteId: e.target.value })
-                    }
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  >
-                    <option value="">Selecione...</option>
+                <div className="space-y-3 lg:col-span-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Adolescente *
+                    </label>
+                    <span className="text-xs text-gray-500">
+                      Mostrando resultados com casa e alojamento
+                    </span>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={buscaVinculo}
+                      onChange={(event) => setBuscaVinculo(event.target.value)}
+                      placeholder="Buscar por nome ou numero"
+                      className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm shadow-sm"
+                    />
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                  </div>
+                  <div className="rounded-3xl border border-gray-200 bg-white shadow-inner max-h-72 overflow-auto divide-y divide-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => setNovoVinculo({ ...novoVinculo, adolescenteId: "" })}
+                      className={`w-full text-left px-5 py-3 text-sm font-medium ${
+                        novoVinculo.adolescenteId === ""
+                          ? "bg-indigo-50 text-indigo-600 font-semibold"
+                          : "text-gray-600 hover:bg-gray-50"
+                      }`}
+                    >
+                      Selecione um adolescente...
+                    </button>
                     {Array.isArray(adolescentes) &&
                       adolescentes
                         .filter(
                           (a) =>
-                            !vinculos.some((v) => v.adolescenteId === a.id)
+                            !vinculos.some((v) => v.adolescenteId === a.id) &&
+                            (() => {
+                              const termo = buscaVinculo.trim().toLowerCase();
+                              if (!termo) return true;
+                              const nome =
+                                (a.nomeCompleto || a.nomeSocial || "")
+                                  .toLowerCase();
+                              const numero = String(a.numeroInterno || "")
+                                .toLowerCase();
+                              return (
+                                nome.includes(termo) || numero.includes(termo)
+                              );
+                            })()
                         )
-                        .map((adolescente) => (
-                          <option key={adolescente.id} value={adolescente.id}>
-                            {adolescente.nomeCompleto || adolescente.nomeSocial}
-                          </option>
-                        ))}
-                  </select>
+                        .map((adolescente) => {
+                          const casaNumero =
+                            adolescente.alojamentoAtual?.casa?.numero;
+                          const alojNumero =
+                            adolescente.alojamentoAtual?.numero;
+                          const ala = adolescente.alojamentoAtual?.ala;
+                          const local = casaNumero
+                            ? `Casa ${String(casaNumero).padStart(2, "0")} • Aloj. ${
+                                alojNumero ?? "--"
+                              }${ala ? ` (Ala ${ala})` : ""}`
+                            : "Sem alojamento";
+                          const numeroInterno = adolescente.numeroInterno
+                            ? `#${adolescente.numeroInterno}`
+                            : null;
+                          const nomeOpcao =
+                            adolescente.nomeCompleto ||
+                            adolescente.nomeSocial ||
+                            "Sem nome";
+                          const selecionado =
+                            novoVinculo.adolescenteId === adolescente.id;
+                          return (
+                            <button
+                              key={adolescente.id}
+                              type="button"
+                              onClick={() =>
+                                setNovoVinculo({
+                                  ...novoVinculo,
+                                  adolescenteId: adolescente.id,
+                                })
+                              }
+                              className={`w-full px-5 py-4 text-left transition ${
+                                selecionado
+                                  ? "bg-indigo-50 border-l-4 border-indigo-500 text-indigo-700"
+                                  : "hover:bg-gray-50"
+                              }`}
+                            >
+                              <p className="text-base font-semibold text-gray-900 flex items-center gap-3">
+                                {nomeOpcao}
+                                {numeroInterno && (
+                                  <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded-full">
+                                    {numeroInterno}
+                                  </span>
+                                )}
+                              </p>
+                              <p className="text-xs text-gray-500">{local}</p>
+                            </button>
+                          );
+                        })}
+                  </div>
                 </div>
 
                 {/* Input Parentesco */}

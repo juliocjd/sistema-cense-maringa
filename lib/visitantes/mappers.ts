@@ -11,6 +11,10 @@ type VisitanteBasico = Pick<
   | "id"
   | "nomeCompleto"
   | "cpf"
+  | "rg"
+  | "nomePai"
+  | "nomeMae"
+  | "profissao"
   | "dataNascimento"
   | "enderecoCompleto"
   | "telefones"
@@ -100,6 +104,10 @@ export function mapVisitanteBasico(
     id: visitante.id,
     nomeCompleto: visitante.nomeCompleto,
     cpf: visitante.cpf ?? null,
+    rg: visitante.rg ?? null,
+    nomePai: visitante.nomePai ?? null,
+    nomeMae: visitante.nomeMae ?? null,
+    profissao: visitante.profissao ?? null,
     dataNascimento: formatarData(visitante.dataNascimento),
     enderecoCompleto: visitante.enderecoCompleto ?? null,
     telefones: normalizarTelefones(visitante.telefones),
@@ -185,6 +193,15 @@ export function mapVisitanteDetalhado(
 
   if (options?.incluirVinculos) {
     resultado.vinculos = visitante.adolescentesLink.map(mapVinculo);
+
+    // Adicionar array simplificado de adolescentes para compatibilidade com busca manual
+    resultado.adolescentes = visitante.adolescentesLink
+      .filter((vinculo) => vinculo.autorizado)
+      .map((vinculo) => ({
+        id: vinculo.adolescente.id,
+        nomeCompleto: vinculo.adolescente.nomeCompleto,
+        nomeSocial: vinculo.adolescente.nomeSocial ?? null,
+      }));
   }
 
   if (options?.incluirVisitas) {

@@ -146,11 +146,13 @@ export async function POST(request: NextRequest) {
       const numeroCasa = casa.numero;
 
       // Determinar período autorizado baseado no mapeamento de períodos por casa
-      const periodosPorCasa = typeof config.periodosPorCasa === 'object' && config.periodosPorCasa !== null
-        ? config.periodosPorCasa
+      const periodosPorCasa = typeof config.periodosPorCasa === 'object' &&
+        config.periodosPorCasa !== null &&
+        !Array.isArray(config.periodosPorCasa)
+        ? (config.periodosPorCasa as Record<string, string>)
         : {};
 
-      const periodoAutorizado = periodosPorCasa[numeroCasa.toString()] || null;
+      const periodoAutorizado = periodosPorCasa[numeroCasa.toString()] as string | undefined || null;
 
       if (periodoAutorizado && periodoAutorizado !== periodoAtual) {
         alertas.push(

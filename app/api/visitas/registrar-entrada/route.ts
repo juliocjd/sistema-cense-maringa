@@ -130,20 +130,34 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 4. Determinar período autorizado baseado na casa
+    // 4. Determinar periodo autorizado baseado na casa
     const casaNumero = adolescente.alojamentoAtual?.casa?.numero || 0;
-    let periodoAutorizado: "MANHA" | "TARDE";
+    const periodosPorCasa: Record<string, "MANHA" | "TARDE"> = (() => {
+      try {
+        if (
+          config.periodosPorCasa &&
+          typeof config.periodosPorCasa === "object" &&
+          !Array.isArray(config.periodosPorCasa)
+        ) {
+          return config.periodosPorCasa as Record<string, "MANHA" | "TARDE">;
+        }
+        if (typeof config.periodosPorCasa === "string") {
+          return JSON.parse(config.periodosPorCasa) as Record<string, "MANHA" | "TARDE">;
+        }
+      } catch (error) {
+        console.error(
+          "Erro ao interpretar periodosPorCasa em configuracao de visitas:",
+          error
+        );
+      }
+      return {} as Record<string, "MANHA" | "TARDE">;
+    })();
 
-    if (casaNumero >= config.casasManhaInicio && casaNumero <= config.casasManhaFim) {
-      periodoAutorizado = "MANHA";
-    } else if (casaNumero >= config.casasTardeInicio && casaNumero <= config.casasTardeFim) {
-      periodoAutorizado = "TARDE";
-    } else {
-      // Casa não está no range configurado, permitir mas alertar
-      periodoAutorizado = "MANHA"; // Default
-    }
+    const periodoCasa = periodosPorCasa[String(casaNumero)];
+    let periodoAutorizado: "MANHA" | "TARDE" =
+      periodoCasa === "TARDE" ? "TARDE" : "MANHA";
 
-    // 5. Verificar horário atual
+// 5. Verificar horário atual
     const agora = new Date();
     const horaAtual = agora.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
     const diaSemana = agora.getDay(); // 0 = domingo, 6 = sábado

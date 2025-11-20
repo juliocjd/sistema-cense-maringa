@@ -45,6 +45,10 @@ const updateVisitanteSchema = z
       .optional()
       .nullable()
       .or(z.literal("").transform(() => null)),
+    rg: z.string().optional().nullable().or(z.literal("").transform(() => null)),
+    nomePai: z.string().optional().nullable().or(z.literal("").transform(() => null)),
+    nomeMae: z.string().optional().nullable().or(z.literal("").transform(() => null)),
+    profissao: z.string().optional().nullable().or(z.literal("").transform(() => null)),
     fotoUrl: z
       .string()
       .optional()
@@ -68,6 +72,10 @@ const updateVisitanteSchema = z
       value.enderecoCompleto !== undefined ||
       value.telefones !== undefined ||
       value.email !== undefined ||
+      value.rg !== undefined ||
+      value.nomePai !== undefined ||
+      value.nomeMae !== undefined ||
+      value.profissao !== undefined ||
       value.fotoUrl !== undefined ||
       value.vinculos !== undefined,
     { message: "Nenhum campo informado para atualizar." }
@@ -270,6 +278,18 @@ export async function PUT(
           body.enderecoCompleto?.trim() !== ""
             ? body.enderecoCompleto?.trim() ?? null
             : null;
+      }
+      if (body.rg !== undefined) {
+        data.rg = body.rg?.trim() !== "" ? body.rg?.trim() ?? null : null;
+      }
+      if (body.nomePai !== undefined) {
+        data.nomePai = body.nomePai?.trim() !== "" ? body.nomePai?.trim() ?? null : null;
+      }
+      if (body.nomeMae !== undefined) {
+        data.nomeMae = body.nomeMae?.trim() !== "" ? body.nomeMae?.trim() ?? null : null;
+      }
+      if (body.profissao !== undefined) {
+        data.profissao = body.profissao?.trim() !== "" ? body.profissao?.trim() ?? null : null;
       }
       if (telefones !== undefined) {
         data.telefones = telefones;

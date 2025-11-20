@@ -601,6 +601,10 @@ model Visitante {
   id                      String    @id @default(uuid())
   nomeCompleto            String    @map("nome_completo")
   cpf                     String?   @unique
+  rg                      String?   @map("rg")
+  nomePai                 String?   @map("nome_pai")
+  nomeMae                 String?   @map("nome_mae")
+  profissao               String?   @map("profissao")
   dataNascimento          DateTime? @map("data_nascimento") @db.Date
   enderecoCompleto        String?   @map("endereco_completo")
   telefones               String[]
