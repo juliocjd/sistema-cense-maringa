@@ -326,7 +326,7 @@
         <tr>
           <td><span class="badge risk-5">Nível 5</span></td>
           <td><strong>CRÍTICO</strong><br>(Frontal / Frente a Frente)</td>
-          <td>Risco iminente de morte. Permite arremesso de líquidos, objetos perfurocortantes ou agressão visual ininterrupta.</td>
+          <td>Risco iminente. Permite arremesso de líquidos, objetos perfurocortantes ou agressão visual ininterrupta.</td>
           <td><strong>BLOQUEIO TOTAL</strong><br>+ Justificativa Obrigatória</td>
         </tr>
         <tr>
@@ -344,7 +344,7 @@
         <tr>
           <td><span class="badge risk-2">Nível 2</span></td>
           <td><strong>ATENÇÃO</strong><br>(Zona de Janela / Vizinhança)</td>
-          <td>O sistema possui o mapa de visada: "A Janela da Casa 2 vê a Casa 3". Previne comunicação de facções e ameaças à distância.</td>
+          <td>O sistema possui o mapa de contato facilitado: "A Janela da Casa 2, alojamentos 8 e 9, tem proximidade com alojamentos 1, 2 e 3 da Casa 3". Previne comunicação de facções e ameaças à distância.</td>
           <td><strong>MONITORAMENTO</strong></td>
         </tr>
         <tr>
@@ -504,16 +504,52 @@
     </div>
   </div>
 
+  <h2>5. Inteligência de Visitantes (Backend Implementado)</h2>
   <div class="card">
-    <h3>👥 Inteligência de Visitantes (Backend Implementado)</h3>
-    <p>Monitoramento da rede externa que influencia o comportamento interno.</p>
+    <h3>👥 Monitoramento da rede externa que influencia o comportamento interno </h3>
+    <p></p>
     <ul class="tech-list">
         <li><strong>Vínculos Cruzados:</strong> Alerta se a "Visitante Maria" (CPF X) visita o Interno A (Facção X) e o Interno B (Facção Y). Indício de "leva-e-traz".</li>
         <li><strong>Bloqueio Judicial:</strong> Validação instantânea na portaria de visitantes suspensos.</li>
+        <li><strong>Geração de Carteira de Visitante:</strong> Sistema emite Carteira de Visitantes para facilitar identificação e agilizar entrada.</li>
+        <li><strong>IMPLEMENTAÇÃO FUTURA:</strong> Celebrar cooperação com o CNJ, para ter acesso via API ao Banco Nacional de Mandados de Prisão (BNMP), a fim de verificar em tempo real a condição legal do visitante no ato da visita.</li>
     </ul>
   </div>
 
-  <h2>5. Glossário Técnico (Code Wiki)</h2>
+  <div class="card">
+    <h3>Gestão Operacional de Visitas (Portaria + Configurações)</h3>
+    <span class="source-badge">app/(dashboard)/portaria | components/visitantes/* | app/(dashboard)/gestao-visitas</span>
+    <p>O módulo de visitas integra identificação facial, validações e registro da entrada/saída em um fluxo continuo. A Portaria usa telas responsivas, enquanto a Central de Gestão agrupa os ajustes de e-mail, LGPD e regras operacionais.</p>
+    <div class="grid-2">
+      <div class="logic-box">
+        <h4>Fluxo Operacional</h4>
+        <ol>
+          <li><strong>Pré-validacao:</strong> Portaria realiza captura facial/QR Code. O backend chama <code>/api/visitantes/identificar</code> e verifica visitas em andamento antes de liberar novo registro.</li>
+          <li><strong>Seleção assistida:</strong> Quando existe mais de um adolescente vinculado, o modal de validação prévia exige justificativa e impede combinações não autorizadas.</li>
+          <li><strong>Registro e saída:</strong> <code>ModalRegistrarVisita</code> grava entrada, agenda saída automática e dispara notificações conforme configuração.</li>
+          <li><strong>Relatório:</strong> Emite relatórios das visitas realizadas.</li>
+        </ol>
+      </div>
+      <div class="integration-box" style="background:#eef2ff; border-color:#4338ca;">
+        <strong>Central de configurações</strong>
+        <ul>
+          <li><span class="data-tag">/gestao-visitas</span> reúne atalhos para E-mail de Visitantes, Configuração LGPD e Configuração de Visitas, mantendo Portaria e administração alinhadas.</li>
+          <li><strong>LGPD:</strong> Termos versionados são cruzados com cada visita; sem aceite vigente o cracha não é liberado.</li>
+          <li><strong>E-mail Visitantes:</strong> Template configurável, que visa disparar e-mail automático após o cadastro do visitante, com recomendações, regras e requisitos para visitação.</li>
+          <li><strong>Config. de Visitas:</strong> Parametriza horários, limites de acompanhantes, motivos obrigatórios e integra com relatórios.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="status-container" style="margin-top: 20px;">
+      <strong>Resultados:</strong>
+      <ul>
+        <li>Bloqueio automático de duplicidade ao consultar visitas em andamento antes da liberação.</li>
+        <li>Mudanças administrativas refletem na Portaria em tempo real.</li>
+        <li>Registro completo para auditoria: foto, justificativa e logs de validação.</li>
+      </ul>
+    </div>
+  </div>
+  <h2>6. Glossário Técnico (Code Wiki)</h2>
   <div class="card" style="background: #f9fafb;">
     <p>Termos utilizados na interface e no código do sistema:</p>
     <ul>
@@ -552,3 +588,4 @@
 
 </body>
 </html>
+

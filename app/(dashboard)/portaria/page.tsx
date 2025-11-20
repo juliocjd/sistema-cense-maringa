@@ -1,10 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import { ShieldCheck, Camera, UserCheck, Clock, AlertCircle, CheckCircle, QrCode } from "lucide-react";
+import { ShieldCheck, Camera, UserCheck, Clock, AlertCircle, CheckCircle, QrCode, Monitor } from "lucide-react";
 import { CameraCapture } from "@/components/reconhecimento-facial/camera-capture";
 import { ModalRegistrarVisita } from "@/components/visitantes/modal-registrar-visita";
+import { ModalValidacaoPrevia } from "@/components/visitantes/modal-validacao-previa";
 import { ScannerQRCode } from "@/components/visitantes/scanner-qrcode";
+import { ListaVisitasAndamento } from "@/components/visitantes/lista-visitas-andamento";
+import { BuscaVisitanteManual } from "@/components/visitantes/busca-visitante-manual";
+import Link from "next/link";
+
+type Adolescente = {
+  id: string;
+  nomeCompleto: string;
+  nomeSocial: string | null;
+};
 
 type IdentificacaoResultado = {
   success: boolean;
@@ -21,11 +31,7 @@ type IdentificacaoResultado = {
     cpf: string;
     dataNascimento: string;
     fotoUrl: string;
-    adolescentes: Array<{
-      id: string;
-      nomeCompleto: string;
-      nomeSocial: string | null;
-    }>;
+    adolescentes: Adolescente[];
     ultimasVisitas: Array<{
       id: string;
       dataHoraEntrada: string;
@@ -35,14 +41,23 @@ type IdentificacaoResultado = {
   };
 };
 
+const normalizarAdolescentes = (lista?: Adolescente[] | null): Adolescente[] =>
+  Array.isArray(lista) ? lista : [];
+
 export default function PortariaPage() {
   const [modoCadastro, setModoCadastro] = useState(false);
   const [modoIdentificacao, setModoIdentificacao] = useState(false);
   const [modoQRCode, setModoQRCode] = useState(false);
+  const [modoBuscaManual, setModoBuscaManual] = useState(false);
   const [processando, setProcessando] = useState(false);
   const [resultado, setResultado] = useState<IdentificacaoResultado | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+  const [mostrarModalValidacao, setMostrarModalValidacao] = useState(false);
   const [mostrarModalVisita, setMostrarModalVisita] = useState(false);
+  const [adolescenteSelecionadoId, setAdolescenteSelecionadoId] = useState<string>("");
+  const [justificativaHorario, setJustificativaHorario] = useState<string | null>(null);
+  const [validacaoResultado, setValidacaoResultado] = useState<any>(null);
+  const [validandoEntrada, setValidandoEntrada] = useState(false);
 
   /**
    * Processa captura de imagem e identifica visitante
@@ -86,10 +101,41 @@ export default function PortariaPage() {
       });
 
       const data = await response.json();
-      setResultado(data);
 
       if (!data.success) {
         setErro(data.message || "Visitante não identificado");
+        setResultado(data);
+      } else if (data.visitante) {
+        const adolescentes = normalizarAdolescentes(data.visitante.adolescentes);
+        // Verificar se há visitas em andamento ANTES de mostrar sucesso
+        const visitasAbertas = await verificarVisitasEmAndamento(data.visitante.id);
+
+        if (visitasAbertas.length > 0) {
+          // Visitante tem visita em andamento - mostrar erro específico
+          const nomes = visitasAbertas.map((v: any) => v.adolescente?.nomeCompleto || "Adolescente").join(", ");
+          setErro(
+            `⚠️ ATENÇÃO: ${data.visitante.nomeCompleto} já possui visita em andamento com: ${nomes}. ` +
+            `Por favor, finalize a visita atual antes de registrar uma nova.`
+          );
+          setResultado(null);
+        } else {
+          // Visitante OK - prosseguir normalmente
+          setResultado({
+            ...data,
+            visitante: {
+              ...data.visitante,
+              adolescentes,
+            },
+          });
+
+          if (adolescentes.length === 1) {
+            // Auto-selecionar se houver apenas 1 adolescente
+            const adolescenteId = adolescentes[0].id;
+            setAdolescenteSelecionadoId(adolescenteId);
+            // Validar automaticamente
+            await validarEntradaAutomatica(data.visitante.id, adolescenteId);
+          }
+        }
       }
     } catch (err) {
       console.error("Erro ao identificar visitante:", err);
@@ -97,6 +143,73 @@ export default function PortariaPage() {
     } finally {
       setProcessando(false);
       setModoIdentificacao(false);
+    }
+  };
+
+  /**
+   * Verifica se visitante tem visitas em andamento
+   */
+  const verificarVisitasEmAndamento = async (visitanteId: string) => {
+    try {
+      const response = await fetch(`/api/visitantes/${visitanteId}/visitas?status=abertas`);
+      const data = await response.json();
+
+      if (response.ok && data.visitas) {
+        return data.visitas;
+      }
+      return [];
+    } catch (err) {
+      console.error("Erro ao verificar visitas em andamento:", err);
+      return [];
+    }
+  };
+
+  /**
+   * Valida entrada automaticamente (chamada ao selecionar adolescente)
+   */
+  const validarEntradaAutomatica = async (visitanteId: string, adolescenteId: string) => {
+    setValidandoEntrada(true);
+    try {
+      const response = await fetch("/api/visitas/validar-pre-entrada", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ visitanteId, adolescenteId }),
+      });
+
+      const data = await response.json();
+      setValidacaoResultado(data);
+    } catch (err) {
+      console.error("Erro ao validar entrada:", err);
+    } finally {
+      setValidandoEntrada(false);
+    }
+  };
+
+  /**
+   * Seleciona adolescente e valida automaticamente
+   */
+  const handleSelecionarAdolescente = async (adolescenteId: string) => {
+    if (!resultado?.visitante) return;
+
+    setAdolescenteSelecionadoId(adolescenteId);
+    await validarEntradaAutomatica(resultado.visitante.id, adolescenteId);
+  };
+
+  /**
+   * Abre modal apropriado baseado na validação
+   */
+  const handleRegistrarVisita = () => {
+    if (!adolescenteSelecionadoId) {
+      alert("Por favor, selecione um adolescente primeiro");
+      return;
+    }
+
+    // Se houver alertas que requerem justificativa, abre modal de validação
+    if (validacaoResultado?.requerJustificativa) {
+      setMostrarModalValidacao(true);
+    } else {
+      // Se não houver alertas, vai direto para registro
+      setMostrarModalVisita(true);
     }
   };
 
@@ -118,35 +231,62 @@ export default function PortariaPage() {
         return;
       }
 
-      // Transformar resposta da API de QR Code para formato IdentificacaoResultado
-      setResultado({
-        success: data.valido,
-        message: "Visitante identificado via QR Code",
-        match: {
-          id: data.visitante.id,
-          nomeCompleto: data.visitante.nomeCompleto,
-          confidence: 100, // QR Code tem 100% de confiança
-          distance: 0,
-        },
-        visitante: {
-          id: data.visitante.id,
-          nomeCompleto: data.visitante.nomeCompleto,
-          cpf: data.visitante.cpf,
-          dataNascimento: "", // Não vem na API de QR Code
-          fotoUrl: data.visitante.urlFoto || "",
-          adolescentes: data.visitante.adolescentesVinculados.map((v: any) => ({
-            id: v.id,
-            nomeCompleto: v.nomeCompleto,
-            nomeSocial: null,
-          })),
-          ultimasVisitas: data.visitasRecentes.map((v: any) => ({
-            id: v.id,
-            dataHoraEntrada: v.dataHoraEntrada,
-            dataHoraSaida: v.dataHoraSaida,
-            observacoes: null,
-          })),
-        },
-      });
+      // Verificar visitas em andamento ANTES de mostrar sucesso
+      const visitasAbertas = await verificarVisitasEmAndamento(data.visitante.id);
+
+      if (visitasAbertas.length > 0) {
+        const nomes = visitasAbertas.map((v: any) => v.adolescente?.nomeCompleto || "Adolescente").join(", ");
+        setErro(
+          `⚠️ ATENÇÃO: ${data.visitante.nomeCompleto} já possui visita em andamento com: ${nomes}. ` +
+          `Por favor, finalize a visita atual antes de registrar uma nova.`
+        );
+        setResultado(null);
+      } else {
+        // Transformar resposta da API de QR Code para formato IdentificacaoResultado
+        const adolescentesVinculadosApi = Array.isArray(data.visitante.adolescentesVinculados)
+          ? data.visitante.adolescentesVinculados
+          : [];
+
+        const adolescentesNormalizados = adolescentesVinculadosApi.map((v: any) => ({
+          id: v.id,
+          nomeCompleto: v.nomeCompleto,
+          nomeSocial: null,
+        }));
+
+        const resultadoQRCode = {
+          success: data.valido,
+          message: "Visitante identificado via QR Code",
+          match: {
+            id: data.visitante.id,
+            nomeCompleto: data.visitante.nomeCompleto,
+            confidence: 100, // QR Code tem 100% de confiança
+            distance: 0,
+          },
+          visitante: {
+            id: data.visitante.id,
+            nomeCompleto: data.visitante.nomeCompleto,
+            cpf: data.visitante.cpf,
+            dataNascimento: "", // Não vem na API de QR Code
+            fotoUrl: data.visitante.urlFoto || "",
+            adolescentes: adolescentesNormalizados,
+            ultimasVisitas: data.visitasRecentes.map((v: any) => ({
+              id: v.id,
+              dataHoraEntrada: v.dataHoraEntrada,
+              dataHoraSaida: v.dataHoraSaida,
+              observacoes: null,
+            })),
+          },
+        };
+
+        setResultado(resultadoQRCode);
+
+        // Auto-selecionar se houver apenas 1 adolescente
+        if (adolescentesVinculadosApi.length === 1) {
+          const adolescenteId = adolescentesVinculadosApi[0].id;
+          setAdolescenteSelecionadoId(adolescenteId);
+          await validarEntradaAutomatica(data.visitante.id, adolescenteId);
+        }
+      }
     } catch (err) {
       console.error("Erro ao validar QR Code:", err);
       setErro("Erro ao processar QR Code. Tente novamente.");
@@ -184,14 +324,23 @@ export default function PortariaPage() {
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-50 p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 flex items-center gap-3">
-            <ShieldCheck className="text-indigo-600" size={42} />
-            Portaria - Reconhecimento Facial
-          </h1>
-          <p className="text-gray-600 mt-2 text-lg">
-            Sistema de identificação automática de visitantes
-          </p>
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <h1 className="text-4xl font-bold text-gray-900 flex items-center gap-3">
+              <ShieldCheck className="text-indigo-600" size={42} />
+              Portaria - Reconhecimento Facial
+            </h1>
+            <p className="text-gray-600 mt-2 text-lg">
+              Sistema de identificação automática de visitantes
+            </p>
+          </div>
+          <Link
+            href="/portaria/dashboard"
+            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg font-semibold"
+          >
+            <Monitor size={24} />
+            Ver Dashboard
+          </Link>
         </div>
 
         {/* Modo Identificação */}
@@ -251,7 +400,11 @@ export default function PortariaPage() {
             </button>
 
             <button
-              onClick={() => alert("Funcionalidade em desenvolvimento")}
+              onClick={() => {
+                setModoBuscaManual(true);
+                setResultado(null);
+                setErro(null);
+              }}
               className="flex flex-col items-center justify-center gap-4 p-8 bg-white rounded-xl shadow-lg hover:shadow-xl transition-all border-2 border-green-200 hover:border-green-400"
             >
               <UserCheck className="text-green-600" size={64} />
@@ -260,10 +413,51 @@ export default function PortariaPage() {
                   Cadastro Manual
                 </h2>
                 <p className="text-gray-600 mt-2">
-                  Registro sem identificação
+                  Busca por nome ou CPF
                 </p>
               </div>
             </button>
+          </div>
+        )}
+
+        {/* Modal de Busca Manual */}
+        {modoBuscaManual && (
+          <BuscaVisitanteManual
+            onVisitanteSelecionado={(visitante) => {
+              const adolescentesVinculados = Array.isArray(visitante.adolescentes)
+                ? visitante.adolescentes
+                : [];
+
+              setModoBuscaManual(false);
+              setResultado({
+                success: true,
+                message: "Visitante selecionado",
+                visitante: {
+                  id: visitante.id,
+                  nomeCompleto: visitante.nomeCompleto,
+                  cpf: visitante.cpf || "",
+                  dataNascimento: visitante.dataNascimento || "",
+                  fotoUrl: visitante.fotoUrl || "",
+                  adolescentes: adolescentesVinculados,
+                  ultimasVisitas: [],
+                },
+              });
+
+              // Auto-selecionar se só tiver 1 adolescente
+              if (adolescentesVinculados.length === 1) {
+                const adolescenteId = adolescentesVinculados[0].id;
+                setAdolescenteSelecionadoId(adolescenteId);
+                validarEntradaAutomatica(visitante.id, adolescenteId);
+              }
+            }}
+            onCancelar={() => setModoBuscaManual(false)}
+          />
+        )}
+
+        {/* Lista de Visitas em Andamento */}
+        {!modoIdentificacao && !modoCadastro && !modoQRCode && !modoBuscaManual && (
+          <div className="mb-8">
+            <ListaVisitasAndamento />
           </div>
         )}
 
@@ -315,28 +509,80 @@ export default function PortariaPage() {
                     </div>
                   </div>
 
-                  {/* Adolescentes Relacionados */}
+                  {/* Adolescentes Relacionados - SELECIONÁVEIS */}
                   <div>
                     <h3 className="text-xl font-bold text-gray-900 mb-4">
                       Adolescentes Relacionados
+                      {resultado.visitante.adolescentes.length > 1 && (
+                        <span className="ml-2 text-sm font-normal text-gray-600">
+                          (Selecione um)
+                        </span>
+                      )}
                     </h3>
                     {resultado.visitante.adolescentes.length > 0 ? (
                       <ul className="space-y-3">
-                        {resultado.visitante.adolescentes.map((adolescente) => (
-                          <li
-                            key={adolescente.id}
-                            className="p-4 bg-indigo-50 rounded-lg border border-indigo-200"
-                          >
-                            <p className="font-semibold text-gray-900">
-                              {adolescente.nomeSocial || adolescente.nomeCompleto}
-                            </p>
-                            {adolescente.nomeSocial && adolescente.nomeCompleto && (
-                              <p className="text-sm text-gray-600">
-                                Nome completo: {adolescente.nomeCompleto}
-                              </p>
-                            )}
-                          </li>
-                        ))}
+                        {resultado.visitante.adolescentes.map((adolescente) => {
+                          const isSelected = adolescenteSelecionadoId === adolescente.id;
+                          return (
+                            <li
+                              key={adolescente.id}
+                              onClick={() => handleSelecionarAdolescente(adolescente.id)}
+                              className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                                isSelected
+                                  ? "bg-green-50 border-green-500 shadow-md"
+                                  : "bg-indigo-50 border-indigo-200 hover:border-indigo-400 hover:shadow"
+                              }`}
+                            >
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <p className="font-semibold text-gray-900">
+                                    {adolescente.nomeSocial || adolescente.nomeCompleto}
+                                  </p>
+                                  {adolescente.nomeSocial && adolescente.nomeCompleto && (
+                                    <p className="text-sm text-gray-600">
+                                      Nome completo: {adolescente.nomeCompleto}
+                                    </p>
+                                  )}
+                                </div>
+                                {isSelected && (
+                                  <CheckCircle className="text-green-600 flex-shrink-0" size={24} />
+                                )}
+                              </div>
+                              {isSelected && validandoEntrada && (
+                                <p className="text-xs text-blue-600 mt-2">Validando...</p>
+                              )}
+                              {isSelected && validacaoResultado && (
+                                <div className="mt-3 pt-3 border-t border-green-300">
+                                  {validacaoResultado.alertas.length > 0 && (
+                                    <div className="space-y-1">
+                                      {validacaoResultado.alertas.map((alerta: string, idx: number) => (
+                                        <p key={idx} className="text-xs text-amber-700 flex items-start gap-1">
+                                          <AlertCircle size={14} className="flex-shrink-0 mt-0.5" />
+                                          <span>{alerta}</span>
+                                        </p>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {validacaoResultado.avisos.length > 0 && (
+                                    <div className="space-y-1 mt-2">
+                                      {validacaoResultado.avisos.map((aviso: string, idx: number) => (
+                                        <p key={idx} className="text-xs text-blue-700">
+                                          ℹ️ {aviso}
+                                        </p>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {!validacaoResultado.requerJustificativa && validacaoResultado.alertas.length === 0 && (
+                                    <p className="text-xs text-green-700 flex items-center gap-1">
+                                      <CheckCircle size={14} />
+                                      Tudo OK! Pode registrar a visita.
+                                    </p>
+                                  )}
+                                </div>
+                              )}
+                            </li>
+                          );
+                        })}
                       </ul>
                     ) : (
                       <p className="text-gray-500">Nenhum adolescente relacionado</p>
@@ -378,15 +624,29 @@ export default function PortariaPage() {
                 {/* Botões de Ação */}
                 <div className="mt-8 flex gap-4">
                   <button
-                    onClick={() => setMostrarModalVisita(true)}
-                    className="flex-1 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold shadow-md"
+                    onClick={handleRegistrarVisita}
+                    disabled={!adolescenteSelecionadoId || validandoEntrada}
+                    className={`flex-1 px-6 py-3 rounded-lg transition-colors font-semibold shadow-md ${
+                      adolescenteSelecionadoId && !validandoEntrada
+                        ? "bg-green-600 text-white hover:bg-green-700"
+                        : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                    }`}
                   >
-                    Registrar Visita
+                    {validandoEntrada
+                      ? "Validando..."
+                      : !adolescenteSelecionadoId
+                      ? "Selecione um adolescente"
+                      : validacaoResultado?.requerJustificativa
+                      ? "Registrar Visita (Requer Justificativa)"
+                      : "Registrar Visita"}
                   </button>
                   <button
                     onClick={() => {
                       setResultado(null);
                       setErro(null);
+                      setAdolescenteSelecionadoId("");
+                      setValidacaoResultado(null);
+                      setJustificativaHorario(null);
                     }}
                     className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors font-semibold shadow-md"
                   >
@@ -474,18 +734,42 @@ export default function PortariaPage() {
           />
         )}
 
+        {/* Modal de Validação Prévia */}
+        {mostrarModalValidacao && resultado?.success && resultado.visitante && (
+          <ModalValidacaoPrevia
+            visitanteId={resultado.visitante.id}
+            visitanteNome={resultado.visitante.nomeCompleto}
+            adolescentes={resultado.visitante.adolescentes}
+            onConfirmar={(adolescenteId, justificativa) => {
+              setAdolescenteSelecionadoId(adolescenteId);
+              setJustificativaHorario(justificativa);
+              setMostrarModalValidacao(false);
+              setMostrarModalVisita(true);
+            }}
+            onCancelar={() => setMostrarModalValidacao(false)}
+          />
+        )}
+
         {/* Modal de Registro de Visita */}
         {mostrarModalVisita && resultado?.success && resultado.visitante && (
           <ModalRegistrarVisita
             visitanteId={resultado.visitante.id}
             visitanteNome={resultado.visitante.nomeCompleto}
-            adolescentes={resultado.visitante.adolescentes}
-            onClose={() => setMostrarModalVisita(false)}
+            adolescentes={adolescenteSelecionadoId ? resultado.visitante.adolescentes.filter(a => a.id === adolescenteSelecionadoId) : resultado.visitante.adolescentes}
+            adolescentePreSelecionado={adolescenteSelecionadoId}
+            justificativaPrevia={justificativaHorario}
+            onClose={() => {
+              setMostrarModalVisita(false);
+              setAdolescenteSelecionadoId("");
+              setJustificativaHorario(null);
+            }}
             onSucesso={() => {
               // Limpar resultado e voltar para a tela inicial
               setResultado(null);
               setErro(null);
               setMostrarModalVisita(false);
+              setAdolescenteSelecionadoId("");
+              setJustificativaHorario(null);
             }}
           />
         )}

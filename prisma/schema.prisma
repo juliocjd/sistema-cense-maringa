@@ -726,11 +726,8 @@ model ConfiguracaoVisitas {
   // Idade considerada criança
   idadeLimiteCrianca      Int      @default(12) @map("idade_limite_crianca")
 
-  // Horários por casa
-  casasManhaInicio        Int      @default(1) @map("casas_manha_inicio") // Casa 1
-  casasManhaFim           Int      @default(4) @map("casas_manha_fim") // Casa 4
-  casasTardeInicio        Int      @default(5) @map("casas_tarde_inicio") // Casa 5
-  casasTardeFim           Int      @default(8) @map("casas_tarde_fim") // Casa 8
+  // Períodos de visita por casa (mapeamento: { "1": "MANHA", "2": "MANHA", "8": "MANHA", etc })
+  periodosPorCasa         Json     @default("{\"1\":\"MANHA\",\"2\":\"MANHA\",\"3\":\"MANHA\",\"4\":\"MANHA\",\"5\":\"TARDE\",\"6\":\"TARDE\",\"7\":\"TARDE\",\"8\":\"TARDE\"}") @map("periodos_por_casa")
 
   horarioManhaInicio      String   @default("08:00") @map("horario_manha_inicio")
   horarioManhaFim         String   @default("12:00") @map("horario_manha_fim")
@@ -739,6 +736,9 @@ model ConfiguracaoVisitas {
 
   // Limite de visitas por período
   quantidadeVisitasMensal Int      @default(2) @map("quantidade_visitas_mensal")
+
+  // Duração da visita em minutos
+  duracaoVisitaMinutos    Int      @default(120) @map("duracao_visita_minutos") // 2 horas padrão
 
   ativo                   Boolean  @default(true)
   criadoEm                DateTime @default(now()) @map("criado_em")

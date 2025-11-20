@@ -21,11 +21,9 @@ export async function buscarConfiguracoes() {
       limiteCriancasSegundoSab: 1,
       permitirAlternativa: true,
       idadeLimiteCrianca: 12,
-      casasManhaInicio: 1,
-      casasManhaFim: 4,
-      casasTardeInicio: 5,
-      casasTardeFim: 8,
+      periodosPorCasa: { "1": "MANHA", "2": "MANHA", "3": "MANHA", "4": "MANHA", "5": "TARDE", "6": "TARDE", "7": "TARDE", "8": "TARDE" },
       quantidadeVisitasMensal: 2,
+      duracaoVisitaMinutos: 120, // 2 horas padrão
     };
   }
 
@@ -224,13 +222,13 @@ export async function validarLimiteVisitasMensal(
  * Determina período (MANHA/TARDE) baseado na casa
  */
 export function determinarPeriodoPorCasa(numeroCasa: number, config: any) {
-  if (numeroCasa >= config.casasManhaInicio && numeroCasa <= config.casasManhaFim) {
-    return "MANHA";
-  }
-  if (numeroCasa >= config.casasTardeInicio && numeroCasa <= config.casasTardeFim) {
-    return "TARDE";
-  }
-  return "MANHA"; // Default
+  const periodosPorCasa = typeof config.periodosPorCasa === 'object' && config.periodosPorCasa !== null
+    ? config.periodosPorCasa
+    : {};
+
+  // Buscar período da casa no mapeamento
+  const periodo = periodosPorCasa[numeroCasa.toString()];
+  return periodo || "MANHA"; // Default MANHA se não encontrar
 }
 
 /**
@@ -285,6 +283,7 @@ export async function detectarFaccoesRivais(visitanteId: string) {
 
 /**
  * Validação completa para registro de visita
+ * Modificado para ser não-bloqueante: apenas gera alertas, não bloqueia
  */
 export async function validarRegistroVisita(params: {
   visitanteId: string;
@@ -292,6 +291,7 @@ export async function validarRegistroVisita(params: {
   dataHoraEntrada?: Date;
   quantidadeAdultos?: number;
   quantidadeCriancas?: number;
+  permitirComJustificativa?: boolean; // Novo parâmetro
 }) {
   const {
     visitanteId,
@@ -299,6 +299,7 @@ export async function validarRegistroVisita(params: {
     dataHoraEntrada = new Date(),
     quantidadeAdultos = 1,
     quantidadeCriancas = 0,
+    permitirComJustificativa = true, // Por padrão, permite com justificativa
   } = params;
 
   const config = await buscarConfiguracoes();
@@ -328,13 +329,17 @@ export async function validarRegistroVisita(params: {
 
   const adolescente = checkAdolescente.adolescente!;
 
-  // 2. Validar dia permitido
+  // 2. Validar dia permitido (apenas alerta se permitirComJustificativa = true)
   const checkDia = validarDiaPermitido(dataHoraEntrada, config.diasPermitidos as number[]);
   if (!checkDia.valido) {
-    erros.push(checkDia.erro!);
+    if (permitirComJustificativa) {
+      alertas.push(checkDia.erro!);
+    } else {
+      erros.push(checkDia.erro!);
+    }
   }
 
-  // 3. Validar quantidade de acompanhantes
+  // 3. Validar quantidade de acompanhantes (apenas alerta se permitirComJustificativa = true)
   const checkAcompanhantes = validarQuantidadeAcompanhantes(
     quantidadeAdultos,
     quantidadeCriancas,
@@ -342,14 +347,22 @@ export async function validarRegistroVisita(params: {
     config
   );
   if (!checkAcompanhantes.valido) {
-    erros.push(checkAcompanhantes.erro!);
+    if (permitirComJustificativa) {
+      alertas.push(checkAcompanhantes.erro!);
+    } else {
+      erros.push(checkAcompanhantes.erro!);
+    }
   }
 
-  // 4. Validar limite mensal
+  // 4. Validar limite mensal (apenas alerta se permitirComJustificativa = true)
   const checkLimite = await validarLimiteVisitasMensal(visitanteId, dataHoraEntrada, config);
   if (!checkLimite.valido) {
     if (checkLimite.excedido) {
-      erros.push(checkLimite.erro!);
+      if (permitirComJustificativa) {
+        alertas.push(checkLimite.erro!);
+      } else {
+        erros.push(checkLimite.erro!);
+      }
     }
   } else if (checkLimite.visitasRealizadas > 0) {
     alertas.push(

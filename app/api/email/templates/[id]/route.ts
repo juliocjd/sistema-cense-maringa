@@ -46,9 +46,9 @@ export async function GET(
   }
 }
 
-export async function PUT(
+async function updateTemplate(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  params: Promise<{ id: string }>
 ) {
   const authResult = await ensureOperador(request);
   if (!authResult.ok) {
@@ -125,6 +125,20 @@ export async function PUT(
       { status: 500 }
     );
   }
+}
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  return updateTemplate(request, params);
+}
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  return updateTemplate(request, params);
 }
 
 export async function DELETE(

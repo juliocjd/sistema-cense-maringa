@@ -12,11 +12,9 @@ const configuracaoSchema = z.object({
   limiteCriancasSegundoSab: z.number().int().min(0).max(10),
   permitirAlternativa: z.boolean(),
   idadeLimiteCrianca: z.number().int().min(1).max(18),
-  casasManhaInicio: z.number().int().min(1),
-  casasManhaFim: z.number().int().min(1),
-  casasTardeInicio: z.number().int().min(1),
-  casasTardeFim: z.number().int().min(1),
+  periodosPorCasa: z.record(z.enum(["MANHA", "TARDE"])),
   quantidadeVisitasMensal: z.number().int().min(1).max(20),
+  duracaoVisitaMinutos: z.number().int().min(30).max(480),
 });
 
 /**
@@ -46,11 +44,9 @@ export async function GET(request: NextRequest) {
         limiteCriancasSegundoSab: 1,
         permitirAlternativa: true,
         idadeLimiteCrianca: 12,
-        casasManhaInicio: 1,
-        casasManhaFim: 4,
-        casasTardeInicio: 5,
-        casasTardeFim: 8,
+        periodosPorCasa: { "1": "MANHA", "2": "MANHA", "3": "MANHA", "4": "MANHA", "5": "TARDE", "6": "TARDE", "7": "TARDE", "8": "TARDE" },
         quantidadeVisitasMensal: 2,
+        duracaoVisitaMinutos: 120,
         ativo: false,
         id: null,
       });
@@ -66,11 +62,9 @@ export async function GET(request: NextRequest) {
       limiteCriancasSegundoSab: config.limiteCriancasSegundoSab,
       permitirAlternativa: config.permitirAlternativa,
       idadeLimiteCrianca: config.idadeLimiteCrianca,
-      casasManhaInicio: config.casasManhaInicio,
-      casasManhaFim: config.casasManhaFim,
-      casasTardeInicio: config.casasTardeInicio,
-      casasTardeFim: config.casasTardeFim,
+      periodosPorCasa: config.periodosPorCasa,
       quantidadeVisitasMensal: config.quantidadeVisitasMensal,
+      duracaoVisitaMinutos: config.duracaoVisitaMinutos,
       ativo: config.ativo,
       criadoEm: config.criadoEm.toISOString(),
       atualizadoEm: config.atualizadoEm.toISOString(),
@@ -102,22 +96,6 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const dados = configuracaoSchema.parse(body);
-
-    // Validar que casasManhaFim >= casasManhaInicio
-    if (dados.casasManhaFim < dados.casasManhaInicio) {
-      return NextResponse.json(
-        { erro: "Casa final da manhã deve ser maior ou igual à casa inicial" },
-        { status: 400 }
-      );
-    }
-
-    // Validar que casasTardeFim >= casasTardeInicio
-    if (dados.casasTardeFim < dados.casasTardeInicio) {
-      return NextResponse.json(
-        { erro: "Casa final da tarde deve ser maior ou igual à casa inicial" },
-        { status: 400 }
-      );
-    }
 
     const novaConfig = await prisma.$transaction(async (tx) => {
       // Desativar todas as configurações anteriores
@@ -165,11 +143,9 @@ export async function POST(request: NextRequest) {
         limiteCriancasSegundoSab: novaConfig.limiteCriancasSegundoSab,
         permitirAlternativa: novaConfig.permitirAlternativa,
         idadeLimiteCrianca: novaConfig.idadeLimiteCrianca,
-        casasManhaInicio: novaConfig.casasManhaInicio,
-        casasManhaFim: novaConfig.casasManhaFim,
-        casasTardeInicio: novaConfig.casasTardeInicio,
-        casasTardeFim: novaConfig.casasTardeFim,
+        periodosPorCasa: novaConfig.periodosPorCasa,
         quantidadeVisitasMensal: novaConfig.quantidadeVisitasMensal,
+        duracaoVisitaMinutos: novaConfig.duracaoVisitaMinutos,
         ativo: novaConfig.ativo,
         criadoEm: novaConfig.criadoEm.toISOString(),
         atualizadoEm: novaConfig.atualizadoEm.toISOString(),

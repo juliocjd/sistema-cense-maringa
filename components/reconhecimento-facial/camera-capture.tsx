@@ -59,13 +59,24 @@ export function CameraCapture({
       const img = new Image();
       img.src = imageDataUrl;
 
-      await new Promise((resolve, reject) => {
-        img.onload = resolve;
-        img.onerror = reject;
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = (e) => {
+          console.error("Erro ao carregar imagem:", e);
+          reject(new Error("Falha ao carregar imagem capturada"));
+        };
+
+        // Timeout de 5 segundos para carregamento da imagem
+        setTimeout(() => reject(new Error("Timeout ao carregar imagem")), 5000);
       });
 
+      console.log("📸 Imagem carregada com sucesso. Dimensões:", img.width, "x", img.height);
+
       // Validar qualidade da imagem
+      console.log("🔍 Validando qualidade da imagem...");
       const qualityCheck = await validateImageQuality(img);
+      console.log("📊 Resultado da validação:", qualityCheck);
+
       if (!qualityCheck.valid) {
         setValidationError(qualityCheck.message || "Imagem inválida");
         setProcessing(false);
@@ -94,7 +105,19 @@ export function CameraCapture({
       // Usuário pode revisar antes de confirmar
     } catch (err) {
       console.error("Erro ao processar captura:", err);
-      setValidationError("Erro ao processar imagem. Tente novamente.");
+
+      // Melhor tratamento de erros
+      let errorMessage = "Erro ao processar imagem. Tente novamente.";
+
+      if (err instanceof Error) {
+        console.error("Mensagem do erro:", err.message);
+        console.error("Stack do erro:", err.stack);
+        errorMessage = err.message;
+      } else if (typeof err === 'object' && err !== null) {
+        console.error("Erro (objeto):", JSON.stringify(err));
+      }
+
+      setValidationError(errorMessage);
       setProcessing(false);
     }
   };
@@ -112,9 +135,15 @@ export function CameraCapture({
       const img = new Image();
       img.src = capturedImage;
 
-      await new Promise((resolve, reject) => {
-        img.onload = resolve;
-        img.onerror = reject;
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = (e) => {
+          console.error("Erro ao carregar imagem na confirmação:", e);
+          reject(new Error("Falha ao carregar imagem"));
+        };
+
+        // Timeout de 5 segundos
+        setTimeout(() => reject(new Error("Timeout ao carregar imagem")), 5000);
       });
 
       console.log("🔄 CameraCapture: Reprocessando embeddings na confirmação...");
@@ -140,7 +169,19 @@ export function CameraCapture({
       console.log("✅ CameraCapture: onCapture chamado com sucesso!");
     } catch (err) {
       console.error("Erro ao confirmar captura:", err);
-      setValidationError("Erro ao processar. Tente novamente.");
+
+      // Melhor tratamento de erros
+      let errorMessage = "Erro ao processar. Tente novamente.";
+
+      if (err instanceof Error) {
+        console.error("Mensagem do erro:", err.message);
+        console.error("Stack do erro:", err.stack);
+        errorMessage = err.message;
+      } else if (typeof err === 'object' && err !== null) {
+        console.error("Erro (objeto):", JSON.stringify(err));
+      }
+
+      setValidationError(errorMessage);
       setCapturedImage(null);
       setProcessing(false);
     }

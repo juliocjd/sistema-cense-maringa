@@ -35,20 +35,32 @@ export async function detectFaceEmbeddings(
   imageElement: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement
 ): Promise<Float32Array | null> {
   try {
+    console.log("🔧 detectFaceEmbeddings: Iniciando...");
+    console.log("🔧 Elemento:", imageElement.tagName, imageElement.width, "x", imageElement.height);
+
     await loadFaceAPIModels();
+    console.log("🔧 Modelos carregados");
 
     const detection = await faceapi
       .detectSingleFace(imageElement)
       .withFaceLandmarks()
       .withFaceDescriptor();
 
+    console.log("🔧 Detection result:", detection);
+
     if (!detection) {
+      console.log("⚠️ Nenhuma face detectada");
       return null;
     }
 
+    console.log("✅ Face detectada, descriptor length:", detection.descriptor.length);
     return detection.descriptor;
   } catch (error) {
-    console.error("Erro ao detectar face:", error);
+    console.error("❌ Erro ao detectar face:", error);
+    if (error instanceof Error) {
+      console.error("❌ Error message:", error.message);
+      console.error("❌ Error stack:", error.stack);
+    }
     return null;
   }
 }
@@ -183,20 +195,29 @@ export async function validateImageQuality(
   imageElement: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement
 ): Promise<{ valid: boolean; message?: string }> {
   try {
+    console.log("🔍 validateImageQuality: Iniciando validação...");
+    console.log("🔍 Elemento:", imageElement.tagName, imageElement.width, "x", imageElement.height);
+
     await loadFaceAPIModels();
+    console.log("🔍 Modelos carregados para validação");
 
     const detection = await faceapi
       .detectSingleFace(imageElement)
       .withFaceLandmarks();
 
+    console.log("🔍 Detection (validação):", detection);
+
     if (!detection) {
+      console.log("⚠️ Nenhuma face detectada na validação");
       return { valid: false, message: "Nenhuma face detectada na imagem" };
     }
 
     // Verificar se a face está muito pequena
     const box = detection.detection.box;
+    console.log("🔍 Face box:", box);
     const minSize = 80; // pixels
     if (box.width < minSize || box.height < minSize) {
+      console.log("⚠️ Face muito pequena:", box.width, "x", box.height);
       return {
         valid: false,
         message: `Face muito pequena. Aproxime-se da câmera (tamanho: ${Math.round(box.width)}x${Math.round(box.height)}px)`,
@@ -205,16 +226,23 @@ export async function validateImageQuality(
 
     // Verificar confiança da detecção
     const confidence = detection.detection.score;
+    console.log("🔍 Confiança da detecção:", confidence);
     if (confidence < 0.5) {
+      console.log("⚠️ Baixa confiança:", confidence);
       return {
         valid: false,
         message: `Baixa qualidade de detecção (${Math.round(confidence * 100)}%). Melhore a iluminação ou posicionamento`,
       };
     }
 
+    console.log("✅ Validação passou!");
     return { valid: true };
   } catch (error) {
-    console.error("Erro ao validar qualidade:", error);
+    console.error("❌ Erro ao validar qualidade:", error);
+    if (error instanceof Error) {
+      console.error("❌ Error message:", error.message);
+      console.error("❌ Error stack:", error.stack);
+    }
     return { valid: false, message: "Erro ao processar imagem" };
   }
 }

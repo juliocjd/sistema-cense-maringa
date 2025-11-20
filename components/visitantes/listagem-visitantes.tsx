@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Users, Plus, Search, Camera, Trash2, Edit, QrCode } from "lucide-react";
+import { Users, Plus, Search, Camera, Trash2, Edit, IdCard } from "lucide-react";
 import { FormVisitante } from "./form-visitante";
 import { ModalQRCode } from "./modal-qrcode";
 
@@ -244,11 +244,14 @@ export function ListagemVisitantes() {
                   Editar
                 </button>
                 <button
-                  onClick={() => setModalQRCode({ id: visitante.id, nome: visitante.nomeCompleto })}
-                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-                  title="Gerar QR Code"
+                  onClick={() =>
+                    setModalQRCode({ id: visitante.id, nome: visitante.nomeCompleto })
+                  }
+                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
+                  title="Gerar carteirinha"
                 >
-                  <QrCode size={16} />
+                  <IdCard size={16} />
+                  <span className="text-sm font-semibold">Carteirinha</span>
                 </button>
                 <button
                   onClick={() => handleExcluir(visitante.id)}

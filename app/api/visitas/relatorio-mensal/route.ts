@@ -73,8 +73,11 @@ export async function GET(request: NextRequest) {
 
     // Estatísticas gerais
     const totalVisitas = visitas.length;
-    const visitasFinalizadas = visitas.filter((v) => v.dataHoraSaida).length;
-    const visitasEmAberto = visitas.filter((v) => !v.dataHoraSaida).length;
+
+    // Total de pessoas (visitantes + acompanhantes)
+    const totalPessoas = visitas.reduce((acc, visita) => {
+      return acc + visita.quantidadeAdultos + visita.quantidadeCriancas;
+    }, 0);
 
     // Visitas com alertas
     const visitasComAlertaFaccao = visitas.filter((v) => v.alertaFaccaoRival).length;
@@ -98,8 +101,8 @@ export async function GET(request: NextRequest) {
         id: visita.id,
         visitante: visita.visitante.nomeCompleto,
         dataHoraEntrada: visita.dataHoraEntrada,
-        dataHoraSaida: visita.dataHoraSaida,
-        periodo: visita.periodoRealizado,
+        periodo: visita.periodoAutorizado,
+        totalPessoas: visita.quantidadeAdultos + visita.quantidadeCriancas,
         temAlertas:
           visita.alertaFaccaoRival ||
           visita.alertaHorario ||
@@ -127,8 +130,8 @@ export async function GET(request: NextRequest) {
         id: visita.id,
         adolescente: visita.adolescente.nomeCompleto || visita.adolescente.nomeSocial,
         dataHoraEntrada: visita.dataHoraEntrada,
-        dataHoraSaida: visita.dataHoraSaida,
-        periodo: visita.periodoRealizado,
+        periodo: visita.periodoAutorizado,
+        totalPessoas: visita.quantidadeAdultos + visita.quantidadeCriancas,
         temAlertas:
           visita.alertaFaccaoRival ||
           visita.alertaHorario ||
@@ -146,29 +149,18 @@ export async function GET(request: NextRequest) {
       item.adolescentes = Array.from(item.adolescentes);
     });
 
-    // Por período (manhã/tarde)
+    // Por período (manhã/tarde/especial)
     const visitasPorPeriodo = {
-      MANHA: visitas.filter((v) => v.periodoRealizado === "MANHA").length,
-      TARDE: visitas.filter((v) => v.periodoRealizado === "TARDE").length,
+      MANHA: visitas.filter((v) => v.periodoAutorizado === "MANHA").length,
+      TARDE: visitas.filter((v) => v.periodoAutorizado === "TARDE").length,
+      ESPECIAL: visitas.filter((v) => v.periodoAutorizado === "ESPECIAL").length,
     };
 
-    // Por tipo
-    const visitasPorTipo = {
-      REGULAR: visitas.filter((v) => v.tipoVisita === "REGULAR").length,
-      SEGUNDO_SABADO: visitas.filter((v) => v.tipoVisita === "SEGUNDO_SABADO").length,
-    };
+    // Visitantes únicos
+    const visitantesUnicos = new Set(visitas.map((v) => v.visitanteId)).size;
 
-    // Duração média (apenas visitas finalizadas)
-    const visitasComDuracao = visitas.filter((v) => v.dataHoraSaida);
-    const duracaoTotal = visitasComDuracao.reduce((acc, v) => {
-      const duracao =
-        new Date(v.dataHoraSaida!).getTime() - new Date(v.dataHoraEntrada).getTime();
-      return acc + duracao;
-    }, 0);
-    const duracaoMediaMinutos =
-      visitasComDuracao.length > 0
-        ? Math.round(duracaoTotal / visitasComDuracao.length / 60000)
-        : 0;
+    // Adolescentes visitados
+    const adolescentesVisitados = new Set(visitas.map((v) => v.adolescenteId)).size;
 
     return NextResponse.json({
       mes: {
@@ -180,9 +172,9 @@ export async function GET(request: NextRequest) {
       },
       estatisticas: {
         totalVisitas,
-        visitasFinalizadas,
-        visitasEmAberto,
-        duracaoMediaMinutos,
+        totalPessoas,
+        visitantesUnicos,
+        adolescentesVisitados,
         alertas: {
           faccaoRival: visitasComAlertaFaccao,
           horario: visitasComAlertaHorario,
@@ -192,7 +184,6 @@ export async function GET(request: NextRequest) {
       porAdolescente: Object.values(visitasPorAdolescente),
       porVisitante: Object.values(visitasPorVisitante),
       porPeriodo: visitasPorPeriodo,
-      porTipo: visitasPorTipo,
       visitas,
     });
   } catch (error) {

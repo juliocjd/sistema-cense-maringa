@@ -13,11 +13,9 @@ type Configuracao = {
   limiteCriancasSegundoSab: number;
   permitirAlternativa: boolean;
   idadeLimiteCrianca: number;
-  casasManhaInicio: number;
-  casasManhaFim: number;
-  casasTardeInicio: number;
-  casasTardeFim: number;
+  periodosPorCasa: Record<string, "MANHA" | "TARDE">;
   quantidadeVisitasMensal: number;
+  duracaoVisitaMinutos: number;
   ativo: boolean;
 };
 
@@ -325,81 +323,61 @@ export default function ConfiguracoesVisitasPage() {
               <Home className="text-indigo-600" size={24} />
               <h2 className="text-xl font-bold text-gray-900">Períodos de Visita por Casa</h2>
             </div>
+            <p className="text-gray-600 text-sm mb-4">
+              Selecione o período de visita (manhã ou tarde) para cada casa individualmente
+            </p>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                <h3 className="font-bold text-yellow-900 mb-3">Período da Manhã</h3>
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Casa Inicial
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {[1, 2, 3, 4, 5, 6, 7, 8].map((numeroCasa) => {
+                const periodo = config.periodosPorCasa[numeroCasa.toString()] || "MANHA";
+                return (
+                  <div key={numeroCasa} className="flex flex-col gap-2">
+                    <label className="text-sm font-medium text-gray-700">
+                      Casa {numeroCasa}
                     </label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={config.casasManhaInicio}
-                      onChange={(e) =>
-                        setConfig({ ...config, casasManhaInicio: parseInt(e.target.value) || 1 })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500"
-                    />
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setConfig({
+                            ...config,
+                            periodosPorCasa: {
+                              ...config.periodosPorCasa,
+                              [numeroCasa.toString()]: "MANHA",
+                            },
+                          })
+                        }
+                        className={`flex-1 px-3 py-2 text-sm font-medium rounded-lg transition-all ${
+                          periodo === "MANHA"
+                            ? "bg-yellow-500 text-white shadow-md"
+                            : "bg-yellow-100 text-yellow-800 hover:bg-yellow-200"
+                        }`}
+                      >
+                        Manhã
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setConfig({
+                            ...config,
+                            periodosPorCasa: {
+                              ...config.periodosPorCasa,
+                              [numeroCasa.toString()]: "TARDE",
+                            },
+                          })
+                        }
+                        className={`flex-1 px-3 py-2 text-sm font-medium rounded-lg transition-all ${
+                          periodo === "TARDE"
+                            ? "bg-orange-500 text-white shadow-md"
+                            : "bg-orange-100 text-orange-800 hover:bg-orange-200"
+                        }`}
+                      >
+                        Tarde
+                      </button>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Casa Final
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={config.casasManhaFim}
-                      onChange={(e) =>
-                        setConfig({ ...config, casasManhaFim: parseInt(e.target.value) || 1 })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500"
-                    />
-                  </div>
-                  <p className="text-xs text-gray-600">
-                    Casas {config.casasManhaInicio} a {config.casasManhaFim} = Visitas pela manhã
-                  </p>
-                </div>
-              </div>
-
-              <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
-                <h3 className="font-bold text-orange-900 mb-3">Período da Tarde</h3>
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Casa Inicial
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={config.casasTardeInicio}
-                      onChange={(e) =>
-                        setConfig({ ...config, casasTardeInicio: parseInt(e.target.value) || 1 })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Casa Final
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={config.casasTardeFim}
-                      onChange={(e) =>
-                        setConfig({ ...config, casasTardeFim: parseInt(e.target.value) || 1 })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
-                    />
-                  </div>
-                  <p className="text-xs text-gray-600">
-                    Casas {config.casasTardeInicio} a {config.casasTardeFim} = Visitas pela tarde
-                  </p>
-                </div>
-              </div>
+                );
+              })}
             </div>
           </div>
 
@@ -427,6 +405,35 @@ export default function ConfiguracoesVisitasPage() {
               />
               <p className="mt-1 text-xs text-gray-500">
                 Máximo de visitas que um visitante pode realizar no mês
+              </p>
+            </div>
+          </div>
+
+          <hr className="border-gray-200" />
+
+          {/* Duração da Visita */}
+          <div>
+            <div className="flex items-center gap-2 mb-4">
+              <Clock className="text-indigo-600" size={24} />
+              <h2 className="text-xl font-bold text-gray-900">Duração da Visita</h2>
+            </div>
+            <div className="max-w-xs">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Duração da visita (em minutos)
+              </label>
+              <input
+                type="number"
+                min="30"
+                max="480"
+                step="30"
+                value={config.duracaoVisitaMinutos}
+                onChange={(e) =>
+                  setConfig({ ...config, duracaoVisitaMinutos: parseInt(e.target.value) || 120 })
+                }
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                Tempo máximo de duração de cada visita ({Math.floor(config.duracaoVisitaMinutos / 60)}h {config.duracaoVisitaMinutos % 60}min)
               </p>
             </div>
           </div>

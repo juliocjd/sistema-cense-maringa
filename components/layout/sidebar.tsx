@@ -8,6 +8,7 @@ import {
   BarChart3,
   Building2,
   Calendar,
+  ClipboardList,
   FileText,
   LayoutDashboard,
   LogOut,
@@ -21,6 +22,7 @@ import {
   UserPlus,
   Users,
   X,
+  UserCheck,
 } from "lucide-react";
 
 import { useAuth } from "@/hooks/useAuth";
@@ -70,13 +72,6 @@ export function Sidebar() {
         ],
       },
       {
-        section: "Visitantes",
-        items: [
-          { label: "Cadastro de Visitantes", href: "/visitantes", icon: Users },
-          { label: "Portaria", href: "/portaria", icon: Shield },
-        ],
-      },
-      {
         section: "Gestao",
         items: [
           { label: "Comunicados Internos", href: "/comunicados", icon: FileText },
@@ -101,14 +96,15 @@ export function Sidebar() {
         section: "Relatorios",
         items: [
           { label: "Analytics", href: "/analytics", icon: PieChart },
-          { label: "Estatisticas", href: "/relatorios", icon: BarChart3 },
           { label: "Justificativas de Algema", href: "/justificativas-algema", icon: Shield },
         ],
       },
       {
-        section: "Sistema",
+        section: "Visitantes",
         items: [
-          { label: "Configuracoes", href: "/configuracoes", icon: Settings },
+          { label: "Cadastro de Visitantes", href: "/visitantes", icon: Users },
+          { label: "Portaria", href: "/portaria", icon: UserCheck },
+          { label: "Gestão de Visitas", href: "/gestao-visitas", icon: ClipboardList },
         ],
       },
     ],

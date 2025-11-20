@@ -20,6 +20,8 @@ interface ModalRegistrarVisitaProps {
   visitanteId: string;
   visitanteNome: string;
   adolescentes: Adolescente[];
+  adolescentePreSelecionado?: string;
+  justificativaPrevia?: string | null;
   onClose: () => void;
   onSucesso?: () => void;
 }
@@ -28,16 +30,18 @@ export function ModalRegistrarVisita({
   visitanteId,
   visitanteNome,
   adolescentes,
+  adolescentePreSelecionado,
+  justificativaPrevia,
   onClose,
   onSucesso,
 }: ModalRegistrarVisitaProps) {
-  const [adolescenteSelecionado, setAdolescenteSelecionado] = useState<string>("");
+  const [adolescenteSelecionado, setAdolescenteSelecionado] = useState<string>(adolescentePreSelecionado || "");
   const [processando, setProcessando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [erros, setErros] = useState<string[]>([]);
   const [alertas, setAlertas] = useState<string[]>([]);
   const [sucesso, setSucesso] = useState(false);
-  const [justificativaHorario, setJustificativaHorario] = useState("");
+  const [justificativaHorario, setJustificativaHorario] = useState(justificativaPrevia || "");
   const [observacoes, setObservacoes] = useState("");
 
   const handleRegistrarVisita = async () => {

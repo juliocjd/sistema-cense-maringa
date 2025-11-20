@@ -79,9 +79,9 @@ export async function POST(
     // Gerar novo código único
     const codigoUnico = `VIS-${randomBytes(16).toString("hex").toUpperCase()}`;
 
-    // Calcular data de expiração (30 dias)
+    // Calcular data de expiração (1 ano)
     const dataExpiracao = new Date();
-    dataExpiracao.setDate(dataExpiracao.getDate() + 30);
+    dataExpiracao.setFullYear(dataExpiracao.getFullYear() + 1);
 
     const novoQrCode = await prisma.$transaction(async (tx) => {
       // Desativar QR Codes anteriores

@@ -13,6 +13,9 @@ import {
   Shield,
   BarChart3,
   UsersRound,
+  FileText,
+  Mail,
+  UserCheck,
 } from "lucide-react";
 
 type DashboardStats = {
@@ -148,6 +151,13 @@ export default function DashboardPage() {
       cor: "green",
     },
     {
+      titulo: "Portaria",
+      descricao: "Controle de visitantes e reconhecimento facial",
+      icone: UserCheck,
+      link: "/portaria",
+      cor: "blue",
+    },
+    {
       titulo: "Gerenciar Conflitos",
       descricao: "Visualizar e mediar conflitos internos",
       icone: Swords,
@@ -169,11 +179,25 @@ export default function DashboardPage() {
       cor: "blue",
     },
     {
-      titulo: "Relatórios",
-      descricao: "Visualizar analytics e métricas",
+      titulo: "Analytics",
+      descricao: "Visualizar métricas e indicadores",
       icone: BarChart3,
       link: "/analytics",
       cor: "orange",
+    },
+    {
+      titulo: "Relatório de Visitas",
+      descricao: "Exportar relatórios mensais em PDF/Excel",
+      icone: FileText,
+      link: "/relatorios",
+      cor: "indigo",
+    },
+    {
+      titulo: "Notificações Email",
+      descricao: "Gerenciar templates e histórico de emails",
+      icone: Mail,
+      link: "/configuracoes/email",
+      cor: "green",
     },
   ];
 
