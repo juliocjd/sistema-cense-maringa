@@ -83,9 +83,18 @@ export function CameraCapture({
         return;
       }
 
-      // Detectar embeddings faciais
+      // Detectar embeddings faciais com timeout
       console.log("🔍 CameraCapture: Detectando embeddings faciais...");
-      const embeddings = await detectFaceEmbeddings(img);
+
+      // Criar timeout de 30 segundos para detecção (mobile pode ser mais lento)
+      const detectionTimeout = new Promise<null>((_, reject) => {
+        setTimeout(() => reject(new Error("Timeout: Detecção facial está demorando muito. Verifique sua conexão.")), 30000);
+      });
+
+      const embeddingsPromise = detectFaceEmbeddings(img);
+
+      const embeddings = await Promise.race([embeddingsPromise, detectionTimeout]);
+
       console.log("🧠 CameraCapture: Embeddings detectados:", embeddings);
       console.log("🧠 CameraCapture: Embeddings length:", embeddings?.length);
 
@@ -113,6 +122,13 @@ export function CameraCapture({
         console.error("Mensagem do erro:", err.message);
         console.error("Stack do erro:", err.stack);
         errorMessage = err.message;
+
+        // Mensagens específicas para problemas comuns em mobile
+        if (err.message.includes("Timeout")) {
+          errorMessage = "⏱️ A detecção está demorando muito. Verifique sua conexão com a internet e tente novamente.";
+        } else if (err.message.includes("models")) {
+          errorMessage = "📦 Erro ao carregar modelos. Recarregue a página e tente novamente.";
+        }
       } else if (typeof err === 'object' && err !== null) {
         console.error("Erro (objeto):", JSON.stringify(err));
       }
@@ -147,7 +163,16 @@ export function CameraCapture({
       });
 
       console.log("🔄 CameraCapture: Reprocessando embeddings na confirmação...");
-      const embeddings = await detectFaceEmbeddings(img);
+
+      // Criar timeout de 30 segundos para detecção (mobile pode ser mais lento)
+      const detectionTimeout = new Promise<null>((_, reject) => {
+        setTimeout(() => reject(new Error("Timeout: Detecção facial está demorando muito. Verifique sua conexão.")), 30000);
+      });
+
+      const embeddingsPromise = detectFaceEmbeddings(img);
+
+      const embeddings = await Promise.race([embeddingsPromise, detectionTimeout]);
+
       console.log("🧠 CameraCapture (confirmação): Embeddings:", embeddings);
       console.log("🧠 CameraCapture (confirmação): Embeddings length:", embeddings?.length);
 
@@ -177,6 +202,13 @@ export function CameraCapture({
         console.error("Mensagem do erro:", err.message);
         console.error("Stack do erro:", err.stack);
         errorMessage = err.message;
+
+        // Mensagens específicas para problemas comuns em mobile
+        if (err.message.includes("Timeout")) {
+          errorMessage = "⏱️ A detecção está demorando muito. Verifique sua conexão com a internet e tente novamente.";
+        } else if (err.message.includes("models")) {
+          errorMessage = "📦 Erro ao carregar modelos. Recarregue a página e tente novamente.";
+        }
       } else if (typeof err === 'object' && err !== null) {
         console.error("Erro (objeto):", JSON.stringify(err));
       }

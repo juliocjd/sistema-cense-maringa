@@ -324,23 +324,14 @@ export default function PortariaPage() {
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-50 p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-8 flex items-center justify-between">
-          <div>
-            <h1 className="text-4xl font-bold text-gray-900 flex items-center gap-3">
-              <ShieldCheck className="text-indigo-600" size={42} />
-              Portaria - Reconhecimento Facial
-            </h1>
-            <p className="text-gray-600 mt-2 text-lg">
-              Sistema de identificação automática de visitantes
-            </p>
-          </div>
-          <Link
-            href="/portaria/dashboard"
-            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg font-semibold"
-          >
-            <Monitor size={24} />
-            Ver Dashboard
-          </Link>
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold text-gray-900 flex items-center gap-3">
+            <ShieldCheck className="text-indigo-600" size={42} />
+            Portaria - Reconhecimento Facial
+          </h1>
+          <p className="text-gray-600 mt-2 text-lg">
+            Sistema de identificação automática de visitantes
+          </p>
         </div>
 
         {/* Modo Identificação */}
@@ -360,7 +351,7 @@ export default function PortariaPage() {
 
         {/* Botões de Ação */}
         {!modoIdentificacao && !modoCadastro && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <button
               onClick={() => {
                 setModoIdentificacao(true);
@@ -417,6 +408,21 @@ export default function PortariaPage() {
                 </p>
               </div>
             </button>
+
+            <Link
+              href="/portaria/dashboard"
+              className="flex flex-col items-center justify-center gap-4 p-8 bg-white rounded-xl shadow-lg hover:shadow-xl transition-all border-2 border-blue-200 hover:border-blue-400"
+            >
+              <Monitor className="text-blue-600" size={64} />
+              <div className="text-center">
+                <h2 className="text-2xl font-bold text-gray-900">
+                  Ver Dashboard
+                </h2>
+                <p className="text-gray-600 mt-2">
+                  Painel de controle e estatísticas
+                </p>
+              </div>
+            </Link>
           </div>
         )}
 

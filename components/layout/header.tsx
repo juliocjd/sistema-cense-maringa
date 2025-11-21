@@ -189,21 +189,21 @@ export function Header() {
 
   return (
     <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-20">
-      <div className="flex items-center justify-between px-6 py-4">
+      <div className="flex items-center justify-between px-3 sm:px-6 py-3 sm:py-4 gap-2 sm:gap-4">
         {/* Barra de Busca */}
         <div className="flex-1 max-w-xl" ref={buscaContainerRef}>
           <div className="relative">
             <Search
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-              size={20}
+              className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 text-gray-400"
+              size={18}
             />
             <input
               type="text"
               value={busca}
               onChange={(event) => setBusca(event.target.value)}
               onFocus={() => temResultados && setMostrarResultados(true)}
-              placeholder="Buscar adolescente, CI, processo..."
-              className="w-full pl-10 pr-4 py-2 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
+              placeholder="Buscar adolescente..."
+              className="w-full pl-8 sm:pl-10 pr-2 sm:pr-4 py-2 text-sm border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
             />
             {mostrarResultados && (
               <div className="absolute mt-2 w-full bg-white border border-gray-200 rounded-xl shadow-2xl z-20">
@@ -305,7 +305,7 @@ export function Header() {
         </div>
 
         {/* Ações */}
-        <div className="flex items-center gap-4 ml-6">
+        <div className="flex items-center gap-2 sm:gap-4 ml-2 sm:ml-6">
           {/* Notificações */}
           <div className="relative" ref={notificacoesRef}>
             <button
@@ -318,13 +318,13 @@ export function Header() {
               }}
               className="relative p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
             >
-              <Bell size={22} />
+              <Bell size={20} />
               {totalNotificacoes > 0 && (
                 <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
               )}
             </button>
             {mostrarNotificacoes && (
-              <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl border border-gray-200 shadow-2xl z-30">
+              <div className="absolute right-0 mt-2 w-80 sm:w-96 max-w-[calc(100vw-2rem)] bg-white rounded-xl border border-gray-200 shadow-2xl z-30">
                 {carregandoNotificacoes ? (
                   <div className="p-4 text-sm text-gray-500">
                     Carregando notificações...
@@ -417,9 +417,9 @@ export function Header() {
           <div className="relative">
             <button
               onClick={() => setMostrarMenu(!mostrarMenu)}
-              className="flex items-center gap-3 px-3 py-2 hover:bg-gray-100 rounded-lg transition-colors"
+              className="flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-2 hover:bg-gray-100 rounded-lg transition-colors"
             >
-              <div className="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center text-white font-bold">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-indigo-600 rounded-full flex items-center justify-center text-white font-bold text-sm sm:text-base">
                 {usuarioNome.charAt(0).toUpperCase()}
               </div>
               <div className="text-left hidden md:block">

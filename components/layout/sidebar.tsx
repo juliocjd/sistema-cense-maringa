@@ -122,7 +122,8 @@ export function Sidebar() {
     <>
       <button
         onClick={() => setIsOpen((prev) => !prev)}
-        className="lg:hidden fixed top-4 left-4 z-50 rounded-lg bg-indigo-600 p-2 text-white shadow-lg"
+        className="lg:hidden fixed top-20 left-4 z-50 rounded-lg bg-indigo-600 p-3 text-white shadow-lg hover:bg-indigo-700 transition-colors"
+        aria-label="Menu"
       >
         {isOpen ? <X size={24} /> : <Menu size={24} />}
       </button>
