@@ -16,6 +16,19 @@ type Adolescente = {
   nomeSocial: string | null;
 };
 
+type VisitaVisitante = {
+  id: string;
+  dataHoraEntrada?: string;
+  dataHoraSaida?: string | null;
+  observacoes?: string | null;
+  emAberto?: boolean;
+  adolescente?: {
+    id?: string;
+    nomeCompleto?: string;
+    nomeSocial?: string | null;
+  };
+};
+
 type IdentificacaoResultado = {
   success: boolean;
   message: string;
@@ -253,12 +266,14 @@ export default function PortariaPage() {
         return [];
       }
 
-      const visitas = Array.isArray(data.visitas) ? data.visitas : [];
+      const visitas = Array.isArray(data.visitas)
+        ? (data.visitas as VisitaVisitante[])
+        : [];
       const visitasEmAberto = visitas.filter(
         (visita) =>
-          visita?.emAberto === true ||
-          visita?.dataHoraSaida === null ||
-          typeof visita?.dataHoraSaida === "undefined"
+          visita.emAberto === true ||
+          visita.dataHoraSaida === null ||
+          typeof visita.dataHoraSaida === "undefined"
       );
 
       return visitasEmAberto;

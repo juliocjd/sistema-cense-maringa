@@ -53,7 +53,7 @@ export function ListaVisitasAtivas() {
       if (response.ok) {
         const data = await response.json();
         const visitasRecebidas = Array.isArray(data.visitas)
-          ? data.visitas.map((visita) => ({
+          ? data.visitas.map((visita: VisitaAtiva) => ({
               ...visita,
               encerrada: Boolean(visita.encerrada || visita.dataHoraSaida),
             }))
