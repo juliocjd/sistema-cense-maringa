@@ -1242,46 +1242,51 @@ export function CadastroAdolescente({
 
         {/* Stepper */}
         <div className="bg-white rounded-2xl shadow-xl p-6 mb-6">
-          <div className="flex items-center justify-between">
-            {etapas.map((etapa, index) => (
-              <div key={etapa.numero} className="flex items-center flex-1">
-                <div className="flex flex-col items-center flex-1">
-                  <div
-                    className={`w-12 h-12 rounded-full flex items-center justify-center font-bold transition-all ${
-                      etapa.numero === etapaAtual
-                        ? "bg-indigo-600 text-white scale-110"
-                        : etapa.numero < etapaAtual
-                        ? "bg-green-500 text-white"
-                        : "bg-gray-200 text-gray-500"
-                    }`}
-                  >
-                    {etapa.numero < etapaAtual ? (
-                      <CheckCircle size={24} />
-                    ) : (
-                      <etapa.icone size={24} />
-                    )}
+          <div className="overflow-x-auto pb-3">
+            <div className="flex items-center gap-4 min-w-[520px] sm:min-w-0 sm:gap-0">
+              {etapas.map((etapa, index) => (
+                <div
+                  key={etapa.numero}
+                  className="flex items-center min-w-[130px] sm:flex-1"
+                >
+                  <div className="flex flex-col items-center flex-1">
+                    <div
+                      className={`w-12 h-12 rounded-full flex items-center justify-center font-bold transition-all ${
+                        etapa.numero === etapaAtual
+                          ? "bg-indigo-600 text-white scale-110"
+                          : etapa.numero < etapaAtual
+                          ? "bg-green-500 text-white"
+                          : "bg-gray-200 text-gray-500"
+                      }`}
+                    >
+                      {etapa.numero < etapaAtual ? (
+                        <CheckCircle size={24} />
+                      ) : (
+                        <etapa.icone size={24} />
+                      )}
+                    </div>
+                    <span
+                      className={`text-xs mt-2 font-semibold text-center ${
+                        etapa.numero === etapaAtual
+                          ? "text-indigo-600"
+                          : etapa.numero < etapaAtual
+                          ? "text-green-500"
+                          : "text-gray-500"
+                      }`}
+                    >
+                      {etapa.titulo}
+                    </span>
                   </div>
-                  <span
-                    className={`text-xs mt-2 font-semibold text-center ${
-                      etapa.numero === etapaAtual
-                        ? "text-indigo-600"
-                        : etapa.numero < etapaAtual
-                        ? "text-green-500"
-                        : "text-gray-500"
-                    }`}
-                  >
-                    {etapa.titulo}
-                  </span>
+                  {index < etapas.length - 1 && (
+                    <div
+                      className={`h-1 hidden sm:flex flex-1 mx-2 rounded transition-all ${
+                        etapa.numero < etapaAtual ? "bg-green-500" : "bg-gray-200"
+                      }`}
+                    />
+                  )}
                 </div>
-                {index < etapas.length - 1 && (
-                  <div
-                    className={`h-1 flex-1 mx-2 rounded transition-all ${
-                      etapa.numero < etapaAtual ? "bg-green-500" : "bg-gray-200"
-                    }`}
-                  />
-                )}
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
 
@@ -2195,18 +2200,18 @@ export function CadastroAdolescente({
               </div>
             </div>
           )}          {/* Botoes de Navegacao */}
-          <div className="flex items-center justify-between mt-8 pt-6 border-t-2 border-gray-200">
+          <div className="mt-8 pt-6 border-t-2 border-gray-200 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <button
               type="button"
               onClick={etapaAnterior}
               disabled={etapaAtual === 1}
-              className="px-6 py-3 border-2 border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+              className="w-full sm:w-auto px-6 py-3 border-2 border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
             >
               <ChevronLeft size={20} />
               Anterior
             </button>
 
-            <div className="text-sm text-gray-600 font-semibold">
+            <div className="text-sm text-gray-600 font-semibold text-center">
               Etapa {etapaAtual} de {etapas.length}
             </div>
 
@@ -2214,7 +2219,7 @@ export function CadastroAdolescente({
               <button
                 type="button"
                 onClick={proximaEtapa}
-                className="px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 transition-colors flex items-center gap-2"
+                className="w-full sm:w-auto px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2"
               >
                 Proxima
                 <ChevronRight size={20} />
@@ -2224,7 +2229,7 @@ export function CadastroAdolescente({
                 type="button"
                 onClick={handleSalvar}
                 disabled={loading}
-                className="px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                className="w-full sm:w-auto px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
               >
                 {loading ? (
                   <>

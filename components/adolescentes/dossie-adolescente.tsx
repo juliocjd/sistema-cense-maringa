@@ -125,7 +125,7 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
     <div className="space-y-6">
       {/* Header */}
       <div className="bg-white rounded-2xl shadow-lg p-6 border-b-4 border-indigo-600">
-        <div className="flex items-start justify-between mb-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between mb-4">
           <Link
             href="/adolescentes"
             className="flex items-center gap-2 text-indigo-600 hover:text-indigo-700 font-semibold"
@@ -133,24 +133,24 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
             <ArrowLeft size={20} />
             Voltar para lista
           </Link>
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto">
             <button
               onClick={() => window.print()}
-              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2 font-semibold"
+              className="w-full sm:w-auto px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center justify-center gap-2 font-semibold"
             >
               <Printer size={18} />
               Imprimir
             </button>
             <button
               onClick={() => alert("Exportar PDF (implementar)")}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 font-semibold"
+              className="w-full sm:w-auto px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2 font-semibold"
             >
               <Download size={18} />
               Exportar PDF
             </button>
             <Link
               href={`/adolescentes/${adolescente.id}/editar`}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2 font-semibold"
+              className="w-full sm:w-auto px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2 font-semibold text-center"
             >
               <Edit size={18} />
               Editar
@@ -158,9 +158,9 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
           </div>
         </div>
 
-        <div className="flex items-start gap-6">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
           {/* Foto */}
-          <div className="w-32 h-32 bg-indigo-100 rounded-2xl flex items-center justify-center overflow-hidden border-4 border-indigo-200 flex-shrink-0">
+          <div className="mx-auto lg:mx-0 w-32 h-32 bg-indigo-100 rounded-2xl flex items-center justify-center overflow-hidden border-4 border-indigo-200 flex-shrink-0">
             {adolescente.fotoUrl ? (
               <img
                 src={adolescente.fotoUrl}
@@ -175,9 +175,9 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
           </div>
 
           {/* Informações Principais */}
-          <div className="flex-1">
-            <div className="flex items-start justify-between mb-3">
-              <div>
+          <div className="flex-1 w-full">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-3">
+              <div className="text-center sm:text-left">
                 <h1 className="text-3xl font-bold text-gray-800">
                   {adolescente.nomeCompleto}
                 </h1>
@@ -190,7 +190,7 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                   </p>
                 )}
               </div>
-              <div className="flex flex-col items-end gap-1">
+              <div className="flex flex-col items-center sm:items-end gap-1">
                 {getStatusBadge(adolescente.statusUnidade)}
                 {adolescente.statusUnidade !== "ATIVO" && (
                   <p className="text-xs text-gray-500">
@@ -205,7 +205,7 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mt-4">
               <div className="bg-gray-50 rounded-lg p-3">
                 <p className="text-xs text-gray-600 mb-1">Número SMS</p>
                 <p className="font-bold text-gray-800 font-mono">
@@ -244,7 +244,7 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
             {(adolescente.alertaRiscoSuicidio ||
               adolescente.alertaPerfilMapeado ||
               adolescente.alertaSaudeConfidencial) && (
-              <div className="mt-4 flex gap-2">
+              <div className="mt-4 flex flex-wrap gap-2">
                 {adolescente.alertaRiscoSuicidio && (
                   <div className="bg-orange-100 text-orange-800 px-3 py-2 rounded-lg flex items-center gap-2 text-sm font-semibold border border-orange-300">
                     <AlertTriangle size={16} />
@@ -309,19 +309,19 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                     Dados Pessoais
                   </h3>
                   <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
+                    <div className="flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-2">
                       <span className="text-gray-600">Nome Completo:</span>
                       <span className="font-semibold text-gray-800">
                         {adolescente.nomeCompleto}
                       </span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-2">
                       <span className="text-gray-600">Nome Social:</span>
                       <span className="font-semibold text-gray-800">
                         {adolescente.nomeSocial || "-"}
                       </span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-2">
                       <span className="text-gray-600">Data de Nascimento:</span>
                       <span className="font-semibold text-gray-800">
                         {adolescente.dataNascimento
@@ -331,7 +331,7 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                           : "-"}
                       </span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-2">
                       <span className="text-gray-600">Número SMS:</span>
                       <span className="font-semibold text-gray-800 font-mono">
                         {adolescente.numeroSms || "-"}
@@ -345,13 +345,13 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                     Dados Processuais
                   </h3>
                   <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
+                    <div className="flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-2">
                       <span className="text-gray-600">Nº Processo:</span>
                       <span className="font-semibold text-gray-800 text-xs">
                         {adolescente.numeroProcesso || "-"}
                       </span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-2">
                       <span className="text-gray-600">Data de Entrada:</span>
                       <span className="font-semibold text-gray-800">
                         {adolescente.dataEntrada
@@ -361,7 +361,7 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                           : "-"}
                       </span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-2">
                       <span className="text-gray-600">Status:</span>
                       {getStatusBadge(adolescente.statusUnidade)}
                     </div>
@@ -373,13 +373,13 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                     Vinculações
                   </h3>
                   <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
+                    <div className="flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-2">
                       <span className="text-gray-600">Facção/Grupo:</span>
                       <span className="font-semibold text-gray-800">
                         {dadosAdicionais.faccao?.nome || "-"}
                       </span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-2">
                       <span className="text-gray-600">Bairro de Origem:</span>
                       <span className="font-semibold text-gray-800">
                         {dadosAdicionais.bairro
@@ -441,7 +441,7 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
 
               {adolescente.alojamentoAtualId && dadosAdicionais.alojamento ? (
                 <div className="bg-indigo-50 border-2 border-indigo-200 rounded-xl p-6">
-                  <div className="flex items-center gap-4 mb-4">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6 mb-4">
                     <div className="w-16 h-16 bg-indigo-600 rounded-xl flex items-center justify-center">
                       <MapPin size={32} className="text-white" />
                     </div>
@@ -696,7 +696,7 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                           : "bg-green-50 border-green-500"
                       }`}
                     >
-                      <div className="flex items-start justify-between">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-2">
                             <h4 className="font-bold text-gray-800">
@@ -745,7 +745,7 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                       key={grupo.id}
                       className="bg-indigo-50 rounded-lg p-4 border-2 border-indigo-200"
                     >
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                         <div>
                           <h4 className="font-bold text-gray-800 text-lg">
                             {grupo.nome}
@@ -789,7 +789,7 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                         <div className="absolute -left-9 w-4 h-4 bg-indigo-600 rounded-full border-4 border-white"></div>
 
                         <div className="flex-1 bg-gray-50 rounded-lg p-4 border border-gray-200">
-                          <div className="flex items-start justify-between mb-2">
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between mb-2">
                             <div>
                               <span className="bg-indigo-100 text-indigo-800 px-2 py-1 rounded text-xs font-bold">
                                 {item.tipo}

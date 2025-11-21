@@ -38,11 +38,16 @@ type MenuSection = {
   items: MenuEntry[];
 };
 
-export function Sidebar() {
+export function Sidebar({
+  isOpen,
+  setIsOpen,
+}: {
+  isOpen: boolean;
+  setIsOpen: (value: boolean) => void;
+}) {
   const pathname = usePathname();
   const { user, logout } = useAuth();
 
-  const [isOpen, setIsOpen] = useState(true);
   const [forceOpen, setForceOpen] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
 
@@ -120,14 +125,6 @@ export function Sidebar() {
 
   return (
     <>
-      <button
-        onClick={() => setIsOpen((prev) => !prev)}
-        className="lg:hidden fixed top-20 left-4 z-50 rounded-lg bg-indigo-600 p-3 text-white shadow-lg hover:bg-indigo-700 transition-colors"
-        aria-label="Menu"
-      >
-        {isOpen ? <X size={24} /> : <Menu size={24} />}
-      </button>
-
       {expanded && (
         <div
           className="lg:hidden fixed inset-0 z-30 bg-black/50"
@@ -136,8 +133,8 @@ export function Sidebar() {
       )}
 
       <aside
-        className={`fixed top-0 left-0 z-40 h-full bg-gradient-to-b from-indigo-900 to-indigo-950 text-white shadow-2xl transition-all duration-300 ${
-          expanded ? "w-64" : "w-0 lg:w-20 lg:hover:w-64"
+        className={`fixed top-0 left-0 h-full bg-gradient-to-b from-indigo-900 to-indigo-950 text-white shadow-2xl transition-all duration-300 overflow-hidden ${
+          expanded ? "w-64 z-40" : "w-0 pointer-events-none lg:pointer-events-auto lg:w-20 lg:z-40 lg:hover:w-64"
         } ${expanded ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}
         onMouseEnter={() => {
           if (isDesktop) setForceOpen(true);
@@ -147,7 +144,7 @@ export function Sidebar() {
         }}
       >
         <div className="flex h-full flex-col">
-          <div className="border-b border-indigo-800 p-6">
+          <div className="border-b border-indigo-800 p-6 hidden lg:block">
             <Link href="/dashboard" className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-600 text-xl font-bold">
                 CS

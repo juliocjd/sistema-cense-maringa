@@ -314,14 +314,14 @@ export function ListagemAdolescentes() {
   };
 
   return (
-    <div className="space-y-6">
-      <header className="bg-white rounded-2xl shadow-lg p-6 border-b-4 border-indigo-600">
-        <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+    <div className="space-y-4 md:space-y-6">
+      <header className="bg-white rounded-2xl shadow-lg p-4 md:p-6 border-b-4 border-indigo-600">
+        <div className="flex flex-col gap-4 md:gap-6 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-800">
+            <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-gray-800">
               Lista de Adolescentes
             </h1>
-            <p className="text-gray-600 flex items-center gap-2">
+            <p className="text-gray-600 flex items-center gap-2 text-sm md:text-base">
               {filtrados.length} adolescente(s) encontrado(s)
               {carregando && (
                 <span className="text-xs font-semibold text-indigo-600">
@@ -330,21 +330,22 @@ export function ListagemAdolescentes() {
               )}
             </p>
           </div>
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-2 md:gap-3">
             <button
               type="button"
               onClick={() => alert("Exportar para Excel (implementar)")}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 font-semibold"
+              className="px-3 md:px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 font-semibold text-sm md:text-base"
             >
-              <Download size={18} />
-              Exportar
+              <Download className="w-4 h-4 md:w-5 md:h-5" />
+              <span className="hidden sm:inline">Exportar</span>
             </button>
             <Link
               href="/adolescentes/novo"
-              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2 font-semibold"
+              className="px-3 md:px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2 font-semibold text-sm md:text-base"
             >
-              <UserPlus size={18} />
-              Novo cadastro
+              <UserPlus className="w-4 h-4 md:w-5 md:h-5" />
+              <span className="hidden sm:inline">Novo cadastro</span>
+              <span className="sm:hidden">Novo</span>
             </Link>
           </div>
         </div>
@@ -369,13 +370,12 @@ export function ListagemAdolescentes() {
         </div>
       )}
 
-      <section className="bg-white rounded-2xl shadow-lg p-6 space-y-4">
+      <section className="bg-white rounded-2xl shadow-lg p-4 md:p-6 space-y-4">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div className="flex-1 flex flex-col gap-2">
             <div className="relative">
               <Search
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                size={18}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 md:w-5 md:h-5"
               />
               <input
                 type="search"
@@ -385,7 +385,7 @@ export function ListagemAdolescentes() {
                   setPaginaAtual(1);
                 }}
                 placeholder="Buscar por nome, SMS, processo ou numero interno..."
-                className="w-full pl-10 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
+                className="w-full pl-9 md:pl-10 pr-4 py-2.5 md:py-3 text-sm md:text-base border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
               />
             </div>
             <label
@@ -415,15 +415,15 @@ export function ListagemAdolescentes() {
               onClick={() =>
                 setMostrarFiltrosAvancados((valor) => !valor)
               }
-              className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-semibold hover:border-indigo-400 hover:text-indigo-600 transition-colors"
+              className="inline-flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-2 border border-gray-300 rounded-lg text-xs md:text-sm font-semibold hover:border-indigo-400 hover:text-indigo-600 transition-colors"
             >
-              <Filter size={16} />
+              <Filter className="w-3.5 h-3.5 md:w-4 md:h-4" />
               Filtros
             </button>
             <button
               type="button"
               onClick={limparFiltros}
-              className="inline-flex items-center gap-2 px-3 py-2 border border-transparent rounded-lg text-sm font-semibold text-gray-600 hover:text-indigo-600 hover:border-indigo-300 transition-colors"
+              className="inline-flex items-center gap-1.5 md:gap-2 px-3 py-2 border border-transparent rounded-lg text-xs md:text-sm font-semibold text-gray-600 hover:text-indigo-600 hover:border-indigo-300 transition-colors"
             >
               Limpar
             </button>
@@ -497,8 +497,8 @@ export function ListagemAdolescentes() {
       </section>
 
       <section className="bg-white rounded-2xl shadow-lg overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
+        <div className="-mx-4 sm:mx-0 overflow-x-auto">
+          <table className="min-w-[860px] w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
@@ -629,20 +629,20 @@ export function ListagemAdolescentes() {
         </div>
 
         {totalPaginas > 1 && (
-          <div className="flex items-center justify-between px-6 py-4 border-t bg-gray-50">
-            <span className="text-sm text-gray-500">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 md:px-6 py-3 md:py-4 border-t bg-gray-50">
+            <span className="text-xs md:text-sm text-gray-500">
               Pagina {paginaCorrente} de {totalPaginas}
             </span>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 md:gap-2">
               <button
                 type="button"
                 onClick={() =>
                   setPaginaAtual((pagina) => Math.max(1, pagina - 1))
                 }
                 disabled={paginaCorrente === 1}
-                className="p-2 rounded-lg border border-gray-300 text-gray-600 hover:border-indigo-400 hover:text-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="p-1.5 md:p-2 rounded-lg border border-gray-300 text-gray-600 hover:border-indigo-400 hover:text-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                <ChevronLeft size={16} />
+                <ChevronLeft className="w-4 h-4" />
               </button>
               {Array.from({ length: totalPaginas }, (_, indice) => indice + 1).map(
                 (pagina) => (
@@ -650,7 +650,7 @@ export function ListagemAdolescentes() {
                     key={pagina}
                     type="button"
                     onClick={() => setPaginaAtual(pagina)}
-                    className={`w-9 h-9 rounded-lg text-sm font-semibold transition-colors ${
+                    className={`w-8 h-8 md:w-9 md:h-9 rounded-lg text-xs md:text-sm font-semibold transition-colors ${
                       pagina === paginaCorrente
                         ? "bg-indigo-600 text-white"
                         : "border border-gray-300 text-gray-600 hover:border-indigo-400 hover:text-indigo-600"
@@ -668,9 +668,9 @@ export function ListagemAdolescentes() {
                   )
                 }
                 disabled={paginaCorrente === totalPaginas}
-                className="p-2 rounded-lg border border-gray-300 text-gray-600 hover:border-indigo-400 hover:text-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="p-1.5 md:p-2 rounded-lg border border-gray-300 text-gray-600 hover:border-indigo-400 hover:text-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                <ChevronRight size={16} />
+                <ChevronRight className="w-4 h-4" />
               </button>
             </div>
           </div>

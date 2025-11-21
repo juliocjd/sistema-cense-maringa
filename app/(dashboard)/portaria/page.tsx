@@ -321,15 +321,16 @@ export default function PortariaPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-50 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-50 p-4 md:p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 flex items-center gap-3">
-            <ShieldCheck className="text-indigo-600" size={42} />
-            Portaria - Reconhecimento Facial
+        <div className="mb-6 md:mb-8">
+          <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-gray-900 flex items-center gap-2 md:gap-3">
+            <ShieldCheck className="text-indigo-600 w-8 h-8 md:w-10 md:h-10 lg:w-11 lg:h-11" />
+            <span className="hidden sm:inline">Portaria - Reconhecimento Facial</span>
+            <span className="sm:hidden">Portaria</span>
           </h1>
-          <p className="text-gray-600 mt-2 text-lg">
+          <p className="text-gray-600 mt-2 text-sm md:text-base lg:text-lg">
             Sistema de identificação automática de visitantes
           </p>
         </div>
@@ -351,22 +352,24 @@ export default function PortariaPage() {
 
         {/* Botões de Ação */}
         {!modoIdentificacao && !modoCadastro && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-6 md:mb-8">
             <button
               onClick={() => {
                 setModoIdentificacao(true);
                 setResultado(null);
                 setErro(null);
               }}
-              className="flex flex-col items-center justify-center gap-4 p-8 bg-white rounded-xl shadow-lg hover:shadow-xl transition-all border-2 border-indigo-200 hover:border-indigo-400"
+              className="flex flex-col items-center justify-center gap-3 md:gap-4 p-6 md:p-8 bg-white rounded-xl shadow-lg hover:shadow-xl transition-all border-2 border-indigo-200 hover:border-indigo-400"
             >
-              <Camera className="text-indigo-600" size={64} />
+              <Camera className="text-indigo-600 w-12 h-12 md:w-16 md:h-16" />
               <div className="text-center">
-                <h2 className="text-2xl font-bold text-gray-900">
-                  Reconhecimento Facial
+                <h2 className="text-lg md:text-xl lg:text-2xl font-bold text-gray-900">
+                  <span className="hidden sm:inline">Reconhecimento Facial</span>
+                  <span className="sm:hidden">Facial</span>
                 </h2>
-                <p className="text-gray-600 mt-2">
-                  Identificação automática via câmera
+                <p className="text-gray-600 mt-1 md:mt-2 text-sm md:text-base">
+                  <span className="hidden sm:inline">Identificação automática via câmera</span>
+                  <span className="sm:hidden">Via câmera</span>
                 </p>
               </div>
             </button>
@@ -377,15 +380,17 @@ export default function PortariaPage() {
                 setResultado(null);
                 setErro(null);
               }}
-              className="flex flex-col items-center justify-center gap-4 p-8 bg-white rounded-xl shadow-lg hover:shadow-xl transition-all border-2 border-purple-200 hover:border-purple-400"
+              className="flex flex-col items-center justify-center gap-3 md:gap-4 p-6 md:p-8 bg-white rounded-xl shadow-lg hover:shadow-xl transition-all border-2 border-purple-200 hover:border-purple-400"
             >
-              <QrCode className="text-purple-600" size={64} />
+              <QrCode className="text-purple-600 w-12 h-12 md:w-16 md:h-16" />
               <div className="text-center">
-                <h2 className="text-2xl font-bold text-gray-900">
-                  Escanear QR Code
+                <h2 className="text-lg md:text-xl lg:text-2xl font-bold text-gray-900">
+                  <span className="hidden sm:inline">Escanear QR Code</span>
+                  <span className="sm:hidden">QR Code</span>
                 </h2>
-                <p className="text-gray-600 mt-2">
-                  Identificação rápida via QR Code
+                <p className="text-gray-600 mt-1 md:mt-2 text-sm md:text-base">
+                  <span className="hidden sm:inline">Identificação rápida via QR Code</span>
+                  <span className="sm:hidden">Via QR</span>
                 </p>
               </div>
             </button>
@@ -396,30 +401,34 @@ export default function PortariaPage() {
                 setResultado(null);
                 setErro(null);
               }}
-              className="flex flex-col items-center justify-center gap-4 p-8 bg-white rounded-xl shadow-lg hover:shadow-xl transition-all border-2 border-green-200 hover:border-green-400"
+              className="flex flex-col items-center justify-center gap-3 md:gap-4 p-6 md:p-8 bg-white rounded-xl shadow-lg hover:shadow-xl transition-all border-2 border-green-200 hover:border-green-400"
             >
-              <UserCheck className="text-green-600" size={64} />
+              <UserCheck className="text-green-600 w-12 h-12 md:w-16 md:h-16" />
               <div className="text-center">
-                <h2 className="text-2xl font-bold text-gray-900">
-                  Cadastro Manual
+                <h2 className="text-lg md:text-xl lg:text-2xl font-bold text-gray-900">
+                  <span className="hidden sm:inline">Cadastro Manual</span>
+                  <span className="sm:hidden">Manual</span>
                 </h2>
-                <p className="text-gray-600 mt-2">
-                  Busca por nome ou CPF
+                <p className="text-gray-600 mt-1 md:mt-2 text-sm md:text-base">
+                  <span className="hidden sm:inline">Busca por nome ou CPF</span>
+                  <span className="sm:hidden">Por nome/CPF</span>
                 </p>
               </div>
             </button>
 
             <Link
               href="/portaria/dashboard"
-              className="flex flex-col items-center justify-center gap-4 p-8 bg-white rounded-xl shadow-lg hover:shadow-xl transition-all border-2 border-blue-200 hover:border-blue-400"
+              className="flex flex-col items-center justify-center gap-3 md:gap-4 p-6 md:p-8 bg-white rounded-xl shadow-lg hover:shadow-xl transition-all border-2 border-blue-200 hover:border-blue-400"
             >
-              <Monitor className="text-blue-600" size={64} />
+              <Monitor className="text-blue-600 w-12 h-12 md:w-16 md:h-16" />
               <div className="text-center">
-                <h2 className="text-2xl font-bold text-gray-900">
-                  Ver Dashboard
+                <h2 className="text-lg md:text-xl lg:text-2xl font-bold text-gray-900">
+                  <span className="hidden sm:inline">Ver Dashboard</span>
+                  <span className="sm:hidden">Dashboard</span>
                 </h2>
-                <p className="text-gray-600 mt-2">
-                  Painel de controle e estatísticas
+                <p className="text-gray-600 mt-1 md:mt-2 text-sm md:text-base">
+                  <span className="hidden sm:inline">Painel de controle e estatísticas</span>
+                  <span className="sm:hidden">Painel controle</span>
                 </p>
               </div>
             </Link>
@@ -469,37 +478,37 @@ export default function PortariaPage() {
 
         {/* Resultado da Identificação */}
         {resultado && (
-          <div className="bg-white rounded-xl shadow-lg p-8 mb-8">
+          <div className="bg-white rounded-xl shadow-lg p-4 md:p-6 lg:p-8 mb-6 md:mb-8">
             {resultado.success && resultado.visitante ? (
               <>
                 {/* Sucesso */}
-                <div className="flex items-center gap-3 mb-6 pb-6 border-b">
-                  <CheckCircle className="text-green-600" size={48} />
+                <div className="flex items-center gap-2 md:gap-3 mb-4 md:mb-6 pb-4 md:pb-6 border-b">
+                  <CheckCircle className="text-green-600 w-10 h-10 md:w-12 md:h-12 flex-shrink-0" />
                   <div>
-                    <h2 className="text-3xl font-bold text-green-700">
+                    <h2 className="text-xl md:text-2xl lg:text-3xl font-bold text-green-700">
                       Visitante Identificado!
                     </h2>
-                    <p className="text-gray-600 mt-1">
+                    <p className="text-gray-600 mt-1 text-xs md:text-sm">
                       Confiança: {resultado.match?.confidence}% | Distância:{" "}
                       {resultado.match?.distance.toFixed(3)}
                     </p>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
                   {/* Dados do Visitante */}
                   <div>
-                    <h3 className="text-xl font-bold text-gray-900 mb-4">
+                    <h3 className="text-lg md:text-xl font-bold text-gray-900 mb-3 md:mb-4">
                       Dados do Visitante
                     </h3>
                     {resultado.visitante.fotoUrl && (
                       <img
                         src={resultado.visitante.fotoUrl}
                         alt={resultado.visitante.nomeCompleto}
-                        className="w-48 h-48 object-cover rounded-lg mb-4 shadow-md"
+                        className="w-32 h-32 md:w-40 md:h-40 lg:w-48 lg:h-48 object-cover rounded-lg mb-4 shadow-md"
                       />
                     )}
-                    <div className="space-y-2 text-gray-700">
+                    <div className="space-y-2 text-gray-700 text-sm md:text-base">
                       <p>
                         <strong>Nome:</strong> {resultado.visitante.nomeCompleto}
                       </p>
@@ -517,41 +526,42 @@ export default function PortariaPage() {
 
                   {/* Adolescentes Relacionados - SELECIONÁVEIS */}
                   <div>
-                    <h3 className="text-xl font-bold text-gray-900 mb-4">
-                      Adolescentes Relacionados
+                    <h3 className="text-lg md:text-xl font-bold text-gray-900 mb-3 md:mb-4">
+                      <span className="hidden sm:inline">Adolescentes Relacionados</span>
+                      <span className="sm:hidden">Adolescentes</span>
                       {resultado.visitante.adolescentes.length > 1 && (
-                        <span className="ml-2 text-sm font-normal text-gray-600">
+                        <span className="ml-2 text-xs md:text-sm font-normal text-gray-600">
                           (Selecione um)
                         </span>
                       )}
                     </h3>
                     {resultado.visitante.adolescentes.length > 0 ? (
-                      <ul className="space-y-3">
+                      <ul className="space-y-2 md:space-y-3">
                         {resultado.visitante.adolescentes.map((adolescente) => {
                           const isSelected = adolescenteSelecionadoId === adolescente.id;
                           return (
                             <li
                               key={adolescente.id}
                               onClick={() => handleSelecionarAdolescente(adolescente.id)}
-                              className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                              className={`p-3 md:p-4 rounded-lg border-2 cursor-pointer transition-all ${
                                 isSelected
                                   ? "bg-green-50 border-green-500 shadow-md"
                                   : "bg-indigo-50 border-indigo-200 hover:border-indigo-400 hover:shadow"
                               }`}
                             >
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <p className="font-semibold text-gray-900">
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-semibold text-gray-900 text-sm md:text-base truncate">
                                     {adolescente.nomeSocial || adolescente.nomeCompleto}
                                   </p>
                                   {adolescente.nomeSocial && adolescente.nomeCompleto && (
-                                    <p className="text-sm text-gray-600">
+                                    <p className="text-xs md:text-sm text-gray-600 truncate">
                                       Nome completo: {adolescente.nomeCompleto}
                                     </p>
                                   )}
                                 </div>
                                 {isSelected && (
-                                  <CheckCircle className="text-green-600 flex-shrink-0" size={24} />
+                                  <CheckCircle className="text-green-600 flex-shrink-0 w-5 h-5 md:w-6 md:h-6" />
                                 )}
                               </div>
                               {isSelected && validandoEntrada && (
@@ -591,11 +601,11 @@ export default function PortariaPage() {
                         })}
                       </ul>
                     ) : (
-                      <p className="text-gray-500">Nenhum adolescente relacionado</p>
+                      <p className="text-gray-500 text-sm">Nenhum adolescente relacionado</p>
                     )}
 
                     {/* Últimas Visitas */}
-                    <h3 className="text-xl font-bold text-gray-900 mt-6 mb-4">
+                    <h3 className="text-lg md:text-xl font-bold text-gray-900 mt-5 md:mt-6 mb-3 md:mb-4">
                       Últimas Visitas
                     </h3>
                     {resultado.visitante.ultimasVisitas.length > 0 ? (
@@ -628,11 +638,11 @@ export default function PortariaPage() {
                 </div>
 
                 {/* Botões de Ação */}
-                <div className="mt-8 flex gap-4">
+                <div className="mt-6 md:mt-8 flex flex-col sm:flex-row gap-3 md:gap-4">
                   <button
                     onClick={handleRegistrarVisita}
                     disabled={!adolescenteSelecionadoId || validandoEntrada}
-                    className={`flex-1 px-6 py-3 rounded-lg transition-colors font-semibold shadow-md ${
+                    className={`flex-1 px-4 md:px-6 py-2.5 md:py-3 rounded-lg transition-colors font-semibold shadow-md text-sm md:text-base ${
                       adolescenteSelecionadoId && !validandoEntrada
                         ? "bg-green-600 text-white hover:bg-green-700"
                         : "bg-gray-300 text-gray-500 cursor-not-allowed"
@@ -654,7 +664,7 @@ export default function PortariaPage() {
                       setValidacaoResultado(null);
                       setJustificativaHorario(null);
                     }}
-                    className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors font-semibold shadow-md"
+                    className="px-4 md:px-6 py-2.5 md:py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors font-semibold shadow-md text-sm md:text-base"
                   >
                     Nova Identificação
                   </button>
@@ -663,34 +673,35 @@ export default function PortariaPage() {
             ) : (
               /* Falha na Identificação */
               <div>
-                <div className="flex items-center gap-3 mb-6">
-                  <AlertCircle className="text-amber-600" size={48} />
+                <div className="flex items-center gap-2 md:gap-3 mb-4 md:mb-6">
+                  <AlertCircle className="text-amber-600 w-10 h-10 md:w-12 md:h-12 flex-shrink-0" />
                   <div>
-                    <h2 className="text-3xl font-bold text-amber-700">
+                    <h2 className="text-xl md:text-2xl lg:text-3xl font-bold text-amber-700">
                       Visitante Não Identificado
                     </h2>
-                    <p className="text-gray-600 mt-1">{resultado.message}</p>
+                    <p className="text-gray-600 mt-1 text-xs md:text-sm">{resultado.message}</p>
                   </div>
                 </div>
 
-                <p className="text-gray-700 mb-6">
+                <p className="text-gray-700 mb-4 md:mb-6 text-sm md:text-base">
                   O sistema não conseguiu identificar automaticamente este visitante.
                   Possíveis motivos:
                 </p>
 
-                <ul className="list-disc list-inside space-y-2 text-gray-700 mb-6">
+                <ul className="list-disc list-inside space-y-1.5 md:space-y-2 text-gray-700 mb-4 md:mb-6 text-sm md:text-base">
                   <li>Visitante não possui face cadastrada no sistema</li>
                   <li>Qualidade da imagem capturada está baixa</li>
                   <li>Iluminação inadequada</li>
                   <li>Face parcialmente obstruída</li>
                 </ul>
 
-                <div className="flex gap-4">
+                <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
                   <button
                     onClick={() => alert("Redirecionar para cadastro manual")}
-                    className="flex-1 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-semibold shadow-md"
+                    className="flex-1 px-4 md:px-6 py-2.5 md:py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-semibold shadow-md text-sm md:text-base"
                   >
-                    Cadastrar Novo Visitante
+                    <span className="hidden sm:inline">Cadastrar Novo Visitante</span>
+                    <span className="sm:hidden">Cadastrar Visitante</span>
                   </button>
                   <button
                     onClick={() => {
@@ -698,7 +709,7 @@ export default function PortariaPage() {
                       setErro(null);
                       setModoIdentificacao(true);
                     }}
-                    className="px-6 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors font-semibold shadow-md"
+                    className="px-4 md:px-6 py-2.5 md:py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors font-semibold shadow-md text-sm md:text-base"
                   >
                     Tentar Novamente
                   </button>
@@ -710,19 +721,19 @@ export default function PortariaPage() {
 
         {/* Erro */}
         {erro && !resultado && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-6 flex items-center gap-3">
-            <AlertCircle className="text-red-600" size={32} />
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 md:p-6 flex items-center gap-2 md:gap-3">
+            <AlertCircle className="text-red-600 w-7 h-7 md:w-8 md:h-8 flex-shrink-0" />
             <div>
-              <h3 className="text-lg font-bold text-red-700">Erro</h3>
-              <p className="text-red-600">{erro}</p>
+              <h3 className="text-base md:text-lg font-bold text-red-700">Erro</h3>
+              <p className="text-red-600 text-sm md:text-base">{erro}</p>
             </div>
           </div>
         )}
 
         {/* Processando */}
         {processando && (
-          <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-6 text-center">
-            <p className="text-indigo-700 font-semibold">
+          <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 md:p-6 text-center">
+            <p className="text-indigo-700 font-semibold text-sm md:text-base">
               Processando identificação facial...
             </p>
           </div>

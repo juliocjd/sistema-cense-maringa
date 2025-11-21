@@ -109,51 +109,52 @@ export function ListagemVisitantes() {
   }
 
   return (
-    <div className="p-6">
+    <div className="p-4 md:p-6">
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-          <Users className="text-indigo-600" size={36} />
-          Gestão de Visitantes
+      <div className="mb-4 md:mb-6">
+        <h1 className="text-2xl md:text-3xl font-bold text-gray-900 flex items-center gap-2 md:gap-3">
+          <Users className="text-indigo-600 w-8 h-8 md:w-9 md:h-9" />
+          <span className="hidden sm:inline">Gestão de Visitantes</span>
+          <span className="sm:hidden">Visitantes</span>
         </h1>
-        <p className="text-gray-600 mt-2">
+        <p className="text-gray-600 mt-2 text-sm md:text-base">
           Cadastro de visitantes com reconhecimento facial
         </p>
       </div>
 
       {/* Barra de Ações */}
-      <div className="mb-6 flex gap-4">
+      <div className="mb-4 md:mb-6 flex flex-col sm:flex-row gap-3 md:gap-4">
         <div className="flex-1 relative">
           <Search
-            className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
-            size={20}
+            className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 md:w-5 md:h-5"
           />
           <input
             type="text"
             placeholder="Buscar por nome ou CPF..."
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
-            className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            className="w-full pl-9 md:pl-10 pr-4 py-2.5 md:py-3 text-sm md:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
           />
         </div>
         <button
           onClick={handleNovo}
-          className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-semibold shadow-md"
+          className="flex items-center justify-center gap-2 px-4 md:px-6 py-2.5 md:py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-semibold shadow-md text-sm md:text-base"
         >
-          <Plus size={20} />
-          Novo Visitante
+          <Plus className="w-4 h-4 md:w-5 md:h-5" />
+          <span className="hidden sm:inline">Novo Visitante</span>
+          <span className="sm:hidden">Novo</span>
         </button>
       </div>
 
       {/* Lista de Visitantes */}
       {carregando ? (
         <div className="flex justify-center items-center h-64">
-          <p className="text-gray-500">Carregando visitantes...</p>
+          <p className="text-gray-500 text-sm md:text-base">Carregando visitantes...</p>
         </div>
       ) : visitantesFiltrados.length === 0 ? (
-        <div className="text-center py-12 bg-gray-50 rounded-lg">
-          <Users className="mx-auto text-gray-400 mb-4" size={64} />
-          <p className="text-gray-600 text-lg">
+        <div className="text-center py-8 md:py-12 bg-gray-50 rounded-lg">
+          <Users className="mx-auto text-gray-400 mb-4 w-12 h-12 md:w-16 md:h-16" />
+          <p className="text-gray-600 text-base md:text-lg">
             {busca
               ? "Nenhum visitante encontrado"
               : "Nenhum visitante cadastrado"}
@@ -161,103 +162,104 @@ export function ListagemVisitantes() {
           {!busca && (
             <button
               onClick={handleNovo}
-              className="mt-4 px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+              className="mt-4 px-4 md:px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm md:text-base"
             >
               Cadastrar Primeiro Visitante
             </button>
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
           {visitantesFiltrados.map((visitante) => (
             <div
               key={visitante.id}
-              className="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg transition-shadow"
+              className="bg-white rounded-xl shadow-md border border-gray-200 p-4 md:p-6 hover:shadow-lg transition-shadow"
             >
               {/* Foto */}
-              <div className="flex items-start gap-4 mb-4">
+              <div className="flex items-start gap-3 md:gap-4 mb-3 md:mb-4">
                 {visitante.fotoUrl ? (
                   <img
                     src={visitante.fotoUrl}
                     alt={visitante.nomeCompleto}
-                    className="w-20 h-20 rounded-full object-cover border-2 border-indigo-200"
+                    className="w-16 h-16 md:w-20 md:h-20 rounded-full object-cover border-2 border-indigo-200 flex-shrink-0"
                   />
                 ) : (
-                  <div className="w-20 h-20 rounded-full bg-gray-200 flex items-center justify-center">
-                    <Users className="text-gray-400" size={32} />
+                  <div className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
+                    <Users className="text-gray-400 w-7 h-7 md:w-8 md:h-8" />
                   </div>
                 )}
-                <div className="flex-1">
-                  <h3 className="font-bold text-lg text-gray-900">
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-bold text-base md:text-lg text-gray-900 truncate">
                     {visitante.nomeCompleto}
                   </h3>
                   {visitante.cpf && (
-                    <p className="text-sm text-gray-600">CPF: {visitante.cpf}</p>
+                    <p className="text-xs md:text-sm text-gray-600 truncate">CPF: {visitante.cpf}</p>
                   )}
                 </div>
               </div>
 
               {/* Informações */}
-              <div className="space-y-2 mb-4">
+              <div className="space-y-1.5 md:space-y-2 mb-3 md:mb-4">
                 {visitante.dataNascimento && (
-                  <p className="text-sm text-gray-700">
+                  <p className="text-xs md:text-sm text-gray-700">
                     <strong>Nascimento:</strong>{" "}
                     {new Date(visitante.dataNascimento).toLocaleDateString("pt-BR")}
                   </p>
                 )}
                 {visitante.telefones.length > 0 && (
-                  <p className="text-sm text-gray-700">
+                  <p className="text-xs md:text-sm text-gray-700">
                     <strong>Telefone:</strong> {visitante.telefones[0]}
                   </p>
                 )}
                 {visitante.enderecoCompleto && (
-                  <p className="text-sm text-gray-700 truncate">
+                  <p className="text-xs md:text-sm text-gray-700 truncate">
                     <strong>Endereço:</strong> {visitante.enderecoCompleto}
                   </p>
                 )}
               </div>
 
               {/* Status Reconhecimento Facial */}
-              <div className="mb-4">
+              <div className="mb-3 md:mb-4">
                 {visitante.temFaceCadastrada ? (
-                  <div className="flex items-center gap-2 text-green-700 bg-green-50 px-3 py-2 rounded-lg">
-                    <Camera size={16} />
-                    <span className="text-sm font-medium">
+                  <div className="flex items-center gap-2 text-green-700 bg-green-50 px-2.5 md:px-3 py-1.5 md:py-2 rounded-lg">
+                    <Camera className="w-4 h-4" />
+                    <span className="text-xs md:text-sm font-medium">
                       Face Cadastrada
                     </span>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-2 text-gray-500 bg-gray-50 px-3 py-2 rounded-lg">
-                    <Camera size={16} />
-                    <span className="text-sm">Sem face cadastrada</span>
+                  <div className="flex items-center gap-2 text-gray-500 bg-gray-50 px-2.5 md:px-3 py-1.5 md:py-2 rounded-lg">
+                    <Camera className="w-4 h-4" />
+                    <span className="text-xs md:text-sm">Sem face cadastrada</span>
                   </div>
                 )}
               </div>
 
               {/* Ações */}
-              <div className="flex gap-2">
+              <div className="flex gap-1.5 md:gap-2">
                 <button
                   onClick={() => handleEditar(visitante)}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium"
+                  className="flex-1 flex items-center justify-center gap-1.5 px-3 md:px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-xs md:text-sm font-medium"
                 >
-                  <Edit size={16} />
+                  <Edit className="w-3.5 h-3.5 md:w-4 md:h-4" />
                   Editar
                 </button>
                 <button
                   onClick={() =>
                     setModalQRCode({ id: visitante.id, nome: visitante.nomeCompleto })
                   }
-                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
+                  className="px-2.5 md:px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-1.5"
                   title="Gerar carteirinha"
                 >
-                  <IdCard size={16} />
-                  <span className="text-sm font-semibold">Carteirinha</span>
+                  <IdCard className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                  <span className="text-xs md:text-sm font-semibold hidden sm:inline">Carteirinha</span>
                 </button>
                 <button
                   onClick={() => handleExcluir(visitante.id)}
-                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                  className="px-3 md:px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                  title="Excluir"
                 >
-                  <Trash2 size={16} />
+                  <Trash2 className="w-3.5 h-3.5 md:w-4 md:h-4" />
                 </button>
               </div>
             </div>

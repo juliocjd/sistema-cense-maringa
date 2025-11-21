@@ -8,6 +8,7 @@ import {
   ChevronDown,
   FileText,
   AlertTriangle,
+  Menu,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
@@ -60,7 +61,11 @@ const NOTIFICACOES_INICIAIS: Notificacoes = {
   comunicadosCriticos: [],
 };
 
-export function Header() {
+export function Header({
+  onToggleSidebar,
+}: {
+  onToggleSidebar?: () => void;
+}) {
   const [mostrarMenu, setMostrarMenu] = useState(false);
   const [busca, setBusca] = useState("");
   const [carregandoBusca, setCarregandoBusca] = useState(false);
@@ -190,6 +195,17 @@ export function Header() {
   return (
     <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-20">
       <div className="flex items-center justify-between px-3 sm:px-6 py-3 sm:py-4 gap-2 sm:gap-4">
+        {/* Menu Hamburger - Mobile only */}
+        {onToggleSidebar && (
+          <button
+            onClick={onToggleSidebar}
+            className="lg:hidden p-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+            aria-label="Menu"
+          >
+            <Menu size={24} />
+          </button>
+        )}
+
         {/* Barra de Busca */}
         <div className="flex-1 max-w-xl" ref={buscaContainerRef}>
           <div className="relative">

@@ -22,8 +22,8 @@ export function EstruturaTabsComponent({
   return (
     <div>
       <div className="mb-6">
-        <div className="flex items-center justify-between">
-          <div>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex-1">
             <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
               <Building2 className="text-indigo-600" size={36} />
               Estrutura Operacional
@@ -35,7 +35,7 @@ export function EstruturaTabsComponent({
 
           <Link
             href="/dashboard-tensao"
-            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-all shadow-md hover:shadow-lg font-semibold"
+            className="w-full lg:w-auto flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-all shadow-md hover:shadow-lg font-semibold"
           >
             <BarChart3 size={20} />
             Dashboard de Tensão
