@@ -13,7 +13,11 @@ interface ModalValidacaoPreviaProps {
   visitanteId: string;
   visitanteNome: string;
   adolescentes: Adolescente[];
-  onConfirmar: (adolescenteId: string, justificativa: string | null) => void;
+  onConfirmar: (
+    adolescenteId: string,
+    justificativa: string | null,
+    registrarDireto: boolean
+  ) => void;
   onCancelar: () => void;
 }
 
@@ -109,7 +113,11 @@ export function ModalValidacaoPrevia({
       return;
     }
 
-    onConfirmar(adolescenteSelecionado, mostrarJustificativa ? justificativa : null);
+    onConfirmar(
+      adolescenteSelecionado,
+      mostrarJustificativa ? justificativa : null,
+      mostrarJustificativa
+    );
   };
 
   const podeAvancar =
@@ -310,7 +318,7 @@ export function ModalValidacaoPrevia({
             disabled={!podeAvancar}
             className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-colors font-semibold shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Prosseguir para Registro
+            {mostrarJustificativa ? "Confirmar Entrada" : "Prosseguir para Registro"}
             <ArrowRight size={20} />
           </button>
         </div>

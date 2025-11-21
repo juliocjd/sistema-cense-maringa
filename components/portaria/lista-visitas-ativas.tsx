@@ -35,19 +35,30 @@ type VisitaAtiva = {
     alertaExcedido: boolean;
   };
   observacoes: string | null;
+  encerrada?: boolean;
+  dataHoraSaida?: string | null;
 };
 
 export function ListaVisitasAtivas() {
   const [visitas, setVisitas] = useState<VisitaAtiva[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
+  const [finalizandoId, setFinalizandoId] = useState<string | null>(null);
 
   const carregarVisitas = async () => {
     try {
-      const response = await fetch("/api/visitas/em-andamento");
+      const response = await fetch("/api/visitas/em-andamento", {
+        cache: "no-store",
+      });
       if (response.ok) {
         const data = await response.json();
-        setVisitas(data.visitas || []);
+        const visitasRecebidas = Array.isArray(data.visitas)
+          ? data.visitas.map((visita) => ({
+              ...visita,
+              encerrada: Boolean(visita.encerrada || visita.dataHoraSaida),
+            }))
+          : [];
+        setVisitas(visitasRecebidas);
         setErro(null);
       } else {
         setErro("Erro ao carregar visitas");
@@ -70,6 +81,30 @@ export function ListaVisitasAtivas() {
 
     return () => clearInterval(interval);
   }, []);
+
+  const finalizarVisita = async (visitaId: string, visitanteId: string) => {
+    if (!confirm("Deseja encerrar esta visita?")) return;
+    setFinalizandoId(visitaId);
+    try {
+      const response = await fetch(`/api/visitantes/${visitanteId}/visitas/${visitaId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          dataHoraSaida: new Date().toISOString(),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Erro ao encerrar visita");
+      }
+
+      await carregarVisitas();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Erro ao encerrar visita");
+    } finally {
+      setFinalizandoId(null);
+    }
+  };
 
   const formatarHoraEntrada = (dataHora: string) => {
     return new Date(dataHora).toLocaleTimeString("pt-BR", {
@@ -98,31 +133,6 @@ export function ListaVisitasAtivas() {
     return <Clock className="text-green-600" size={20} />;
   };
 
-  if (carregando) {
-    return (
-      <div className="bg-white rounded-xl shadow-lg p-8">
-        <div className="flex items-center justify-center">
-          <RefreshCw className="animate-spin text-indigo-600 mr-3" size={24} />
-          <p className="text-gray-600">Carregando visitas...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (erro) {
-    return (
-      <div className="bg-red-50 border border-red-200 rounded-xl p-6">
-        <p className="text-red-700 font-medium">{erro}</p>
-        <button
-          onClick={carregarVisitas}
-          className="mt-3 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-        >
-          Tentar Novamente
-        </button>
-      </div>
-    );
-  }
-
   return (
     <div className="bg-white rounded-xl shadow-lg">
       {/* Header */}
@@ -146,8 +156,27 @@ export function ListaVisitasAtivas() {
       </div>
 
       {/* Lista */}
-      <div className="p-6">
-        {visitas.length === 0 ? (
+      <div className="p-6 space-y-4">
+        {carregando && (
+          <div className="flex items-center justify-center py-12">
+            <RefreshCw className="animate-spin text-indigo-600 mr-3" size={24} />
+            <p className="text-gray-600">Carregando visitas...</p>
+          </div>
+        )}
+
+        {erro && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-6">
+            <p className="text-red-700 font-medium">{erro}</p>
+            <button
+              onClick={carregarVisitas}
+              className="mt-3 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+            >
+              Tentar Novamente
+            </button>
+          </div>
+        )}
+
+        {!carregando && !erro && visitas.length === 0 && (
           <div className="text-center py-12">
             <Users className="mx-auto text-gray-300 mb-4" size={64} />
             <p className="text-gray-500 text-lg">Nenhuma visita registrada hoje</p>
@@ -155,116 +184,150 @@ export function ListaVisitasAtivas() {
               As visitas de hoje aparecerão aqui automaticamente
             </p>
           </div>
-        ) : (
+        )}
+
+        {!carregando && !erro && visitas.length > 0 && (
           <div className="space-y-4">
-            {visitas.map((visita) => (
-              <div
-                key={visita.id}
-                className={`border-2 rounded-xl p-4 transition-all ${getCorStatusTempo(visita)}`}
-              >
-                <div className="flex items-start gap-4">
-                  {/* Foto do Visitante */}
-                  {visita.visitante.fotoUrl ? (
-                    <img
-                      src={visita.visitante.fotoUrl}
-                      alt={visita.visitante.nomeCompleto}
-                      className="w-16 h-16 rounded-full object-cover border-2 border-gray-300"
-                    />
-                  ) : (
-                    <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center">
-                      <User className="text-gray-400" size={32} />
-                    </div>
-                  )}
+            {visitas.map((visita) => {
+              const encerrada = Boolean(visita.dataHoraSaida || visita.encerrada);
+              const emAndamento = !encerrada;
 
-                  {/* Informações */}
-                  <div className="flex-1">
-                    <div className="flex items-start justify-between mb-2">
-                      <div>
-                        <h3 className="font-bold text-lg text-gray-900">
-                          {visita.visitante.nomeCompleto}
-                        </h3>
-                        <p className="text-sm text-gray-600">
-                          Visitando: <strong>{visita.adolescente.nomeCompleto}</strong>
-                        </p>
+              return (
+                <div
+                  key={visita.id}
+                  className={`border-2 rounded-xl p-4 transition-all ${
+                    encerrada ? "border-green-200 bg-green-50" : getCorStatusTempo(visita)
+                  }`}
+                >
+                  <div className="flex items-start gap-4">
+                    {/* Foto do Visitante */}
+                    {visita.visitante.fotoUrl ? (
+                      <img
+                        src={visita.visitante.fotoUrl}
+                        alt={visita.visitante.nomeCompleto}
+                        className="w-16 h-16 rounded-full object-cover border-2 border-gray-300"
+                      />
+                    ) : (
+                      <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center">
+                        <User className="text-gray-400" size={32} />
                       </div>
-                      <div className="flex items-center gap-2">
-                        {getIconeStatusTempo(visita)}
-                        <span className="font-mono font-bold text-gray-900">
-                          {visita.tempoDecorrido.total}
-                        </span>
-                      </div>
-                    </div>
+                    )}
 
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm mb-3">
-                      <div className="flex items-center gap-2 text-gray-700">
-                        <Clock size={16} />
-                        <span>Entrada: {formatarHoraEntrada(visita.dataHoraEntrada)}</span>
+                    {/* Informações */}
+                    <div className="flex-1">
+                      <div className="flex items-start justify-between mb-2">
+                        <div>
+                          <h3 className="font-bold text-lg text-gray-900">
+                            {visita.visitante.nomeCompleto}
+                          </h3>
+                          <p className="text-sm text-gray-600">
+                            Visitando: <strong>{visita.adolescente.nomeCompleto}</strong>
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {getIconeStatusTempo(visita)}
+                          <span className="font-mono font-bold text-gray-900">
+                            {visita.tempoDecorrido.total}
+                          </span>
+                          <span
+                            className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                              emAndamento
+                                ? "bg-blue-100 text-blue-700"
+                                : "bg-green-100 text-green-700"
+                            }`}
+                          >
+                            {emAndamento ? "Em andamento" : "Encerrada"}
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 text-gray-700">
-                        <Home size={16} />
-                        <span>
-                          {visita.adolescente.casa
-                            ? `Casa ${visita.adolescente.casa.numero}`
-                            : "Casa não definida"}
-                        </span>
-                      </div>
-                      <div className="text-gray-700">
-                        <span className="font-medium">Período:</span> {visita.periodoAutorizado}
-                      </div>
-                      {visita.totalAcompanhantes > 0 && (
+
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm mb-3">
+                        <div className="flex items-center gap-2 text-gray-700">
+                          <Clock size={16} />
+                          <span>Entrada: {formatarHoraEntrada(visita.dataHoraEntrada)}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-gray-700">
+                          <Home size={16} />
+                          <span>
+                            {visita.adolescente.casa
+                              ? `Casa ${visita.adolescente.casa.numero}`
+                              : "Casa não definida"}
+                          </span>
+                        </div>
                         <div className="text-gray-700">
-                          <span className="font-medium">Acompanhantes:</span>{" "}
-                          {visita.totalAcompanhantes}
+                          <span className="font-medium">Período:</span> {visita.periodoAutorizado}
+                        </div>
+                        {visita.totalAcompanhantes > 0 && (
+                          <div className="text-gray-700">
+                            <span className="font-medium">Acompanhantes:</span>{" "}
+                            {visita.totalAcompanhantes}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Detalhes de Acompanhantes */}
+                      {visita.totalAcompanhantes > 0 && (
+                        <div className="bg-gray-50 rounded-lg p-3 mb-2">
+                          <p className="text-sm text-gray-700">
+                            <strong>Adultos:</strong> {visita.quantidadeAdultos} |{" "}
+                            <strong>Crianças:</strong> {visita.quantidadeCriancas}
+                          </p>
                         </div>
                       )}
-                    </div>
 
-                    {/* Detalhes de Acompanhantes */}
-                    {visita.totalAcompanhantes > 0 && (
-                      <div className="bg-gray-50 rounded-lg p-3 mb-2">
-                        <p className="text-sm text-gray-700">
-                          <strong>Adultos:</strong> {visita.quantidadeAdultos} |{" "}
-                          <strong>Crianças:</strong> {visita.quantidadeCriancas}
+                      {/* Observações */}
+                      {visita.observacoes && (
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                          <p className="text-sm text-blue-800">
+                            <strong>Obs:</strong> {visita.observacoes}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Barra de Progresso */}
+                      <div className="mt-3">
+                        <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full transition-all ${
+                              visita.tempoDecorrido.alertaExcedido
+                                ? "bg-red-500"
+                                : visita.tempoDecorrido.alertaProximoLimite
+                                ? "bg-yellow-500"
+                                : "bg-green-500"
+                            }`}
+                            style={{
+                              width: `${Math.min(visita.tempoDecorrido.percentual, 100)}%`,
+                            }}
+                          ></div>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {visita.tempoDecorrido.percentual}% do tempo autorizado
                         </p>
                       </div>
-                    )}
-
-                    {/* Observações */}
-                    {visita.observacoes && (
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                        <p className="text-sm text-blue-800">
-                          <strong>Obs:</strong> {visita.observacoes}
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Barra de Progresso */}
-                    <div className="mt-3">
-                      <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full transition-all ${
-                            visita.tempoDecorrido.alertaExcedido
-                              ? "bg-red-500"
-                              : visita.tempoDecorrido.alertaProximoLimite
-                              ? "bg-yellow-500"
-                              : "bg-green-500"
-                          }`}
-                          style={{
-                            width: `${Math.min(visita.tempoDecorrido.percentual, 100)}%`,
-                          }}
-                        ></div>
-                      </div>
-                      <p className="text-xs text-gray-500 mt-1">
-                        {visita.tempoDecorrido.percentual}% do tempo autorizado
-                      </p>
                     </div>
                   </div>
+
+                  {emAndamento && (
+                    <div className="mt-4 flex justify-end">
+                      <button
+                        onClick={() => finalizarVisita(visita.id, visita.visitante.id)}
+                        disabled={finalizandoId === visita.id}
+                        className="px-4 py-2 text-sm font-semibold rounded-lg border border-indigo-500 text-indigo-600 hover:bg-indigo-50 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                      >
+                        {finalizandoId === visita.id ? "Encerrando..." : "Encerrar visita"}
+                      </button>
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
     </div>
   );
 }
+
+
+
+

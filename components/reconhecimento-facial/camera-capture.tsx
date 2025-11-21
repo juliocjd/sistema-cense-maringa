@@ -57,7 +57,6 @@ export function CameraCapture({
 
       // Criar elemento de imagem temporário para análise
       const img = new Image();
-      img.src = imageDataUrl;
 
       await new Promise<void>((resolve, reject) => {
         img.onload = () => resolve();
@@ -68,6 +67,8 @@ export function CameraCapture({
 
         // Timeout de 5 segundos para carregamento da imagem
         setTimeout(() => reject(new Error("Timeout ao carregar imagem")), 5000);
+
+        img.src = imageDataUrl;
       });
 
       console.log("📸 Imagem carregada com sucesso. Dimensões:", img.width, "x", img.height);
@@ -149,7 +150,6 @@ export function CameraCapture({
     try {
       // Reprocessar para obter embeddings
       const img = new Image();
-      img.src = capturedImage;
 
       await new Promise<void>((resolve, reject) => {
         img.onload = () => resolve();
@@ -160,6 +160,8 @@ export function CameraCapture({
 
         // Timeout de 5 segundos
         setTimeout(() => reject(new Error("Timeout ao carregar imagem")), 5000);
+
+        img.src = capturedImage;
       });
 
       console.log("🔄 CameraCapture: Reprocessando embeddings na confirmação...");
@@ -179,7 +181,6 @@ export function CameraCapture({
       if (!embeddings) {
         setValidationError("Erro ao processar face. Capture novamente.");
         setCapturedImage(null);
-        setProcessing(false);
         return;
       }
 
@@ -189,7 +190,7 @@ export function CameraCapture({
       console.log("🧠 embeddings é Float32Array?", embeddings instanceof Float32Array);
 
       // Enviar para componente pai
-      onCapture(capturedImage, embeddings);
+      await onCapture(capturedImage, embeddings);
 
       console.log("✅ CameraCapture: onCapture chamado com sucesso!");
     } catch (err) {
@@ -215,7 +216,9 @@ export function CameraCapture({
 
       setValidationError(errorMessage);
       setCapturedImage(null);
+    } finally {
       setProcessing(false);
+      setCapturedImage(null);
     }
   };
 

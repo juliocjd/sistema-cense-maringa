@@ -60,21 +60,17 @@ export function ListaVisitasAndamento({ onVisitaFinalizada }: ListaVisitasAndame
 
   const carregarVisitas = async () => {
     try {
-      const response = await fetch("/api/visitas?status=ativas&limit=50");
+      const response = await fetch("/api/visitas?status=ativas&limit=50", { cache: "no-store" });
       if (!response.ok) {
         throw new Error("Erro ao carregar visitas");
       }
       const data = await response.json();
 
-      // Filtrar visitas que estão dentro do período válido
-      const agora = new Date();
-      const visitasFiltradas = (data.visitas || []).filter((visita: VisitaAndamento) => {
-        const entrada = new Date(visita.dataHoraEntrada);
-        const diffMinutos = (agora.getTime() - entrada.getTime()) / (1000 * 60);
-        return diffMinutos <= duracaoMaxima;
-      });
+      const visitasRecebidas = Array.isArray(data.visitas)
+        ? (data.visitas as VisitaAndamento[])
+        : [];
 
-      setVisitas(visitasFiltradas);
+      setVisitas(visitasRecebidas);
       setErro(null);
     } catch (err) {
       setErro(err instanceof Error ? err.message : "Erro ao carregar visitas");

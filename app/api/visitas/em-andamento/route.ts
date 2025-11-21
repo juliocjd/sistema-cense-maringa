@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
       select: {
         id: true,
         dataHoraEntrada: true,
+        dataHoraSaida: true,
         periodoAutorizado: true,
         quantidadeAdultos: true,
         quantidadeCriancas: true,
@@ -78,6 +79,7 @@ export async function GET(request: NextRequest) {
       return {
         id: visita.id,
         dataHoraEntrada: visita.dataHoraEntrada.toISOString(),
+        dataHoraSaida: visita.dataHoraSaida ? visita.dataHoraSaida.toISOString() : null,
         periodoAutorizado: visita.periodoAutorizado,
         visitante: {
           id: visita.visitante.id,
@@ -108,6 +110,7 @@ export async function GET(request: NextRequest) {
           alertaProximoLimite: percentualTempo >= 80,
           alertaExcedido: percentualTempo >= 100,
         },
+        encerrada: visita.dataHoraSaida !== null,
         observacoes: visita.observacoes,
       };
     });
