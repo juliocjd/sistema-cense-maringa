@@ -16,6 +16,7 @@ export type ConflitoExternoResumo = {
   id: string;
   tipo: "BAIRRO" | "FACCAO";
   status: string;
+  fonteInformacao?: string | null;
   origem: {
     id: string;
     nome: string;

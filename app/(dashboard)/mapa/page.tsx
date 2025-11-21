@@ -42,6 +42,7 @@ export default function MapaPage() {
           nomeSocial: a.nomeSocial ?? undefined,
           numeroSms: a.numeroSms ?? undefined,
           fotoUrl: a.fotoUrl ?? null,
+          vulgo: a.vulgo ?? null,
           alojamentoAtualId:
             a.alojamentoAtualId ?? a.alojamentoAtual?.id ?? null,
           statusUnidade: a.statusUnidade,
@@ -63,12 +64,13 @@ export default function MapaPage() {
               }
             : null,
           faccaoGrupoId: a.faccaoGrupoId ?? null,
-          faccaoNumeroMembro: a.faccaoNumeroMembro ?? null,
+          faccaoFuncao: a.faccaoFuncao ?? null,
+          faccaoInformacaoOrigem: a.faccaoInformacaoOrigem ?? null,
+          faccaoInformacaoDetalhe: a.faccaoInformacaoDetalhe ?? null,
           faccao: a.faccao
             ? {
                 id: a.faccao.id,
                 nome: a.faccao.nome ?? a.faccao.nomeFaccao,
-                numeroMembro: a.faccao.numeroMembro ?? null,
               }
             : null,
           conflitosA: (a.conflitosA || []) as Conflito[],

@@ -20,6 +20,7 @@ export default function FormConflito({
   const [tipo, setTipo] = useState<TipoConflito>("BAIRRO");
   const [origem, setOrigem] = useState("");
   const [destino, setDestino] = useState("");
+  const [fonteInformacao, setFonteInformacao] = useState("");
   const [mensagem, setMensagem] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -29,12 +30,17 @@ export default function FormConflito({
     [bairros, faccoes, tipo]
   );
 
+  const fonteValida = fonteInformacao.trim().length >= 5;
   const podeSalvar =
-    origem.length > 0 && destino.length > 0 && origem !== destino;
+    origem.length > 0 &&
+    destino.length > 0 &&
+    origem !== destino &&
+    fonteValida;
 
   const resetar = () => {
     setOrigem("");
     setDestino("");
+    setFonteInformacao("");
     setErro(null);
   };
 
@@ -54,10 +60,19 @@ export default function FormConflito({
           ? "/api/bairros/conflitos"
           : "/api/faccoes/conflitos";
 
+      const fonteSanitizada = fonteInformacao.trim();
       const payload =
         tipo === "BAIRRO"
-          ? { bairroAId: origem, bairroBId: destino }
-          : { faccaoAId: origem, faccaoBId: destino };
+          ? {
+              bairroAId: origem,
+              bairroBId: destino,
+              fonteInformacao: fonteSanitizada,
+            }
+          : {
+              faccaoAId: origem,
+              faccaoBId: destino,
+              fonteInformacao: fonteSanitizada,
+            };
 
       const resposta = await fetch(endpoint, {
         method: "POST",
@@ -158,6 +173,22 @@ export default function FormConflito({
               ))}
             </select>
           </div>
+        </div>
+
+        <div>
+          <label className="text-xs font-semibold uppercase text-slate-500">
+            Fonte da informacao
+          </label>
+          <textarea
+            value={fonteInformacao}
+            onChange={(event) => setFonteInformacao(event.target.value)}
+            rows={3}
+            className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:outline-none"
+            placeholder="Ex: Entrevista com o adolescente Joao (CI 123/2025), materia jornalistica, comunicacao com outra unidade..."
+          />
+          <p className="text-[11px] text-slate-400 mt-1">
+            Descreva como a equipe teve acesso a este conflito (minimo 5 caracteres).
+          </p>
         </div>
 
         {erro && <p className="text-xs text-rose-600">{erro}</p>}

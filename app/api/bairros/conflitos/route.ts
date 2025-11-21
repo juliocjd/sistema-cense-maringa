@@ -10,6 +10,10 @@ const listSchema = z.object({
 const createSchema = z.object({
   bairroAId: z.string().uuid(),
   bairroBId: z.string().uuid(),
+  fonteInformacao: z
+    .string()
+    .trim()
+    .min(5, "Descreva como a informacao foi obtida"),
 });
 
 const ensureString = (value: unknown): string => {
@@ -67,6 +71,7 @@ export async function GET(request: NextRequest) {
           nome: conflito.bairroB.nomeBairro,
           cidade: conflito.bairroB.cidade,
         },
+        fonteInformacao: conflito.fonteInformacao ?? null,
       })),
     });
   } catch (error) {
@@ -152,6 +157,7 @@ export async function POST(request: NextRequest) {
         bairroAId: parsed.data.bairroAId,
         barroBId: parsed.data.bairroBId,
         status: "ATIVO",
+        fonteInformacao: parsed.data.fonteInformacao.trim(),
       },
     });
 
@@ -164,6 +170,7 @@ export async function POST(request: NextRequest) {
         detalhesAlteracao: {
           bairroAId: parsed.data.bairroAId,
           bairroBId: parsed.data.bairroBId,
+          fonte: parsed.data.fonteInformacao.trim(),
         },
         ipOrigem: getIp(request),
       },

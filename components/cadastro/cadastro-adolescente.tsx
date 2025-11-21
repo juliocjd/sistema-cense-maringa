@@ -210,6 +210,7 @@ export function CadastroAdolescente({
   const [dadosPessoais, setDadosPessoais] = useState({
     nomeCompleto: "",
     nomeSocial: "",
+    vulgo: "",
     dataNascimento: "",
     numeroSms: "",
     numeroInterno: "",
@@ -235,10 +236,13 @@ export function CadastroAdolescente({
 
   const [vinculacoes, setVinculacoes] = useState({
     faccaoId: "",
-    numeroMembro: "",
+    faccaoFuncao: "",
+    faccaoOrigem: "" as "" | "CONFESSADA" | "OBSERVACAO",
+    faccaoOrigemDetalhe: "",
     bairroId: "",
     riscoFuga: "BAIXO" as RiscoFuga,
   });
+  const temFaccaoSelecionada = Boolean(vinculacoes.faccaoId);
 
   const [tecnicoReferenciaId, setTecnicoReferenciaId] = useState("");
   const [tecnicosDisponiveis, setTecnicosDisponiveis] = useState<
@@ -321,6 +325,7 @@ export function CadastroAdolescente({
     setDadosPessoais({
       nomeCompleto: initialData.nomeCompleto ?? "",
       nomeSocial: initialData.nomeSocial ?? "",
+      vulgo: initialData.vulgo ?? "",
       dataNascimento: formatarDataInput(initialData.dataNascimento),
       numeroSms: initialData.numeroSms ?? "",
       numeroInterno: initialData.numeroInterno
@@ -355,10 +360,11 @@ export function CadastroAdolescente({
 
     setVinculacoes({
       faccaoId: initialData.faccaoGrupoId ?? "",
-      numeroMembro:
-        initialData.faccaoNumeroMembro ??
-        initialData.faccao?.numeroMembro ??
-        "",
+      faccaoFuncao: initialData.faccaoFuncao ?? "",
+      faccaoOrigem:
+        (initialData.faccaoInformacaoOrigem as
+          "" | "CONFESSADA" | "OBSERVACAO") ?? "",
+      faccaoOrigemDetalhe: initialData.faccaoInformacaoDetalhe ?? "",
       bairroId: initialData.bairroOrigemId ?? "",
       riscoFuga: (initialData.riscoFuga as RiscoFuga) ?? "BAIXO",
     });
@@ -1045,6 +1051,16 @@ export function CadastroAdolescente({
       }
     }
 
+    if (
+      vinculacoes.faccaoOrigem === "OBSERVACAO" &&
+      !vinculacoes.faccaoOrigemDetalhe.trim()
+    ) {
+      mensagens.push(
+        "Explique como a informacao de faccao foi obtida quando a origem for observacao."
+      );
+      etapaErro = Math.max(etapaErro, 3);
+    }
+
     if (mensagens.length > 0) {
       setErrosFormulario(mensagens);
       setEtapaAtual(etapaErro);
@@ -1091,6 +1107,17 @@ export function CadastroAdolescente({
         statusUnidade === "ATIVO"
           ? sanitize(dadosPessoais.numeroInterno)
           : undefined;
+      const vulgoSanitizado = sanitizeOrNull(dadosPessoais.vulgo);
+      const faccaoIdSanitizado = sanitize(vinculacoes.faccaoId);
+      const faccaoFuncaoSanitizada = sanitize(vinculacoes.faccaoFuncao);
+      const faccaoOrigemValor =
+        vinculacoes.faccaoOrigem === "" || !faccaoIdSanitizado
+          ? undefined
+          : vinculacoes.faccaoOrigem;
+      const faccaoOrigemDetalheSanitizada =
+        faccaoOrigemValor === "OBSERVACAO"
+          ? sanitize(vinculacoes.faccaoOrigemDetalhe)
+          : undefined;
       const historicoPayload: AdolescenteHistoricoRegistroInput[] =
         atoInfracional.historico
           .map((item): AdolescenteHistoricoRegistroInput | null => {
@@ -1131,6 +1158,7 @@ export function CadastroAdolescente({
       const adolescente: AdolescenteCadastroPayload = {
         nomeCompleto: dadosPessoais.nomeCompleto.trim(),
         nomeSocial: sanitizeOrNull(dadosPessoais.nomeSocial) ?? undefined,
+        vulgo: vulgoSanitizado ?? undefined,
         dataNascimento: sanitize(dadosPessoais.dataNascimento),
         numeroSms: sanitize(dadosPessoais.numeroSms),
         numeroInterno: numeroInternoSanitizado
@@ -1165,8 +1193,16 @@ export function CadastroAdolescente({
             observacoes: t.observacoes || "",
             significadoPessoal: t.significadoPessoal || "",
           })),
-        faccaoGrupoId: sanitize(vinculacoes.faccaoId),
-        faccaoNumeroMembro: sanitize(vinculacoes.numeroMembro),
+        faccaoGrupoId: faccaoIdSanitizado,
+        faccaoFuncao:
+          faccaoIdSanitizado && faccaoFuncaoSanitizada
+            ? faccaoFuncaoSanitizada
+            : undefined,
+        faccaoInformacaoOrigem: faccaoOrigemValor,
+        faccaoInformacaoDetalhe:
+          faccaoOrigemValor === "OBSERVACAO"
+            ? faccaoOrigemDetalheSanitizada
+            : undefined,
         bairroOrigemId: sanitize(vinculacoes.bairroId),
         riscoFuga: vinculacoes.riscoFuga,
         tecnicoReferenciaId: tecnicoReferenciaId || undefined,
@@ -1374,6 +1410,27 @@ export function CadastroAdolescente({
                     className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
                     placeholder="Ex: Joao"
                   />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Vulgo / Apelido
+                  </label>
+                  <input
+                    type="text"
+                    value={dadosPessoais.vulgo}
+                    onChange={(e) =>
+                      setDadosPessoais({
+                        ...dadosPessoais,
+                        vulgo: e.target.value,
+                      })
+                    }
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
+                    placeholder="Ex: Juninho do Centro"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Utilize este campo para registrar apelidos mencionados em investigacoes ou relatos.
+                  </p>
                 </div>
 
                 <div>
@@ -1788,12 +1845,18 @@ export function CadastroAdolescente({
                   </div>
                   <select
                     value={vinculacoes.faccaoId}
-                    onChange={(e) =>
-                      setVinculacoes({
-                        ...vinculacoes,
-                        faccaoId: e.target.value,
-                      })
-                    }
+                    onChange={(e) => {
+                      const novoValor = e.target.value;
+                      setVinculacoes((prev) => ({
+                        ...prev,
+                        faccaoId: novoValor,
+                        faccaoFuncao: novoValor ? prev.faccaoFuncao : "",
+                        faccaoOrigem: novoValor ? prev.faccaoOrigem : "",
+                        faccaoOrigemDetalhe: novoValor
+                          ? prev.faccaoOrigemDetalhe
+                          : "",
+                      }));
+                    }}
                     className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
                   >
                     {faccoesDisponiveis.map((faccao) => (
@@ -1812,20 +1875,87 @@ export function CadastroAdolescente({
 
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Numero de Membro
+                    Funcao dentro da organizacao
                   </label>
                   <input
                     type="text"
-                    value={vinculacoes.numeroMembro}
+                    value={vinculacoes.faccaoFuncao}
                     onChange={(e) =>
                       setVinculacoes({
                         ...vinculacoes,
-                        numeroMembro: e.target.value,
+                        faccaoFuncao: e.target.value,
                       })
                     }
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
-                    placeholder="Ex: 123"
+                    disabled={!temFaccaoSelecionada}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all disabled:bg-gray-100 disabled:text-gray-500"
+                    placeholder="Ex: Vigia, recrutador, sem funcao definida"
                   />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Se conhecido, informe o papel desempenhado pelo adolescente dentro da faccao.
+                  </p>
+                </div>
+
+                <div className="md:col-span-2 space-y-2">
+                  <label className="block text-sm font-semibold text-gray-700">
+                    Origem da informacao sobre a faccao
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { label: "Nao informado", value: "" },
+                      { label: "Confessada pelo adolescente", value: "CONFESSADA" },
+                      { label: "Observacao/Inteligencia", value: "OBSERVACAO" },
+                    ].map((opcao) => {
+                      const ativo = vinculacoes.faccaoOrigem === opcao.value;
+                      return (
+                        <button
+                          key={opcao.value || "sem-origem"}
+                          type="button"
+                          disabled={!temFaccaoSelecionada}
+                          onClick={() =>
+                            setVinculacoes((prev) => ({
+                              ...prev,
+                              faccaoOrigem: opcao.value as "" | "CONFESSADA" | "OBSERVACAO",
+                              faccaoOrigemDetalhe:
+                                opcao.value === "OBSERVACAO"
+                                  ? prev.faccaoOrigemDetalhe
+                                  : "",
+                            }))
+                          }
+                          className={`px-4 py-2 rounded-full border text-xs font-semibold transition ${
+                            ativo
+                              ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+                              : "border-gray-300 text-gray-600 hover:border-indigo-300 hover:text-indigo-600"
+                          } ${!temFaccaoSelecionada ? "opacity-60 cursor-not-allowed" : ""}`}
+                        >
+                          {opcao.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    {temFaccaoSelecionada
+                      ? "Registre se o vinculo foi relatado pelo adolescente ou identificado pela equipe."
+                      : "Campos de origem ficam habilitados ao selecionar uma faccao."}
+                  </p>
+                  {temFaccaoSelecionada && vinculacoes.faccaoOrigem === "OBSERVACAO" && (
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">
+                        Descreva como essa informacao foi obtida
+                      </label>
+                      <textarea
+                        value={vinculacoes.faccaoOrigemDetalhe}
+                        onChange={(e) =>
+                          setVinculacoes({
+                            ...vinculacoes,
+                            faccaoOrigemDetalhe: e.target.value,
+                          })
+                        }
+                        rows={3}
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all text-sm"
+                        placeholder="Ex: Confirmado por registro de inteligencia, relato de tecnico, observacao de tatuagem..."
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div>

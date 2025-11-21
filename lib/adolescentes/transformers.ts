@@ -180,6 +180,7 @@ export function mapPrismaAdolescente(
     nomeSocial: adolescente.nomeSocial ?? null,
     numeroSms: adolescente.numeroSms ?? null,
     numeroInterno: adolescente.numeroInterno ?? null,
+    vulgo: adolescente.vulgo ?? null,
     numeroProcesso: adolescente.numeroProcesso ?? null,
     fotoUrl: adolescente.fotoUrl ?? null,
     dataNascimento: formatDate(adolescente.dataNascimento),
@@ -205,12 +206,13 @@ export function mapPrismaAdolescente(
       : null,
     alojamentoAtual,
     faccaoGrupoId: adolescente.faccaoGrupoId ?? null,
-    faccaoNumeroMembro: adolescente.faccaoNumeroMembro ?? null,
+    faccaoFuncao: adolescente.faccaoFuncao ?? null,
+    faccaoInformacaoOrigem: adolescente.faccaoInformacaoOrigem ?? null,
+    faccaoInformacaoDetalhe: adolescente.faccaoInformacaoDetalhe ?? null,
     faccao: adolescente.faccao
       ? {
           id: adolescente.faccao.id,
           nome: adolescente.faccao.nomeFaccao,
-          numeroMembro: adolescente.faccaoNumeroMembro ?? null,
         }
       : null,
     bairroOrigemId: adolescente.bairroOrigemId ?? null,

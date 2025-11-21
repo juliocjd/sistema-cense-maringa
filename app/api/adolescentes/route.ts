@@ -34,6 +34,7 @@ const ALERTA_ESPECIAL_ENUM = z.enum(
     ...AlertaEspecialTipo[]
   ]
 );
+const FACCAO_ORIGEM_ENUM = z.enum(["CONFESSADA", "OBSERVACAO"]);
 
 const alertaEspecialSchema = z.object({
   tipo: ALERTA_ESPECIAL_ENUM,
@@ -56,6 +57,7 @@ const historicoRegistroSchema = z
 const createAdolescenteSchema = z.object({
   nomeCompleto: z.string().min(3, "Nome deve ter no minimo 3 caracteres"),
   nomeSocial: z.string().optional().nullable(),
+  vulgo: z.string().optional().nullable(),
   fotoUrl: z.string().url().optional().nullable(),
   numeroSms: z.string().optional().nullable(),
   numeroInterno: z
@@ -74,7 +76,9 @@ const createAdolescenteSchema = z.object({
     .enum(["ATIVO", "TRANSFERIDO", "LIBERADO", "EVADIDO"])
     .default("ATIVO"),
   faccaoGrupoId: z.string().uuid().optional().nullable(),
-  faccaoNumeroMembro: z.string().optional().nullable(),
+  faccaoFuncao: z.string().optional().nullable(),
+  faccaoInformacaoOrigem: FACCAO_ORIGEM_ENUM.optional().nullable(),
+  faccaoInformacaoDetalhe: z.string().optional().nullable(),
   bairroOrigemId: z.string().uuid().optional().nullable(),
   riscoFuga: z.enum(["BAIXO", "MEDIO", "ALTO"]).optional().nullable(),
   alertaRiscoSuicidio: z.boolean().default(false),
@@ -369,11 +373,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const vulgoSanitizado = sanitizeNullableString(validated.vulgo ?? undefined);
+    const faccaoFuncaoSanitizada = sanitizeNullableString(
+      validated.faccaoFuncao ?? undefined
+    );
+    const faccaoOrigemInfo = validated.faccaoInformacaoOrigem ?? undefined;
+    const faccaoOrigemDetalheSanitizado =
+      faccaoOrigemInfo === "OBSERVACAO"
+        ? sanitizeNullableString(validated.faccaoInformacaoDetalhe ?? undefined)
+        : undefined;
+
+    if (faccaoOrigemInfo === "OBSERVACAO" && !faccaoOrigemDetalheSanitizado) {
+      return NextResponse.json(
+        {
+          erro:
+            "Descreva como a informacao de faccao foi obtida quando a origem for observacao.",
+        },
+        { status: 400 }
+      );
+    }
+
     const data: Prisma.AdolescenteCreateInput = {
       nomeCompleto: validated.nomeCompleto,
       nomeSocial: validated.nomeSocial ?? undefined,
       fotoUrl: validated.fotoUrl ?? undefined,
       numeroSms: validated.numeroSms ?? undefined,
+      vulgo: vulgoSanitizado,
       dataNascimento: toDateOrUndefined(validated.dataNascimento),
       dataEntrada: toDateOrUndefined(validated.dataEntrada) ?? new Date(),
       numeroProcesso: validated.numeroProcesso ?? undefined,
@@ -382,7 +407,9 @@ export async function POST(request: NextRequest) {
       faccao: validated.faccaoGrupoId
         ? { connect: { id: validated.faccaoGrupoId } }
         : undefined,
-      faccaoNumeroMembro: validated.faccaoNumeroMembro ?? undefined,
+      faccaoFuncao: faccaoFuncaoSanitizada,
+      faccaoInformacaoOrigem: faccaoOrigemInfo,
+      faccaoInformacaoDetalhe: faccaoOrigemDetalheSanitizado,
       bairroOrigem: validated.bairroOrigemId
         ? { connect: { id: validated.bairroOrigemId } }
         : undefined,

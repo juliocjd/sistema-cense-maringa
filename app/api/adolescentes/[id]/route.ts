@@ -42,6 +42,8 @@ const ALERTA_ESPECIAL_ENUM = z.enum(
   ]
 );
 
+const FACCAO_ORIGEM_ENUM = z.enum(["CONFESSADA", "OBSERVACAO"]);
+
 const alertaEspecialSchema = z.object({
   tipo: ALERTA_ESPECIAL_ENUM,
   descricao: z.string().optional().nullable(),
@@ -50,6 +52,7 @@ const alertaEspecialSchema = z.object({
 const updateAdolescenteSchema = z.object({
   nomeCompleto: z.string().min(3, "Nome deve ter no minimo 3 caracteres").optional(),
   nomeSocial: z.string().optional().nullable(),
+  vulgo: z.string().optional().nullable(),
   fotoUrl: z.string().url().optional().nullable(),
   numeroSms: z.string().optional().nullable(),
   numeroInterno: z
@@ -73,7 +76,9 @@ const updateAdolescenteSchema = z.object({
   atoInfracionalGravidadeObs: z.string().optional().nullable(),
   statusUnidade: z.enum(["ATIVO", "TRANSFERIDO", "LIBERADO", "EVADIDO"]).optional(),
   faccaoGrupoId: z.string().uuid().optional().nullable(),
-  faccaoNumeroMembro: z.string().optional().nullable(),
+  faccaoFuncao: z.string().optional().nullable(),
+  faccaoInformacaoOrigem: FACCAO_ORIGEM_ENUM.optional().nullable(),
+  faccaoInformacaoDetalhe: z.string().optional().nullable(),
   bairroOrigemId: z.string().uuid().optional().nullable(),
   riscoFuga: z.enum(["BAIXO", "MEDIO", "ALTO"]).optional().nullable(),
   alertaRiscoSuicidio: z.boolean().optional(),
@@ -295,6 +300,7 @@ export async function PUT(
       select: {
         id: true,
         nomeCompleto: true,
+        vulgo: true,
         statusUnidade: true,
         numeroInterno: true,
         alojamentoAtualId: true,
@@ -318,6 +324,9 @@ export async function PUT(
         alertaPerfilMapeado: true,
         alertaSaudeConfidencial: true,
         alertaSaudeDetalhes: true,
+        faccaoFuncao: true,
+        faccaoInformacaoOrigem: true,
+        faccaoInformacaoDetalhe: true,
       },
     });
 
@@ -345,6 +354,35 @@ export async function PUT(
         : numeroInternoInput === null
         ? null
         : numeroInternoInput;
+
+    const origemInformacaoAtual =
+      (existente.faccaoInformacaoOrigem as "CONFESSADA" | "OBSERVACAO" | null) ?? null;
+    const detalheInformacaoAtual = existente.faccaoInformacaoDetalhe ?? null;
+    const origemInformacaoDestino =
+      validated.faccaoInformacaoOrigem !== undefined
+        ? validated.faccaoInformacaoOrigem
+        : origemInformacaoAtual;
+    const detalheInformacaoValidada =
+      validated.faccaoInformacaoDetalhe !== undefined
+        ? sanitizeNullableString(validated.faccaoInformacaoDetalhe) ?? null
+        : undefined;
+    const detalheInformacaoDestino =
+      detalheInformacaoValidada !== undefined
+        ? detalheInformacaoValidada
+        : detalheInformacaoAtual ?? null;
+
+    if (
+      origemInformacaoDestino === "OBSERVACAO" &&
+      !detalheInformacaoDestino
+    ) {
+      return NextResponse.json(
+        {
+          erro:
+            "Descreva como a informacao de faccao foi obtida quando a origem for observacao.",
+        },
+        { status: 400 }
+      );
+    }
 
     const fallbackAlertasEspeciais: Parameters<
       typeof mapearAlertasEspeciaisDoPayload
@@ -530,6 +568,11 @@ export async function PUT(
       camposAlterados.push("nomeSocial");
     }
 
+    if (validated.vulgo !== undefined) {
+      data.vulgo = nullableStringOrNull(validated.vulgo);
+      camposAlterados.push("vulgo");
+    }
+
     if (validated.fotoUrl !== undefined) {
       data.fotoUrl = nullableStringOrNull(validated.fotoUrl);
       camposAlterados.push("fotoUrl");
@@ -662,10 +705,26 @@ export async function PUT(
       camposAlterados.push("faccaoGrupoId");
     }
 
-    if (validated.faccaoNumeroMembro !== undefined) {
-      data.faccaoNumeroMembro =
-        sanitizeNullableString(validated.faccaoNumeroMembro) ?? null;
-      camposAlterados.push("faccaoNumeroMembro");
+    if (validated.faccaoFuncao !== undefined) {
+      data.faccaoFuncao = nullableStringOrNull(validated.faccaoFuncao);
+      camposAlterados.push("faccaoFuncao");
+    }
+
+    if (validated.faccaoInformacaoOrigem !== undefined) {
+      data.faccaoInformacaoOrigem = validated.faccaoInformacaoOrigem ?? null;
+      camposAlterados.push("faccaoInformacaoOrigem");
+      if (validated.faccaoInformacaoOrigem !== "OBSERVACAO") {
+        data.faccaoInformacaoDetalhe = null;
+        camposAlterados.push("faccaoInformacaoDetalhe");
+      }
+    }
+
+    if (validated.faccaoInformacaoDetalhe !== undefined) {
+      data.faccaoInformacaoDetalhe =
+        origemInformacaoDestino === "OBSERVACAO"
+          ? detalheInformacaoDestino
+          : null;
+      camposAlterados.push("faccaoInformacaoDetalhe");
     }
 
     if (validated.bairroOrigemId !== undefined) {

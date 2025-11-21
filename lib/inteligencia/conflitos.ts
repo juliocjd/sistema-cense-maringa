@@ -59,6 +59,7 @@ export async function listarConflitosExternos(
         id: conflito.id,
         tipo: "BAIRRO",
         status: conflito.status,
+        fonteInformacao: conflito.fonteInformacao ?? null,
         origem: {
           id: conflito.bairroAId,
           nome: conflito.bairroA?.nomeBairro ?? "Bairro removido",
@@ -85,6 +86,7 @@ export async function listarConflitosExternos(
         id: conflito.id,
         tipo: "FACCAO",
         status: conflito.status,
+        fonteInformacao: conflito.fonteInformacao ?? null,
         origem: {
           id: conflito.faccaoAId,
           nome: conflito.faccaoA?.nomeFaccao ?? "Faccao removida",

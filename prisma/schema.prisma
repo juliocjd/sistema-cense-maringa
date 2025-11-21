@@ -148,6 +148,7 @@ model FaccaoConflito {
   faccaoAId String  @map("faccao_a_id")
   faccaoBId String  @map("faccao_b_id")
   status    String  @default("ATIVO")
+  fonteInformacao String? @map("fonte_informacao")
   criadoEm  DateTime @default(now()) @map("criado_em")
   atualizadoEm DateTime @updatedAt @map("atualizado_em")
 
@@ -176,6 +177,7 @@ model BairroConflito {
   bairroAId String  @map("bairro_a_id")
   barroBId  String  @map("bairro_b_id")
   status    String  @default("ATIVO")
+  fonteInformacao String? @map("fonte_informacao")
 
   // Relações
   bairroA Bairro @relation("BairroA", fields: [bairroAId], references: [id])
@@ -231,8 +233,11 @@ model Adolescente {
   statusUnidade             String    @default("ATIVO") @map("status_unidade")
   
   // Perfil de Risco
+  vulgo                     String?   @map("vulgo")
   faccaoGrupoId             String?   @map("faccao_grupo_id")
-  faccaoNumeroMembro        String?   @map("faccao_numero_membro")
+  faccaoFuncao              String?   @map("faccao_funcao")
+  faccaoInformacaoOrigem    String?   @map("faccao_informacao_origem")
+  faccaoInformacaoDetalhe   String?   @map("faccao_informacao_detalhe")
   bairroOrigemId            String?   @map("bairro_origem_id")
   riscoFuga                 String?   @map("risco_fuga")
   

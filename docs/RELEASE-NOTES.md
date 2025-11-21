@@ -3,6 +3,8 @@
 ## 2025-11-XX ??- Monitoramento de conflitos e aloca????es automatizadas
 
 - **Risco centralizado:** o motor lib/riscos/calcular agora retorna itens detalhados (tipo do alerta, proximidade e nivel 0-5) e alimenta a rota GET /api/verificar-alocacao, eliminando divergencias entre mapa operacional, sugestoes de destino e a verificacao previa usada no modal de transferencia/alocacao.
+- **Conflitos externos com rastreabilidade:** ao cadastrar conflitos territoriais ou faccionais, o operador informa obrigatoriamente a fonte da informacao (entrevista, CI, midia etc.). O backend (bairros/faccoes) armazena o campo `fonteInformacao`, o painel de conflitos exibe esse dado e o novo campo aparece na API para auditoria.
+- **Cadastro atualiza informacoes sensiveis:** o campo "numero de membro" foi removido do dossie e substituido por (1) Vulgo/apelido, (2) Funcao exercida na faccao e (3) Origem da informacao (Confessada x Observacao) com justificativa obrigatoria quando observacao. Prisma, APIs (`POST/PUT /api/adolescentes`), transformers, mapa e listagem consomem os novos campos, e o formulario mobile/desktop valida e exibe as entradas automaticamente.
 - **Critério de nível 5 revisado:** rivais na mesma ala agora ficam em **Nível 4 - Elevado** (ainda exigindo justificativa), deixando o **Nível 5** reservado exclusivamente para alojamentos frontais. O ajuste afeta mapa operacional, `/api/casas/status`, `/api/verificar-alocacao` e o motor de sugestões automaticamente.
 - **Modal + Visao Geral:** o modal de detalhes exibe um bloco verde de 'Conflitos resolvidos' com adversario, local e data, e o mesmo componente foi reusado na aba Visao Geral (sem pop-ups do navegador), mantendo as acoes de alocar, transferir, desalocar e interditar em um unico fluxo.
 

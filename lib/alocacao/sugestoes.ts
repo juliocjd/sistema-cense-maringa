@@ -157,11 +157,14 @@ const preencherAdolescenteBasico = (
     dataDesinternacao?: string | Date | null;
     criadoEm?: string | Date | null;
     atualizadoEm?: string | Date | null;
+    vulgo?: string | null;
+    faccaoFuncao?: string | null;
+    faccaoInformacaoOrigem?: string | null;
+    faccaoInformacaoDetalhe?: string | null;
     faccao?: {
       id: string;
       nomeFaccao?: string | null;
       nome?: string | null;
-      numeroMembro?: string | null;
     } | null;
     bairroOrigem?: {
       id: string;
@@ -175,7 +178,6 @@ const preencherAdolescenteBasico = (
     ? {
         id: base.faccao.id,
         nome: base.faccao.nomeFaccao ?? base.faccao.nome ?? "",
-        numeroMembro: base.faccao.numeroMembro ?? null,
       }
     : null;
 
@@ -195,13 +197,16 @@ const preencherAdolescenteBasico = (
     numeroSms: base.numeroSms ?? null,
     dataNascimento: toOptionalString(base.dataNascimento),
     dataEntrada: toOptionalString(base.dataEntrada),
+    vulgo: base.vulgo ?? null,
     alojamentoAtualId: base.alojamentoAtualId ?? null,
     faseInternacaoAtualId: base.faseInternacaoAtualId ?? null,
     tecnicoReferenciaId: base.tecnicoReferenciaId ?? null,
     tecnicoReferencia: base.tecnicoReferencia ?? null,
     dataDesinternacao: toNullableString(base.dataDesinternacao),
     faccaoGrupoId: base.faccaoGrupoId ?? faccaoInfo?.id ?? null,
-    faccaoNumeroMembro: base.faccaoNumeroMembro ?? null,
+    faccaoFuncao: base.faccaoFuncao ?? null,
+    faccaoInformacaoOrigem: base.faccaoInformacaoOrigem ?? null,
+    faccaoInformacaoDetalhe: base.faccaoInformacaoDetalhe ?? null,
     faccao: faccaoInfo,
     bairroOrigemId: base.bairroOrigemId ?? bairroInfo?.id ?? null,
     bairroOrigem: bairroInfo,
@@ -232,6 +237,7 @@ const criarCandidatoFallback = (
     nomeCompleto: nomeFallback,
     statusUnidade: "ATIVO",
     nomeSocial: null,
+    vulgo: null,
     fotoUrl: null,
     numeroSms: null,
     dataNascimento: null,
@@ -244,6 +250,9 @@ const criarCandidatoFallback = (
     atoInfracionalGravidadeObs: null,
     bairroOrigemId: bairroId,
     faccaoGrupoId: faccaoId,
+    faccaoFuncao: null,
+    faccaoInformacaoOrigem: null,
+    faccaoInformacaoDetalhe: null,
     alojamentoAtualId: null,
     faseInternacaoAtualId: null,
     faccao: null,

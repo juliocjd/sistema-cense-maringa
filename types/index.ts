@@ -7,6 +7,7 @@ export type StatusUnidade = "ATIVO" | "TRANSFERIDO" | "LIBERADO" | "EVADIDO";
 export type StatusManutencao = "LIVRE" | "INTERDITADO";
 export type Ala = "A" | "B" | null;
 export type RiscoFuga = "BAIXO" | "MEDIO" | "ALTO";
+export type FaccaoInformacaoOrigem = "CONFESSADA" | "OBSERVACAO";
 
 export interface CasaResumo {
   id: string;
@@ -100,6 +101,7 @@ export interface Adolescente {
   id: string;
   nomeCompleto: string;
   nomeSocial?: string | null;
+  vulgo?: string | null;
   numeroSms?: string | null;
   numeroInterno?: number | null;
   fotoUrl?: string | null;
@@ -127,11 +129,12 @@ export interface Adolescente {
   } | null;
 
   faccaoGrupoId?: string | null;
-  faccaoNumeroMembro?: string | null;
+  faccaoFuncao?: string | null;
+  faccaoInformacaoOrigem?: FaccaoInformacaoOrigem | string | null;
+  faccaoInformacaoDetalhe?: string | null;
   faccao?: {
     id: string;
     nome: string;
-    numeroMembro?: string | null;
   } | null;
 
   bairroOrigemId?: string | null;

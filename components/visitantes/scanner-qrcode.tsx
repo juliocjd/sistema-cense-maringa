@@ -74,7 +74,7 @@ export function ScannerQRCode({ onScan, onCancel, processando = false }: Props) 
                 />
               </div>
               <p className="text-xs text-gray-500 mt-2">
-                O código começa com "VIS-" seguido de 32 caracteres
+                O codigo comeca com VIS- seguido de 32 caracteres
               </p>
             </div>
 

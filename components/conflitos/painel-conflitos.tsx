@@ -253,6 +253,11 @@ export default function PainelConflitos({
                       ? `Registrado em ${dataCriacao}`
                       : "Registro recente (sem data registrada)"}
                   </p>
+                  {conflito.fonteInformacao && (
+                    <p className="text-xs text-slate-500">
+                      Fonte: {conflito.fonteInformacao}
+                    </p>
+                  )}
                 </div>
 
                 <div className="mt-3 md:mt-4 flex flex-wrap gap-2 md:gap-3">

@@ -558,15 +558,35 @@ export function ListagemAdolescentes() {
                               </span>
                             </p>
                           )}
+                          {adolescente.vulgo && (
+                            <p className="text-xs text-gray-500">
+                              Vulgo:{" "}
+                              <span className="font-medium text-gray-700">
+                                {adolescente.vulgo}
+                              </span>
+                            </p>
+                          )}
                           {adolescente.faccao && (
                             <p className="text-xs text-gray-500">
                               Faccao:{" "}
                               <span className="font-medium text-gray-700">
                                 {adolescente.faccao.nome}
                               </span>
-                              {adolescente.faccao.numeroMembro && (
-                                <> - No {adolescente.faccao.numeroMembro}</>
+                              {adolescente.faccaoFuncao && (
+                                <> - Funcao: {adolescente.faccaoFuncao}</>
                               )}
+                            </p>
+                          )}
+                          {adolescente.faccaoInformacaoOrigem && (
+                            <p className="text-[11px] uppercase tracking-wide text-gray-400">
+                              Origem da informacao:{" "}
+                              {adolescente.faccaoInformacaoOrigem === "CONFESSADA"
+                                ? "Confessada"
+                                : "Observacao"}
+                              {adolescente.faccaoInformacaoOrigem === "OBSERVACAO" &&
+                                adolescente.faccaoInformacaoDetalhe && (
+                                  <> — {adolescente.faccaoInformacaoDetalhe}</>
+                                )}
                             </p>
                           )}
                           {adolescente.bairroOrigem && (

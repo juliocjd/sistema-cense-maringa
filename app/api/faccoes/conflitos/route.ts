@@ -10,6 +10,10 @@ const listSchema = z.object({
 const createSchema = z.object({
   faccaoAId: z.string().uuid(),
   faccaoBId: z.string().uuid(),
+  fonteInformacao: z
+    .string()
+    .trim()
+    .min(5, "Descreva como a informacao foi obtida"),
 });
 
 const ensureString = (value: unknown): string => {
@@ -65,6 +69,7 @@ export async function GET(request: NextRequest) {
           id: conflito.faccaoB.id,
           nome: conflito.faccaoB.nomeFaccao,
         },
+        fonteInformacao: conflito.fonteInformacao ?? null,
       })),
     });
   } catch (error) {
@@ -150,6 +155,7 @@ export async function POST(request: NextRequest) {
         faccaoAId: parsed.data.faccaoAId,
         faccaoBId: parsed.data.faccaoBId,
         status: "ATIVO",
+        fonteInformacao: parsed.data.fonteInformacao.trim(),
       },
     });
 
@@ -162,6 +168,7 @@ export async function POST(request: NextRequest) {
         detalhesAlteracao: {
           faccaoAId: parsed.data.faccaoAId,
           faccaoBId: parsed.data.faccaoBId,
+          fonte: parsed.data.fonteInformacao.trim(),
         },
         ipOrigem: getIp(request),
       },
