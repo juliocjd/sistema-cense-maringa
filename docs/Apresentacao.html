@@ -291,7 +291,7 @@
 
   <div class="status-container">
     <h3 style="margin-top: 0;">📊 Status do Projeto (Novembro 2025)</h3>
-    <p><strong>Implementação Geral:</strong> 68% Concluído</p>
+    <p><strong>Implementação Geral:</strong> 75% Concluído</p>
     <div class="status-bar"><div class="status-fill"></div></div>
     <p style="font-size: 0.9em;">✅ Módulos Críticos (Mapa, Cadastro, Motor de Risco, Logs) 100% Operacionais em Produção.</p>
   </div>
@@ -305,6 +305,8 @@
 Influência de facções, conflitos territoriais ou rivalidades entre adolescentes são disparados automaticamente ao e-mail do técnico de referência, psicólogo e assistente social, visando subsidiar revisão do PIA e ações restaurativas precoces para evitar escalada e garantir o sucesso da medida socioeducativa. Trata-se de ferramenta protetiva que coloca a inteligência de dados a serviço da prevenção especial e da ressocialização efetiva do adolescente em cumprimento de medida socioeducativa. .</li>
       <li><strong>Mapeamento:</strong> O registro de possíveis vínculos faccionados ou bairros em conflito tem finalidade estritamente preventiva, visando evitar conflitos, proteger adolescentes e servidores e subsidiar intervenções pedagógicas e psicossociais. O sistema não utiliza esses dados para separação, classificação ou institucionalização de grupos, e sim para reduzir riscos, neutralizar influências externas e fortalecer o trabalho socioeducativo, em conformidade com o SINASE.</li>
     </ol>
+    </p>
+    <p>Atualmente, o sistema está adaptado à estrutura física do <strong>Centro de Socioeducação de Maringá</strong>. Com o sucesso do projeto-piloto, serão realizadas adaptações pontuais para permitir sua implementação em todas as unidades socioeducativas do Paraná, garantindo escalabilidade e uniformidade no atendimento.</p>
   </div>
 
   <h2>1. O Motor de Inteligência (Geometria de Risco)</h2>
@@ -312,7 +314,7 @@ Influência de facções, conflitos territoriais ou rivalidades entre adolescent
 
   <div class="card">
     <h3>1.1 Algoritmo de 5 Níveis (Cálculo de Alocação)</h3>
-    <p>Ao tentar alocar um adolescente, o sistema executa o script <span class="source-badge">calcularRiscoAlojamento</span> que cruza dados contra os 70+ internos já presentes em milissegundos.</p>
+    <p>Ao tentar alocar um adolescente que tenha conflitos vigentes, o sistema executa o script <span class="source-badge">calcularRiscoAlojamento</span> que cruza dados contra os 70+ internos já presentes em milissegundos.</p>
     
     <table>
       <thead>
@@ -373,7 +375,7 @@ Influência de facções, conflitos territoriais ou rivalidades entre adolescent
       <div class="logic-box">
         <ul class="tech-list">
           <li><strong>Nível Macro (Configuração):</strong> O Operador define UMA VEZ que <span class="data-tag">Facção A</span> é rival da <span class="data-tag">Facção B</span> ou que o <span class="data-tag">Bairro A</span> é rival do <span class="data-tag">Bairro B</span>.</li>
-          <li><strong>Nível Micro (Herança):</strong> Quando o adolescente "João" entra e é marcado como "Facção A", o sistema <strong>automaticamente</strong> gera alertas contra <strong>todos</strong> os internos da "Facção B".</li>
+          <li><strong>Nível Micro (Herança):</strong> Quando o adolescente "João" entra e é marcado como "Facção A", o sistema <strong>automaticamente</strong> gera alertas contra <strong>todos</strong> os internos da "Facção B", bem como comunica aos Técnicos de Referência do adolescente para ciência e eventuais intervenções necessárias.</li>
           <li><strong>Benefício:</strong> Proteção no "Dia 0", independente do conhecimento da equipe de plantão.</li>
         </ul>
       </div>
