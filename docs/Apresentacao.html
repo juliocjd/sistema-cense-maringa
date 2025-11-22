@@ -356,8 +356,16 @@ Influência de facções, conflitos territoriais ou rivalidades entre adolescent
         </tr>
       </tbody>
     </table>
+    <div class="integration-box" style="background: #fff7ed; border-color: #ea580c;">
+      <strong>⚠️ Alertas Especiais (Ícones):</strong>
+      <ul>
+        <li>🛑 <strong>Risco Suicídio:</strong> Nunca alocar em pontos cegos/individuais.</li>
+        <li>🔒 <strong>Perfil Mapeado:</strong> Proteção para crimes sexuais (Art. 217) ou rejeitados pela massa. Oculta o motivo, mantém o alerta.</li>
+        <li>⚕️ <strong>Saúde:</strong> Medicação controlada/Contágio.</li>
+      </ul>
+    </div>
   </div>
-
+  
   <div class="grid-2">
     <div class="card">
       <h3>🧠 Parametrização: Macro para Micro</h3>
@@ -421,7 +429,9 @@ Influência de facções, conflitos territoriais ou rivalidades entre adolescent
     <ul class="tech-list">
         <li><strong>Fluxo Ativo:</strong> Ao registrar um CI (ex: "Briga na escola"), o sistema pergunta: <em>"Gerar Conflito Permanente?"</em></li>
         <li><strong>Automação:</strong> Se SIM, cria o registro na tabela <code>Conflitos</code> instantaneamente.</li>
-        <li><strong>Prova Vinculada:</strong> O PDF do CI fica atrelado àquele alerta de risco. Futuras tentativas de juntar esses jovens serão bloqueadas citando especificamente este documento.</li>
+        <li><strong>Aviso ao Técnico de referência:</strong>O sistema disparará e-mail automático aos Técnicos de Referência vinculados ao adolescente, disponibilizando o agendamento de técnicas/círculos de justiça restaurativa.</li>
+        <li><strong>Registro das tentativas:</strong>Compete ao Técnico de Referência registrar no sistema os resultados de cada tentativa de solução do conflito e, conforme o caso, agendar novas intervenções restaurativas ou encerrar o registro com a indicação de 'conflito resolvido'.</li>
+        <li><strong>Prova Vinculada:</strong> O PDF do CI fica atrelado àquele alerta de risco. Enquanto não houver solução a tentativa de juntar esses jovens serão avisadas ao operador, citando especificamente este documento.</li>
     </ul>
   </div>
 
@@ -485,24 +495,16 @@ Influência de facções, conflitos territoriais ou rivalidades entre adolescent
   <div class="card">
     <h3>🎨 Análise Técnica de Tatuagens e Sinais</h3>
     <span class="source-badge">app/api/tatuagens</span>
-    <p>Leitura de segurança baseada em simbologia criminal catalogada (sem estigma).</p>
-    <div class="grid-2">
-        <div class="logic-box">
-            <strong>Objetivo do Alerta:</strong>
-            <ul>
-                <li><strong>Manejo:</strong> Evitar que adolescente com símbolo de facção (ex: "Carpa", "Yin-Yang") tire a camisa em locais de convivência com potenciais rivais.</li>
-                <li><strong>Proteção da Equipe:</strong> Alerta para símbolos de violência contra agentes (ex: "Palhaço").</li>
-            </ul>
-        </div>
-        <div class="integration-box" style="background: #fff7ed; border-color: #ea580c;">
-            <strong>⚠️ Alertas Especiais (Ícones):</strong>
-            <ul>
-                <li>🛑 <strong>Risco Suicídio:</strong> Nunca alocar em pontos cegos/individuais.</li>
-                <li>🔒 <strong>Perfil Mapeado:</strong> Proteção para crimes sexuais (Art. 217) ou rejeitados pela massa. Oculta o motivo, mantém o alerta.</li>
-                <li>⚕️ <strong>Saúde:</strong> Medicação controlada/Contágio.</li>
-            </ul>
-        </div>
-    </div>
+      <p>Método que identifica e cataloga tatuagens com significados criminais conhecidos no ambiente socioeducativo. O objetivo não é rotular ou estigmatizar o adolescente, mas proteger a todos — internos e equipe — por meio da compreensão de possíveis riscos e dinâmicas de grupo.</p>
+      <div class="card" style="background: #f9fafb;">
+        <p><strong>Objetivo do Alerta:</strong></p>
+        <ul>
+          <li><strong>Manejo:</strong> Evitar que adolescente com símbolo de facção (ex: "Carpa", "Yin-Yang") tire a camisa em locais de convivência com potenciais rivais.</li>
+          <li><strong>Proteção da Equipe:</strong> Alerta para símbolos de violência contra agentes (ex: "Palhaço").</li>
+          <li><strong>Intervenções:</strong> Encaminhamento formal à Técnica de Referência quando for identificada tatuagem com simbologia criminal de alto risco. O objetivo é subsidiar a atualização do Plano Individual de Atendimento (PIA), planejar ações restaurativas e, se o adolescente manifestar interesse e concordar, articular meios externos (programas sociais, clínicas parceiras ou projetos de remoção gratuita de tatuagens) para a eliminação do símbolo, favorecendo sua reinserção e proteção.</li>
+          
+        </ul>  
+      </div>
   </div>
 
   <h2>5. Inteligência de Visitantes (Backend Implementado)</h2>
@@ -512,8 +514,16 @@ Influência de facções, conflitos territoriais ou rivalidades entre adolescent
     <ul class="tech-list">
         <li><strong>Vínculos Cruzados:</strong> Alerta se a "Visitante Maria" (CPF X) visita o Interno A (Facção X) e o Interno B (Facção Y). Indício de "leva-e-traz".</li>
         <li><strong>Bloqueio Judicial:</strong> Validação instantânea na portaria de visitantes suspensos.</li>
+        <li><strong>Reconhecimento Facial:</strong> Identificação biométrica facial em tempo real na entrada. Aumenta significativamente a segurança (impede uso de documentos falsos ou substituição de pessoa), acelera o processo de entrada (média de 3–5 segundos por visitante) e melhora a experiência e o bem-estar de visitantes regulares, especialmente idosos, gestantes e crianças, que não precisam mais aguardar longas filas para conferência manual. </li>
         <li><strong>Geração de Carteira de Visitante:</strong> Sistema emite Carteira de Visitantes para facilitar identificação e agilizar entrada.</li>
-        <li><strong>IMPLEMENTAÇÃO FUTURA:</strong> Celebrar cooperação com o CNJ, para ter acesso via API ao Banco Nacional de Mandados de Prisão (BNMP), a fim de verificar em tempo real a condição legal do visitante no ato da visita. Verificar a viabilidade de integração com o SIGEP, com objetivo de importar dados de visitantes. Essa funcionalidade permiriá à equipe multidisciplinar identificar precocemente exposição a vínculos de risco, possibilitando intervenções protetivas e de fortalecimento de laços saudáveis. O foco exclusivo dessas integrações será a segurança socioeducativa e o sucesso do processo de ressocialização, em total conformidade com ECA e SINASE.</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>Implementações Futuras, sujeitas a acordos de cooperação técnica e disponibilidade</h3>
+    <p></p>
+    <ul class="tech-list">
+      <li><strong>BNMP:</strong> Celebração de cooperação técnica com o CNJ para acesso via API ao Banco Nacional de Mandados de Prisão (BNMP) e verificação em tempo real de situação legal do visitante.</li>
+      <li><strong>Integração com SIGEP:</strong> Essas funcionalidades permitirão à equipe multidisciplinar identificar precocemente vínculos de risco, possibilitando intervenções protetivas imediatas e o fortalecimento de laços familiares saudáveis. Todo o uso das tecnologias respeitará rigorosamente o ECA, o SINASE, a LGPD e terá foco exclusivo na segurança socioeducativa e no sucesso da ressocialização.</li>
     </ul>
   </div>
 
