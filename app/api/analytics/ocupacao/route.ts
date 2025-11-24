@@ -1,26 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { getEstruturaSnapshot } from "@/lib/estrutura/snapshot";
 
 export async function GET(_request: NextRequest) {
   try {
-    const casas = await prisma.casa.findMany({
-      include: {
-        alojamentos: {
-          select: {
-            id: true,
-            statusManutencao: true,
-            adolescentes: {
-              select: {
-                id: true,
-              },
-            },
-          },
-        },
-      },
-      orderBy: { numero: "asc" },
-    });
+    const snapshot = await getEstruturaSnapshot();
 
-    let totalCasas = casas.length;
+    const casas = snapshot.casas.sort(
+      (a, b) => (a.numero ?? 0) - (b.numero ?? 0)
+    );
+
     let totalAlojamentos = 0;
     let totalOcupados = 0;
     let totalLivres = 0;
@@ -29,15 +17,14 @@ export async function GET(_request: NextRequest) {
     const porCasa = casas.map((casa) => {
       const total = casa.alojamentos.length;
       const ocupados = casa.alojamentos.filter(
-        (alojamento) => alojamento.adolescentes.length > 0
+        (alojamento) => Boolean(alojamento.ocupante)
       ).length;
       const livres = casa.alojamentos.filter(
         (alojamento) =>
-          alojamento.adolescentes.length === 0 &&
-          alojamento.statusManutencao === "LIVRE"
+          !alojamento.ocupante && alojamento.status_manutencao === "LIVRE"
       ).length;
       const interditados = casa.alojamentos.filter(
-        (alojamento) => alojamento.statusManutencao === "INTERDITADO"
+        (alojamento) => alojamento.status_manutencao === "INTERDITADO"
       ).length;
 
       totalAlojamentos += total;
@@ -67,7 +54,7 @@ export async function GET(_request: NextRequest) {
 
     return NextResponse.json({
       resumo: {
-        totalCasas,
+        totalCasas: casas.length,
         totalAlojamentos,
         alojamentosOcupados: totalOcupados,
         alojamentosLivres: totalLivres,

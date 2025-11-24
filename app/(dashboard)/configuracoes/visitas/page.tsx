@@ -14,10 +14,28 @@ type Configuracao = {
   permitirAlternativa: boolean;
   idadeLimiteCrianca: number;
   periodosPorCasa: Record<string, "MANHA" | "TARDE">;
+  janelaIdentificacaoManhaInicio: string;
+  janelaIdentificacaoManhaFim: string;
+  janelaIdentificacaoTardeInicio: string;
+  janelaIdentificacaoTardeFim: string;
+  horarioManhaInicio: string;
+  horarioManhaFim: string;
+  horarioTardeInicio: string;
+  horarioTardeFim: string;
   quantidadeVisitasMensal: number;
   duracaoVisitaMinutos: number;
   ativo: boolean;
 };
+
+type CampoHorario =
+  | "janelaIdentificacaoManhaInicio"
+  | "janelaIdentificacaoManhaFim"
+  | "janelaIdentificacaoTardeInicio"
+  | "janelaIdentificacaoTardeFim"
+  | "horarioManhaInicio"
+  | "horarioManhaFim"
+  | "horarioTardeInicio"
+  | "horarioTardeFim";
 
 const DIAS_SEMANA = [
   { valor: 0, nome: "Domingo" },
@@ -96,6 +114,28 @@ export default function ConfiguracoesVisitasPage() {
     setConfig({ ...config, diasPermitidos: novosDias });
   };
 
+  const atualizarHorario = (campo: CampoHorario, valor: string) => {
+    if (!config) return;
+    setConfig({ ...config, [campo]: valor || "00:00" });
+  };
+
+  const renderHorarioInput = (
+    label: string,
+    campo: CampoHorario,
+    helper?: string
+  ) => (
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-2">{label}</label>
+      <input
+        type="time"
+        value={config ? config[campo] : "00:00"}
+        onChange={(e) => atualizarHorario(campo, e.target.value)}
+        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+      />
+      {helper && <p className="mt-1 text-xs text-gray-500">{helper}</p>}
+    </div>
+  );
+
   if (carregando) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -168,6 +208,64 @@ export default function ConfiguracoesVisitasPage() {
                   <span className="font-medium text-gray-900">{dia.nome}</span>
                 </label>
               ))}
+          </div>
+        </div>
+
+        <hr className="border-gray-200" />
+
+          {/* Janelas de Identificacao */}
+          <div>
+            <div className="flex items-center gap-2 mb-4">
+              <Clock className="text-indigo-600" size={24} />
+              <h2 className="text-xl font-bold text-gray-900">Janelas de Identificacao</h2>
+            </div>
+            <p className="text-gray-600 text-sm mb-4">
+              Configure o intervalo em que os visitantes podem passar pela portaria antes de seguir para a area de seguranca.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="p-4 border border-gray-200 rounded-lg bg-gray-50">
+                <h3 className="text-sm font-semibold text-gray-900 mb-4">Periodos da manha</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {renderHorarioInput("Inicio", "janelaIdentificacaoManhaInicio")}
+                  {renderHorarioInput("Fim", "janelaIdentificacaoManhaFim")}
+                </div>
+              </div>
+              <div className="p-4 border border-gray-200 rounded-lg bg-gray-50">
+                <h3 className="text-sm font-semibold text-gray-900 mb-4">Periodos da tarde</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {renderHorarioInput("Inicio", "janelaIdentificacaoTardeInicio")}
+                  {renderHorarioInput("Fim", "janelaIdentificacaoTardeFim")}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <hr className="border-gray-200" />
+
+          {/* Janelas de Permanencia */}
+          <div>
+            <div className="flex items-center gap-2 mb-4">
+              <Clock className="text-indigo-600" size={24} />
+              <h2 className="text-xl font-bold text-gray-900">Permanencia na area de seguranca</h2>
+            </div>
+            <p className="text-gray-600 text-sm mb-4">
+              Defina o horario efetivo das visitas dentro da unidade. Fora desse intervalo o sistema exigira justificativa.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="p-4 border border-gray-200 rounded-lg bg-gray-50">
+                <h3 className="text-sm font-semibold text-gray-900 mb-4">Manha</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {renderHorarioInput("Inicio", "horarioManhaInicio")}
+                  {renderHorarioInput("Fim", "horarioManhaFim")}
+                </div>
+              </div>
+              <div className="p-4 border border-gray-200 rounded-lg bg-gray-50">
+                <h3 className="text-sm font-semibold text-gray-900 mb-4">Tarde</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {renderHorarioInput("Inicio", "horarioTardeInicio")}
+                  {renderHorarioInput("Fim", "horarioTardeFim")}
+                </div>
+              </div>
             </div>
           </div>
 

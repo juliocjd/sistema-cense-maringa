@@ -20,6 +20,7 @@ import {
   type AlertaEspecialTipo,
 } from "@/lib/alertas/especiais";
 import { emitMapaEvent } from "@/lib/mapa-event-bus";
+import { invalidateAdolescentesMapaCache } from "@/lib/estrutura/adolescentes-cache";
 import type {
   Adolescente,
   ListaAdolescentesMeta,
@@ -523,6 +524,8 @@ export async function POST(request: NextRequest) {
         alojamentoId: criado.alojamentoAtualId,
       });
     }
+
+    invalidateAdolescentesMapaCache();
 
     return NextResponse.json(
       {

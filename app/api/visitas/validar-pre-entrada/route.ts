@@ -2,6 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { ensureOperador } from "@/lib/auth/ensure-operador";
 
+const estaDentroDaJanela = (hora: string, inicio: string, fim: string) => {
+  if (!hora || !inicio || !fim) return false;
+  if (inicio <= fim) {
+    return hora >= inicio && hora <= fim;
+  }
+  return hora >= inicio || hora <= fim;
+};
+
 /**
  * POST /api/visitas/validar-pre-entrada
  * Valida regras ANTES de abrir modal de registro (não bloqueia, apenas avisa)
@@ -26,8 +34,11 @@ export async function POST(request: NextRequest) {
     const avisos: string[] = [];
     let requerJustificativa = false;
 
-    // Buscar configurações de visitas
-    const config = await prisma.configuracaoVisitas.findFirst();
+    // Buscar configuração ativa
+    const config = await prisma.configuracaoVisitas.findFirst({
+      where: { ativo: true },
+      orderBy: { criadoEm: "desc" },
+    });
 
     if (!config) {
       return NextResponse.json({
@@ -76,9 +87,19 @@ export async function POST(request: NextRequest) {
     const hoje = new Date();
     const diaSemana = hoje.getDay(); // 0 = domingo, 6 = sábado
 
-    const diasPermitidosArray = Array.isArray(config.diasPermitidos)
-      ? config.diasPermitidos
-      : [];
+    const diasPermitidosArray: number[] = Array.isArray(config.diasPermitidos)
+      ? (config.diasPermitidos as number[])
+      : (() => {
+          if (typeof config.diasPermitidos === "string") {
+            try {
+              const parsed = JSON.parse(config.diasPermitidos);
+              return Array.isArray(parsed) ? parsed : [];
+            } catch {
+              return [];
+            }
+          }
+          return [];
+        })();
 
     const diasPermitidosSet = new Set(
       diasPermitidosArray.map((d: any) => {
@@ -108,53 +129,74 @@ export async function POST(request: NextRequest) {
       requerJustificativa = true;
     }
 
-    // Validar período (manhã/tarde)
-    const horaAtual = hoje.getHours();
-    const minutoAtual = hoje.getMinutes();
-    const horarioAtual = horaAtual * 60 + minutoAtual; // minutos desde meia-noite
+    const horaAtualStr = hoje.toLocaleTimeString("pt-BR", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
 
-    const [horaInicioManha, minutoInicioManha] = config.horarioManhaInicio
-      .split(":")
-      .map(Number);
-    const [horaFimManha, minutoFimManha] = config.horarioManhaFim.split(":").map(Number);
-    const [horaInicioTarde, minutoInicioTarde] = config.horarioTardeInicio
-      .split(":")
-      .map(Number);
-    const [horaFimTarde, minutoFimTarde] = config.horarioTardeFim.split(":").map(Number);
+    let periodoAtual: "MANHA" | "TARDE" | "FORA_HORARIO" =
+      estaDentroDaJanela(horaAtualStr, config.horarioManhaInicio, config.horarioManhaFim)
+        ? "MANHA"
+        : estaDentroDaJanela(horaAtualStr, config.horarioTardeInicio, config.horarioTardeFim)
+        ? "TARDE"
+        : "FORA_HORARIO";
 
-    const inicioManha = horaInicioManha * 60 + minutoInicioManha;
-    const fimManha = horaFimManha * 60 + minutoFimManha;
-    const inicioTarde = horaInicioTarde * 60 + minutoInicioTarde;
-    const fimTarde = horaFimTarde * 60 + minutoFimTarde;
+    const casa = vinculo.adolescente?.alojamentoAtual?.casa;
+    const periodosPorCasa =
+      typeof config.periodosPorCasa === "object" &&
+      config.periodosPorCasa !== null &&
+      !Array.isArray(config.periodosPorCasa)
+        ? (config.periodosPorCasa as Record<string, string>)
+        : {};
+    const periodoAutorizado: "MANHA" | "TARDE" =
+      casa && periodosPorCasa[casa.numero.toString()] === "TARDE" ? "TARDE" : "MANHA";
 
-    let periodoAtual: "MANHA" | "TARDE" | "FORA_HORARIO" = "FORA_HORARIO";
+    const janelaIdentificacao =
+      periodoAutorizado === "TARDE"
+        ? {
+            inicio: config.janelaIdentificacaoTardeInicio,
+            fim: config.janelaIdentificacaoTardeFim,
+          }
+        : {
+            inicio: config.janelaIdentificacaoManhaInicio,
+            fim: config.janelaIdentificacaoManhaFim,
+          };
+    const janelaPermanencia =
+      periodoAutorizado === "TARDE"
+        ? { inicio: config.horarioTardeInicio, fim: config.horarioTardeFim }
+        : { inicio: config.horarioManhaInicio, fim: config.horarioManhaFim };
 
-    if (horarioAtual >= inicioManha && horarioAtual <= fimManha) {
-      periodoAtual = "MANHA";
-    } else if (horarioAtual >= inicioTarde && horarioAtual <= fimTarde) {
-      periodoAtual = "TARDE";
-    } else {
+    const dentroIdentAutorizado = estaDentroDaJanela(
+      horaAtualStr,
+      janelaIdentificacao.inicio,
+      janelaIdentificacao.fim
+    );
+    const dentroPermanenciaAutorizada = estaDentroDaJanela(
+      horaAtualStr,
+      janelaPermanencia.inicio,
+      janelaPermanencia.fim
+    );
+
+    if (periodoAtual === "FORA_HORARIO" && (!dentroIdentAutorizado && !dentroPermanenciaAutorizada)) {
       alertas.push(
         `⚠️ ATENÇÃO: Fora do horário de visitas. Horários permitidos: ${config.horarioManhaInicio}-${config.horarioManhaFim} (manhã) e ${config.horarioTardeInicio}-${config.horarioTardeFim} (tarde)`
       );
       requerJustificativa = true;
     }
 
-    // Validar período autorizado baseado na Casa
-    const casa = vinculo.adolescente?.alojamentoAtual?.casa;
+    if (!dentroIdentAutorizado && !dentroPermanenciaAutorizada) {
+      const descricaoJanela =
+        periodoAutorizado === "MANHA"
+          ? `Identificacao ${config.janelaIdentificacaoManhaInicio}-${config.janelaIdentificacaoManhaFim} / Permanencia ${config.horarioManhaInicio}-${config.horarioManhaFim}`
+          : `Identificacao ${config.janelaIdentificacaoTardeInicio}-${config.janelaIdentificacaoTardeFim} / Permanencia ${config.horarioTardeInicio}-${config.horarioTardeFim}`;
+      alertas.push(
+        `⚠️ ATENÇÃO: ${casa?.nome ?? "Casa"} possui janela ${periodoAutorizado}. Intervalos configurados: ${descricaoJanela}`
+      );
+      requerJustificativa = true;
+    }
+
     if (periodoAtual !== "FORA_HORARIO" && casa) {
-      const numeroCasa = casa.numero;
-
-      // Determinar período autorizado baseado no mapeamento de períodos por casa
-      const periodosPorCasa = typeof config.periodosPorCasa === 'object' &&
-        config.periodosPorCasa !== null &&
-        !Array.isArray(config.periodosPorCasa)
-        ? (config.periodosPorCasa as Record<string, string>)
-        : {};
-
-      const periodoAutorizado = periodosPorCasa[numeroCasa.toString()] as string | undefined || null;
-
-      if (periodoAutorizado && periodoAutorizado !== periodoAtual) {
+      if (periodoAutorizado !== periodoAtual) {
         alertas.push(
           `⚠️ ATENÇÃO: ${casa.nome} tem autorização para ${periodoAutorizado}, mas visita está sendo registrada no período da ${periodoAtual}`
         );

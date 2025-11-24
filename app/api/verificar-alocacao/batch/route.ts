@@ -1,116 +1,76 @@
-import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { getEstruturaCasasParaCalculo } from "@/lib/estrutura/snapshot";
-import { simularAlocacao } from "@/lib/alocacao/simulador";
+import { NextRequest, NextResponse } from "next/server";
 import {
-  montarMapaBairrosConflitantes,
-  montarMapaFaccoesConflitantes,
-} from "@/lib/conflitos";
-import { formatarImpactosExternos } from "@/lib/alocacao/utils";
+  prepararContexto,
+  avaliarAlojamento,
+} from "@/app/api/verificar-alocacao/helpers";
 
-export async function POST(request: Request) {
+type BatchPayload = {
+  adolescenteId?: string;
+  alojamentos?: string[];
+};
+
+export async function POST(request: NextRequest) {
   try {
-    const payload = await request.json().catch(() => null);
+    const searchParams = request.nextUrl.searchParams;
+    const skipCache =
+      searchParams.get("refresh") === "1" ||
+      searchParams.get("cache") === "off";
+    const payload = (await request.json()) as BatchPayload;
+    const adolescenteId = payload.adolescenteId;
+    const alojamentos = Array.isArray(payload.alojamentos)
+      ? payload.alojamentos
+      : [];
 
-    if (
-      !payload ||
-      typeof payload.adolescenteId !== "string" ||
-      !Array.isArray(payload.alojamentoIds)
-    ) {
+    if (!adolescenteId || alojamentos.length === 0) {
       return NextResponse.json(
-        { erro: "Informe adolescenteId e uma lista de alojamentoIds" },
+        {
+          erro: "adolescenteId e lista de alojamentos sao obrigatorios",
+        },
         { status: 400 }
       );
     }
 
-    const alojamentoIds: string[] = payload.alojamentoIds
-      .map((id: unknown) => (typeof id === "string" ? id : null))
-      .filter((id: string | null): id is string => Boolean(id));
-
-    if (alojamentoIds.length === 0) {
+    const contexto = await prepararContexto({ adolescenteId, skipCache });
+    if (!contexto) {
       return NextResponse.json(
-        { erro: "Lista de alojamentos vazia" },
-        { status: 400 }
-      );
-    }
-
-    const adolescente = await prisma.adolescente.findUnique({
-      where: { id: payload.adolescenteId },
-      include: {
-        bairroOrigem: true,
-        faccao: true,
-        conflitosA: {
-          where: { status: "ATIVO" },
-          include: { adolescenteB: { include: { faccao: true } } },
-        },
-        conflitosB: {
-          where: { status: "ATIVO" },
-          include: { adolescenteA: { include: { faccao: true } } },
-        },
-      },
-    });
-
-    if (!adolescente) {
-      return NextResponse.json(
-        { erro: "Adolescente não encontrado" },
+        { erro: "Adolescente nao encontrado" },
         { status: 404 }
       );
     }
 
-    const casasParaCalculo = await getEstruturaCasasParaCalculo({
-      skipCache: payload.refresh === true,
-    });
-
-    const [mapaBairros, mapaFaccoes] = await Promise.all([
-      montarMapaBairrosConflitantes(adolescente.bairroOrigemId),
-      montarMapaFaccoesConflitantes(
-        adolescente.faccaoGrupoId ?? adolescente.faccao?.id ?? null
-      ),
-    ]);
-
-    const conflitosExternos = formatarImpactosExternos(
-      adolescente,
-      mapaBairros,
-      mapaFaccoes
-    );
-
-    const resultados = await Promise.all(
-      alojamentoIds.map(async (alojamentoId) => {
-        const avaliacao = simularAlocacao({
-          adolescente,
-          alojamentoId,
-          casasBase: casasParaCalculo,
-          conflitosExternos,
-        });
-
-        if (avaliacao.status !== 200 || !avaliacao.dados) {
-          return {
-            alojamentoId,
-            sucesso: false,
-            erro: avaliacao.erro ?? "Falha ao avaliar alojamento",
-          };
-        }
-
+    const resultados = alojamentos.map((alojamentoId) => {
+      const avaliacao = avaliarAlojamento(contexto, alojamentoId);
+      if (avaliacao.status !== 200) {
         return {
           alojamentoId,
-          sucesso: true,
-          dados: avaliacao.dados,
+          sucesso: false,
+          erro: avaliacao.erro ?? "Falha ao avaliar alojamento",
+          status: avaliacao.status ?? 500,
         };
-      })
-    );
+      }
+
+      return {
+        alojamentoId,
+        sucesso: true,
+        ...avaliacao.dados,
+      };
+    });
 
     return NextResponse.json({
       adolescente: {
-        id: adolescente.id,
-        nome: adolescente.nomeCompleto,
-        sms: adolescente.numeroSms,
+        id: contexto.adolescente.id,
+        nome: contexto.adolescente.nomeCompleto,
+        sms: contexto.adolescente.numeroSms,
       },
       resultados,
     });
   } catch (error) {
-    console.error("Erro na avaliacao em lote:", error);
+    console.error("Erro ao verificar alocacao em lote:", error);
     return NextResponse.json(
-      { erro: "Erro interno ao avaliar alojamentos" },
+      {
+        erro: "Erro ao verificar alocacao em lote",
+        detalhes: error instanceof Error ? error.message : String(error),
+      },
       { status: 500 }
     );
   }

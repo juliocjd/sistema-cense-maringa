@@ -38,11 +38,20 @@ export function ModalValidacaoPrevia({
   onConfirmar,
   onCancelar,
 }: ModalValidacaoPreviaProps) {
-  const [adolescenteSelecionado, setAdolescenteSelecionado] = useState<string>("");
+  const [adolescenteSelecionado, setAdolescenteSelecionado] = useState<string>(
+    adolescentes.length === 1 ? adolescentes[0].id : ""
+  );
   const [validacao, setValidacao] = useState<ValidationResult | null>(null);
   const [validando, setValidando] = useState(false);
   const [justificativa, setJustificativa] = useState("");
   const [mostrarJustificativa, setMostrarJustificativa] = useState(false);
+  const [confirmando, setConfirmando] = useState(false);
+
+  useEffect(() => {
+    if (adolescentes.length === 1) {
+      setAdolescenteSelecionado(adolescentes[0].id);
+    }
+  }, [adolescentes]);
 
   // Validar automaticamente quando adolescente for selecionado
   useEffect(() => {
@@ -103,7 +112,7 @@ export function ModalValidacaoPrevia({
     }
   };
 
-  const handleProsseguir = () => {
+  const handleProsseguir = async () => {
     if (!adolescenteSelecionado) {
       return;
     }
@@ -113,18 +122,24 @@ export function ModalValidacaoPrevia({
       return;
     }
 
-    onConfirmar(
-      adolescenteSelecionado,
-      mostrarJustificativa ? justificativa : null,
-      mostrarJustificativa
-    );
+    setConfirmando(true);
+    try {
+      await onConfirmar(
+        adolescenteSelecionado,
+        mostrarJustificativa ? justificativa : null,
+        mostrarJustificativa
+      );
+    } finally {
+      setConfirmando(false);
+    }
   };
 
   const podeAvancar =
     adolescenteSelecionado &&
     validacao &&
     validacao.permitido &&
-    (!mostrarJustificativa || justificativa.trim().length > 0);
+    (!mostrarJustificativa || justificativa.trim().length > 0) &&
+    !confirmando;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -154,7 +169,16 @@ export function ModalValidacaoPrevia({
             {adolescentes.length === 0 ? (
               <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
                 <p className="text-amber-800">
-                  Este visitante não possui vínculos com adolescentes.
+                  Este visitante nao possui vinculos com adolescentes.
+                </p>
+              </div>
+            ) : adolescentes.length === 1 ? (
+              <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
+                <p className="text-indigo-900 font-semibold">
+                  {adolescentes[0].nomeSocial || adolescentes[0].nomeCompleto}
+                </p>
+                <p className="text-sm text-indigo-700 mt-1">
+                  Selecionado automaticamente (unico vinculo)
                 </p>
               </div>
             ) : (
@@ -171,8 +195,7 @@ export function ModalValidacaoPrevia({
                   </option>
                 ))}
               </select>
-            )}
-          </div>
+            )}          </div>
 
           {/* Loading */}
           {validando && (
@@ -318,11 +341,21 @@ export function ModalValidacaoPrevia({
             disabled={!podeAvancar}
             className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-colors font-semibold shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {mostrarJustificativa ? "Confirmar Entrada" : "Prosseguir para Registro"}
-            <ArrowRight size={20} />
+            {mostrarJustificativa ? (
+              <>
+                {confirmando ? "Processando..." : "Confirmar Entrada"}
+                {!confirmando && <CheckCircle size={20} />}
+              </>
+            ) : (
+              <>
+                {confirmando ? "Processando..." : "Prosseguir para Registro"}
+                {!confirmando && <ArrowRight size={20} />}
+              </>
+            )}
           </button>
         </div>
       </div>
     </div>
   );
 }
+

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import type { Prisma } from "@prisma/client";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -13,9 +14,14 @@ const createSchema = z.object({
   localizacao_preferencial: z.boolean().default(false),
 });
 
+const documentoTipoEnum = z.enum(["CI", "DECISAO_JUDICIAL", "OUTRO"]);
+
 const updateSchema = z.object({
   statusManutencao: z.enum(["LIVRE", "INTERDITADO"]).optional(),
   localizacaoPreferencial: z.boolean().optional(),
+  interdicaoJustificativa: z.string().optional(),
+  interdicaoDocumentoTipo: documentoTipoEnum.nullable().optional(),
+  interdicaoDocumentoReferencia: z.string().optional(),
 });
 
 const ensureString = (value: unknown): string => {
@@ -98,6 +104,9 @@ export async function GET(request: NextRequest) {
         ala: alojamento.ala,
         status_manutencao: alojamento.statusManutencao,
         localizacao_preferencial: alojamento.localizacaoPreferencial,
+        interdicaoJustificativa: alojamento.interdicaoJustificativa,
+        interdicaoDocumentoTipo: alojamento.interdicaoDocumentoTipo,
+        interdicaoDocumentoReferencia: alojamento.interdicaoDocumentoReferencia,
         alojamento_frontal: alojamento.alojamentoFrontal
           ? {
               id: alojamento.alojamentoFrontal.id,
@@ -283,9 +292,86 @@ export async function PATCH(request: NextRequest) {
 
     const dados = updateSchema.parse(payload);
 
+    const alojamentoAtual = await prisma.alojamento.findUnique({
+      where: { id },
+    });
+
+    if (!alojamentoAtual) {
+      return NextResponse.json(
+        { erro: "Alojamento nao encontrado" },
+        { status: 404 }
+      );
+    }
+
+    const formatOptionalString = (valor?: string | null) => {
+      if (valor === undefined || valor === null) {
+        return valor === null ? null : undefined;
+      }
+      const trimmed = valor.trim();
+      return trimmed.length > 0 ? trimmed : null;
+    };
+
+    const novoStatus =
+      dados.statusManutencao ?? alojamentoAtual.statusManutencao;
+
+    const justificativaFinal =
+      dados.interdicaoJustificativa !== undefined
+        ? formatOptionalString(dados.interdicaoJustificativa)
+        : alojamentoAtual.interdicaoJustificativa;
+
+    const documentoTipoFinal =
+      dados.interdicaoDocumentoTipo !== undefined
+        ? dados.interdicaoDocumentoTipo ?? null
+        : alojamentoAtual.interdicaoDocumentoTipo;
+
+    const documentoReferenciaFinal =
+      dados.interdicaoDocumentoReferencia !== undefined
+        ? formatOptionalString(dados.interdicaoDocumentoReferencia)
+        : alojamentoAtual.interdicaoDocumentoReferencia;
+
+    if (
+      novoStatus === "INTERDITADO" &&
+      (!justificativaFinal ||
+        !documentoTipoFinal ||
+        !documentoReferenciaFinal)
+    ) {
+      return NextResponse.json(
+        {
+          erro:
+            "Justificativa, tipo de documento e referencia sao obrigatorios para interditar um alojamento.",
+        },
+        { status: 400 }
+      );
+    }
+
+    const updateData: Prisma.AlojamentoUpdateInput = {};
+
+    if (dados.statusManutencao !== undefined) {
+      updateData.statusManutencao = dados.statusManutencao;
+    }
+    if (dados.localizacaoPreferencial !== undefined) {
+      updateData.localizacaoPreferencial = dados.localizacaoPreferencial;
+    }
+    if (dados.interdicaoJustificativa !== undefined) {
+      updateData.interdicaoJustificativa = justificativaFinal ?? null;
+    }
+    if (dados.interdicaoDocumentoTipo !== undefined) {
+      updateData.interdicaoDocumentoTipo = documentoTipoFinal ?? null;
+    }
+    if (dados.interdicaoDocumentoReferencia !== undefined) {
+      updateData.interdicaoDocumentoReferencia =
+        documentoReferenciaFinal ?? null;
+    }
+
+    if (novoStatus === "LIVRE") {
+      updateData.interdicaoJustificativa = null;
+      updateData.interdicaoDocumentoTipo = null;
+      updateData.interdicaoDocumentoReferencia = null;
+    }
+
     const alojamento = await prisma.alojamento.update({
       where: { id },
-      data: dados,
+      data: updateData,
       include: {
         casa: true,
       },
@@ -308,6 +394,10 @@ export async function PATCH(request: NextRequest) {
       numero_alojamento: alojamento.numeroAlojamento,
       status_manutencao: alojamento.statusManutencao,
       localizacao_preferencial: alojamento.localizacaoPreferencial,
+      interdicao_justificativa: alojamento.interdicaoJustificativa,
+      interdicao_documento_tipo: alojamento.interdicaoDocumentoTipo,
+      interdicao_documento_referencia:
+        alojamento.interdicaoDocumentoReferencia,
       mensagem: "Alojamento atualizado com sucesso",
     });
   } catch (error) {

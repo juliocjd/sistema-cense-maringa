@@ -75,6 +75,9 @@ model Alojamento {
   alojamentoFrontalId     String? @map("alojamento_frontal_id")
   zonaRiscoId             String? @map("zona_risco_id")
   localizacaoPreferencial Boolean @default(false) @map("localizacao_preferencial")
+  interdicaoJustificativa String? @map("interdicao_justificativa")
+  interdicaoDocumentoTipo String? @map("interdicao_documento_tipo")
+  interdicaoDocumentoReferencia String? @map("interdicao_documento_referencia")
 
   // Relações
   casa              Casa                    @relation(fields: [casaId], references: [id])
@@ -738,6 +741,13 @@ model ConfiguracaoVisitas {
   // Períodos de visita por casa (mapeamento: { "1": "MANHA", "2": "MANHA", "8": "MANHA", etc })
   periodosPorCasa         Json     @default("{\"1\":\"MANHA\",\"2\":\"MANHA\",\"3\":\"MANHA\",\"4\":\"MANHA\",\"5\":\"TARDE\",\"6\":\"TARDE\",\"7\":\"TARDE\",\"8\":\"TARDE\"}") @map("periodos_por_casa")
 
+  // Janelas de identificação (entrada na portaria)
+  janelaIdentificacaoManhaInicio String @default("08:00") @map("janela_identificacao_manha_inicio")
+  janelaIdentificacaoManhaFim    String @default("09:00") @map("janela_identificacao_manha_fim")
+  janelaIdentificacaoTardeInicio String @default("13:00") @map("janela_identificacao_tarde_inicio")
+  janelaIdentificacaoTardeFim    String @default("14:00") @map("janela_identificacao_tarde_fim")
+
+  // Janelas de permanência na área de segurança
   horarioManhaInicio      String   @default("08:00") @map("horario_manha_inicio")
   horarioManhaFim         String   @default("12:00") @map("horario_manha_fim")
   horarioTardeInicio      String   @default("13:00") @map("horario_tarde_inicio")

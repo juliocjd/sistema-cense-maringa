@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { AlertTriangle, Lock, Activity, Shield } from "lucide-react";
 import { ModalAlocacao } from "./modal-alocacao";
 import ModalAlojamentoDetalhes from "./modal-alojamento-detalhes";
@@ -25,6 +25,7 @@ type AvaliacaoRiscoAlojamento = ResultadoRisco & {
 interface MapaInterativoProps {
   casas: Casa[];
   adolescentes: Adolescente[];
+  avaliacoes?: Record<string, ResultadoRisco>;
   conflitosExternos?: Record<string, ImpactoConflitoExterno[]>;
   onAlocar: (
     adolescenteId: string,
@@ -46,7 +47,8 @@ interface MapaInterativoProps {
     alojamentoId: string,
     status: "LIVRE" | "INTERDITADO",
     justificativa: string,
-    numeroCi: string
+    documentoTipo: "CI" | "DECISAO_JUDICIAL" | "OUTRO",
+    documentoReferencia: string
   ) => Promise<void>;
 }
 
@@ -89,6 +91,7 @@ const formatarLocalReferencia = (
 export function MapaInterativo({
   casas,
   adolescentes,
+  avaliacoes,
   conflitosExternos = {},
   onAlocar,
   onDesalocar,
@@ -149,27 +152,39 @@ export function MapaInterativo({
     [casasNormalizadas]
   );
 
-  function avaliarRiscoAlojamento(
-    alojamento: Alojamento
-  ): AvaliacaoRiscoAlojamento {
-    const resultado = calcularRiscoAlojamento({
-      alojamento,
-      casaAtual: casasNormalizadas.find((casa) => casa.id === alojamento.casaId),
-      casas: casasNormalizadas,
-      slots: slotsPorAdolescente,
-      conflitosExternos,
-    });
+  const avaliarRiscoAlojamento = useCallback(
+    (alojamento: Alojamento): AvaliacaoRiscoAlojamento => {
+      const casaAtual = casasNormalizadas.find(
+        (casa) => casa.id === alojamento.casaId
+      );
 
-    const corClass =
-      resultado.categoria === "INTERDITADO"
-        ? riscoClasses.interditado
-        : classePorNivel[resultado.nivel] ?? riscoClasses.livre;
+      const resultadoBase =
+        avaliacoes?.[alojamento.id] ??
+        calcularRiscoAlojamento({
+          alojamento,
+          casaAtual,
+          casas: casasNormalizadas,
+          slots: slotsPorAdolescente,
+          conflitosExternos,
+        });
 
-    return {
-      ...resultado,
-      corClass,
-    };
-  }
+      const nivelSeguro = Math.max(
+        0,
+        Math.min(5, Math.round(resultadoBase.nivel ?? 0))
+      ) as 0 | 1 | 2 | 3 | 4 | 5;
+
+      const corClass =
+        resultadoBase.categoria === "INTERDITADO"
+          ? riscoClasses.interditado
+          : classePorNivel[nivelSeguro] ?? riscoClasses.livre;
+
+      return {
+        ...resultadoBase,
+        corClass,
+      };
+    },
+    [avaliacoes, casasNormalizadas, slotsPorAdolescente, conflitosExternos]
+  );
 
   function getIconesAlerta(alojamento: Alojamento) {
     const ocupante = alojamento.adolescentes[0];
@@ -235,13 +250,15 @@ export function MapaInterativo({
     alojamentoId: string,
     status: "LIVRE" | "INTERDITADO",
     justificativa: string,
-    numeroCi: string
+    documentoTipo: "CI" | "DECISAO_JUDICIAL" | "OUTRO",
+    documentoReferencia: string
   ) => {
     await onAlterarStatusAlojamento(
       alojamentoId,
       status,
       justificativa,
-      numeroCi
+      documentoTipo,
+      documentoReferencia
     );
   };
 
@@ -548,20 +565,22 @@ export function MapaInterativo({
             abrirModalAlocacao(modalDetalhes.alojamento as Alojamento & { casa?: Casa });
           }
         }}
-        onInterditar={(alojamentoId, justificativa, numeroCi) =>
+        onInterditar={(alojamentoId, justificativa, documentoTipo, documentoReferencia) =>
           handleAlterarStatusDoDetalhe(
             alojamentoId,
             "INTERDITADO",
             justificativa,
-            numeroCi
+            documentoTipo,
+            documentoReferencia
           )
         }
-        onLiberarInterdicao={(alojamentoId, justificativa, numeroCi) =>
+        onLiberarInterdicao={(alojamentoId, justificativa, documentoTipo, documentoReferencia) =>
           handleAlterarStatusDoDetalhe(
             alojamentoId,
             "LIVRE",
             justificativa,
-            numeroCi
+            documentoTipo,
+            documentoReferencia
           )
         }
       />

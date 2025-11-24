@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { del } from "@vercel/blob";
 import { Prisma } from "@prisma/client";
+import { markVisitanteEmbeddingCacheDirty } from "@/lib/visitantes/embedding-cache";
 
 /**
  * Configurações LGPD para auto-exclusão de fotos
@@ -96,6 +97,7 @@ export async function excluirFotoVisitante(visitanteId: string) {
         atualizadoEm: new Date(),
       },
     });
+    markVisitanteEmbeddingCacheDirty();
 
     // Registrar no log de auditoria
     await prisma.logAuditoria.create({

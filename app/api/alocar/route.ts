@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { emitMapaEvent } from "@/lib/mapa-event-bus";
+import { invalidateAdolescentesMapaCache } from "@/lib/estrutura/adolescentes-cache";
 
 type VerificacaoPayload = {
   requer_justificativa?: boolean;
@@ -231,6 +232,8 @@ export async function POST(request: NextRequest) {
       alojamentoId,
     });
 
+    invalidateAdolescentesMapaCache();
+
     return NextResponse.json(
       {
         sucesso: true,
@@ -363,6 +366,8 @@ export async function DELETE(request: NextRequest) {
       adolescenteId,
       alojamentoId: null,
     });
+
+    invalidateAdolescentesMapaCache();
 
     return NextResponse.json({
       sucesso: true,

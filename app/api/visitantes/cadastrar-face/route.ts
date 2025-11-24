@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+import { markVisitanteEmbeddingCacheDirty } from "@/lib/visitantes/embedding-cache";
 
 export async function POST(request: NextRequest) {
   try {
@@ -60,6 +61,7 @@ export async function POST(request: NextRequest) {
         ...(fotoUrl && { fotoUrl }),
       },
     });
+    markVisitanteEmbeddingCacheDirty();
 
     return NextResponse.json({
       success: true,
@@ -170,6 +172,7 @@ export async function DELETE(request: NextRequest) {
         dataConsentimento: null,
       },
     });
+    markVisitanteEmbeddingCacheDirty();
 
     return NextResponse.json({
       success: true,

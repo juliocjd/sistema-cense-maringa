@@ -3,8 +3,12 @@ import {
   calcularRiscoAlojamento,
   criarMapaSlots,
   type CasaRisco,
+  type ResultadoRisco,
 } from "@/lib/riscos/calcular";
+import type { ConflitosExternosMapa } from "@/lib/riscos/calcular";
 import type { Adolescente, Alojamento } from "@/types";
+import type { ImpactoConflitoExterno } from "@/types/inteligencia";
+import { calcularImpactosExternos } from "@/lib/inteligencia/conflitos";
 
 type ConflitoResumo = {
   id: string;
@@ -53,11 +57,16 @@ type AlojamentoResumo = {
   ala: string | null;
   status_manutencao: string;
   alojamento_frontal_id: string | null;
+  localizacao_preferencial: boolean;
   cor_risco: string;
   nivel_risco: number;
   icones: string[];
   alertas: string[];
   ocupante: OcupanteResumo | null;
+  avaliacao_risco: ResultadoRisco;
+  interdicao_justificativa?: string | null;
+  interdicao_documento_tipo?: string | null;
+  interdicao_documento_referencia?: string | null;
 };
 
 type CasaResumo = {
@@ -143,110 +152,145 @@ const cloneCasasRisco = (casas: CasaRisco[]): CasaRisco[] =>
     })),
   }));
 
+const agruparImpactosPorAdolescente = (
+  impactos: ImpactoConflitoExterno[]
+): ConflitosExternosMapa => {
+  return impactos.reduce((acc, impacto) => {
+    const adolescenteId = impacto.adolescente?.id;
+    if (!adolescenteId) {
+      return acc;
+    }
+    if (!acc[adolescenteId]) {
+      acc[adolescenteId] = [];
+    }
+    acc[adolescenteId].push(impacto);
+    return acc;
+  }, {} as ConflitosExternosMapa);
+};
+
+const carregarImpactosExternosAtivos = async (): Promise<ConflitosExternosMapa> => {
+  try {
+    const resultado = await calcularImpactosExternos({
+      status: "ATIVO",
+      tipo: "TODOS",
+    });
+    const impactos = Array.isArray(resultado.impactos)
+      ? resultado.impactos
+      : [];
+    return agruparImpactosPorAdolescente(impactos);
+  } catch (error) {
+    console.error("Falha ao carregar impactos externos para snapshot:", error);
+    return {};
+  }
+};
+
 const calcularSnapshot = async (): Promise<{
   publico: EstruturaSnapshot;
   casasRisco: CasaRisco[];
 }> => {
-  const casasDb = await prisma.casa.findMany({
-    include: {
-      alojamentos: {
-        include: {
-          adolescentes: {
-            include: {
-              conflitosA: {
-                select: {
-                  id: true,
-                  status: true,
-                  tipoConflito: true,
-                  descricao: true,
-                  criadoEm: true,
-                  resolvidoEm: true,
-                  adolescenteAId: true,
-                  adolescenteBId: true,
-                  ciOrigemId: true,
-                  ciOrigem: {
-                    select: {
-                      numero: true,
-                      ano: true,
-                    },
-                  },
-                  adolescenteB: {
-                    select: {
-                      id: true,
-                      nomeCompleto: true,
-                      numeroSms: true,
-                      statusUnidade: true,
-                      bairroOrigemId: true,
-                      faccaoGrupoId: true,
-                      faccao: {
-                        select: {
-                          id: true,
-                          nomeFaccao: true,
-                        },
-                      },
-                      alojamentoAtual: {
-                        select: {
-                          numeroAlojamento: true,
-                          ala: true,
-                          casa: { select: { nome: true } },
-                        },
+  const [casasDb, impactosExternosMapa] = await Promise.all([
+    prisma.casa.findMany({
+      include: {
+        alojamentos: {
+          include: {
+            adolescentes: {
+              include: {
+                conflitosA: {
+                  select: {
+                    id: true,
+                    status: true,
+                    tipoConflito: true,
+                    descricao: true,
+                    criadoEm: true,
+                    resolvidoEm: true,
+                    adolescenteAId: true,
+                    adolescenteBId: true,
+                    ciOrigemId: true,
+                    ciOrigem: {
+                      select: {
+                        numero: true,
+                        ano: true,
                       },
                     },
-                  },
-                },
-              },
-              conflitosB: {
-                select: {
-                  id: true,
-                  status: true,
-                  tipoConflito: true,
-                  descricao: true,
-                  criadoEm: true,
-                  resolvidoEm: true,
-                  adolescenteAId: true,
-                  adolescenteBId: true,
-                  ciOrigemId: true,
-                  ciOrigem: {
-                    select: {
-                      numero: true,
-                      ano: true,
-                    },
-                  },
-                  adolescenteA: {
-                    select: {
-                      id: true,
-                      nomeCompleto: true,
-                      numeroSms: true,
-                      statusUnidade: true,
-                      bairroOrigemId: true,
-                      faccaoGrupoId: true,
-                      faccao: {
-                        select: {
-                          id: true,
-                          nomeFaccao: true,
+                    adolescenteB: {
+                      select: {
+                        id: true,
+                        nomeCompleto: true,
+                        numeroSms: true,
+                        statusUnidade: true,
+                        bairroOrigemId: true,
+                        faccaoGrupoId: true,
+                        faccao: {
+                          select: {
+                            id: true,
+                            nomeFaccao: true,
+                          },
                         },
-                      },
-                      alojamentoAtual: {
-                        select: {
-                          numeroAlojamento: true,
-                          ala: true,
-                          casa: { select: { nome: true } },
+                        alojamentoAtual: {
+                          select: {
+                            numeroAlojamento: true,
+                            ala: true,
+                            casa: { select: { nome: true } },
+                          },
                         },
                       },
                     },
                   },
                 },
+                conflitosB: {
+                  select: {
+                    id: true,
+                    status: true,
+                    tipoConflito: true,
+                    descricao: true,
+                    criadoEm: true,
+                    resolvidoEm: true,
+                    adolescenteAId: true,
+                    adolescenteBId: true,
+                    ciOrigemId: true,
+                    ciOrigem: {
+                      select: {
+                        numero: true,
+                        ano: true,
+                      },
+                    },
+                    adolescenteA: {
+                      select: {
+                        id: true,
+                        nomeCompleto: true,
+                        numeroSms: true,
+                        statusUnidade: true,
+                        bairroOrigemId: true,
+                        faccaoGrupoId: true,
+                        faccao: {
+                          select: {
+                            id: true,
+                            nomeFaccao: true,
+                          },
+                        },
+                        alojamentoAtual: {
+                          select: {
+                            numeroAlojamento: true,
+                            ala: true,
+                            casa: { select: { nome: true } },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+                bairroOrigem: true,
+                faccao: true,
               },
-              bairroOrigem: true,
-              faccao: true,
             },
           },
+          orderBy: [{ ala: "asc" }, { numeroAlojamento: "asc" }],
         },
-        orderBy: [{ ala: "asc" }, { numeroAlojamento: "asc" }],
       },
-    },
-    orderBy: { numero: "asc" },
-  });
+      orderBy: { numero: "asc" },
+    }),
+    carregarImpactosExternosAtivos(),
+  ]);
 
   const casasParaCalculo: CasaRisco[] = casasDb.map((casa) => ({
     id: casa.id,
@@ -290,6 +334,7 @@ const calcularSnapshot = async (): Promise<{
           casaAtual: casaParaCalculo,
           casas: casasParaCalculo,
           slots,
+          conflitosExternos: impactosExternosMapa,
         });
 
         const corRisco = mapearCorRisco(risco.categoria, risco.nivel);
@@ -371,17 +416,30 @@ const calcularSnapshot = async (): Promise<{
           };
         }
 
+        const avaliacaoRisco: ResultadoRisco = {
+          ...risco,
+          motivos: risco.motivos ?? [],
+        };
+
         return {
           id: alojamento.id,
           numero: alojamento.numeroAlojamento,
           ala: alojamento.ala,
           status_manutencao: alojamento.statusManutencao,
           alojamento_frontal_id: alojamento.alojamentoFrontalId,
+          localizacao_preferencial: alojamento.localizacaoPreferencial ?? false,
           cor_risco: corRisco,
           nivel_risco: risco.nivel,
           icones,
           alertas: Array.from(alertasSet),
           ocupante: ocupanteFormatado,
+          avaliacao_risco: avaliacaoRisco,
+          interdicao_justificativa:
+            alojamentoParcial.interdicaoJustificativa ?? null,
+          interdicao_documento_tipo:
+            alojamentoParcial.interdicaoDocumentoTipo ?? null,
+          interdicao_documento_referencia:
+            alojamentoParcial.interdicaoDocumentoReferencia ?? null,
         };
       }
     );

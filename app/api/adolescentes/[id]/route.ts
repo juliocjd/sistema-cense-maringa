@@ -21,6 +21,7 @@ import {
   type AlertaEspecialTipo,
 } from "@/lib/alertas/especiais";
 import { emitMapaEvent } from "@/lib/mapa-event-bus";
+import { invalidateAdolescentesMapaCache } from "@/lib/estrutura/adolescentes-cache";
 
 const historicoRegistroSchema = z
   .array(
@@ -923,6 +924,8 @@ export async function PUT(
         alojamentoId: alojamentoAtualizadoId,
       });
     }
+
+    invalidateAdolescentesMapaCache();
 
     await prisma.logAuditoria.create({
       data: {

@@ -120,6 +120,9 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
 
   const [casas, setCasas] = useState<Casa[]>(casasIniciais ?? []);
   const [adolescentes, setAdolescentes] = useState<AdolescenteTipo[]>([]);
+  const [avaliacoes, setAvaliacoes] = useState<
+    Record<string, ResultadoRisco>
+  >({});
   const [conflitosExternos, setConflitosExternos] = useState<
     Record<string, ImpactoConflitoExterno[]>
   >({});
@@ -160,105 +163,58 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
 
   const totalCasas = casas.length;
 
+  const resumoAlojamentos = useMemo(() => {
+    let total = 0;
+    let ocupados = 0;
+    let livres = 0;
+    let interditados = 0;
+
+    casas.forEach((casa) => {
+      casa.alojamentos.forEach((aloj) => {
+        total += 1;
+        if (aloj.statusManutencao === "INTERDITADO") {
+          interditados += 1;
+          return;
+        }
+        if (aloj.adolescentes && aloj.adolescentes.length > 0) {
+          ocupados += 1;
+        } else {
+          livres += 1;
+        }
+      });
+    });
+
+    return { total, ocupados, livres, interditados };
+  }, [casas]);
+
+  const totalAlojamentosCard = resumoAlojamentos.total || totalAlojamentos;
+
   const carregarDados = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const adolescentesResponse = await fetch("/api/adolescentes", {
+      const mapaResponse = await fetch("/api/mapa/status?refresh=1", {
         cache: "no-store",
       });
-      if (!adolescentesResponse.ok) {
-        throw new Error("Erro ao carregar adolescentes");
+      if (!mapaResponse.ok) {
+        throw new Error("Erro ao carregar dados do mapa");
       }
-      const payload = await adolescentesResponse.json();
-      const adolescentesData: AdolescenteTipo[] = Array.isArray(payload?.data)
-        ? payload.data
+
+      const mapaData = await mapaResponse.json();
+      const casasRecebidas: Casa[] = Array.isArray(mapaData?.casas)
+        ? mapaData.casas
         : [];
-      setAdolescentes(adolescentesData);
+      const adolescentesRecebidos: AdolescenteTipo[] = Array.isArray(
+        mapaData?.adolescentes
+      )
+        ? mapaData.adolescentes
+        : [];
+      const avaliacoesServidor: Record<string, ResultadoRisco> =
+        mapaData?.avaliacoes ?? {};
 
-      const casasResponse = await fetch("/api/casas/status?refresh=1", {
-        cache: "no-store",
-      });
-      if (!casasResponse.ok) {
-        throw new Error("Erro ao carregar dados das casas");
-      }
-      const casasData = await casasResponse.json();
-      const casasFormatadas: Casa[] = casasData.casas.map((casa: any) => ({
-        id: casa.id,
-        numero: casa.numero,
-        nome: casa.nome,
-        isolada: casa.isolada,
-        alojamentos: casa.alojamentos.map((aloj: any) => {
-          const ocupanteBruto = aloj.ocupante;
-          let adolescenteCompleto: AdolescenteTipo | null = null;
-          if (ocupanteBruto) {
-            adolescenteCompleto =
-              adolescentesData.find((a) => a.id === ocupanteBruto.id) ?? null;
-          }
-          const adolescenteFallback =
-            !adolescenteCompleto && ocupanteBruto
-              ? ({
-                  id: ocupanteBruto.id,
-                  nomeCompleto: ocupanteBruto.nome_completo,
-                  nomeSocial: ocupanteBruto.nome_social ?? undefined,
-                  numeroSms: ocupanteBruto.numero_sms ?? undefined,
-                  fotoUrl: ocupanteBruto.foto_url ?? null,
-                  alojamentoAtualId: aloj.id,
-                  statusUnidade: ocupanteBruto.status_unidade ?? "ATIVO",
-                  atoInfracionalGravidade: Boolean(ocupanteBruto.ato_infracional_gravidade ?? false),
-                  alertaRiscoSuicidio:
-                    ocupanteBruto.alerta_risco_suicidio ?? false,
-                  alertaPerfilMapeado:
-                    ocupanteBruto.alerta_perfil_mapeado ?? false,
-                  alertaSaudeConfidencial:
-                    ocupanteBruto.alerta_saude_confidencial ?? false,
-                  bairroOrigemId: ocupanteBruto.bairro_origem_id ?? null,
-                  bairroOrigem: ocupanteBruto.bairro_origem
-                    ? {
-                        id: ocupanteBruto.bairro_origem.id,
-                        nome:
-                          ocupanteBruto.bairro_origem.nome ??
-                          ocupanteBruto.bairro_origem.nomeBairro,
-                        cidade: ocupanteBruto.bairro_origem.cidade,
-                      }
-                    : null,
-                  faccaoGrupoId: ocupanteBruto.faccao_grupo_id ?? null,
-                  faccao: ocupanteBruto.faccao
-                    ? {
-                        id: ocupanteBruto.faccao.id,
-                        nome:
-                          ocupanteBruto.faccao.nome ??
-                          ocupanteBruto.faccao.nomeFaccao,
-                      }
-                    : null,
-                  grupos: [],
-                  tatuagens: [],
-                  conflitosA: ocupanteBruto.conflitosA ?? [],
-                  conflitosB: ocupanteBruto.conflitosB ?? [],
-                  conflitosResolvidos: ocupanteBruto.conflitosResolvidos ?? [],
-                  historicoInfracional: ocupanteBruto.historicoInfracional ?? [],
-                } satisfies AdolescenteTipo)
-              : null;
-
-          const adolescenteParaMapa =
-            adolescenteCompleto || adolescenteFallback;
-
-          return {
-            id: aloj.id,
-            casaId: casa.id,
-            numeroAlojamento: aloj.numero,
-            ala: aloj.ala,
-            statusManutencao: aloj.status_manutencao,
-            alojamentoFrontalId: aloj.alojamento_frontal_id,
-            corRisco: aloj.cor_risco,
-            nivelRisco: aloj.nivel_risco,
-            alertas: aloj.alertas ?? [],
-            icones: aloj.icones ?? [],
-            adolescentes: adolescenteParaMapa ? [adolescenteParaMapa] : [],
-          } as Alojamento;
-        }),
-      }));
-      setCasas(casasFormatadas);
+      setCasas(casasRecebidas);
+      setAdolescentes(adolescentesRecebidos);
+      setAvaliacoes(avaliacoesServidor);
 
       let impactos: Record<string, ImpactoConflitoExterno[]> = {};
       try {
@@ -502,25 +458,36 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
 
   const avaliarRiscoAlojamento = useCallback(
     (alojamento: Alojamento) => {
-      const resultado = calcularRiscoAlojamento({
-        alojamento,
-        casaAtual: casasNormalizadas.find((casa) => casa.id === alojamento.casaId),
-        casas: casasNormalizadas,
-        slots: slotsPorAdolescente,
-        conflitosExternos,
-      });
+      const resultadoServidor = avaliacoes[alojamento.id];
+
+      const resultado =
+        resultadoServidor ??
+        calcularRiscoAlojamento({
+          alojamento,
+          casaAtual: casasNormalizadas.find(
+            (casa) => casa.id === alojamento.casaId
+          ),
+          casas: casasNormalizadas,
+          slots: slotsPorAdolescente,
+          conflitosExternos,
+        });
+
+      const nivelSeguro = Math.max(
+        0,
+        Math.min(5, Math.round(resultado.nivel ?? 0))
+      ) as 0 | 1 | 2 | 3 | 4 | 5;
 
       const corClass =
         resultado.categoria === "INTERDITADO"
           ? riscoClasses.interditado
-          : classePorNivel[resultado.nivel] ?? riscoClasses.livre;
+          : classePorNivel[nivelSeguro] ?? riscoClasses.livre;
 
       return {
         ...resultado,
         corClass,
       };
     },
-    [casasNormalizadas, conflitosExternos, slotsPorAdolescente]
+    [avaliacoes, casasNormalizadas, conflitosExternos, slotsPorAdolescente]
   );
 
   // Mapa de níveis de risco por adolescente (para filtrar dropdown)
@@ -675,7 +642,8 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
     alojamentoId: string,
     status: "LIVRE" | "INTERDITADO",
     justificativa: string,
-    numeroCi: string
+    documentoTipo: "CI" | "DECISAO_JUDICIAL" | "OUTRO",
+    documentoReferencia: string
   ) => {
     await executarOperacao(async () => {
       const response = await fetch(`/api/alojamentos?id=${alojamentoId}`, {
@@ -685,8 +653,9 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
         },
         body: JSON.stringify({
           statusManutencao: status,
-          justificativa,
-          numeroCi,
+          interdicaoJustificativa: justificativa,
+          interdicaoDocumentoTipo: documentoTipo,
+          interdicaoDocumentoReferencia: documentoReferencia,
         }),
       });
 
@@ -710,31 +679,36 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
 
   return (
     <div>
-      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
-        <div className="rounded-xl bg-gradient-to-br from-blue-50 to-blue-100 p-6 border-2 border-blue-200 shadow-md">
-          <div className="flex items-center gap-3 mb-2">
-            <Home className="text-blue-600" size={24} />
-            <p className="text-sm font-semibold text-blue-700">Total de Casas</p>
+      <div className="mb-6 space-y-3 rounded-xl bg-white border border-gray-200 shadow p-4">
+        <div className="flex flex-wrap items-center gap-6 text-sm">
+          <div className="flex items-center gap-2">
+            <Bed className="text-green-600" size={18} />
+            <div>
+              <p className="text-xs uppercase tracking-wide text-green-600 font-semibold">Total de alojamentos</p>
+              <p className="text-2xl font-bold text-green-900 leading-tight">{totalAlojamentosCard}</p>
+            </div>
           </div>
-          <p className="text-4xl font-bold text-blue-900">{totalCasas}</p>
-        </div>
-
-        <div className="rounded-xl bg-gradient-to-br from-green-50 to-green-100 p-6 border-2 border-green-200 shadow-md">
-          <div className="flex items-center gap-3 mb-2">
-            <Bed className="text-green-600" size={24} />
-            <p className="text-sm font-semibold text-green-700">Total de Alojamentos</p>
+          <div className="flex flex-wrap gap-3 text-xs">
+            <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2">
+              <p className="text-[11px] uppercase text-green-600 font-semibold">Disponiveis</p>
+              <p className="text-lg font-bold text-green-800 leading-tight">{resumoAlojamentos.livres}</p>
+            </div>
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
+              <p className="text-[11px] uppercase text-emerald-600 font-semibold">Ocupados</p>
+              <p className="text-lg font-bold text-emerald-800 leading-tight">{resumoAlojamentos.ocupados}</p>
+            </div>
+            <div className="rounded-lg border border-gray-300 bg-gray-50 px-3 py-2">
+              <p className="text-[11px] uppercase text-gray-600 font-semibold">Interditados</p>
+              <p className="text-lg font-bold text-gray-700 leading-tight">{resumoAlojamentos.interditados}</p>
+            </div>
           </div>
-          <p className="text-4xl font-bold text-green-900">{totalAlojamentos}</p>
-        </div>
-
-        <div className="rounded-xl bg-gradient-to-br from-purple-50 to-purple-100 p-6 border-2 border-purple-200 shadow-md">
-          <div className="flex items-center gap-3 mb-2">
-            <User className="text-purple-600" size={24} />
-            <p className="text-sm font-semibold text-purple-700">Adolescentes ativos</p>
+          <div className="flex items-center gap-2 text-purple-700 ml-auto">
+            <User size={18} />
+            <div>
+              <p className="text-xs uppercase tracking-wide font-semibold text-purple-600">Adolescentes ativos</p>
+              <p className="text-2xl font-bold text-purple-900 leading-tight">{adolescentes.length}</p>
+            </div>
           </div>
-          <p className="text-4xl font-bold text-purple-900">
-            {adolescentes.length}
-          </p>
         </div>
       </div>
 
@@ -1155,20 +1129,22 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
           }
           fecharModalDetalhes();
         }}
-        onInterditar={(alojamentoId, justificativa, numeroCi) =>
+        onInterditar={(alojamentoId, justificativa, documentoTipo, documentoReferencia) =>
           handleAlterarStatusAlojamento(
             alojamentoId,
             "INTERDITADO",
             justificativa,
-            numeroCi
+            documentoTipo,
+            documentoReferencia
           )
         }
-        onLiberarInterdicao={(alojamentoId, justificativa, numeroCi) =>
+        onLiberarInterdicao={(alojamentoId, justificativa, documentoTipo, documentoReferencia) =>
           handleAlterarStatusAlojamento(
             alojamentoId,
             "LIVRE",
             justificativa,
-            numeroCi
+            documentoTipo,
+            documentoReferencia
           )
         }
       />

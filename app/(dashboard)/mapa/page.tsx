@@ -3,8 +3,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { MapaInterativo } from "@/components/mapa/mapa-interativo";
 
-import type { Casa, Adolescente, Conflito } from "@/types";
+import type { Casa, Adolescente } from "@/types";
 import type { ImpactoConflitoExterno } from "@/types/inteligencia";
+import type { ResultadoRisco } from "@/lib/riscos/calcular";
 
 export default function MapaPage() {
   // Estados
@@ -15,6 +16,9 @@ export default function MapaPage() {
   const [conflitosExternos, setConflitosExternos] = useState<
     Record<string, ImpactoConflitoExterno[]>
   >({});
+  const [avaliacoes, setAvaliacoes] = useState<
+    Record<string, ResultadoRisco>
+  >({});
 
   // Carregar dados do banco
   const carregarDados = useCallback(async () => {
@@ -22,185 +26,29 @@ export default function MapaPage() {
     setError(null);
 
     try {
-      // PASSO 1: Carregar TODOS os adolescentes com conflitos primeiro
-      const adolescentesResponse = await fetch("/api/adolescentes");
+      const mapaResponse = await fetch("/api/mapa/status");
 
-      if (!adolescentesResponse.ok) {
-        throw new Error("Erro ao carregar adolescentes");
+      if (!mapaResponse.ok) {
+        throw new Error("Erro ao carregar dados do mapa");
       }
 
-      const payload = await adolescentesResponse.json();
-      const adolescentesLista: any[] = Array.isArray(payload?.data)
-        ? payload.data
+      const mapaData = await mapaResponse.json();
+
+      const adolescentesFormatados: Adolescente[] = Array.isArray(
+        mapaData?.adolescentes
+      )
+        ? mapaData.adolescentes
         : [];
 
-      // Transformar dados dos adolescentes
-      const adolescentesFormatados: Adolescente[] = adolescentesLista.map(
-        (a: any) => ({
-          id: a.id,
-          nomeCompleto: a.nomeCompleto,
-          nomeSocial: a.nomeSocial ?? undefined,
-          numeroSms: a.numeroSms ?? undefined,
-          fotoUrl: a.fotoUrl ?? null,
-          vulgo: a.vulgo ?? null,
-          alojamentoAtualId:
-            a.alojamentoAtualId ?? a.alojamentoAtual?.id ?? null,
-          statusUnidade: a.statusUnidade,
-          alertaRiscoSuicidio: Boolean(a.alertaRiscoSuicidio),
-          alertaPerfilMapeado: Boolean(a.alertaPerfilMapeado),
-          alertaSaudeConfidencial: Boolean(a.alertaSaudeConfidencial),
-          alertaSaudeDetalhes: a.alertaSaudeDetalhes ?? null,
-          bairroOrigemId:
-            a.bairroOrigemId ??
-            a.bairroOrigem?.id ??
-            null,
-          bairroOrigem: a.bairroOrigem
-            ? {
-                id: a.bairroOrigem.id,
-                nome:
-                  a.bairroOrigem.nome ??
-                  a.bairroOrigem.nomeBairro,
-                cidade: a.bairroOrigem.cidade,
-              }
-            : null,
-          faccaoGrupoId: a.faccaoGrupoId ?? null,
-          faccaoFuncao: a.faccaoFuncao ?? null,
-          faccaoInformacaoOrigem: a.faccaoInformacaoOrigem ?? null,
-          faccaoInformacaoDetalhe: a.faccaoInformacaoDetalhe ?? null,
-          faccao: a.faccao
-            ? {
-                id: a.faccao.id,
-                nome: a.faccao.nome ?? a.faccao.nomeFaccao,
-              }
-            : null,
-          conflitosA: (a.conflitosA || []) as Conflito[],
-          conflitosB: (a.conflitosB || []) as Conflito[],
-          riscoFuga: a.riscoFuga ?? null,
-          tecnicoReferenciaId: a.tecnicoReferenciaId ?? null,
-          tecnicoReferencia: a.tecnicoReferencia
-            ? {
-                id: a.tecnicoReferencia.id,
-                nome: a.tecnicoReferencia.nome,
-                atividade: a.tecnicoReferencia.atividade ?? null,
-                email: a.tecnicoReferencia.email,
-                telefone: a.tecnicoReferencia.telefone ?? null,
-              }
-            : null,
-          atoInfracionalGravidade: Boolean(a.atoInfracionalGravidade ?? false),
-          grupos: a.grupos ?? [],
-          tatuagens: a.tatuagens ?? [],
-          historicoInfracional: a.historicoInfracional ?? [],
-          conflitosResolvidos: a.conflitosResolvidos ?? [],
-          faseInternacaoAtualId: a.faseInternacaoAtualId ?? null,
-          dataDesinternacao: a.dataDesinternacao ?? null,
-        })
-      );
+      const casasFormatadas: Casa[] = Array.isArray(mapaData?.casas)
+        ? mapaData.casas
+        : [];
+
+      const avaliacoesServidor: Record<string, ResultadoRisco> =
+        mapaData?.avaliacoes ?? {};
 
       setAdolescentes(adolescentesFormatados);
-
-      // PASSO 2: Carregar casas e alojamentos
-      const casasResponse = await fetch("/api/casas/status");
-
-      if (!casasResponse.ok) {
-        throw new Error("Erro ao carregar dados das casas");
-      }
-
-      const casasData = await casasResponse.json();
-
-      // PASSO 3: Transformar dados das casas USANDO os adolescentes completos com conflitos
-      const casasFormatadas: Casa[] = casasData.casas.map((casa: any) => ({
-        id: casa.id,
-        numero: casa.numero,
-        nome: casa.nome,
-        isolada: casa.isolada,
-        alojamentos: casa.alojamentos.map((aloj: any) => {
-          const ocupanteBruto = aloj.ocupante;
-
-          // Se tem ocupante, buscar dados completos do adolescente
-          let adolescenteCompleto = null;
-          if (ocupanteBruto) {
-            adolescenteCompleto = adolescentesFormatados.find(
-              (a) => a.id === ocupanteBruto.id
-            );
-          }
-
-          const adolescenteFallback =
-            !adolescenteCompleto && ocupanteBruto
-              ? ({
-                  id: ocupanteBruto.id,
-                  nomeCompleto: ocupanteBruto.nome_completo,
-                  nomeSocial: ocupanteBruto.nome_social ?? undefined,
-                  numeroSms: ocupanteBruto.numero_sms ?? undefined,
-                  fotoUrl: ocupanteBruto.foto_url ?? null,
-                  alojamentoAtualId: aloj.id,
-                  statusUnidade: ocupanteBruto.status_unidade ?? "ATIVO",
-                  alertaRiscoSuicidio:
-                    ocupanteBruto.alerta_risco_suicidio ?? false,
-                  alertaPerfilMapeado:
-                    ocupanteBruto.alerta_perfil_mapeado ?? false,
-                  alertaSaudeConfidencial:
-                    ocupanteBruto.alerta_saude_confidencial ?? false,
-                  alertaSaudeDetalhes: ocupanteBruto.alerta_saude_detalhes ?? null,
-                  bairroOrigemId: ocupanteBruto.bairro_origem_id ?? null,
-                  bairroOrigem: ocupanteBruto.bairro_origem
-                    ? {
-                        id: ocupanteBruto.bairro_origem.id,
-                        nome:
-                          ocupanteBruto.bairro_origem.nome ??
-                          ocupanteBruto.bairro_origem.nomeBairro,
-                        cidade: ocupanteBruto.bairro_origem.cidade,
-                      }
-                    : null,
-                  faccaoGrupoId: ocupanteBruto.faccao_grupo_id ?? null,
-                  faccao: ocupanteBruto.faccao
-                    ? {
-                        id: ocupanteBruto.faccao.id,
-                        nome:
-                          ocupanteBruto.faccao.nome ??
-                          ocupanteBruto.faccao.nomeFaccao,
-                      }
-                    : null,
-                  conflitosA: (ocupanteBruto.conflitosA ?? []) as Conflito[],
-                  conflitosB: (ocupanteBruto.conflitosB ?? []) as Conflito[],
-                  conflitosResolvidos: (ocupanteBruto.conflitosResolvidos ?? []) as Conflito[],
-                  atoInfracionalGravidade: Boolean(ocupanteBruto.ato_infracional_gravidade ?? false),
-                  tecnicoReferenciaId: ocupanteBruto.tecnico_referencia_id ?? null,
-                  tecnicoReferencia: ocupanteBruto.tecnicoReferencia
-                    ? {
-                        id: ocupanteBruto.tecnicoReferencia.id,
-                        nome: ocupanteBruto.tecnicoReferencia.nome,
-                        atividade: ocupanteBruto.tecnicoReferencia.atividade ?? null,
-                        email: ocupanteBruto.tecnicoReferencia.email,
-                        telefone: ocupanteBruto.tecnicoReferencia.telefone ?? null,
-                      }
-                    : null,
-                  grupos: [],
-                  tatuagens: [],
-                  historicoInfracional: ocupanteBruto.historicoInfracional ?? [],
-                  riscoFuga: ocupanteBruto.risco_fuga ?? null,
-                  faseInternacaoAtualId: ocupanteBruto.fase_internacao_atual_id ?? null,
-                  dataDesinternacao: ocupanteBruto.data_desinternacao ?? null,
-                } satisfies Adolescente)
-              : null;
-
-          const adolescenteParaMapa = adolescenteCompleto || adolescenteFallback;
-
-          return {
-            id: aloj.id,
-            casaId: casa.id,
-            numeroAlojamento: aloj.numero,
-            ala: aloj.ala,
-            statusManutencao: aloj.status_manutencao,
-            alojamentoFrontalId: aloj.alojamento_frontal_id,
-            corRisco: aloj.cor_risco,
-            nivelRisco: aloj.nivel_risco,
-            icones: aloj.icones || [],
-            alertas: aloj.alertas || [],
-            // Usar dados completos com conflitos; fallback com dados da API de casas
-            adolescentes: adolescenteParaMapa ? [adolescenteParaMapa] : [],
-          };
-        }),
-      }));
+      setAvaliacoes(avaliacoesServidor);
 
       let mapaImpactos: Record<string, ImpactoConflitoExterno[]> = {};
       try {
@@ -421,7 +269,8 @@ export default function MapaPage() {
     alojamentoId: string,
     status: "LIVRE" | "INTERDITADO",
     justificativa: string,
-    numeroCi: string
+    documentoTipo: "CI" | "DECISAO_JUDICIAL" | "OUTRO",
+    documentoReferencia: string
   ): Promise<void> => {
     const response = await fetch(`/api/alojamentos?id=${alojamentoId}`, {
       method: "PATCH",
@@ -430,8 +279,9 @@ export default function MapaPage() {
       },
       body: JSON.stringify({
         statusManutencao: status,
-        justificativa,
-        numeroCi,
+        interdicaoJustificativa: justificativa,
+        interdicaoDocumentoTipo: documentoTipo,
+        interdicaoDocumentoReferencia: documentoReferencia,
       }),
     });
 
@@ -516,6 +366,7 @@ export default function MapaPage() {
       <MapaInterativo
         casas={casas}
         adolescentes={adolescentes}
+        avaliacoes={avaliacoes}
         conflitosExternos={conflitosExternos}
         onAlocar={handleAlocar}
         onDesalocar={handleDesalocar}

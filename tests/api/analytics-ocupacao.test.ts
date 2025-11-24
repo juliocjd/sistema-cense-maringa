@@ -1,57 +1,95 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { GET } from "@/app/api/analytics/ocupacao/route";
-import { prisma } from "@/lib/prisma";
+import { getEstruturaSnapshot } from "@/lib/estrutura/snapshot";
 
-vi.mock("@/lib/prisma", () => {
-  const casa = { findMany: vi.fn() };
-  return { prisma: { casa } };
+vi.mock("@/lib/estrutura/snapshot", () => {
+  return {
+    getEstruturaSnapshot: vi.fn(),
+  };
 });
 
-const mockedPrisma = prisma as unknown as {
-  casa: { findMany: ReturnType<typeof vi.fn> };
-};
+const mockedSnapshot = getEstruturaSnapshot as unknown as ReturnType<
+  typeof vi.fn
+>;
 
 const buildRequest = () =>
   new NextRequest(new Request("http://localhost/api/analytics/ocupacao"));
 
 beforeEach(() => {
-  mockedPrisma.casa.findMany.mockReset();
+  mockedSnapshot.mockReset();
 });
 
 describe("GET /api/analytics/ocupacao", () => {
   it("retorna resumo e dados por casa", async () => {
-    mockedPrisma.casa.findMany.mockResolvedValue([
-      {
-        id: "casa-1",
-        nome: "Casa 01",
-        numero: 1,
-        alojamentos: [
-          {
-            id: "aloj-1",
-            statusManutencao: "LIVRE",
-            adolescentes: [{ id: "ado-1" }],
-          },
-          {
-            id: "aloj-2",
-            statusManutencao: "LIVRE",
-            adolescentes: [],
-          },
-        ],
+    mockedSnapshot.mockResolvedValue({
+      casas: [
+        {
+          id: "casa-1",
+          nome: "Casa 01",
+          numero: 1,
+          isolada: false,
+          score_tensao: 0,
+          alojamentos: [
+            {
+              id: "aloj-1",
+              numero: "01",
+              ala: "A",
+              status_manutencao: "LIVRE",
+              alojamento_frontal_id: null,
+              localizacao_preferencial: false,
+              cor_risco: "perigo",
+              nivel_risco: 5,
+              icones: [],
+              alertas: [],
+              ocupante: { id: "ado-1" },
+            },
+            {
+              id: "aloj-2",
+              numero: "02",
+              ala: "A",
+              status_manutencao: "LIVRE",
+              alojamento_frontal_id: null,
+              localizacao_preferencial: false,
+              cor_risco: "livre",
+              nivel_risco: 0,
+              icones: [],
+              alertas: [],
+              ocupante: null,
+            },
+          ],
+        },
+        {
+          id: "casa-2",
+          nome: "Casa 02",
+          numero: 2,
+          isolada: false,
+          score_tensao: 0,
+          alojamentos: [
+            {
+              id: "aloj-3",
+              numero: "03",
+              ala: "B",
+              status_manutencao: "INTERDITADO",
+              alojamento_frontal_id: null,
+              localizacao_preferencial: false,
+              cor_risco: "interditado",
+              nivel_risco: 0,
+              icones: [],
+              alertas: [],
+              ocupante: null,
+            },
+          ],
+        },
+      ],
+      estatisticas: {
+        total_alojamentos: 0,
+        alojamentos_ocupados: 0,
+        alojamentos_livres: 0,
+        alojamentos_com_risco: 0,
+        taxa_ocupacao: "0%",
       },
-      {
-        id: "casa-2",
-        nome: "Casa 02",
-        numero: 2,
-        alojamentos: [
-          {
-            id: "aloj-3",
-            statusManutencao: "INTERDITADO",
-            adolescentes: [],
-          },
-        ],
-      },
-    ]);
+    });
 
     const response = await GET(buildRequest());
     const json = await response.json();
@@ -72,7 +110,7 @@ describe("GET /api/analytics/ocupacao", () => {
   });
 
   it("retorna 500 quando ocorre erro", async () => {
-    mockedPrisma.casa.findMany.mockRejectedValue(new Error("DB error"));
+    mockedSnapshot.mockRejectedValue(new Error("DB error"));
 
     const response = await GET(buildRequest());
     const json = await response.json();

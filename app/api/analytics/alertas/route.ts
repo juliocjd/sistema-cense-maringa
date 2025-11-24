@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import {
+  getEstruturaSnapshot,
+  type EstruturaSnapshot,
+} from "@/lib/estrutura/snapshot";
+import type { RiscoDetalhado } from "@/lib/riscos/calcular";
 
 type NivelRisco =
   | "CRITICO"
@@ -9,33 +13,85 @@ type NivelRisco =
   | "NAO_CLASSIFICADO";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
-
-const normalizarTexto = (valor: string | null | undefined): string => {
-  if (!valor) {
-    return "";
-  }
-  return valor
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim()
-    .toUpperCase();
+const TIPO_LABEL: Record<string, string> = {
+  CONFLITO_INTERNO: "Conflito interno",
+  CONFLITO_EXTERNO: "Conflito externo",
+  ALIADO: "Alerta aliado",
+  AMBIENTAL: "Condicao ambiental",
 };
 
-const normalizarNivel = (valor: string | null | undefined): NivelRisco => {
-  const texto = normalizarTexto(valor);
-  if (texto === "CRITICO") {
-    return "CRITICO";
+const normalizarNivel = (nivel: number | null | undefined): NivelRisco => {
+  if (nivel === undefined || nivel === null) {
+    return "NAO_CLASSIFICADO";
   }
-  if (texto === "ALTO") {
-    return "ALTO";
-  }
-  if (texto === "MEDIO") {
-    return "MEDIO";
-  }
-  if (texto === "BAIXO") {
-    return "BAIXO";
-  }
+  if (nivel >= 5) return "CRITICO";
+  if (nivel === 4) return "ALTO";
+  if (nivel === 3) return "MEDIO";
+  if (nivel === 2) return "BAIXO";
   return "NAO_CLASSIFICADO";
+};
+
+const rotuloTipo = (tipo?: string | null) => {
+  if (!tipo) return "Sem classificacao";
+  return (
+    TIPO_LABEL[tipo] ??
+    tipo
+      .toLowerCase()
+      .replace(/_/g, " ")
+      .replace(/^\w/, (c) => c.toUpperCase())
+  );
+};
+
+const coletarOcupantes = (snapshot: EstruturaSnapshot) => {
+  const ocupantes: {
+    casaNome: string;
+    alojamentoId: string;
+    alojamentoRotulo: string;
+    ocupante: NonNullable<
+      EstruturaSnapshot["casas"][number]["alojamentos"][number]["ocupante"]
+    >;
+    avaliacao: EstruturaSnapshot["casas"][number]["alojamentos"][number]["avaliacao_risco"];
+  }[] = [];
+
+  snapshot.casas.forEach((casa) => {
+    casa.alojamentos.forEach((alojamento) => {
+      if (!alojamento.ocupante) {
+        return;
+      }
+      ocupantes.push({
+        casaNome: casa.nome,
+        alojamentoId: alojamento.id,
+        alojamentoRotulo: `${casa.nome} - ${alojamento.numero}${
+          alojamento.ala ? ` - ${alojamento.ala}` : ""
+        }`,
+        ocupante: alojamento.ocupante,
+        avaliacao: alojamento.avaliacao_risco,
+      });
+    });
+  });
+
+  return ocupantes;
+};
+
+const agruparAlertasPorTipo = (
+  detalhes: RiscoDetalhado[],
+  acumulado: Map<
+    string,
+    { etiqueta: string; individuos: Set<string> }
+  >,
+  adolescenteId: string
+) => {
+  detalhes.forEach((detalhe) => {
+    const chave = detalhe.tipo ?? "OUTROS";
+    const atual =
+      acumulado.get(chave) ??
+      ({
+        etiqueta: rotuloTipo(detalhe.tipo),
+        individuos: new Set<string>(),
+      } as const);
+    atual.individuos.add(adolescenteId);
+    acumulado.set(chave, atual);
+  });
 };
 
 export const runtime = "nodejs";
@@ -45,62 +101,8 @@ export async function GET(_request: NextRequest) {
     const agora = new Date();
     const seteDiasAtras = new Date(agora.getTime() - 7 * MS_PER_DAY);
     const trintaDiasAtras = new Date(agora.getTime() - 30 * MS_PER_DAY);
-
-    const [
-      ativosPorNivelRaw,
-      ativosPorTipoRaw,
-      alertasRecentesRaw,
-      novosUltimosSeteDias,
-      encerradosUltimosTrintaDias,
-    ] = await Promise.all([
-      prisma.alertaAtivo.groupBy({
-        by: ["nivelRisco"],
-        where: { desativadoEm: null },
-        _count: { _all: true },
-      }),
-      prisma.alertaAtivo.groupBy({
-        by: ["tipoAlerta"],
-        where: { desativadoEm: null },
-        _count: { _all: true },
-        orderBy: { _count: { id: "desc" } },
-      }),
-      prisma.alertaAtivo.findMany({
-        where: { desativadoEm: null },
-        select: {
-          id: true,
-          tipoAlerta: true,
-          nivelRisco: true,
-          descricaoAlerta: true,
-          criadoEm: true,
-        adolescente: {
-          select: {
-            id: true,
-            nomeCompleto: true,
-            alojamentoAtual: {
-              select: {
-                id: true,
-                numeroAlojamento: true,
-                ala: true,
-                casa: { select: { nome: true } },
-              },
-            },
-          },
-          },
-        },
-        orderBy: { criadoEm: "desc" },
-        take: 10,
-      }),
-      prisma.alertaAtivo.count({
-        where: {
-          criadoEm: { gte: seteDiasAtras },
-        },
-      }),
-      prisma.alertaAtivo.count({
-        where: {
-          desativadoEm: { not: null, gte: trintaDiasAtras },
-        },
-      }),
-    ]);
+    const snapshot = await getEstruturaSnapshot();
+    const ocupantes = coletarOcupantes(snapshot);
 
     const resumoPorNivel: Record<NivelRisco, number> = {
       CRITICO: 0,
@@ -109,64 +111,129 @@ export async function GET(_request: NextRequest) {
       BAIXO: 0,
       NAO_CLASSIFICADO: 0,
     };
+    const tipos = new Map<
+      string,
+      { etiqueta: string; individuos: Set<string> }
+    >();
 
     let totalAtivos = 0;
-    for (const entrada of ativosPorNivelRaw) {
-      const nivel = normalizarNivel(entrada.nivelRisco as string | null);
-      const quantidade = entrada._count._all;
-      resumoPorNivel[nivel] += quantidade;
-      totalAtivos += quantidade;
-    }
+    let novosUltimosSeteDias = 0;
+    let encerradosUltimosTrintaDias = 0;
 
-    const porTipo = ativosPorTipoRaw.map((entrada) => {
-      const tipo = entrada.tipoAlerta ?? "Sem classificação";
-      const ativos = entrada._count._all;
+    const alertasRecentes = ocupantes
+      .map((item) => {
+        const detalhes: RiscoDetalhado[] =
+          item.avaliacao.detalhes && item.avaliacao.detalhes.length > 0
+            ? item.avaliacao.detalhes
+            : [
+                {
+                  tipo: "CONFLITO_INTERNO",
+                  mensagem: item.avaliacao.rotulo,
+                  nivel: item.avaliacao.nivel,
+                  proximidade: undefined,
+                },
+              ];
+
+        const nivel = normalizarNivel(item.avaliacao.nivel);
+        if (nivel !== "NAO_CLASSIFICADO") {
+          totalAtivos += 1;
+          resumoPorNivel[nivel] += 1;
+          agruparAlertasPorTipo(detalhes, tipos, item.ocupante.id);
+        }
+
+        const conflitosAtivos = [
+          ...(item.ocupante.conflitosA ?? []),
+          ...(item.ocupante.conflitosB ?? []),
+        ].filter((conflito) => conflito.status !== "RESOLVIDO");
+
+        conflitosAtivos.forEach((conflito) => {
+          if (
+            conflito.criadoEm &&
+            new Date(conflito.criadoEm) >= seteDiasAtras
+          ) {
+            novosUltimosSeteDias += 1;
+          }
+        });
+
+        (item.ocupante.conflitosResolvidos ?? []).forEach((conflito) => {
+          if (
+            conflito.resolvidoEm &&
+            new Date(conflito.resolvidoEm) >= trintaDiasAtras
+          ) {
+            encerradosUltimosTrintaDias += 1;
+          }
+        });
+
+        const referencia = conflitosAtivos.reduce<Date | null>(
+          (maisAntiga, conflito) => {
+            if (!conflito.criadoEm) {
+              return maisAntiga;
+            }
+            const criado = new Date(conflito.criadoEm);
+            if (!maisAntiga || criado < maisAntiga) {
+              return criado;
+            }
+            return maisAntiga;
+          },
+          null
+        );
+
+        const diasAtivo = referencia
+          ? Math.max(
+              0,
+              Math.floor(
+                (agora.getTime() - referencia.getTime()) / MS_PER_DAY
+              )
+            )
+          : null;
+
+        const destaque = detalhes.reduce<RiscoDetalhado | null>(
+          (maisSevero, atual) => {
+            if (!maisSevero) {
+              return atual;
+            }
+            if ((atual.nivel ?? 0) > (maisSevero.nivel ?? 0)) {
+              return atual;
+            }
+            return maisSevero;
+          },
+          null
+        );
+
+        return {
+          chaveOrdenacao: item.avaliacao.nivel ?? 0,
+          alerta: {
+            id: `${item.alojamentoId}:${item.ocupante.id}`,
+            tipo: rotuloTipo(destaque?.tipo),
+            nivel,
+            descricao: destaque?.mensagem ?? item.avaliacao.descricao,
+            criadoEm: referencia ? referencia.toISOString() : null,
+            diasAtivo,
+            adolescente: {
+              id: item.ocupante.id,
+              nome: item.ocupante.nome_completo,
+              alojamento: {
+                id: item.alojamentoId,
+                rotulo: item.alojamentoRotulo,
+              },
+            },
+          },
+        };
+      })
+      .filter((entrada) => entrada.alerta.nivel !== "NAO_CLASSIFICADO")
+      .sort((a, b) => b.chaveOrdenacao - a.chaveOrdenacao)
+      .slice(0, 10)
+      .map((entrada) => entrada.alerta);
+
+    const porTipo = Array.from(tipos.entries()).map(([chave, valor]) => {
+      const ativos = valor.individuos.size;
       const percentual =
-        totalAtivos > 0
-          ? Number(((ativos / totalAtivos) * 100).toFixed(1))
-          : 0;
+        totalAtivos > 0 ? Number(((ativos / totalAtivos) * 100).toFixed(1)) : 0;
       return {
-        tipo,
+        chave,
+        tipo: valor.etiqueta,
         ativos,
         percentual,
-      };
-    });
-
-    const alertasRecentes = alertasRecentesRaw.map((alerta) => {
-      const nivel = normalizarNivel(alerta.nivelRisco);
-      const adolescente = alerta.adolescente;
-      let alojamento: { id: string; rotulo: string } | null = null;
-      if (adolescente?.alojamentoAtual) {
-        const { alojamentoAtual } = adolescente;
-        const casa = alojamentoAtual.casa?.nome ?? "Casa desconhecida";
-        const numero = alojamentoAtual.numeroAlojamento ?? "";
-        const ala = alojamentoAtual.ala
-          ? ` - ${alojamentoAtual.ala.toUpperCase()}`
-          : "";
-        alojamento = {
-          id: alojamentoAtual.id,
-          rotulo: `${casa} - ${numero}${ala}`,
-        };
-      }
-
-      const diasAtivo = Math.floor(
-        (agora.getTime() - alerta.criadoEm.getTime()) / MS_PER_DAY
-      );
-
-      return {
-        id: alerta.id,
-        tipo: alerta.tipoAlerta ?? "Sem classificação",
-        nivel,
-        descricao: alerta.descricaoAlerta,
-        criadoEm: alerta.criadoEm.toISOString(),
-        diasAtivo,
-        adolescente: adolescente
-          ? {
-              id: adolescente.id,
-              nome: adolescente.nomeCompleto,
-              alojamento,
-            }
-          : null,
       };
     });
 

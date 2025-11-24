@@ -228,6 +228,8 @@ export function CameraCapture({
   const handleRetake = () => {
     setCapturedImage(null);
     setValidationError(null);
+    stopCamera();
+    startCamera();
   };
 
   return (

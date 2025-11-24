@@ -17,6 +17,14 @@ import type { RiscoDetalhado as RiscoDetalhadoCalculo } from "@/lib/riscos/calcu
 
 type TabKey = "ocupacao" | "transferencia" | "interdicao";
 
+const INTERDICAO_TIPOS = [
+  { value: "CI", label: "Comunicado Interno (CI)" },
+  { value: "DECISAO_JUDICIAL", label: "Decisao judicial" },
+  { value: "OUTRO", label: "Outro documento" },
+] as const;
+
+type InterdicaoDocumentoTipo = (typeof INTERDICAO_TIPOS)[number]["value"];
+
 type RiscoEnvolvido = {
   id?: string;
   nome: string;
@@ -89,12 +97,14 @@ interface ModalAlojamentoDetalhesProps {
   onInterditar: (
     alojamentoId: string,
     justificativa: string,
-    numeroCi: string
+    documentoTipo: InterdicaoDocumentoTipo,
+    documentoReferencia: string
   ) => Promise<void>;
   onLiberarInterdicao: (
     alojamentoId: string,
     justificativa: string,
-    numeroCi: string
+    documentoTipo: InterdicaoDocumentoTipo,
+    documentoReferencia: string
   ) => Promise<void>;
 }
 
@@ -135,7 +145,11 @@ export default function ModalAlojamentoDetalhes({
   );
 
   const [interdicaoJustificativa, setInterdicaoJustificativa] = useState("");
-  const [interdicaoCi, setInterdicaoCi] = useState("");
+  const [interdicaoDocumentoTipo, setInterdicaoDocumentoTipo] = useState<
+    InterdicaoDocumentoTipo | ""
+  >("");
+  const [interdicaoDocumentoReferencia, setInterdicaoDocumentoReferencia] =
+    useState("");
   const [interdicaoLoading, setInterdicaoLoading] = useState(false);
   const [interdicaoErro, setInterdicaoErro] = useState<string | null>(null);
   const [abaAtiva, setAbaAtiva] = useState<TabKey>("ocupacao");
@@ -158,7 +172,8 @@ export default function ModalAlojamentoDetalhes({
 
   const resetarFluxoInterdicao = () => {
     setInterdicaoJustificativa("");
-    setInterdicaoCi("");
+    setInterdicaoDocumentoTipo("");
+    setInterdicaoDocumentoReferencia("");
     setInterdicaoErro(null);
     setInterdicaoLoading(false);
   };
@@ -178,6 +193,33 @@ export default function ModalAlojamentoDetalhes({
     resetarFluxoInterdicao();
     setAbaAtiva("ocupacao");
   }, [isOpen, alojamento?.id]);
+
+  useEffect(() => {
+    if (!isOpen || !alojamento) {
+      return;
+    }
+
+    if (alojamento.statusManutencao === "INTERDITADO") {
+      setInterdicaoJustificativa(alojamento.interdicaoJustificativa ?? "");
+      setInterdicaoDocumentoTipo(
+        (alojamento.interdicaoDocumentoTipo as InterdicaoDocumentoTipo | null) ??
+          ""
+      );
+      setInterdicaoDocumentoReferencia(
+        alojamento.interdicaoDocumentoReferencia ?? ""
+      );
+    } else {
+      setInterdicaoJustificativa("");
+      setInterdicaoDocumentoTipo("");
+      setInterdicaoDocumentoReferencia("");
+    }
+  }, [isOpen, alojamento]);
+
+  useEffect(() => {
+    if (statusInterditado && abaAtiva !== "interdicao") {
+      setAbaAtiva("interdicao");
+    }
+  }, [statusInterditado, abaAtiva]);
 
   useEffect(() => {
     setSugestoes([]);
@@ -622,11 +664,26 @@ export default function ModalAlojamentoDetalhes({
     }
   };
 
-  const handleInterdicao = async () => {
+  const executarInterdicao = async (
+    acao: "INTERDITAR" | "LIBERAR",
+    fecharAoFinal = true
+  ) => {
     if (!alojamento) return;
 
-    if (!interdicaoJustificativa.trim() || !interdicaoCi.trim()) {
-      setInterdicaoErro("Informe justificativa e numero da CI.");
+    if (acao === "INTERDITAR" && !statusInterditado && !podeInterditar) {
+      setInterdicaoErro(
+        "Remova ou transfira o adolescente antes de interditar o alojamento."
+      );
+      return;
+    }
+
+    const justificativa = interdicaoJustificativa.trim();
+    const documentoRef = interdicaoDocumentoReferencia.trim();
+
+    if (!justificativa || !interdicaoDocumentoTipo || !documentoRef) {
+      setInterdicaoErro(
+        "Informe justificativa, tipo de documento e referencia."
+      );
       return;
     }
 
@@ -634,29 +691,29 @@ export default function ModalAlojamentoDetalhes({
     setInterdicaoErro(null);
 
     try {
-      if (statusInterditado) {
+      if (acao === "LIBERAR") {
         await onLiberarInterdicao(
           alojamento.id,
-          interdicaoJustificativa.trim(),
-          interdicaoCi.trim()
+          justificativa,
+          interdicaoDocumentoTipo,
+          documentoRef
         );
       } else {
-        if (!podeInterditar) {
-          setInterdicaoErro(
-            "Remova ou transfira o adolescente antes de interditar o alojamento."
-          );
-          return;
-        }
         await onInterditar(
           alojamento.id,
-          interdicaoJustificativa.trim(),
-          interdicaoCi.trim()
+          justificativa,
+          interdicaoDocumentoTipo,
+          documentoRef
         );
       }
 
-      setInterdicaoJustificativa("");
-      setInterdicaoCi("");
-      onClose();
+      if (fecharAoFinal) {
+        setInterdicaoJustificativa("");
+        setInterdicaoDocumentoTipo("");
+        setInterdicaoDocumentoReferencia("");
+        onClose();
+      }
+      setInterdicaoErro(null);
     } catch (error) {
       const msg =
         error instanceof Error ? error.message : "Erro ao atualizar o alojamento.";
@@ -798,25 +855,52 @@ export default function ModalAlojamentoDetalhes({
           <div className="flex flex-wrap gap-3 border-b border-slate-200 pb-4">
             {(
               [
-                { id: "ocupacao", label: "Ocupacao atual" },
-                { id: "transferencia", label: "Transferir / realocar" },
-                { id: "interdicao", label: "Interdicao" },
-              ] as Array<{ id: TabKey; label: string }>
-            ).map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setAbaAtiva(tab.id)}
-                className={`rounded-full px-4 py-2 text-sm font-semibold ${
-                  abaAtiva === tab.id
-                    ? "bg-indigo-600 text-white"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
+                {
+                  id: "ocupacao",
+                  label: "Ocupacao atual",
+                  disabled: statusInterditado,
+                },
+                {
+                  id: "transferencia",
+                  label: "Transferir / realocar",
+                  disabled: statusInterditado,
+                },
+                { id: "interdicao", label: "Interdicao", disabled: false },
+              ] as Array<{ id: TabKey; label: string; disabled: boolean }>
+            ).map((tab) => {
+              const isDisabled = tab.disabled;
+              const isActive = abaAtiva === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  disabled={isDisabled}
+                  onClick={() => {
+                    if (!isDisabled) setAbaAtiva(tab.id);
+                  }}
+                  title={
+                    isDisabled
+                      ? "Alojamento interditado: utilize a aba Interdicao."
+                      : undefined
+                  }
+                  className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                    isActive
+                      ? "bg-indigo-600 text-white"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  } ${isDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
           </div>
+
+          {statusInterditado && (
+            <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-2 text-sm text-amber-800">
+              Este alojamento esta interditado. Atualize os dados ou libere o leito na aba
+              Interdicao.
+            </div>
+          )}
 
           {abaAtiva === "ocupacao" && (
             <section className="rounded-2xl border border-slate-200 p-4">
@@ -1469,10 +1553,11 @@ export default function ModalAlojamentoDetalhes({
                 Interdicao do alojamento
               </h3>
               <p className="text-sm text-slate-600 mb-3">
-                Registre a interdicao ou liberacao do alojamento com justificativa e numero da CI correspondente.
+                Registre ou atualize os dados da interdicao informando justificativa, tipo e referencia do documento
+                (CI, decisao judicial ou outro).
               </p>
               <p className="text-xs text-slate-500 mb-3">
-                Apenas alojamentos livres podem ser interditados.
+                Apenas alojamentos livres podem ser interditados. Se houver ocupante, realize a transferencia antes.
               </p>
               {!podeInterditar && (
                 <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
@@ -1480,7 +1565,7 @@ export default function ModalAlojamentoDetalhes({
                 </div>
               )}
 
-              <div className="grid gap-3 md:grid-cols-2">
+              <div className="grid gap-4 lg:grid-cols-[1.3fr,0.9fr]">
                 <div>
                   <label className="text-xs font-semibold uppercase text-slate-500">
                     Justificativa
@@ -1492,16 +1577,42 @@ export default function ModalAlojamentoDetalhes({
                     className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:outline-none resize-none"
                   />
                 </div>
-                <div>
-                  <label className="text-xs font-semibold uppercase text-slate-500">
-                    Numero da CI
-                  </label>
-                  <input
-                    type="text"
-                    value={interdicaoCi}
-                    onChange={(event) => setInterdicaoCi(event.target.value)}
-                    className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:outline-none"
-                  />
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="sm:col-span-1">
+                    <label className="text-xs font-semibold uppercase text-slate-500">
+                      Tipo do documento
+                    </label>
+                    <select
+                      value={interdicaoDocumentoTipo}
+                      onChange={(event) =>
+                        setInterdicaoDocumentoTipo(
+                          event.target.value as InterdicaoDocumentoTipo
+                        )
+                      }
+                      className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:outline-none bg-white"
+                    >
+                      <option value="">Selecione</option>
+                      {INTERDICAO_TIPOS.map((tipo) => (
+                        <option key={tipo.value} value={tipo.value}>
+                          {tipo.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="sm:col-span-1">
+                    <label className="text-xs font-semibold uppercase text-slate-500">
+                      Referencia
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ex.: CI 123/2025"
+                      value={interdicaoDocumentoReferencia}
+                      onChange={(event) =>
+                        setInterdicaoDocumentoReferencia(event.target.value)
+                      }
+                      className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:outline-none"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -1509,14 +1620,28 @@ export default function ModalAlojamentoDetalhes({
                 <p className="mt-2 text-sm text-rose-600">{interdicaoErro}</p>
               )}
 
-              <div className="mt-4 flex gap-3">
+              <div className="mt-4 flex flex-wrap gap-3">
+                {statusInterditado && (
+                  <button
+                    type="button"
+                    onClick={() => executarInterdicao("INTERDITAR", false)}
+                    disabled={interdicaoLoading}
+                    className="rounded-lg px-4 py-2 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60"
+                  >
+                    {interdicaoLoading ? "Processando..." : "Atualizar dados"}
+                  </button>
+                )}
                 <button
                   type="button"
-                  onClick={handleInterdicao}
-                  disabled={interdicaoLoading || (!statusInterditado && !podeInterditar)}
+                  onClick={() =>
+                    executarInterdicao(statusInterditado ? "LIBERAR" : "INTERDITAR")
+                  }
+                  disabled={
+                    interdicaoLoading || (!statusInterditado && !podeInterditar)
+                  }
                   className={`rounded-lg px-4 py-2 text-sm font-semibold text-white ${
                     statusInterditado
-                      ? "bg-emerald-600 hover:bg-emerald-500"
+                      ? "bg-slate-600 hover:bg-slate-500"
                       : "bg-red-600 hover:bg-red-500"
                   } ${
                     !statusInterditado && !podeInterditar

@@ -1,7 +1,7 @@
 ﻿"use client";
 
-import { useEffect, useRef, useState } from "react";
-import { ShieldCheck, Camera, UserCheck, Clock, AlertCircle, CheckCircle, QrCode, Monitor } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ShieldCheck, Camera, UserCheck, Clock, AlertCircle, CheckCircle, QrCode, Monitor, X } from "lucide-react";
 import { CameraCapture } from "@/components/reconhecimento-facial/camera-capture";
 import { ModalRegistrarVisita } from "@/components/visitantes/modal-registrar-visita";
 import { ModalValidacaoPrevia } from "@/components/visitantes/modal-validacao-previa";
@@ -42,6 +42,9 @@ type IdentificacaoResultado = {
     id: string;
     nomeCompleto: string;
     cpf: string;
+    rg?: string | null;
+    nomePai?: string | null;
+    nomeMae?: string | null;
     dataNascimento: string;
     fotoUrl: string;
     adolescentes: Adolescente[];
@@ -74,20 +77,28 @@ export default function PortariaPage() {
   const [origemIdentificacao, setOrigemIdentificacao] = useState<"facial" | "qrcode" | "manual" | null>(null);
   const [cameraSessionId, setCameraSessionId] = useState(0);
   const [mensagemSucesso, setMensagemSucesso] = useState<string | null>(null);
-  const resultadoRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (!resultadoRef.current || !resultado) return;
-    if (typeof window !== "undefined" && window.innerWidth <= 768) {
-      resultadoRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (!mensagemSucesso) {
+      return;
     }
-  }, [resultado]);
+    const timeout = setTimeout(() => setMensagemSucesso(null), 4000);
+    return () => clearTimeout(timeout);
+  }, [mensagemSucesso]);
 
   const iniciarFluxoFacial = () => {
     setModoIdentificacao(true);
     setOrigemIdentificacao("facial");
     setCameraSessionId((prev) => prev + 1);
     setMensagemSucesso(null);
+  };
+
+  const cancelarFluxoFacial = () => {
+    setModoIdentificacao(false);
+    setOrigemIdentificacao(null);
+    setResultado(null);
+    setErro(null);
+    setCameraSessionId((prev) => prev + 1);
   };
 
   const reiniciarSessaoCamera = () => {
@@ -139,13 +150,9 @@ export default function PortariaPage() {
 
       setMensagemSucesso("Entrada registrada com sucesso.");
       limparEstadoVisita();
-
-      if (origemIdentificacao === "facial") {
-        iniciarFluxoFacial();
-      } else {
-        setModoIdentificacao(false);
-        setOrigemIdentificacao(null);
-      }
+      setOrigemIdentificacao("facial");
+      setModoIdentificacao(true);
+      setCameraSessionId((prev) => prev + 1);
     } catch (err) {
       console.error("Erro ao registrar visita:", err);
       setErro(
@@ -169,6 +176,9 @@ export default function PortariaPage() {
     setErro(null);
     setResultado(null);
     setMensagemSucesso(null);
+    if (origemIdentificacao === "facial" && modoIdentificacao) {
+      setModoIdentificacao(false);
+    }
 
     try {
       // Primeiro fazer upload da foto
@@ -203,11 +213,11 @@ export default function PortariaPage() {
       const data = await response.json();
 
       if (!data.success) {
-        setErro(data.message || "Visitante nÃ£o identificado");
+        setErro(data.message || "Visitante nao identificado");
         setResultado(data);
       } else if (data.visitante) {
         const adolescentes = normalizarAdolescentes(data.visitante.adolescentes);
-        // Verificar se hÃ¡ visitas em andamento ANTES de mostrar sucesso
+        // Verificar se ha visitas em andamento ANTES de mostrar sucesso
         const visitasAbertas = await verificarVisitasEmAndamento(data.visitante.id);
 
                 if (visitasAbertas.length > 0) {
@@ -216,7 +226,7 @@ export default function PortariaPage() {
             .map((v: any) => v.adolescente?.nomeCompleto || "Adolescente")
             .join(", ");
           setErro(
-            `?? ATENÇÃO: ${data.visitante.nomeCompleto} já possui visita em andamento com: ${nomes}. ` +
+            `ATENCAO: ${data.visitante.nomeCompleto} ja possui visita em andamento com: ${nomes}. ` +
               `Por favor, finalize a visita atual antes de registrar uma nova.`
           );
           setResultado(null);
@@ -230,6 +240,9 @@ export default function PortariaPage() {
             visitante: {
               ...data.visitante,
               adolescentes,
+              ultimasVisitas: Array.isArray(data.visitante.ultimasVisitas)
+                ? data.visitante.ultimasVisitas.slice(0, 3)
+                : [],
             },
           });
 
@@ -244,9 +257,12 @@ export default function PortariaPage() {
       }
     } catch (err) {
       console.error("Erro ao identificar visitante:", err);
-      setErro("Erro ao processar identificaÃ§Ã£o. Tente novamente.");
+      setErro("Erro ao processar identificacao. Tente novamente.");
     } finally {
       setProcessando(false);
+      if (origemIdentificacao === "facial") {
+        setModoIdentificacao(false);
+      }
 
     }
   };
@@ -315,7 +331,7 @@ export default function PortariaPage() {
   };
 
   /**
-   * Abre modal apropriado baseado na validaÃ§Ã£o
+   * Abre modal apropriado baseado na validacao
    */
   const handleRegistrarVisita = () => {
     if (!adolescenteSelecionadoId) {
@@ -323,11 +339,11 @@ export default function PortariaPage() {
       return;
     }
 
-    // Se houver alertas que requerem justificativa, abre modal de validaÃ§Ã£o
+    // Se houver alertas que requerem justificativa, abre modal de validacao
     if (validacaoResultado?.requerJustificativa) {
       setMostrarModalValidacao(true);
     } else {
-      // Se nÃ£o houver alertas, vai direto para registro
+      // Se nao houver alertas, vai direto para registro
       setMostrarModalVisita(true);
     }
   };
@@ -345,7 +361,7 @@ export default function PortariaPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        setErro(data.erro || "QR Code invÃ¡lido");
+        setErro(data.erro || "QR Code invalido");
         setModoQRCode(false);
         return;
       }
@@ -356,8 +372,8 @@ export default function PortariaPage() {
       if (visitasAbertas.length > 0) {
         const nomes = visitasAbertas.map((v: any) => v.adolescente?.nomeCompleto || "Adolescente").join(", ");
         setErro(
-          `âš ï¸ ATENÃ‡ÃƒO: ${data.visitante.nomeCompleto} jÃ¡ possui visita em andamento com: ${nomes}. ` +
-          `Por favor, finalize a visita atual antes de registrar uma nova.`
+          `ATENCAO: ${data.visitante.nomeCompleto} ja possui visita em andamento com: ${nomes}. ` +
+              `Por favor, finalize a visita atual antes de registrar uma nova.`
         );
         setResultado(null);
       } else {
@@ -379,22 +395,27 @@ export default function PortariaPage() {
           match: {
             id: data.visitante.id,
             nomeCompleto: data.visitante.nomeCompleto,
-            confidence: 100, // QR Code tem 100% de confianÃ§a
+            confidence: 100, // QR Code tem 100% de confianca
             distance: 0,
           },
           visitante: {
             id: data.visitante.id,
             nomeCompleto: data.visitante.nomeCompleto,
             cpf: data.visitante.cpf,
-            dataNascimento: "", // NÃ£o vem na API de QR Code
+            rg: data.visitante.rg || null,
+            nomePai: data.visitante.nomePai || null,
+            nomeMae: data.visitante.nomeMae || null,
+            dataNascimento: "", // Nao vem na API de QR Code
             fotoUrl: data.visitante.urlFoto || "",
             adolescentes: adolescentesNormalizados,
-            ultimasVisitas: data.visitasRecentes.map((v: any) => ({
-              id: v.id,
-              dataHoraEntrada: v.dataHoraEntrada,
-              dataHoraSaida: v.dataHoraSaida,
-              observacoes: null,
-            })),
+            ultimasVisitas: Array.isArray(data.visitasRecentes)
+              ? data.visitasRecentes.slice(0, 3).map((v: any) => ({
+                  id: v.id,
+                  dataHoraEntrada: v.dataHoraEntrada,
+                  dataHoraSaida: v.dataHoraSaida,
+                  observacoes: null,
+                }))
+              : [],
           },
         };
 
@@ -417,7 +438,7 @@ export default function PortariaPage() {
   };
 
   /**
-   * Formata data/hora para exibiÃ§Ã£o
+   * Formata data/hora para exibicao
    */
   const formatarDataHora = (dataHora: string) => {
     return new Date(dataHora).toLocaleString("pt-BR", {
@@ -451,28 +472,24 @@ export default function PortariaPage() {
             <span className="sm:hidden">Portaria</span>
           </h1>
           <p className="text-gray-600 mt-2 text-sm md:text-base lg:text-lg">
-            Sistema de identificaÃ§Ã£o automÃ¡tica de visitantes
+            Sistema de identificacao automatica de visitantes
           </p>
         </div>
 
-        {/* Modo IdentificaÃ§Ã£o */}
+        {/* Modo Identificacao */}
         {modoIdentificacao && (
           <div className="mb-6">
-            <CameraCapture
-              key={cameraSessionId}
-              onCapture={handleIdentificarVisitante}
-              onCancel={() => {
-                setModoIdentificacao(false);
-                setErro(null);
-                setOrigemIdentificacao(null);
-              }}
-              title="IdentificaÃ§Ã£o Facial"
-              subtitle="Posicione o rosto do visitante no centro da cÃ¢mera"
-            />
+        <CameraCapture
+          key={cameraSessionId}
+          onCapture={handleIdentificarVisitante}
+          onCancel={cancelarFluxoFacial}
+          title="Identificacao Facial"
+          subtitle="Posicione o rosto do visitante no centro da camera"
+        />
           </div>
         )}
 
-        {/* BotÃµes de AÃ§Ã£o */}
+        {/* Botoes de Acao */}
         {!modoIdentificacao && !modoCadastro && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-6 md:mb-8">
             <button
@@ -489,8 +506,8 @@ export default function PortariaPage() {
                   <span className="sm:hidden">Facial</span>
                 </h2>
                 <p className="text-gray-600 mt-1 md:mt-2 text-sm md:text-base">
-                  <span className="hidden sm:inline">IdentificaÃ§Ã£o automÃ¡tica via cÃ¢mera</span>
-                  <span className="sm:hidden">Via cÃ¢mera</span>
+                  <span className="hidden sm:inline">Identificacao automatica via camera</span>
+                  <span className="sm:hidden">Via camera</span>
                 </p>
               </div>
             </button>
@@ -512,7 +529,7 @@ export default function PortariaPage() {
                   <span className="sm:hidden">QR Code</span>
                 </h2>
                 <p className="text-gray-600 mt-1 md:mt-2 text-sm md:text-base">
-                  <span className="hidden sm:inline">IdentificaÃ§Ã£o rÃ¡pida via QR Code</span>
+                  <span className="hidden sm:inline">Identificacao rapida via QR Code</span>
                   <span className="sm:hidden">Via QR</span>
                 </p>
               </div>
@@ -552,7 +569,7 @@ export default function PortariaPage() {
                   <span className="sm:hidden">Dashboard</span>
                 </h2>
                 <p className="text-gray-600 mt-1 md:mt-2 text-sm md:text-base">
-                  <span className="hidden sm:inline">Painel de controle e estatÃ­sticas</span>
+                  <span className="hidden sm:inline">Painel de controle e estatisticas</span>
                   <span className="sm:hidden">Painel controle</span>
                 </p>
               </div>
@@ -577,6 +594,9 @@ export default function PortariaPage() {
                   id: visitante.id,
                   nomeCompleto: visitante.nomeCompleto,
                   cpf: visitante.cpf || "",
+                  rg: visitante.rg || null,
+                  nomePai: visitante.nomePai || null,
+                  nomeMae: visitante.nomeMae || null,
                   dataNascimento: visitante.dataNascimento || "",
                   fotoUrl: visitante.fotoUrl || "",
                   adolescentes: adolescentesVinculados,
@@ -585,7 +605,7 @@ export default function PortariaPage() {
               });
               setOrigemIdentificacao("manual");
 
-              // Auto-selecionar se sÃ³ tiver 1 adolescente
+              // Auto-selecionar se so tiver 1 adolescente
               if (adolescentesVinculados.length === 1) {
                 const adolescenteId = adolescentesVinculados[0].id;
                 setAdolescenteSelecionadoId(adolescenteId);
@@ -603,9 +623,28 @@ export default function PortariaPage() {
           </div>
         )}
 
-        {/* Resultado da IdentificaÃ§Ã£o */}
+        {/* Resultado da Identificacao */}
         {resultado && (
-          <div ref={resultadoRef} className="bg-white rounded-xl shadow-lg p-4 md:p-6 lg:p-8 mb-6 md:mb-8">
+          <div className="fixed inset-0 z-40 flex items-center justify-center px-4 py-6">
+            <div
+              className="absolute inset-0 bg-black/40"
+              onClick={() => {
+                limparEstadoVisita();
+                setResultado(null);
+              }}
+            />
+            <div className="relative w-full max-w-5xl max-h-[90vh] overflow-y-auto bg-white rounded-2xl shadow-2xl p-4 md:p-6 lg:p-8">
+              <button
+                type="button"
+                className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
+                aria-label="Fechar resumo"
+                onClick={() => {
+                  limparEstadoVisita();
+                  setResultado(null);
+                }}
+              >
+                <X className="w-5 h-5" />
+              </button>
             {resultado.success && resultado.visitante ? (
               <>
                 {/* Sucesso */}
@@ -616,7 +655,7 @@ export default function PortariaPage() {
                       Visitante Identificado!
                     </h2>
                     <p className="text-gray-600 mt-1 text-xs md:text-sm">
-                      ConfianÃ§a: {resultado.match?.confidence}% | DistÃ¢ncia:{" "}
+                      Confianca: {resultado.match?.confidence}% | Distancia:{" "}
                       {resultado.match?.distance.toFixed(3)}
                     </p>
                   </div>
@@ -640,18 +679,29 @@ export default function PortariaPage() {
                         <strong>Nome:</strong> {resultado.visitante.nomeCompleto}
                       </p>
                       <p>
-                        <strong>CPF:</strong> {resultado.visitante.cpf || "NÃ£o informado"}
+                        <strong>CPF:</strong> {resultado.visitante.cpf || "Nao informado"}
+                      </p>
+                      <p>
+                        <strong>RG:</strong> {resultado.visitante.rg || "Nao informado"}
                       </p>
                       <p>
                         <strong>Data de Nascimento:</strong>{" "}
                         {resultado.visitante.dataNascimento
                           ? new Date(resultado.visitante.dataNascimento).toLocaleDateString("pt-BR")
-                          : "NÃ£o informado"}
+                          : "Nao informado"}
+                      </p>
+                      <p>
+                        <strong>Nome do pai:</strong>{" "}
+                        {resultado.visitante.nomePai || "Nao informado"}
+                      </p>
+                      <p>
+                        <strong>Nome da mae:</strong>{" "}
+                        {resultado.visitante.nomeMae || "Nao informado"}
                       </p>
                     </div>
                   </div>
 
-                  {/* Adolescentes Relacionados - SELECIONÃVEIS */}
+                  {/* Adolescentes Relacionados - SELECIONAVEIS */}
                   <div>
                     <h3 className="text-lg md:text-xl font-bold text-gray-900 mb-3 md:mb-4">
                       <span className="hidden sm:inline">Adolescentes Relacionados</span>
@@ -731,13 +781,13 @@ export default function PortariaPage() {
                       <p className="text-gray-500 text-sm">Nenhum adolescente relacionado</p>
                     )}
 
-                    {/* Ãšltimas Visitas */}
+                    {/* Ultimas Visitas */}
                     <h3 className="text-lg md:text-xl font-bold text-gray-900 mt-5 md:mt-6 mb-3 md:mb-4">
-                      Ãšltimas Visitas
+                      Ultimas Visitas
                     </h3>
                     {resultado.visitante.ultimasVisitas.length > 0 ? (
                       <ul className="space-y-3">
-                        {resultado.visitante.ultimasVisitas.map((visita) => (
+                        {resultado.visitante.ultimasVisitas.slice(0, 2).map((visita) => (
                           <li
                             key={visita.id}
                             className="p-3 bg-gray-50 rounded-lg border border-gray-200"
@@ -749,7 +799,7 @@ export default function PortariaPage() {
                               </span>
                             </div>
                             <p className="text-xs text-gray-500 mt-1">
-                              DuraÃ§Ã£o:{" "}
+                              Duracao:{" "}
                               {calcularTempoVisita(
                                 visita.dataHoraEntrada,
                                 visita.dataHoraSaida
@@ -764,19 +814,23 @@ export default function PortariaPage() {
                   </div>
                 </div>
 
-                {/* BotÃµes de AÃ§Ã£o */}
+                {/* Botoes de Acao */}
                 <div className="mt-6 md:mt-8 flex flex-col sm:flex-row gap-3 md:gap-4">
                   <button
                     onClick={handleRegistrarVisita}
-                    disabled={!adolescenteSelecionadoId || validandoEntrada}
+                    disabled={
+                      !adolescenteSelecionadoId || validandoEntrada || processando
+                    }
                     className={`flex-1 px-4 md:px-6 py-2.5 md:py-3 rounded-lg transition-colors font-semibold shadow-md text-sm md:text-base ${
-                      adolescenteSelecionadoId && !validandoEntrada
+                      adolescenteSelecionadoId && !validandoEntrada && !processando
                         ? "bg-green-600 text-white hover:bg-green-700"
                         : "bg-gray-300 text-gray-500 cursor-not-allowed"
                     }`}
                   >
                     {validandoEntrada
                       ? "Validando..."
+                      : processando
+                      ? "Processando..."
                       : !adolescenteSelecionadoId
                       ? "Selecione um adolescente"
                       : validacaoResultado?.requerJustificativa
@@ -795,33 +849,33 @@ export default function PortariaPage() {
                     }}
                     className="px-4 md:px-6 py-2.5 md:py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors font-semibold shadow-md text-sm md:text-base"
                   >
-                    Nova IdentificaÃ§Ã£o
+                    Nova Identificacao
                   </button>
                 </div>
               </>
             ) : (
-              /* Falha na IdentificaÃ§Ã£o */
+              /* Falha na Identificacao */
               <div>
                 <div className="flex items-center gap-2 md:gap-3 mb-4 md:mb-6">
                   <AlertCircle className="text-amber-600 w-10 h-10 md:w-12 md:h-12 flex-shrink-0" />
                   <div>
                     <h2 className="text-xl md:text-2xl lg:text-3xl font-bold text-amber-700">
-                      Visitante NÃ£o Identificado
+                      Visitante Nao Identificado
                     </h2>
                     <p className="text-gray-600 mt-1 text-xs md:text-sm">{resultado.message}</p>
                   </div>
                 </div>
 
                 <p className="text-gray-700 mb-4 md:mb-6 text-sm md:text-base">
-                  O sistema nÃ£o conseguiu identificar automaticamente este visitante.
-                  PossÃ­veis motivos:
+                  O sistema nao conseguiu identificar automaticamente este visitante.
+                  Possiveis motivos:
                 </p>
 
                 <ul className="list-disc list-inside space-y-1.5 md:space-y-2 text-gray-700 mb-4 md:mb-6 text-sm md:text-base">
-                  <li>Visitante nÃ£o possui face cadastrada no sistema</li>
-                  <li>Qualidade da imagem capturada estÃ¡ baixa</li>
-                  <li>IluminaÃ§Ã£o inadequada</li>
-                  <li>Face parcialmente obstruÃ­da</li>
+                  <li>Visitante nao possui face cadastrada no sistema</li>
+                  <li>Qualidade da imagem capturada esta baixa</li>
+                  <li>Iluminacao inadequada</li>
+                  <li>Face parcialmente obstruida</li>
                 </ul>
 
                 <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
@@ -844,6 +898,7 @@ export default function PortariaPage() {
                 </div>
               </div>
             )}
+            </div>
           </div>
         )}
 
@@ -858,12 +913,11 @@ export default function PortariaPage() {
           </div>
         )}
 
-        {mensagemSucesso && !resultado && (
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4 md:p-6 flex items-center gap-2 md:gap-3">
-            <CheckCircle className="text-green-600 w-7 h-7 md:w-8 md:h-8 flex-shrink-0" />
-            <div>
-              <h3 className="text-base md:text-lg font-bold text-green-700">Sucesso</h3>
-              <p className="text-green-700 text-sm md:text-base">{mensagemSucesso}</p>
+        {mensagemSucesso && (
+          <div className="fixed top-4 right-4 z-50">
+            <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-3 flex items-center gap-2 shadow-lg">
+              <CheckCircle className="text-green-600 w-5 h-5" />
+              <p className="text-green-800 text-sm font-semibold">{mensagemSucesso}</p>
             </div>
           </div>
         )}
@@ -889,19 +943,26 @@ export default function PortariaPage() {
           />
         )}
 
-        {/* Modal de ValidaÃ§Ã£o PrÃ©via */}
+        {/* Modal de Validacao Previa */}
         {mostrarModalValidacao && resultado?.success && resultado.visitante && (
           <ModalValidacaoPrevia
             visitanteId={resultado.visitante.id}
             visitanteNome={resultado.visitante.nomeCompleto}
             adolescentes={resultado.visitante.adolescentes}
-            onConfirmar={(adolescenteId, justificativa, registrarDireto) => {
+            onConfirmar={async (
+              adolescenteId,
+              justificativa,
+              registrarDireto
+            ) => {
               setAdolescenteSelecionadoId(adolescenteId);
               setJustificativaHorario(justificativa);
               setMostrarModalValidacao(false);
 
               if (registrarDireto) {
-                registrarVisitaDireta(adolescenteId, justificativa ?? null);
+                await registrarVisitaDireta(
+                  adolescenteId,
+                  justificativa ?? null
+                );
               } else {
                 setMostrarModalVisita(true);
               }
@@ -931,12 +992,10 @@ export default function PortariaPage() {
               setAdolescenteSelecionadoId("");
               setValidacaoResultado(null);
               setJustificativaHorario(null);
-              if (origemIdentificacao === "facial") {
-                setModoIdentificacao(true);
-              } else {
-                setModoIdentificacao(false);
-                setOrigemIdentificacao(null);
-              }
+              setOrigemIdentificacao("facial");
+              setModoIdentificacao(true);
+              setCameraSessionId((prev) => prev + 1);
+              setMensagemSucesso("Visita registrada com sucesso.");
             }}
           />
         )}

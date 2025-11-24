@@ -3,6 +3,15 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { ensureOperador } from "@/lib/auth/ensure-operador";
 
+const estaDentroDaJanela = (hora: string, inicio: string, fim: string) => {
+  if (!hora || !inicio || !fim) return false;
+  if (inicio <= fim) {
+    return hora >= inicio && hora <= fim;
+  }
+  // janela que cruza meia-noite
+  return hora >= inicio || hora <= fim;
+};
+
 const registrarEntradaSchema = z.object({
   visitanteId: z.string().uuid("visitanteId inválido"),
   adolescenteId: z.string().uuid("adolescenteId inválido"),
@@ -29,7 +38,7 @@ export async function POST(request: NextRequest) {
     const body = registrarEntradaSchema.parse(await request.json());
     const { visitanteId, adolescenteId, quantidadeAdultos, quantidadeCriancas, justificativaHorario } = body;
 
-    // Buscar configurações de visita
+    // Buscar configuração ativa mais recente
     const config = await prisma.configuracaoVisitas.findFirst({
       where: { ativo: true },
       orderBy: { criadoEm: "desc" },
@@ -166,17 +175,47 @@ export async function POST(request: NextRequest) {
       ? config.diasPermitidos
       : JSON.parse(config.diasPermitidos as any);
 
-    let periodoRealizado: "MANHA" | "TARDE";
+    const periodoAtualPorHorario = estaDentroDaJanela(
+      horaAtual,
+      config.horarioManhaInicio,
+      config.horarioManhaFim
+    )
+      ? "MANHA"
+      : estaDentroDaJanela(horaAtual, config.horarioTardeInicio, config.horarioTardeFim)
+      ? "TARDE"
+      : periodoAutorizado;
+
+    let periodoRealizado: "MANHA" | "TARDE" = periodoAtualPorHorario;
     let horarioDiferente = false;
 
-    // Determinar período realizado
-    if (horaAtual >= config.horarioManhaInicio && horaAtual <= config.horarioManhaFim) {
-      periodoRealizado = "MANHA";
-    } else if (horaAtual >= config.horarioTardeInicio && horaAtual <= config.horarioTardeFim) {
-      periodoRealizado = "TARDE";
-    } else {
-      // Fora do horário, mas permite com justificativa
-      periodoRealizado = periodoAutorizado;
+    const janelaIdentificacao =
+      periodoAutorizado === "TARDE"
+        ? {
+            inicio: config.janelaIdentificacaoTardeInicio,
+            fim: config.janelaIdentificacaoTardeFim,
+          }
+        : {
+            inicio: config.janelaIdentificacaoManhaInicio,
+            fim: config.janelaIdentificacaoManhaFim,
+          };
+
+    const janelaPermanencia =
+      periodoAutorizado === "TARDE"
+        ? { inicio: config.horarioTardeInicio, fim: config.horarioTardeFim }
+        : { inicio: config.horarioManhaInicio, fim: config.horarioManhaFim };
+
+    const dentroIdentificacao = estaDentroDaJanela(
+      horaAtual,
+      janelaIdentificacao.inicio,
+      janelaIdentificacao.fim
+    );
+    const dentroPermanencia = estaDentroDaJanela(
+      horaAtual,
+      janelaPermanencia.inicio,
+      janelaPermanencia.fim
+    );
+
+    if (!dentroPermanencia && !dentroIdentificacao) {
       horarioDiferente = true;
     }
 
@@ -273,9 +312,13 @@ export async function POST(request: NextRequest) {
 
     // Adicionar outros alertas
     if (horarioDiferente) {
+      const descricaoJanela =
+        periodoAutorizado === "MANHA"
+          ? `Identificacao ${config.janelaIdentificacaoManhaInicio}-${config.janelaIdentificacaoManhaFim} | Permanencia ${config.horarioManhaInicio}-${config.horarioManhaFim}`
+          : `Identificacao ${config.janelaIdentificacaoTardeInicio}-${config.janelaIdentificacaoTardeFim} | Permanencia ${config.horarioTardeInicio}-${config.horarioTardeFim}`;
       alertas.push({
         tipo: "HORARIO",
-        mensagem: `Visita fora do período autorizado (${periodoAutorizado}). Realizado: ${periodoRealizado}`,
+        mensagem: `Visita fora do periodo autorizado (${periodoAutorizado}). Janelas previstas: ${descricaoJanela}. Realizado: ${periodoRealizado}`,
         nivel: justificativaHorario ? "BAIXO" : "MEDIO",
       });
     }

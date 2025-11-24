@@ -219,6 +219,9 @@ export interface Alojamento {
   nivelRisco?: number;
   icones?: string[];
   alertas?: string[];
+  interdicaoJustificativa?: string | null;
+  interdicaoDocumentoTipo?: "CI" | "DECISAO_JUDICIAL" | "OUTRO" | null;
+  interdicaoDocumentoReferencia?: string | null;
   adolescentes: Adolescente[];
 }
 

@@ -1,4 +1,8 @@
 import * as faceapi from "face-api.js";
+import {
+  euclideanDistance,
+  findBestEmbeddingMatch,
+} from "@/lib/visitantes/embedding-utils";
 
 let modelsLoaded = false;
 
@@ -100,7 +104,7 @@ export function compareFaceEmbeddings(
   const arr1 = Array.isArray(embedding1) ? embedding1 : Array.from(embedding1);
   const arr2 = Array.isArray(embedding2) ? embedding2 : Array.from(embedding2);
 
-  return faceapi.euclideanDistance(arr1, arr2);
+  return euclideanDistance(arr1, arr2);
 }
 
 /**
@@ -131,29 +135,10 @@ export function findBestMatch(
   knownEmbeddings: Array<{ id: string; embedding: number[] }>,
   threshold: number = 0.6
 ): { id: string; distance: number; confidence: number } | null {
-  let bestMatch: { id: string; distance: number } | null = null;
-
-  for (const known of knownEmbeddings) {
-    const distance = compareFaceEmbeddings(targetEmbedding, known.embedding);
-
-    if (distance < threshold) {
-      if (!bestMatch || distance < bestMatch.distance) {
-        bestMatch = { id: known.id, distance };
-      }
-    }
-  }
-
-  if (!bestMatch) return null;
-
-  // Converter distância em confiança (0-100%)
-  // Distância 0 = 100% confiança, Distância 0.6 = ~0% confiança
-  const confidence = Math.max(0, Math.min(100, (1 - bestMatch.distance / 0.6) * 100));
-
-  return {
-    id: bestMatch.id,
-    distance: bestMatch.distance,
-    confidence: Math.round(confidence),
-  };
+  const target = Array.isArray(targetEmbedding)
+    ? targetEmbedding
+    : Array.from(targetEmbedding);
+  return findBestEmbeddingMatch(target, knownEmbeddings, threshold);
 }
 
 /**

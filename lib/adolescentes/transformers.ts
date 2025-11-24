@@ -36,6 +36,12 @@ export const INCLUDE_ADOLESCENTE_DEFAULT = {
           statusUnidade: true,
           bairroOrigemId: true,
           faccaoGrupoId: true,
+          faccao: {
+            select: {
+              id: true,
+              nomeFaccao: true,
+            },
+          },
         },
       },
     },
@@ -50,6 +56,12 @@ export const INCLUDE_ADOLESCENTE_DEFAULT = {
           statusUnidade: true,
           bairroOrigemId: true,
           faccaoGrupoId: true,
+          faccao: {
+            select: {
+              id: true,
+              nomeFaccao: true,
+            },
+          },
         },
       },
     },

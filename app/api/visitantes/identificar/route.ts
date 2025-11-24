@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+import {
+  getVisitanteEmbeddingCache,
+} from "@/lib/visitantes/embedding-cache";
+import {
+  findBestEmbeddingMatch,
+} from "@/lib/visitantes/embedding-utils";
 
 /**
  * Calcula a distância euclidiana entre dois vetores
@@ -16,44 +22,6 @@ function euclideanDistance(vec1: number[], vec2: number[]): number {
 /**
  * Encontra o visitante com melhor correspondência facial
  */
-function findBestMatch(
-  targetEmbedding: number[],
-  visitantes: Array<{ id: string; nomeCompleto: string; faceEmbeddings: any }>,
-  threshold: number = 0.6
-): { id: string; nomeCompleto: string; distance: number; confidence: number } | null {
-  let bestMatch: { id: string; nomeCompleto: string; distance: number } | null = null;
-
-  for (const visitante of visitantes) {
-    if (!visitante.faceEmbeddings) continue;
-
-    const embeddings = Array.isArray(visitante.faceEmbeddings)
-      ? visitante.faceEmbeddings
-      : JSON.parse(JSON.stringify(visitante.faceEmbeddings));
-
-    const distance = euclideanDistance(targetEmbedding, embeddings);
-
-    if (distance < threshold) {
-      if (!bestMatch || distance < bestMatch.distance) {
-        bestMatch = {
-          id: visitante.id,
-          nomeCompleto: visitante.nomeCompleto,
-          distance,
-        };
-      }
-    }
-  }
-
-  if (!bestMatch) return null;
-
-  // Converter distância em confiança (0-100%)
-  const confidence = Math.max(0, Math.min(100, (1 - bestMatch.distance / 0.6) * 100));
-
-  return {
-    ...bestMatch,
-    confidence: Math.round(confidence),
-  };
-}
-
 /**
  * POST - Identifica visitante por reconhecimento facial
  */
@@ -83,22 +51,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Buscar todos os visitantes com face cadastrada
-    const visitantesComFace = await prisma.visitante.findMany({
-      where: {
-        faceEmbeddings: { not: Prisma.JsonNull },
-        consentimentoBiometria: true,
-        ativo: true,
-      },
-      select: {
-        id: true,
-        nomeCompleto: true,
-        cpf: true,
-        fotoUrl: true,
-        faceEmbeddings: true,
-        telefones: true,
-      },
-    });
+    const { entries: visitantesComFace } =
+      await getVisitanteEmbeddingCache();
 
     if (visitantesComFace.length === 0) {
       // Registrar tentativa sem sucesso
@@ -121,7 +75,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Buscar melhor correspondência
-    const match = findBestMatch(faceEmbeddings, visitantesComFace, threshold);
+    const match = findBestEmbeddingMatch(
+      faceEmbeddings,
+      visitantesComFace,
+      threshold
+    );
 
     if (!match) {
       // Registrar tentativa sem sucesso
@@ -196,7 +154,7 @@ export async function POST(request: NextRequest) {
       message: "Visitante identificado com sucesso",
       match: {
         id: match.id,
-        nomeCompleto: match.nomeCompleto,
+        nomeCompleto: match.nome ?? "Visitante",
         confidence: match.confidence,
         distance: match.distance,
       },
