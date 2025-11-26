@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getEstruturaSnapshot } from "@/lib/estrutura/snapshot";
 
 /**
  * GET /api/dashboard/stats
@@ -44,16 +45,39 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Adolescentes com alertas ativos
-    const adolescentesComAlertas = await prisma.adolescente.count({
-      where: {
-        statusUnidade: "ATIVO",
-        OR: [
-          { alertaRiscoSuicidio: true },
-          { alertaPerfilMapeado: true },
-          { alertaSaudeConfidencial: true },
-        ],
-      },
+    // Alertas ativos (API /alertas) e gravidades de risco (mapa)
+    const alertasAtivos = await prisma.alertaAtivo.count({
+      where: { desativadoEm: null },
+    });
+    const snapshot = await getEstruturaSnapshot();
+    const gravidadeAlertas = {
+      critico: 0,
+      alto: 0,
+      medio: 0,
+      baixo: 0,
+    };
+    let adolescentesComAlertas = 0;
+
+    snapshot.casas.forEach((casa) => {
+      casa.alojamentos.forEach((alojamento) => {
+        if (!alojamento.ocupante) {
+          return;
+        }
+        const nivel = alojamento.avaliacao_risco?.nivel ?? 0;
+        if (nivel <= 0) {
+          return;
+        }
+        adolescentesComAlertas += 1;
+        if (nivel >= 5) {
+          gravidadeAlertas.critico += 1;
+        } else if (nivel === 4) {
+          gravidadeAlertas.alto += 1;
+        } else if (nivel === 3) {
+          gravidadeAlertas.medio += 1;
+        } else {
+          gravidadeAlertas.baixo += 1;
+        }
+      });
     });
 
     // Casas com alojamentos ocupados
@@ -105,11 +129,19 @@ export async function GET(request: NextRequest) {
         ? ((alojamentosOcupados / totalVagas) * 100).toFixed(1)
         : "0.0",
       conflitosAtivos,
-      adolescentesComAlertas,
+      alertasAtivos,
       casasComOcupacao,
       totalCasas,
       alojamentosInterditados,
       gruposAtivos,
+      gravidadeAlertas: {
+        ...gravidadeAlertas,
+        total:
+          gravidadeAlertas.critico +
+          gravidadeAlertas.alto +
+          gravidadeAlertas.medio +
+          gravidadeAlertas.baixo,
+      },
       conflitosPorTipo: conflitosPorTipo.reduce((acc, item) => {
         const chave = item.tipoConflito ?? "NAO_CLASSIFICADO";
         acc[chave] = item._count;

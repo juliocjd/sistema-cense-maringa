@@ -7,6 +7,9 @@ type Visitante = {
   id: string;
   nomeCompleto: string;
   cpf: string | null;
+  rg: string | null;
+  nomePai: string | null;
+  nomeMae: string | null;
   dataNascimento: string | null;
   fotoUrl: string | null;
   adolescentes?: Array<{

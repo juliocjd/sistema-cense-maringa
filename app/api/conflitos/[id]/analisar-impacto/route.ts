@@ -439,6 +439,7 @@ export async function POST(
             numero: alojVago.numeroAlojamento,
             ala: alojVago.ala,
             casa: alojVago.casa.nome,
+            casaNumero: alojVago.casa.numero,
           },
           nivelRisco: resultado.nivel,
           categoria: resultado.categoria,
@@ -471,6 +472,7 @@ export async function POST(
               numero: adolescenteA.alojamentoAtual!.numeroAlojamento,
               ala: adolescenteA.alojamentoAtual!.ala,
               casa: adolescenteA.alojamentoAtual!.casa.nome,
+              casaNumero: adolescenteA.alojamentoAtual!.casa.numero,
             }
           : null,
       },
@@ -485,6 +487,7 @@ export async function POST(
               numero: adolescenteB.alojamentoAtual!.numeroAlojamento,
               ala: adolescenteB.alojamentoAtual!.ala,
               casa: adolescenteB.alojamentoAtual!.casa.nome,
+              casaNumero: adolescenteB.alojamentoAtual!.casa.numero,
             }
           : null,
       },

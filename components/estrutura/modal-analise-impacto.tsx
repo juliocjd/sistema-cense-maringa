@@ -63,6 +63,7 @@ type ResultadoAnalise = {
       numero: string;
       ala: string;
       casa: string;
+      casaNumero?: number;
     };
     nivelRisco: number;
     categoria: string;
@@ -600,7 +601,47 @@ export function ModalAnaliseImpacto({
         };
       });
 
-      setResultados(resultadosFiltrados);
+      let resultadosComConflitos = [...resultadosFiltrados];
+
+      if (conflitos.length > 0) {
+        const analisesConflitos = await Promise.allSettled(
+          conflitos.map(async (conflito) => {
+            const resposta = await fetch(
+              `/api/conflitos/${conflito.id}/analisar-impacto`,
+              { method: "POST" }
+            );
+            const payload = await resposta.json().catch(() => null);
+
+            if (!resposta.ok) {
+              throw new Error(
+                payload?.erro || `Erro ao analisar conflito ${conflito.id}`
+              );
+            }
+
+            return payload as ResultadoAnalise;
+          })
+        );
+
+        const sucesso = analisesConflitos
+          .filter((item) => item.status === "fulfilled")
+          .map((item) => (item as any).value as ResultadoAnalise);
+
+        const falhas = analisesConflitos.filter(
+          (item) => item.status === "rejected"
+        );
+
+        if (falhas.length > 0) {
+          console.warn("Falhas ao analisar conflitos:", falhas);
+        }
+
+        if (sucesso.length > 0) {
+          resultadosComConflitos = [...resultadosComConflitos, ...sucesso];
+        } else if (resultadosComConflitos.length === 0) {
+          throw new Error("Nao foi possivel analisar os conflitos informados.");
+        }
+      }
+
+      setResultados(resultadosComConflitos);
     } catch (error) {
       console.error("Erro ao analisar impacto:", error);
       setErro(
@@ -851,7 +892,11 @@ export function ModalAnaliseImpacto({
                     <div className="flex items-center justify-between">
                       <div>
                         <h3 className="font-bold text-lg">
-                          Conflito: {resultado.adolescenteB.nome}
+                          {resultado.conflito?.tipo === "ANALISE_ALOCACAO_ATUAL"
+                            ? "Analise do alojamento atual"
+                            : `Conflito: ${
+                                resultado.adolescenteB.nome || "Desconhecido"
+                              }`}
                         </h3>
                         <p className="text-sm mt-1">{resultado.mensagem}</p>
                       </div>

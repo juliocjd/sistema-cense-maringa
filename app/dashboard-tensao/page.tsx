@@ -32,17 +32,20 @@ type CasaMetrics = {
   scoreTensao: number;
   alojamentos: {
     total: number;
+    operacionais: number;
     ocupados: number;
     livres: number;
+    interditados: number;
     emRisco: number;
+    taxaOcupacao: number;
   };
   nivelRisco: {
-    critico: number; // nível 5
-    elevado: number; // nível 4
-    atencao: number; // nível 3
-    monitorar: number; // nível 2
-    seguro: number; // nível 1
-    livre: number; // nível 0
+    critico: number;
+    elevado: number;
+    atencao: number;
+    monitorar: number;
+    seguro: number;
+    livre: number;
   };
   conflitos: {
     total: number;
@@ -55,7 +58,9 @@ type DashboardData = {
   estatisticas: {
     totalAlojamentos: number;
     alojamentosOcupados: number;
+    alojamentosLivres: number;
     alojamentosComRisco: number;
+    alojamentosInterditados: number;
     taxaOcupacao: string;
   };
 };
@@ -131,6 +136,10 @@ export default function DashboardTensaoPage() {
           livre: 0,
         };
 
+        let ocupadosOperacionais = 0;
+        let livresOperacionais = 0;
+        let interditados = 0;
+
         alojamentos.forEach((aloj: any) => {
           const nivel = aloj.nivel_risco ?? 0;
           if (nivel === 5) nivelRisco.critico++;
@@ -139,6 +148,16 @@ export default function DashboardTensaoPage() {
           else if (nivel === 2) nivelRisco.monitorar++;
           else if (nivel === 1) nivelRisco.seguro++;
           else nivelRisco.livre++;
+
+          const statusManutencao =
+            aloj.status_manutencao ?? aloj.statusManutencao ?? "LIVRE";
+          if (statusManutencao === "INTERDITADO") {
+            interditados++;
+          } else if (aloj.ocupante) {
+            ocupadosOperacionais++;
+          } else {
+            livresOperacionais++;
+          }
         });
 
         // Contar conflitos ativos
@@ -151,6 +170,12 @@ export default function DashboardTensaoPage() {
           }
         });
 
+        const operacionais = alojamentos.length - interditados;
+        const taxaOcupacaoCasa =
+          operacionais > 0
+            ? (ocupadosOperacionais / operacionais) * 100
+            : 0;
+
         return {
           id: casa.id,
           nome: casa.nome,
@@ -159,9 +184,12 @@ export default function DashboardTensaoPage() {
           scoreTensao: casa.score_tensao || 0,
           alojamentos: {
             total: alojamentos.length,
-            ocupados: alojamentos.filter((a: any) => a.ocupante !== null).length,
-            livres: alojamentos.filter((a: any) => a.ocupante === null).length,
+            operacionais,
+            ocupados: ocupadosOperacionais,
+            livres: livresOperacionais,
+            interditados,
             emRisco: alojamentos.filter((a: any) => (a.nivel_risco ?? 0) >= 3).length,
+            taxaOcupacao: taxaOcupacaoCasa,
           },
           nivelRisco,
           conflitos: {
@@ -171,9 +199,23 @@ export default function DashboardTensaoPage() {
         };
       });
 
+      const totalInterditados = casasMetrics.reduce(
+        (acc, casa) => acc + casa.alojamentos.interditados,
+        0
+      );
+
+      const estatisticasNormalizadas = {
+        totalAlojamentos: result.estatisticas?.total_alojamentos ?? 0,
+        alojamentosOcupados: result.estatisticas?.alojamentos_ocupados ?? 0,
+        alojamentosLivres: result.estatisticas?.alojamentos_livres ?? 0,
+        alojamentosComRisco: result.estatisticas?.alojamentos_com_risco ?? 0,
+        alojamentosInterditados: totalInterditados,
+        taxaOcupacao: result.estatisticas?.taxa_ocupacao ?? "0%",
+      };
+
       setData({
         casas: casasMetrics,
-        estatisticas: result.estatisticas,
+        estatisticas: estatisticasNormalizadas,
       });
       setUltimaAtualizacao(new Date());
     } catch (error) {
@@ -260,9 +302,17 @@ export default function DashboardTensaoPage() {
     // Filtro por Alerta
     if (filtroAlerta !== "todos") {
       resultado = resultado.filter((casa) => {
-        const taxaOcupacao = casa.alojamentos.total > 0
-          ? (casa.alojamentos.ocupados / casa.alojamentos.total) * 100
-          : 0;
+        const capacidadeUtil =
+          casa.alojamentos.operacionais > 0
+            ? casa.alojamentos.operacionais
+            : Math.max(
+                casa.alojamentos.total - casa.alojamentos.interditados,
+                0
+              );
+        const taxaOcupacao =
+          capacidadeUtil > 0
+            ? (casa.alojamentos.ocupados / capacidadeUtil) * 100
+            : 0;
         const temConflitos = casa.conflitos.ativos > 0;
         const superlotado = taxaOcupacao >= 90;
 
@@ -285,8 +335,14 @@ export default function DashboardTensaoPage() {
         case "tensao":
           return b.scoreTensao - a.scoreTensao;
         case "ocupacao":
-          const taxaA = a.alojamentos.total > 0 ? (a.alojamentos.ocupados / a.alojamentos.total) : 0;
-          const taxaB = b.alojamentos.total > 0 ? (b.alojamentos.ocupados / b.alojamentos.total) : 0;
+          const taxaA =
+            a.alojamentos.operacionais > 0
+              ? a.alojamentos.ocupados / a.alojamentos.operacionais
+              : 0;
+          const taxaB =
+            b.alojamentos.operacionais > 0
+              ? b.alojamentos.ocupados / b.alojamentos.operacionais
+              : 0;
           return taxaB - taxaA;
         case "conflitos":
           return b.conflitos.ativos - a.conflitos.ativos;
@@ -308,6 +364,63 @@ export default function DashboardTensaoPage() {
       second: "2-digit"
     });
   };
+
+  const tensaoTotal =
+    data?.casas.reduce((sum, casa) => sum + casa.scoreTensao, 0) ?? 0;
+
+  const estatisticasCards =
+    data && data.estatisticas
+      ? [
+          {
+            id: "total",
+            label: "Total de alojamentos",
+            valor: data.estatisticas.totalAlojamentos,
+            icon: Home,
+            classeIcone: "bg-indigo-100 text-indigo-600",
+            descricao: `Taxa atual ${data.estatisticas.taxaOcupacao}`,
+          },
+          {
+            id: "livres",
+            label: "Disponiveis",
+            valor: data.estatisticas.alojamentosLivres,
+            icon: Users,
+            classeIcone: "bg-emerald-100 text-emerald-600",
+            descricao: "Prontos para receber adolescentes",
+          },
+          {
+            id: "ocupados",
+            label: "Ocupados",
+            valor: data.estatisticas.alojamentosOcupados,
+            icon: Activity,
+            classeIcone: "bg-blue-100 text-blue-600",
+            descricao: "Inclui todas as alas operacionais",
+          },
+          {
+            id: "risco",
+            label: "Em risco (nivel 3+)",
+            valor: data.estatisticas.alojamentosComRisco,
+            icon: AlertTriangle,
+            classeIcone: "bg-orange-100 text-orange-600",
+            descricao: "Alojamentos que exigem atencao imediata",
+          },
+          {
+            id: "interditados",
+            label: "Interditados",
+            valor: data.estatisticas.alojamentosInterditados,
+            icon: Shield,
+            classeIcone: "bg-rose-100 text-rose-600",
+            descricao: "Fora de operacao por manutencao ou CI",
+          },
+          {
+            id: "tensao",
+            label: "Tensao acumulada",
+            valor: tensaoTotal,
+            icon: TrendingUp,
+            classeIcone: "bg-purple-100 text-purple-600",
+            descricao: "Soma dos niveis acima do seguro",
+          },
+        ]
+      : [];
 
   // Exportar dados para CSV
   const exportarCSV = () => {
@@ -364,11 +477,11 @@ export default function DashboardTensaoPage() {
   };
 
   const getTensaoLabel = (score: number) => {
-    if (score === 0) return "Sem Tensão";
+    if (score === 0) return "Sem tensao";
     if (score <= 5) return "Baixa";
     if (score <= 15) return "Moderada";
     if (score <= 30) return "Alta";
-    return "Crítica";
+    return "Critica";
   };
 
   if (loading) {
@@ -423,15 +536,15 @@ export default function DashboardTensaoPage() {
             <div>
               <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
                 <BarChart3 size={36} className="text-indigo-600" />
-                Dashboard de Tensão por Casa
+                Dashboard de tensao por casa
               </h1>
               <p className="text-slate-600 mt-2">
-                Visão geral do nível de risco e conflitos em cada casa da unidade
+                Visao geral do nivel de risco e conflitos em cada casa da unidade
               </p>
               {ultimaAtualizacao && (
                 <p className="text-sm text-slate-500 mt-1 flex items-center gap-1">
                   <Clock size={14} />
-                  Última atualização: {formatarHora(ultimaAtualizacao)}
+                  Ultima atualizacao: {formatarHora(ultimaAtualizacao)}
                 </p>
               )}
             </div>
@@ -493,54 +606,33 @@ export default function DashboardTensaoPage() {
           </div>
         </div>
 
-        {/* Estatísticas Gerais */}
-        {data && dadosGraficos && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-            <div className="bg-white rounded-lg p-6 shadow-sm border border-slate-200">
-              <div className="flex items-center gap-3 mb-2">
-                <Home className="text-indigo-600" size={24} />
-                <h3 className="font-semibold text-slate-700">Total Alojamentos</h3>
-              </div>
-              <p className="text-3xl font-bold text-slate-900">
-                {data.estatisticas.totalAlojamentos}
-              </p>
-            </div>
-
-            <div className="bg-white rounded-lg p-6 shadow-sm border border-slate-200">
-              <div className="flex items-center gap-3 mb-2">
-                <Users className="text-green-600" size={24} />
-                <h3 className="font-semibold text-slate-700">Ocupados</h3>
-              </div>
-              <p className="text-3xl font-bold text-slate-900">
-                {data.estatisticas.alojamentosOcupados}
-              </p>
-              <p className="text-sm text-slate-500 mt-1">
-                Taxa: {data.estatisticas.taxaOcupacao}
-              </p>
-            </div>
-
-            <div className="bg-white rounded-lg p-6 shadow-sm border border-slate-200">
-              <div className="flex items-center gap-3 mb-2">
-                <AlertTriangle className="text-orange-600" size={24} />
-                <h3 className="font-semibold text-slate-700">Com Risco</h3>
-              </div>
-              <p className="text-3xl font-bold text-slate-900">
-                {data.estatisticas.alojamentosComRisco}
-              </p>
-              <p className="text-sm text-slate-500 mt-1">
-                Nível 3+
-              </p>
-            </div>
-
-            <div className="bg-white rounded-lg p-6 shadow-sm border border-slate-200">
-              <div className="flex items-center gap-3 mb-2">
-                <TrendingUp className="text-purple-600" size={24} />
-                <h3 className="font-semibold text-slate-700">Tensão Total</h3>
-              </div>
-              <p className="text-3xl font-bold text-slate-900">
-                {data.casas.reduce((sum, casa) => sum + casa.scoreTensao, 0)}
-              </p>
-            </div>
+        {/* Estatisticas Gerais */}
+        {estatisticasCards.length > 0 && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6 gap-4 mb-8">
+            {estatisticasCards.map((card) => {
+              const Icone = card.icon;
+              return (
+                <div
+                  key={card.id}
+                  className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 flex flex-col gap-3"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className={`p-2 rounded-lg ${card.classeIcone}`}>
+                      <Icone size={18} />
+                    </span>
+                    <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                      {card.label}
+                    </p>
+                  </div>
+                  <p className="text-3xl font-bold text-slate-900">
+                    {card.valor}
+                  </p>
+                  {card.descricao && (
+                    <p className="text-xs text-slate-500">{card.descricao}</p>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
 
@@ -1013,135 +1105,147 @@ export default function DashboardTensaoPage() {
 
         {/* Cards das Casas */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {casasFiltradas.map((casa) => (
-            <div
-              key={casa.id}
-              className="bg-white rounded-lg shadow-md border-2 border-slate-200 overflow-hidden hover:shadow-lg transition-shadow"
-            >
-              {/* Header do Card */}
-              <div className="bg-gradient-to-r from-indigo-600 to-indigo-700 text-white p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <Home size={24} />
-                    <h3 className="text-xl font-bold">
-                      {casa.nome || `Casa ${String(casa.numero).padStart(2, '0')}`}
+          {casasFiltradas.map((casa) => {
+            const taxaPercent = Math.round(casa.alojamentos.taxaOcupacao);
+            const riscoPills = [
+              { label: "Critico (5)", valor: casa.nivelRisco.critico, estilo: "bg-red-100 text-red-700 border border-red-200" },
+              { label: "Elevado (4)", valor: casa.nivelRisco.elevado, estilo: "bg-orange-100 text-orange-700 border border-orange-200" },
+              { label: "Atencao (3)", valor: casa.nivelRisco.atencao, estilo: "bg-amber-100 text-amber-700 border border-amber-200" },
+              { label: "Monitorar (2)", valor: casa.nivelRisco.monitorar, estilo: "bg-yellow-50 text-yellow-700 border border-yellow-200" },
+              { label: "Seguro (1)", valor: casa.nivelRisco.seguro, estilo: "bg-emerald-50 text-emerald-700 border border-emerald-200" },
+              { label: "Livre (0)", valor: casa.nivelRisco.livre, estilo: "bg-slate-50 text-slate-600 border border-slate-200" },
+            ].filter((pill) => pill.valor > 0);
+            const alertasGraves = casa.nivelRisco.critico + casa.nivelRisco.elevado;
+
+            return (
+              <div
+                key={casa.id}
+                className="bg-white rounded-xl shadow-md border border-slate-200 overflow-hidden flex flex-col"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-4">
+                  <div>
+                    <p className="text-xs font-semibold text-slate-500 uppercase">
+                      Casa {String(casa.numero).padStart(2, "0")}
+                    </p>
+                    <h3 className="text-xl font-bold text-slate-900">
+                      {casa.nome || `Casa ${String(casa.numero).padStart(2, "0")}`}
                     </h3>
                   </div>
-                  {casa.isolada && (
-                    <Shield size={20} className="text-yellow-300" />
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className={`px-3 py-1 rounded-full text-sm font-semibold border-2 ${getTensaoColor(casa.scoreTensao)}`}>
-                    Tensão: {getTensaoLabel(casa.scoreTensao)} ({casa.scoreTensao})
-                  </span>
-                </div>
-              </div>
-
-              {/* Conteúdo do Card */}
-              <div className="p-4 space-y-4">
-                {/* Alojamentos */}
-                <div>
-                  <h4 className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
-                    <Home size={16} />
-                    Alojamentos
-                  </h4>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div className="bg-slate-50 rounded p-2">
-                      <p className="text-slate-600">Total</p>
-                      <p className="text-lg font-bold text-slate-900">{casa.alojamentos.total}</p>
-                    </div>
-                    <div className="bg-green-50 rounded p-2">
-                      <p className="text-green-700">Ocupados</p>
-                      <p className="text-lg font-bold text-green-900">{casa.alojamentos.ocupados}</p>
-                    </div>
-                    <div className="bg-blue-50 rounded p-2">
-                      <p className="text-blue-700">Livres</p>
-                      <p className="text-lg font-bold text-blue-900">{casa.alojamentos.livres}</p>
-                    </div>
-                    <div className="bg-orange-50 rounded p-2">
-                      <p className="text-orange-700">Em Risco</p>
-                      <p className="text-lg font-bold text-orange-900">{casa.alojamentos.emRisco}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Distribuição de Risco */}
-                <div>
-                  <h4 className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
-                    <AlertTriangle size={16} />
-                    Distribuição de Risco
-                  </h4>
-                  <div className="space-y-1">
-                    {casa.nivelRisco.critico > 0 && (
-                      <div className="flex items-center gap-2">
-                        <div className="w-20 text-xs text-slate-600">Crítico (5)</div>
-                        <div className="flex-1 bg-slate-100 rounded-full h-4 overflow-hidden">
-                          <div
-                            className="bg-red-500 h-full flex items-center justify-center text-white text-xs font-semibold"
-                            style={{ width: `${(casa.nivelRisco.critico / casa.alojamentos.total) * 100}%` }}
-                          >
-                            {casa.nivelRisco.critico > 0 && casa.nivelRisco.critico}
-                          </div>
-                        </div>
-                      </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {casa.isolada && (
+                      <span className="px-3 py-1 text-xs font-semibold rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+                        Isolada
+                      </span>
                     )}
-                    {casa.nivelRisco.elevado > 0 && (
-                      <div className="flex items-center gap-2">
-                        <div className="w-20 text-xs text-slate-600">Elevado (4)</div>
-                        <div className="flex-1 bg-slate-100 rounded-full h-4 overflow-hidden">
-                          <div
-                            className="bg-orange-500 h-full flex items-center justify-center text-white text-xs font-semibold"
-                            style={{ width: `${(casa.nivelRisco.elevado / casa.alojamentos.total) * 100}%` }}
-                          >
-                            {casa.nivelRisco.elevado > 0 && casa.nivelRisco.elevado}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    {casa.nivelRisco.atencao > 0 && (
-                      <div className="flex items-center gap-2">
-                        <div className="w-20 text-xs text-slate-600">Atenção (3)</div>
-                        <div className="flex-1 bg-slate-100 rounded-full h-4 overflow-hidden">
-                          <div
-                            className="bg-yellow-500 h-full flex items-center justify-center text-white text-xs font-semibold"
-                            style={{ width: `${(casa.nivelRisco.atencao / casa.alojamentos.total) * 100}%` }}
-                          >
-                            {casa.nivelRisco.atencao > 0 && casa.nivelRisco.atencao}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    {(casa.nivelRisco.critico === 0 && casa.nivelRisco.elevado === 0 && casa.nivelRisco.atencao === 0) && (
-                      <p className="text-sm text-green-600 flex items-center gap-2">
-                        <Shield size={16} />
-                        Todos os alojamentos seguros (nível 0-2)
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Conflitos */}
-                <div className="bg-slate-50 rounded-lg p-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-semibold text-slate-700">Conflitos Ativos</span>
-                    <span className={`text-2xl font-bold ${casa.conflitos.ativos > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                      {casa.conflitos.ativos}
+                    <span
+                      className={`px-3 py-1 rounded-full text-sm font-semibold border ${getTensaoColor(
+                        casa.scoreTensao
+                      )}`}
+                    >
+                      Tensao: {getTensaoLabel(casa.scoreTensao)} ({casa.scoreTensao})
                     </span>
                   </div>
                 </div>
 
-                {/* Link para Detalhes */}
-                <button
-                  onClick={() => router.push(`/estrutura?casa=${casa.numero}`)}
-                  className="w-full text-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium flex items-center justify-center gap-2"
-                >
-                  Ver Detalhes da Casa
-                  <ExternalLink size={16} />
-                </button>
+                <div className="p-4 space-y-5 flex-1">
+                  <div className="space-y-3">
+                    <p className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                      <Home size={16} />
+                      Status operacional
+                    </p>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div className="rounded-lg border border-slate-200 p-3">
+                        <p className="text-slate-500">Total</p>
+                        <p className="text-lg font-bold text-slate-900">{casa.alojamentos.total}</p>
+                      </div>
+                      <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                        <p className="text-emerald-600">Operacionais</p>
+                        <p className="text-lg font-bold text-emerald-700">{casa.alojamentos.operacionais}</p>
+                      </div>
+                      <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
+                        <p className="text-blue-600">Livres</p>
+                        <p className="text-lg font-bold text-blue-700">{casa.alojamentos.livres}</p>
+                      </div>
+                      <div className="rounded-lg border border-orange-200 bg-orange-50 p-3">
+                        <p className="text-orange-600">Em risco</p>
+                        <p className="text-lg font-bold text-orange-700">{casa.alojamentos.emRisco}</p>
+                      </div>
+                      <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 col-span-2">
+                        <p className="text-rose-600">Interditados</p>
+                        <p className="text-lg font-bold text-rose-700">{casa.alojamentos.interditados}</p>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
+                        <span>Taxa de ocupacao</span>
+                        <span>{Math.min(100, Math.max(0, taxaPercent))}%</span>
+                      </div>
+                      <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-indigo-600 transition-all"
+                          style={{ width: `${Math.min(100, Math.max(0, taxaPercent))}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <p className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                      <AlertTriangle size={16} />
+                      Distribuicao de risco
+                    </p>
+                    {riscoPills.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {riscoPills.map((pill) => (
+                          <span
+                            key={pill.label}
+                            className={`px-3 py-1 rounded-full text-xs font-semibold ${pill.estilo}`}
+                          >
+                            {pill.label}: {pill.valor}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-green-600 flex items-center gap-2">
+                        <Shield size={16} />
+                        Todos os alojamentos seguros (niveis 0-2)
+                      </p>
+                    )}
+                    <div className="flex flex-wrap gap-3 text-xs text-slate-600">
+                      <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-red-50 text-red-700 border border-red-200">
+                        Critico/Elevado: {alertasGraves}
+                      </span>
+                      <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                        Monitorar: {casa.nivelRisco.monitorar}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border-t border-slate-200 p-4 flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 text-sm text-slate-600">
+                    <AlertTriangle
+                      size={16}
+                      className={casa.conflitos.ativos > 0 ? "text-red-500" : "text-slate-400"}
+                    />
+                    <span>{casa.conflitos.ativos} conflitos ativos</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="text-xs text-slate-500">
+                      Livres: {casa.alojamentos.livres} | Em risco: {casa.alojamentos.emRisco}
+                    </div>
+                    <button
+                      onClick={() => router.push(`/estrutura?casa=${casa.numero}`)}
+                      className="px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium flex items-center gap-2"
+                    >
+                      Ver detalhes
+                      <ExternalLink size={16} />
+                    </button>
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>

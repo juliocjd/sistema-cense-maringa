@@ -24,12 +24,19 @@ type DashboardStats = {
   alojamentosOcupados: number;
   ocupacaoPercentual: string;
   conflitosAtivos: number;
-  adolescentesComAlertas: number;
+  alertasAtivos: number;
   casasComOcupacao: number;
   totalCasas: number;
   alojamentosInterditados: number;
   gruposAtivos: number;
   conflitosPorTipo: Record<string, number>;
+  gravidadeAlertas: {
+    critico: number;
+    alto: number;
+    medio: number;
+    baixo: number;
+    total: number;
+  };
 };
 
 export default function DashboardPage() {
@@ -98,10 +105,10 @@ export default function DashboardPage() {
     },
     {
       titulo: "Alertas Ativos",
-      valor: stats.adolescentesComAlertas,
+      valor: stats.alertasAtivos,
       subtitulo: "Requerem atenção especial",
       icone: AlertTriangle,
-      cor: stats.adolescentesComAlertas > 0 ? "orange" : "green",
+      cor: stats.alertasAtivos > 0 ? "orange" : "green",
       link: "/alertas",
     },
     {
@@ -215,15 +222,6 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-indigo-600 to-indigo-800 rounded-2xl shadow-lg p-4 md:p-6 text-white">
-        <h1 className="text-xl md:text-2xl lg:text-3xl font-bold mb-2">
-          Sistema CENSE Maringá
-        </h1>
-        <p className="text-sm md:text-base text-indigo-100">
-          Painel de controle e monitoramento em tempo real
-        </p>
-      </div>
 
       {/* Cards de Estatísticas Principais */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
@@ -254,6 +252,55 @@ export default function DashboardPage() {
             </Link>
           );
         })}
+      </div>
+
+      {/* Card Gravidade dos Alertas */}
+      <div className="bg-white rounded-2xl shadow-lg p-4 md:p-6 border border-gray-100">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg md:text-xl font-bold text-gray-800">Gravidade dos alertas</h3>
+          <span className="text-sm text-gray-500">
+            Total: {stats.gravidadeAlertas.total}
+          </span>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {[
+            {
+              label: "Critico",
+              valor: stats.gravidadeAlertas.critico,
+              descricao: "Nivel 5",
+              classes: "bg-red-50 border border-red-200 text-red-700",
+            },
+            {
+              label: "Alto",
+              valor: stats.gravidadeAlertas.alto,
+              descricao: "Nivel 4",
+              classes: "bg-orange-50 border border-orange-200 text-orange-700",
+            },
+            {
+              label: "Medio",
+              valor: stats.gravidadeAlertas.medio,
+              descricao: "Nivel 3",
+              classes: "bg-amber-50 border border-amber-200 text-amber-700",
+            },
+            {
+              label: "Monitorar",
+              valor: stats.gravidadeAlertas.baixo,
+              descricao: "Nivel 2",
+              classes: "bg-blue-50 border border-blue-200 text-blue-700",
+            },
+          ].map((gravidade) => (
+            <div
+              key={gravidade.label}
+              className={`rounded-xl p-3 flex flex-col gap-1 ${gravidade.classes}`}
+            >
+              <span className="text-xs font-semibold uppercase tracking-wide">
+                {gravidade.label}
+              </span>
+              <span className="text-2xl font-bold">{gravidade.valor}</span>
+              <span className="text-xs text-gray-600">{gravidade.descricao}</span>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Cards Secundários */}
