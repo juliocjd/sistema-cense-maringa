@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { Shield, Loader2, AlertCircle } from "lucide-react";
+import { Loader2, AlertCircle } from "lucide-react";
 
 export default function LoginForm() {
   const router = useRouter();
@@ -45,8 +46,15 @@ export default function LoginForm() {
       <div className="w-full max-w-md">
         {/* Logo/Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-white rounded-2xl shadow-xl mb-4">
-            <Shield className="text-indigo-600" size={48} />
+          <div className="inline-flex items-center justify-center w-20 h-20 bg-white rounded-2xl shadow-xl mb-4 overflow-hidden">
+            <Image
+              src="/logo-login.jpg"
+              alt="CENSE Maringá"
+              width={80}
+              height={80}
+              priority
+              className="object-contain"
+            />
           </div>
           <h1 className="text-4xl font-bold text-white mb-2">CENSE Maringá</h1>
           <p className="text-indigo-200 text-lg">
@@ -136,24 +144,9 @@ export default function LoginForm() {
             </button>
           </form>
 
-          {/* Informações de Teste */}
-          <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-            <p className="text-xs text-blue-800 font-semibold mb-1">
-              📋 Credenciais de Teste
-            </p>
-            <p className="text-xs text-blue-700">
-              Email:{" "}
-              <code className="bg-white px-2 py-0.5 rounded">
-                admin@cense.pr.gov.br
-              </code>
-            </p>
-            <p className="text-xs text-blue-700">
-              Senha:{" "}
-              <code className="bg-white px-2 py-0.5 rounded">admin123</code>
-            </p>
-          </div>
         </div>
       </div>
     </div>
   );
 }
+

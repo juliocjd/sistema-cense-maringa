@@ -1,12 +1,86 @@
 // auth.ts
-// Configuração central do NextAuth.js v5
+// Configuração central do NextAuth.js v5 com suporte a papéis e permissões
+
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
-import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
+import { Prisma } from "@prisma/client";
+
+import { prisma } from "@/lib/prisma";
+import {
+  LEGACY_ROLE_PERMISSIONS,
+  mergePermissions,
+} from "@/lib/auth/permissions";
 
 export const runtime = "nodejs";
+
+const operadorInclude = {
+  papeis: {
+    include: {
+      papel: {
+        include: { permissoes: { include: { permissao: true } } },
+      },
+    },
+  },
+} as const;
+
+const mapOperadorPermissions = (operador: {
+  funcaoRole: string;
+  papeis?:
+    | Array<{
+        papel: {
+          nome: string;
+          permissoes: Array<{
+            permissao: { codigo: string };
+          }>;
+        };
+      }>
+    | undefined;
+}) => {
+  const papeisBanco = operador.papeis ?? [];
+  const rolesFromDb = papeisBanco.map((ligacao) =>
+    ligacao.papel.nome.toUpperCase()
+  );
+  const permissoesFromDb = papeisBanco.flatMap((ligacao) =>
+    ligacao.papel.permissoes.map((rel) =>
+      rel.permissao.codigo.toUpperCase()
+    )
+  );
+
+  const legacyRole = (operador.funcaoRole ?? "OPERADOR").toUpperCase();
+  const roles =
+    rolesFromDb.length > 0 ? rolesFromDb : [legacyRole];
+
+  const fallbackPerms = LEGACY_ROLE_PERMISSIONS[legacyRole] ?? [];
+  const permissions = mergePermissions(
+    permissoesFromDb.length > 0 ? permissoesFromDb : fallbackPerms
+  );
+
+  return { roles, permissions };
+};
+
+const carregarOperadorPorEmail = async (email: string) => {
+  try {
+    return await prisma.operador.findUnique({
+      where: { email },
+      include: operadorInclude,
+    });
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2021"
+    ) {
+      console.warn(
+        "[auth] Tabela de papeis/permissoes ausente. Aplicando fallback legacy."
+      );
+      return prisma.operador.findUnique({
+        where: { email },
+      });
+    }
+    throw error;
+  }
+};
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   trustHost: true,
@@ -31,21 +105,18 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           throw new Error("Email e senha são obrigatórios");
         }
 
-        // Buscar operador no banco
-        const operador = await prisma.operador.findUnique({
-          where: { email: credentials.email as string },
-        });
+        const operador = await carregarOperadorPorEmail(
+          credentials.email as string
+        );
 
         if (!operador) {
           throw new Error("Credenciais inválidas");
         }
 
-        // Verificar se operador está ativo
         if (operador.status !== "ATIVO") {
           throw new Error("Usuário inativo. Contate o administrador.");
         }
 
-        // Verificar senha
         const senhaValida = await bcrypt.compare(
           credentials.senha as string,
           operador.senhaHash
@@ -55,25 +126,29 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           throw new Error("Credenciais inválidas");
         }
 
-        // Retornar dados do operador para a sessão
+        const { roles, permissions } = mapOperadorPermissions(operador);
+
         return {
           id: operador.id,
           name: operador.nomeCompleto,
           email: operador.email,
           cargo: operador.funcaoRole,
-          setor: operador.funcaoRole, // Usando funcaoRole como setor temporariamente
+          setor: operador.funcaoRole,
+          roles,
+          permissions,
         };
       },
     }),
   ],
   callbacks: {
     async jwt({ token, user }) {
-      // Quando user existe, é o primeiro login
       if (user) {
         const typedUser = user as typeof user & {
           id?: string;
           cargo?: string;
           setor?: string;
+          roles?: string[];
+          permissions?: string[];
         };
 
         if (typedUser.id) {
@@ -85,15 +160,30 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         if (typedUser.setor) {
           token.setor = typedUser.setor;
         }
+        if (typedUser.roles) {
+          token.roles = typedUser.roles;
+        }
+        if (typedUser.permissions) {
+          token.permissions = typedUser.permissions;
+        }
       }
+
+      if (!token.roles) {
+        token.roles = [];
+      }
+      if (!token.permissions) {
+        token.permissions = [];
+      }
+
       return token;
     },
     async session({ session, token }) {
-      // Adicionar informações customizadas à sessão
       if (token && session.user) {
-        session.user.id = token.id as string;
-        session.user.cargo = token.cargo as string;
-        session.user.setor = token.setor as string;
+        session.user.id = (token.id as string) ?? "";
+        session.user.cargo = (token.cargo as string) ?? "";
+        session.user.setor = (token.setor as string) ?? "";
+        session.user.roles = (token.roles as string[]) ?? [];
+        session.user.permissions = (token.permissions as string[]) ?? [];
       }
       return session;
     },

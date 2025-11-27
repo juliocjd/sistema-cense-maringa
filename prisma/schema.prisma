@@ -30,8 +30,58 @@ model Operador {
   solicitacoesTransf   SolicitacaoTransferencia[]
   justificativasAlgemaResponsavel JustificativaAlgema[] @relation("JustificativaAlgemaResponsavel")
   justificativasAlgemaAprovador   JustificativaAlgema[] @relation("JustificativaAlgemaAprovador")
+  papeis                OperadorPapel[]
 
   @@map("operadores")
+}
+
+model Permissao {
+  id        String   @id @default(uuid())
+  codigo    String   @unique
+  descricao String
+  criadoEm  DateTime @default(now()) @map("criado_em")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+
+  papeis PapelPermissao[]
+
+  @@map("permissoes")
+}
+
+model Papel {
+  id         String   @id @default(uuid())
+  nome       String   @unique
+  descricao  String?
+  criadoEm   DateTime @default(now()) @map("criado_em")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+
+  permissoes PapelPermissao[]
+  operadores OperadorPapel[]
+
+  @@map("papeis")
+}
+
+model PapelPermissao {
+  id          String @id @default(uuid())
+  papelId     String @map("papel_id")
+  permissaoId String @map("permissao_id")
+
+  papel      Papel      @relation(fields: [papelId], references: [id])
+  permissao  Permissao  @relation(fields: [permissaoId], references: [id])
+
+  @@unique([papelId, permissaoId])
+  @@map("papeis_permissoes")
+}
+
+model OperadorPapel {
+  id         String @id @default(uuid())
+  operadorId String @map("operador_id")
+  papelId    String @map("papel_id")
+
+  operador   Operador @relation(fields: [operadorId], references: [id])
+  papel      Papel    @relation(fields: [papelId], references: [id])
+
+  @@unique([operadorId, papelId])
+  @@map("operadores_papeis")
 }
 
 model TecnicoReferencia {
@@ -422,7 +472,7 @@ model AlertaAtivo {
   desativadoEm     DateTime? @map("desativado_em")
 
   // Relações
-  adolescente Adolescente        @relation(fields: [adolescenteId], references: [id])
+  adolescente Adolescente        @relation(fields: [adolescenteId], references: [id], onDelete: Cascade)
   ciOrigem    ComunicadoInterno? @relation(fields: [ciOrigemId], references: [id])
 
   @@map("alertas_ativos")

@@ -95,13 +95,21 @@ npm install
 cp .env.example .env
 # Editar .env com suas configurações
 
-# 4. Configurar banco de dados
-npx prisma db push
+# 4. Aplicar migrações do banco
+npx prisma migrate deploy
 
-# 5. Criar estrutura inicial (8 casas + 78 alojamentos)
+# 5. Popular papéis/permissões e operador padrão
+npx tsx prisma/seed-auth.ts
+
+# 6. Configurar monitoramento (Sentry)
+# - Crie ou associe um projeto no Sentry usando o email censeinteligencia@gmail.com
+# - Copie o DSN para as variáveis SENTRY_DSN e NEXT_PUBLIC_SENTRY_DSN
+# - No painel do Sentry, crie um alerta por email para censeinteligencia@gmail.com
+
+# 7. Criar estrutura inicial (8 casas + 78 alojamentos)
 curl -X POST http://localhost:3000/api/estrutura/inicializar
 
-# 6. Iniciar servidor
+# 8. Iniciar servidor
 npm run dev
 ```
 
@@ -174,7 +182,8 @@ sistema-cense-maringa/
 | **ORM** | Prisma | 5+ |
 | **Estilização** | Tailwind CSS | 3+ |
 | **UI Components** | shadcn/ui | - |
-| **Autenticação** | JWT | - |
+| **Autenticação** | NextAuth / JWT | - |
+| **Monitoramento** | Sentry | - |
 | **Validação** | Zod | - |
 | **Gerenciamento de Estado** | React Hooks | - |
 

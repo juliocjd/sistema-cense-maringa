@@ -275,7 +275,27 @@ export async function GET(
       prisma.adolescente.count({ where }),
     ]);
 
-    const data = records.map<Adolescente>(mapPrismaAdolescente);
+    const alertasPendentesMap = new Map<string, number>();
+    if (records.length > 0) {
+      const pendentes = await prisma.alertaAtivo.groupBy({
+        by: ["adolescenteId"],
+        where: {
+          adolescenteId: { in: records.map((record) => record.id) },
+          desativadoEm: { not: null },
+        },
+        _count: { _all: true },
+      });
+
+      pendentes.forEach((item) => {
+        alertasPendentesMap.set(item.adolescenteId, item._count._all);
+      });
+    }
+
+    const data = records.map<Adolescente>((record) => {
+      const mapped = mapPrismaAdolescente(record);
+      mapped.alertasPendentes = alertasPendentesMap.get(record.id) ?? 0;
+      return mapped;
+    });
     const meta: ListaAdolescentesMeta = {
       total,
       page,
@@ -527,10 +547,13 @@ export async function POST(request: NextRequest) {
 
     invalidateAdolescentesMapaCache();
 
+    const adolescenteResposta = mapPrismaAdolescente(criado);
+    adolescenteResposta.alertasPendentes = 0;
+
     return NextResponse.json(
       {
         mensagem: "Adolescente cadastrado com sucesso",
-        adolescente: mapPrismaAdolescente(criado),
+        adolescente: adolescenteResposta,
       },
       { status: 201 }
     );

@@ -286,6 +286,7 @@ export function mapPrismaAdolescente(
         })) ?? [],
     historicoInfracional,
     alertasEspeciais,
+    alertasPendentes: 0,
     criadoEm: formatDate(adolescente.criadoEm),
     atualizadoEm: formatDate(adolescente.atualizadoEm),
   };

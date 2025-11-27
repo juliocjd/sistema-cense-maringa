@@ -536,6 +536,39 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                 Alertas Especiais
               </h2>
 
+              {adolescente.statusUnidade === "ATIVO" &&
+                (adolescente.alertasPendentes ?? 0) > 0 && (
+                  <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 shadow-sm">
+                    <div className="flex items-start gap-3">
+                      <div className="bg-amber-500 text-white rounded-full p-2">
+                        <AlertTriangle size={20} />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-amber-900 font-semibold">
+                          Este adolescente possui{" "}
+                          <span className="font-bold">
+                            {adolescente.alertasPendentes} alerta
+                            {adolescente.alertasPendentes === 1 ? "" : "s"}
+                          </span>{" "}
+                          desativado
+                          {adolescente.alertasPendentes === 1 ? "" : "s"} da
+                          última desinternação.
+                        </p>
+                        <p className="text-sm text-amber-800 mt-1">
+                          Revise os registros na central de alertas para decidir
+                          se devem ser reativados ou excluídos definitivamente.
+                        </p>
+                        <Link
+                          href="/alertas"
+                          className="inline-flex items-center gap-2 text-sm font-semibold text-amber-900 mt-3 underline decoration-amber-500 decoration-dashed underline-offset-4"
+                        >
+                          Abrir central de alertas
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
               <div className="space-y-4">
                 {adolescente.alertaRiscoSuicidio && (
                   <div className="bg-orange-50 border-l-4 border-orange-500 rounded-r-lg p-6">

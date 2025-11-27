@@ -1220,7 +1220,11 @@ export function CadastroAdolescente({
       alert(mensagemSucesso);
     } catch (error) {
       console.error("Erro ao salvar:", error);
-      alert(mensagemErro);
+      const mensagemDetalhada =
+        error instanceof Error && error.message
+          ? error.message
+          : mensagemErro;
+      alert(mensagemDetalhada);
     } finally {
       setLoading(false);
     }

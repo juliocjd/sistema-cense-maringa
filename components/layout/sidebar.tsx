@@ -112,6 +112,12 @@ export function Sidebar({
           { label: "Gestão de Visitas", href: "/gestao-visitas", icon: ClipboardList },
         ],
       },
+      {
+        section: "Configuracoes",
+        items: [
+          { label: "Usuarios & Permissoes", href: "/configuracoes/usuarios", icon: Settings },
+        ],
+      },
     ],
     []
   );

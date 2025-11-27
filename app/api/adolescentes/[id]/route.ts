@@ -15,6 +15,7 @@ import {
 import {
   aplicarAlertasEspeciais,
   mapearAlertasEspeciaisDoPayload,
+  atualizarFlagsAlertasEspeciais,
 } from "@/lib/alertas/sincronizar-especiais";
 import {
   ALERTA_ESPECIAL_TIPOS,
@@ -49,6 +50,14 @@ const alertaEspecialSchema = z.object({
   tipo: ALERTA_ESPECIAL_ENUM,
   descricao: z.string().optional().nullable(),
 });
+
+const contarAlertasPendentes = async (adolescenteId: string) =>
+  prisma.alertaAtivo.count({
+    where: {
+      adolescenteId,
+      desativadoEm: { not: null },
+    },
+  });
 
 const updateAdolescenteSchema = z.object({
   nomeCompleto: z.string().min(3, "Nome deve ter no minimo 3 caracteres").optional(),
@@ -236,7 +245,10 @@ export async function GET(
       );
     }
 
-    return NextResponse.json(mapPrismaAdolescente(adolescente));
+    const resposta = mapPrismaAdolescente(adolescente);
+    resposta.alertasPendentes = await contarAlertasPendentes(id);
+
+    return NextResponse.json(resposta);
   } catch (error) {
     console.error("Erro ao buscar adolescente:", error);
     return NextResponse.json(
@@ -891,6 +903,17 @@ export async function PUT(
         );
       }
 
+      if (saiuDeAtivo) {
+        await tx.alertaAtivo.updateMany({
+          where: {
+            adolescenteId: id,
+            desativadoEm: null,
+          },
+          data: { desativadoEm: new Date() },
+        });
+        await atualizarFlagsAlertasEspeciais(tx, id);
+      }
+
       if (novoStatus !== "ATIVO") {
         const grupoRepo = (tx as typeof prisma).grupoMembro;
         if (grupoRepo?.updateMany) {
@@ -940,9 +963,13 @@ export async function PUT(
       },
     });
 
+    const alertasPendentes = await contarAlertasPendentes(atualizado.id);
+    const adolescenteResposta = mapPrismaAdolescente(atualizado);
+    adolescenteResposta.alertasPendentes = alertasPendentes;
+
     return NextResponse.json({
       mensagem: "Adolescente atualizado com sucesso",
-      adolescente: mapPrismaAdolescente(atualizado),
+      adolescente: adolescenteResposta,
     });
   } catch (error) {
     if (error instanceof z.ZodError) {

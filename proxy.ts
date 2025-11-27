@@ -1,5 +1,5 @@
-// middleware.ts
-// Middleware para proteger rotas com autenticação
+// proxy.ts
+// Middleware para proteger rotas com autenticação (Next.js 15+)
 
 import { auth } from "@/auth";
 import { NextResponse } from "next/server";

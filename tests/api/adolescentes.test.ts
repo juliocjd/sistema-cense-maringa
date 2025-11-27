@@ -12,12 +12,15 @@ vi.mock("@/auth", () => ({
 const alertasEspeciaisMocks = vi.hoisted(() => {
   const aplicarAlertasEspeciais = vi.fn().mockResolvedValue(undefined);
   const mapearAlertasEspeciaisDoPayload = vi.fn(() => []);
+  const atualizarFlagsAlertasEspeciais = vi.fn().mockResolvedValue(undefined);
   return {
     aplicarAlertasEspeciais,
     mapearAlertasEspeciaisDoPayload,
+    atualizarFlagsAlertasEspeciais,
     factory: () => ({
       aplicarAlertasEspeciais,
       mapearAlertasEspeciaisDoPayload,
+      atualizarFlagsAlertasEspeciais,
     }),
   };
 });
@@ -42,6 +45,8 @@ const prismaSetup = vi.hoisted(() => {
     txAdolescente: { update: vi.fn(), findUnique: vi.fn() },
     txHistorico: { findMany: vi.fn(), create: vi.fn() },
     txTatuagem: { createMany: vi.fn() },
+    alertaAtivoGlobal: { count: vi.fn(), groupBy: vi.fn() },
+    txAlertas: { updateMany: vi.fn() },
   };
 
   const transaction = vi.fn().mockImplementation((callback: any) =>
@@ -49,6 +54,7 @@ const prismaSetup = vi.hoisted(() => {
       adolescente: refs.txAdolescente,
       adolescenteHistoricoInfracional: refs.txHistorico,
       adolescenteTatuagem: refs.txTatuagem,
+      alertaAtivo: refs.txAlertas,
     })
   );
 
@@ -59,6 +65,7 @@ const prismaSetup = vi.hoisted(() => {
       logAuditoria: refs.logAuditoria,
       adolescenteHistoricoInfracional: refs.adolescenteHistoricoGlobal,
       adolescenteTatuagem: refs.adolescenteTatuagemGlobal,
+      alertaAtivo: refs.alertaAtivoGlobal,
       $transaction: transaction,
     },
   });
@@ -78,6 +85,8 @@ const {
     txAdolescente: txAdolescenteMock,
     txHistorico: txHistoricoMock,
     txTatuagem: txTatuagemMock,
+    alertaAtivoGlobal: alertaAtivoGlobalMock,
+    txAlertas: txAlertasMock,
   },
   transaction: transactionMock,
 } = prismaSetup;
@@ -106,6 +115,7 @@ beforeEach(() => {
   alertasEspeciaisMocks.mapearAlertasEspeciaisDoPayload
     .mockReset()
     .mockReturnValue([]);
+  alertasEspeciaisMocks.atualizarFlagsAlertasEspeciais.mockClear();
   [
     operadorMock.findUnique,
     adolescenteMock.findUnique,
@@ -117,7 +127,14 @@ beforeEach(() => {
     txHistoricoMock.findMany,
     txHistoricoMock.create,
     txTatuagemMock.createMany,
+    alertaAtivoGlobalMock.count,
+    alertaAtivoGlobalMock.groupBy,
+    txAlertasMock.updateMany,
   ].forEach((fn) => fn.mockReset());
+
+  alertaAtivoGlobalMock.count.mockResolvedValue(0);
+  alertaAtivoGlobalMock.groupBy.mockResolvedValue([]);
+  txAlertasMock.updateMany.mockResolvedValue({ count: 0 });
 
   transactionMock.mockReset();
   transactionMock.mockImplementation((callback: any) =>
@@ -125,6 +142,7 @@ beforeEach(() => {
       adolescente: txAdolescenteMock,
       adolescenteHistoricoInfracional: txHistoricoMock,
       adolescenteTatuagem: txTatuagemMock,
+      alertaAtivo: txAlertasMock,
     })
   );
 });

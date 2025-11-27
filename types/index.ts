@@ -159,6 +159,7 @@ export interface Adolescente {
   conflitosResolvidos?: Conflito[];
   historicoInfracional: AdolescenteHistoricoInfracionalItem[];
   alertasEspeciais?: AdolescenteAlertaEspecial[];
+  alertasPendentes?: number;
 
   criadoEm?: string;
   atualizadoEm?: string;

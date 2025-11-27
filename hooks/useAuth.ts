@@ -13,6 +13,8 @@ export interface User {
   email: string | null;
   cargo: string;
   setor: string;
+  roles: string[];
+  permissions: string[];
 }
 
 export function useAuth() {

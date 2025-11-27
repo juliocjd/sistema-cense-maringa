@@ -10,12 +10,16 @@ declare module "next-auth" {
       id: string;
       cargo: string;
       setor: string;
+      roles: string[];
+      permissions: string[];
     } & DefaultSession["user"];
   }
 
   interface User extends DefaultUser {
     cargo: string;
     setor: string;
+    roles: string[];
+    permissions: string[];
   }
 }
 
@@ -24,5 +28,7 @@ declare module "next-auth/jwt" {
     id: string;
     cargo: string;
     setor: string;
+    roles: string[];
+    permissions: string[];
   }
 }
