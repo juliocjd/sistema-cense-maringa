@@ -166,6 +166,7 @@ export interface Adolescente {
 }
 
 export type AdolescenteAlertaEspecial = {
+  id?: string;
   tipo: AlertaEspecialTipo;
   descricao?: string | null;
   nivelRisco?: string | null;

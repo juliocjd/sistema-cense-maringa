@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
   Bell,
@@ -16,6 +17,7 @@ import {
 import Link from "next/link";
 import { CardAlerta } from "@/components/alertas/card-alerta";
 import { ModalNovoAlerta } from "@/components/alertas/modal-novo-alerta";
+import { ModalEditarAlerta } from "@/components/alertas/modal-editar-alerta";
 import type { AlertaAtivo } from "@/types";
 
 type Casa = {
@@ -30,7 +32,23 @@ type Estatisticas = {
   porTipo: Record<string, number>;
 };
 
-export default function AlertasPage() {
+function AlertasPageContent() {
+  const searchParams = useSearchParams();
+  const normalizarStatus = (
+    valor?: string | null
+  ): "ATIVO" | "DESATIVADO" | "TODOS" => {
+    if (valor === "DESATIVADO" || valor === "TODOS") {
+      return valor;
+    }
+    return "ATIVO";
+  };
+  const initialStatus = normalizarStatus(searchParams.get("status"));
+  const initialTipo = searchParams.get("tipoAlerta") ?? "";
+  const initialNumeroAdolescente =
+    searchParams.get("numeroAdolescente") ?? "";
+  const initialAdolescenteId = searchParams.get("adolescenteId") ?? "";
+  const initialBusca = searchParams.get("busca") ?? "";
+
   const [alertas, setAlertas] = useState<AlertaAtivo[]>([]);
   const [casas, setCasas] = useState<Casa[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,11 +59,14 @@ export default function AlertasPage() {
   });
 
   // Filtros
-  const [filtroStatus, setFiltroStatus] = useState<"ATIVO" | "DESATIVADO" | "TODOS">("ATIVO");
-  const [filtroTipo, setFiltroTipo] = useState("");
+  const [filtroStatus, setFiltroStatus] = useState<"ATIVO" | "DESATIVADO" | "TODOS">(initialStatus);
+  const [filtroTipo, setFiltroTipo] = useState(initialTipo);
   const [filtroNivel, setFiltroNivel] = useState("");
   const [filtroCasa, setFiltroCasa] = useState("");
-  const [busca, setBusca] = useState("");
+  const [filtroNumeroAdolescente, setFiltroNumeroAdolescente] = useState(initialNumeroAdolescente);
+  const [filtroAdolescenteId] = useState(initialAdolescenteId);
+  const [busca, setBusca] = useState(initialBusca);
+  const [alertaEdicao, setAlertaEdicao] = useState<AlertaAtivo | null>(null);
 
   // Modal
   const [modalNovoAberto, setModalNovoAberto] = useState(false);
@@ -56,7 +77,14 @@ export default function AlertasPage() {
 
   useEffect(() => {
     carregarAlertas();
-  }, [filtroStatus, filtroTipo, filtroNivel, filtroCasa]);
+  }, [
+    filtroStatus,
+    filtroTipo,
+    filtroNivel,
+    filtroCasa,
+    filtroNumeroAdolescente,
+    filtroAdolescenteId,
+  ]);
 
   const carregarCasas = async () => {
     try {
@@ -78,8 +106,12 @@ export default function AlertasPage() {
       if (filtroTipo) params.append("tipoAlerta", filtroTipo);
       if (filtroNivel) params.append("nivelRisco", filtroNivel);
       if (filtroCasa) params.append("casaId", filtroCasa);
+      if (filtroNumeroAdolescente)
+        params.append("numeroAdolescente", filtroNumeroAdolescente);
+      if (filtroAdolescenteId) params.append("adolescenteId", filtroAdolescenteId);
 
-      const response = await fetch(`/api/alertas?${params.toString()}`);
+      const query = params.toString();
+      const response = await fetch(query ? `/api/alertas?${query}` : "/api/alertas");
 
       if (!response.ok) {
         throw new Error("Erro ao carregar alertas");
@@ -267,98 +299,129 @@ export default function AlertasPage() {
           <h3 className="font-bold text-gray-900">Filtros</h3>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-          {/* Status */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Status
-            </label>
-            <select
-              value={filtroStatus}
-              onChange={(e) =>
-                setFiltroStatus(e.target.value as "ATIVO" | "DESATIVADO" | "TODOS")
-              }
-              className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none"
-            >
-              <option value="ATIVO">Ativos</option>
-              <option value="DESATIVADO">Desativados</option>
-              <option value="TODOS">Todos</option>
-            </select>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className="rounded-2xl border border-gray-200 p-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase text-gray-500">
+                Situação, risco e tipo
+              </p>
+              <span className="text-[11px] text-gray-400">
+                Atualiza automaticamente
+              </span>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Status
+                  </label>
+                  <select
+                    value={filtroStatus}
+                    onChange={(e) =>
+                      setFiltroStatus(e.target.value as "ATIVO" | "DESATIVADO" | "TODOS")
+                    }
+                    className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none"
+                  >
+                    <option value="ATIVO">Ativos</option>
+                    <option value="DESATIVADO">Desativados</option>
+                    <option value="TODOS">Todos</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Tipo de alerta
+                  </label>
+                  <select
+                    value={filtroTipo}
+                    onChange={(e) => setFiltroTipo(e.target.value)}
+                    className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none"
+                  >
+                    <option value="">Todos os tipos</option>
+                    {tiposUnicos.map((tipo) => (
+                      <option key={tipo} value={tipo}>
+                        {tipo}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Nível de risco
+                  </label>
+                  <select
+                    value={filtroNivel}
+                    onChange={(e) => setFiltroNivel(e.target.value)}
+                    className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none"
+                  >
+                    <option value="">Todos</option>
+                    <option value="CRITICO">Crítico</option>
+                    <option value="ALTO">Alto</option>
+                    <option value="MEDIO">Médio</option>
+                    <option value="BAIXO">Baixo</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Casa
+                  </label>
+                  <select
+                    value={filtroCasa}
+                    onChange={(e) => setFiltroCasa(e.target.value)}
+                    className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none"
+                  >
+                    <option value="">Todas as casas</option>
+                    {casas.map((casa) => (
+                      <option key={casa.id} value={casa.id}>
+                        {casa.nome}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
           </div>
 
-          {/* Tipo */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Tipo de Alerta
-            </label>
-            <select
-              value={filtroTipo}
-              onChange={(e) => setFiltroTipo(e.target.value)}
-              className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none"
-            >
-              <option value="">Todos os tipos</option>
-              {tiposUnicos.map((tipo) => (
-                <option key={tipo} value={tipo}>
-                  {tipo}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Nível */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Nível de Risco
-            </label>
-            <select
-              value={filtroNivel}
-              onChange={(e) => setFiltroNivel(e.target.value)}
-              className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none"
-            >
-              <option value="">Todos os níveis</option>
-              <option value="CRITICO">Crítico</option>
-              <option value="ALTO">Alto</option>
-              <option value="MEDIO">Médio</option>
-              <option value="BAIXO">Baixo</option>
-            </select>
-          </div>
-
-          {/* Casa */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Casa
-            </label>
-            <select
-              value={filtroCasa}
-              onChange={(e) => setFiltroCasa(e.target.value)}
-              className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none"
-            >
-              <option value="">Todas as casas</option>
-              {casas.map((casa) => (
-                <option key={casa.id} value={casa.id}>
-                  {casa.nome}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Busca */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Buscar
-            </label>
-            <div className="relative">
-              <Search
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                size={18}
-              />
-              <input
-                type="text"
-                value={busca}
-                onChange={(e) => setBusca(e.target.value)}
-                placeholder="Nome, SMS, descrição..."
-                className="w-full pl-10 pr-3 py-2 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none"
-              />
+          <div className="rounded-2xl border border-gray-200 p-4 space-y-3">
+            <p className="text-xs font-semibold uppercase text-gray-500">
+              Identificação rápida
+            </p>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Número do adolescente
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={filtroNumeroAdolescente}
+                  onChange={(e) => setFiltroNumeroAdolescente(e.target.value.trim())}
+                  placeholder="Informe o SMS"
+                  className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Buscar por nome ou descrição
+                </label>
+                <div className="relative">
+                  <Search
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                    size={18}
+                  />
+                  <input
+                    type="text"
+                    value={busca}
+                    onChange={(e) => setBusca(e.target.value)}
+                    placeholder="Nome, SMS ou palavras-chave..."
+                    className="w-full pl-10 pr-3 py-3 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none"
+                  />
+                </div>
+                <p className="text-[11px] text-gray-500 mt-1">
+                  Pesquisa simultânea em nome, número e descrição do alerta.
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -400,6 +463,7 @@ export default function AlertasPage() {
               onDesativar={handleDesativarAlerta}
               onReativar={handleReativarAlerta}
               onAtualizar={carregarAlertas}
+              onEditar={(selecionado) => setAlertaEdicao(selecionado)}
             />
           ))}
         </div>
@@ -415,6 +479,36 @@ export default function AlertasPage() {
           }}
         />
       )}
+
+      {alertaEdicao && (
+        <ModalEditarAlerta
+          alerta={alertaEdicao}
+          onClose={() => setAlertaEdicao(null)}
+          onSucesso={() => {
+            setAlertaEdicao(null);
+            carregarAlertas();
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+export default function AlertasPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gray-50 p-6 flex items-center justify-center">
+          <div className="text-center space-y-3">
+            <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-red-200 border-t-red-600" />
+            <p className="text-sm font-semibold text-slate-600">
+              Carregando filtros de alertas...
+            </p>
+          </div>
+        </div>
+      }
+    >
+      <AlertasPageContent />
+    </Suspense>
   );
 }

@@ -303,6 +303,43 @@ export function calcularRiscoAlojamento({
     null;
   const slotAtual = construirSlotInfo(alojamento, casaReferencia);
 
+  const cacheAlojamentos = new Map<
+    string,
+    { alojamento: AlojamentoRisco; casa: CasaRisco | null }
+  >();
+  const localizarAlojamentoComCasa = (
+    id?: string | null
+  ): { alojamento: AlojamentoRisco; casa: CasaRisco | null } | null => {
+    if (!id) return null;
+    if (cacheAlojamentos.has(id)) {
+      return cacheAlojamentos.get(id)!;
+    }
+    const tentarRegistrar = (
+      alvo?: AlojamentoRisco,
+      casaRelacionado?: CasaRisco | null
+    ) => {
+      if (!alvo) return null;
+      const registro = { alojamento: alvo, casa: casaRelacionado ?? null };
+      cacheAlojamentos.set(id, registro);
+      return registro;
+    };
+    if (casaReferencia) {
+      const encontrado = casaReferencia.alojamentos.find((a) => a.id === id);
+      if (encontrado) {
+        return tentarRegistrar(encontrado, casaReferencia);
+      }
+    }
+    if (casas) {
+      for (const casa of casas) {
+        const encontrado = casa.alojamentos.find((aloj) => aloj.id === id);
+        if (encontrado) {
+          return tentarRegistrar(encontrado, casa);
+        }
+      }
+    }
+    return null;
+  };
+
   const moradoresCasa =
     casaReferencia?.alojamentos
       .flatMap((aloj) =>
@@ -550,6 +587,22 @@ export function calcularRiscoAlojamento({
       { ignorarIds: rivaisDiretos }
     );
   });
+
+  if (ocupante.alertaRiscoSuicidio && alojamento.alojamentoFrontalId) {
+    const frontalInfo = localizarAlojamentoComCasa(
+      alojamento.alojamentoFrontalId
+    );
+    if (frontalInfo && frontalInfo.alojamento.adolescentes.length === 0) {
+      const localFrontal = formatarLocalReferencia(
+        frontalInfo.casa,
+        frontalInfo.alojamento
+      );
+      const mensagem = `Monitorar risco de suicídio: alojamento frontal${
+        localFrontal ? ` (${localFrontal})` : ""
+      } está vazio.`;
+      registrarMotivo(2, mensagem, "AMBIENTAL");
+    }
+  }
 
   const niveisOrdenados: Array<5 | 4 | 3 | 2> = [5, 4, 3, 2];
   const nivelDetectado = niveisOrdenados.find(

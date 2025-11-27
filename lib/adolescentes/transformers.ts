@@ -175,6 +175,7 @@ export function mapPrismaAdolescente(
         const tipo = mapearTipoEspecialPorCodigo(alerta.tipoAlerta);
         if (!tipo) return null;
         return {
+          id: alerta.id,
           tipo,
           descricao: alerta.descricaoAlerta ?? null,
           nivelRisco: alerta.nivelRisco ?? null,

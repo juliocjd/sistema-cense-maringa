@@ -8,6 +8,10 @@ export default auth((req) => {
   const { pathname } = req.nextUrl;
   const isLoggedIn = Boolean(req.auth?.user?.id);
 
+  if (pathname.startsWith("/api/")) {
+    return NextResponse.next();
+  }
+
   // Rotas públicas
   const publicRoutes = ["/login", "/apresentacao"];
   const isPublicRoute = publicRoutes.includes(pathname);
@@ -30,12 +34,12 @@ export const config = {
   matcher: [
     /*
      * Match all request paths except for the ones starting with:
-     * - api/auth (NextAuth routes)
+     * - api/ (API routes)
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      * - public folder
      */
-    "/((?!api/auth|_next/static|_next/image|favicon.ico|.*\\.png$|.*\\.jpg$|.*\\.jpeg$|.*\\.svg$).*)",
+    "/((?!api/|_next/static|_next/image|favicon.ico|.*\\.png$|.*\\.jpg$|.*\\.jpeg$|.*\\.svg$).*)",
   ],
 };

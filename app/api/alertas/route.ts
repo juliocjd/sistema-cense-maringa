@@ -33,12 +33,14 @@ const ALERTA_INCLUDE = {
  * Lista alertas ativos com filtros
  *
  * Query params:
- * - status: 'ATIVO' | 'DESATIVADO' | 'TODOS' (padrão: ATIVO)
+ * - status: 'ATIVO' | 'DESATIVADO' | 'TODOS' (padr?o: ATIVO)
  * - tipoAlerta: filtro por tipo
- * - nivelRisco: filtro por nível de risco
+ * - nivelRisco: filtro por n?vel de risco
  * - casaId: filtro por casa
- * - limit: limite de resultados (padrão: 100)
- * - offset: paginação (padrão: 0)
+ * - adolescenteId: filtro direto por adolescente
+ * - numeroAdolescente: filtra pelo n?mero do adolescente (SMS)
+ * - limit: limite de resultados (padr?o: 100)
+ * - offset: pagina??o (padr?o: 0)
  */
 export async function GET(request: NextRequest) {
   try {
@@ -48,6 +50,8 @@ export async function GET(request: NextRequest) {
     const tipoAlerta = searchParams.get("tipoAlerta");
     const nivelRisco = searchParams.get("nivelRisco");
     const casaId = searchParams.get("casaId");
+    const adolescenteId = searchParams.get("adolescenteId");
+    const numeroAdolescente = searchParams.get("numeroAdolescente");
     const limit = parseInt(searchParams.get("limit") || "100");
     const offset = parseInt(searchParams.get("offset") || "0");
 
@@ -71,10 +75,23 @@ export async function GET(request: NextRequest) {
       where.nivelRisco = nivelRisco;
     }
 
+    if (adolescenteId) {
+      where.adolescenteId = adolescenteId;
+    }
+
+    if (numeroAdolescente) {
+      where.adolescente = {
+        ...(where.adolescente ?? {}),
+        numeroSms: numeroAdolescente,
+      };
+    }
+
     // Filtro por casa (através do adolescente)
     if (casaId) {
       where.adolescente = {
+        ...(where.adolescente ?? {}),
         alojamentoAtual: {
+          ...(where.adolescente?.alojamentoAtual ?? {}),
           casaId: casaId,
         },
       };
@@ -153,6 +170,8 @@ export async function GET(request: NextRequest) {
         tipoAlerta,
         nivelRisco,
         casaId,
+        adolescenteId,
+        numeroAdolescente,
         limit,
         offset,
       },

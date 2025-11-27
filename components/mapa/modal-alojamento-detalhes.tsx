@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import {
   X,
   AlertTriangle,
@@ -11,9 +12,16 @@ import {
   CheckCircle,
 } from "lucide-react";
 
-import type { Adolescente, Alojamento, Casa, Conflito } from "@/types";
+import type {
+  Adolescente,
+  AdolescenteAlertaEspecial,
+  Alojamento,
+  Casa,
+  Conflito,
+} from "@/types";
 import type { ImpactoConflitoExterno } from "@/types/inteligencia";
 import type { RiscoDetalhado as RiscoDetalhadoCalculo } from "@/lib/riscos/calcular";
+import { ALERTAS_ESPECIAIS } from "@/lib/alertas/especiais";
 
 type TabKey = "ocupacao" | "transferencia" | "interdicao";
 
@@ -24,6 +32,8 @@ const INTERDICAO_TIPOS = [
 ] as const;
 
 type InterdicaoDocumentoTipo = (typeof INTERDICAO_TIPOS)[number]["value"];
+
+type AlertaEspecialChave = keyof typeof ALERTAS_ESPECIAIS;
 
 type RiscoEnvolvido = {
   id?: string;
@@ -36,6 +46,24 @@ type RiscoDetalhadoResumo = {
   descricao: string;
   nivel: "CRITICO" | "ALTO" | "MEDIO" | "BAIXO" | "DEFAULT";
   envolvidos?: RiscoEnvolvido[];
+  alertaEspecialTipo?: string;
+  alertaEspecialId?: string;
+  adolescenteId?: string;
+};
+
+const ALERTA_DESCRICAO_LIMITE = 220;
+const resumirDescricaoAlerta = (
+  texto?: string | null,
+  limite = ALERTA_DESCRICAO_LIMITE
+) => {
+  if (!texto) {
+    return null;
+  }
+  const normalizado = texto.replace(/\s+/g, " ").trim();
+  if (normalizado.length <= limite) {
+    return normalizado;
+  }
+  return `${normalizado.slice(0, limite - 3).trim()}...`;
 };
 
 type VerificacaoConflito = {
@@ -131,6 +159,17 @@ export default function ModalAlojamentoDetalhes({
   onLiberarInterdicao,
 }: ModalAlojamentoDetalhesProps) {
   const ocupante = alojamento?.adolescentes?.[0] ?? null;
+  const alertasEspeciaisPorTipo = useMemo(() => {
+    if (!ocupante?.alertasEspeciais?.length) {
+      return {};
+    }
+    return ocupante.alertasEspeciais.reduce<
+      Partial<Record<AlertaEspecialChave, AdolescenteAlertaEspecial>>
+    >((acc, alerta) => {
+      acc[alerta.tipo as AlertaEspecialChave] = alerta;
+      return acc;
+    }, {});
+  }, [ocupante?.alertasEspeciais]);
 
   const [transferenciaCasaId, setTransferenciaCasaId] = useState("");
   const [transferenciaAlojamentoId, setTransferenciaAlojamentoId] =
@@ -447,27 +486,69 @@ export default function ModalAlojamentoDetalhes({
 
     const riscos: RiscoDetalhadoResumo[] = [];
 
+    const construirInfoAlerta = (
+      tipo: AlertaEspecialChave,
+      fallback: string
+    ) => {
+      const registro = alertasEspeciaisPorTipo[tipo];
+      const textoBase =
+        registro?.descricao ??
+        fallback ??
+        ALERTAS_ESPECIAIS[tipo].descricaoPadrao;
+      const descricaoNormalizada =
+        resumirDescricaoAlerta(textoBase) ?? textoBase;
+      return {
+        descricao: descricaoNormalizada,
+        tipoAlerta: ALERTAS_ESPECIAIS[tipo].tipoAlerta,
+        alertaId: registro?.id ?? undefined,
+      };
+    };
+
     if (ocupante.alertaRiscoSuicidio) {
+      const info = construirInfoAlerta(
+        "RISCO_SUICIDIO",
+        "Marcado no cadastro do adolescente."
+      );
       riscos.push({
         titulo: "Risco de suicidio",
-        descricao: "Marcado no cadastro do adolescente.",
+        descricao: info.descricao,
         nivel: "ALTO",
+        alertaEspecialTipo: info.tipoAlerta,
+        alertaEspecialId: info.alertaId,
+        adolescenteId: ocupante.id,
       });
     }
 
     if (ocupante.alertaPerfilMapeado) {
+      const info = construirInfoAlerta(
+        "PERFIL_MAPEADO",
+        "Perfis conflituosos registrados pela inteligencia."
+      );
       riscos.push({
         titulo: "Perfil mapeado",
-        descricao: "Perfis conflituosos registrados pela inteligencia.",
+        descricao: info.descricao,
         nivel: "MEDIO",
+        alertaEspecialTipo: info.tipoAlerta,
+        alertaEspecialId: info.alertaId,
+        adolescenteId: ocupante.id,
       });
     }
 
     if (ocupante.alertaSaudeConfidencial) {
+      const info = construirInfoAlerta(
+        "SAUDE_CONFIDENCIAL",
+        "Detalhe confidencial."
+      );
+      const descricaoSaude =
+        resumirDescricaoAlerta(ocupante.alertaSaudeDetalhes) ??
+        info.descricao;
       riscos.push({
         titulo: "Alerta de saude",
-        descricao: ocupante.alertaSaudeDetalhes ?? "Detalhe confidencial.",
+        descricao: descricaoSaude,
         nivel: "MEDIO",
+        alertaEspecialTipo: info.tipoAlerta,
+        alertaEspecialId: info.alertaId,
+        adolescenteId: ocupante.id,
       });
     }
 
@@ -576,6 +657,7 @@ export default function ModalAlojamentoDetalhes({
     conflitosExternos,
     impactosPorConflito,
     conflitosInternosAtivos,
+    alertasEspeciaisPorTipo,
   ]);
 
   const alojamentosDisponiveis = useMemo(() => {
@@ -1142,6 +1224,24 @@ export default function ModalAlojamentoDetalhes({
                           const classe =
                             nivelClasses[risco.nivel ?? "DEFAULT"] ??
                             nivelClasses.DEFAULT;
+                          const params = new URLSearchParams();
+                          if (ocupante?.numeroSms) {
+                            params.set(
+                              "numeroAdolescente",
+                              ocupante.numeroSms
+                            );
+                          } else if (risco.adolescenteId) {
+                            params.set("adolescenteId", risco.adolescenteId);
+                          }
+                          if (risco.alertaEspecialTipo) {
+                            params.set("tipoAlerta", risco.alertaEspecialTipo);
+                          }
+                          const alertaLink =
+                            params.has("tipoAlerta") &&
+                            (params.has("numeroAdolescente") ||
+                              params.has("adolescenteId"))
+                              ? `/alertas?${params.toString()}`
+                              : null;
                           return (
                             <div
                               key={`${risco.titulo}-${index}`}
@@ -1167,9 +1267,19 @@ export default function ModalAlojamentoDetalhes({
 
                                   {risco.descricao && (
                                     <div className="mt-2 pt-2 border-t border-slate-200">
-                                      <p className="text-xs text-slate-600 italic">
-                                        ℹ️ {risco.descricao}
-                                      </p>
+                                      <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
+                                        <p className="italic flex-1 min-w-[60%]">
+                                          ℹ️ {risco.descricao}
+                                        </p>
+                                        {alertaLink && (
+                                          <Link
+                                            href={alertaLink}
+                                            className="inline-flex items-center rounded-full border border-white/70 bg-white/60 px-2.5 py-0.5 text-[10px] font-semibold text-slate-700 hover:bg-white whitespace-nowrap"
+                                          >
+                                            Ver alerta
+                                          </Link>
+                                        )}
+                                      </div>
                                     </div>
                                   )}
                                 </div>

@@ -6,7 +6,6 @@ import {
   Calendar,
   FileText,
   MoreVertical,
-  Eye,
   XCircle,
   CheckCircle,
   Trash2,
@@ -14,6 +13,7 @@ import {
   User,
   Lock,
   Activity,
+  Pencil,
 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
@@ -38,6 +38,7 @@ type CardAlertaProps = {
   onDesativar: (alertaId: string) => void;
   onReativar: (alertaId: string) => void;
   onAtualizar: () => void;
+  onEditar: (alerta: AlertaAtivo) => void;
 };
 
 export function CardAlerta({
@@ -45,6 +46,7 @@ export function CardAlerta({
   onDesativar,
   onReativar,
   onAtualizar,
+  onEditar,
 }: CardAlertaProps) {
   const [mostrarMenu, setMostrarMenu] = useState(false);
   const [processando, setProcessando] = useState(false);
@@ -186,6 +188,17 @@ export function CardAlerta({
                       Ver CI Origem
                     </Link>
                   )}
+
+                  <button
+                    onClick={() => {
+                      setMostrarMenu(false);
+                      onEditar(alerta);
+                    }}
+                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 transition-colors"
+                  >
+                    <Pencil size={16} />
+                    Editar alerta
+                  </button>
 
                   {isAtivo ? (
                     <button
