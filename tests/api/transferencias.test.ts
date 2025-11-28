@@ -27,6 +27,9 @@ vi.mock("@/lib/prisma", () => {
   const historicoTransferencia = {
     create: mockFn(),
   };
+  const historicoMovimentacao = {
+    create: mockFn(),
+  };
   const logAuditoria = {
     create: mockFn(),
   };
@@ -36,6 +39,7 @@ vi.mock("@/lib/prisma", () => {
       solicitacaoTransferencia,
       adolescente,
       historicoTransferencia,
+      historicoMovimentacao,
       logAuditoria,
       $transaction: mockFn(),
     },
@@ -54,6 +58,9 @@ const mockedPrisma = prisma as unknown as {
     findUnique: ReturnType<typeof vi.fn>;
   };
   historicoTransferencia: {
+    create: ReturnType<typeof vi.fn>;
+  };
+  historicoMovimentacao: {
     create: ReturnType<typeof vi.fn>;
   };
   logAuditoria: {
@@ -83,6 +90,19 @@ const ADOLESCENTE_ID = "11111111-1111-1111-1111-111111111111";
 const OUTRO_ADOLESCENTE_ID = "22222222-2222-2222-2222-222222222222";
 const TERCEIRO_ADOLESCENTE_ID =
   "33333333-3333-3333-3333-333333333333";
+
+const buildAdolescenteContext = (id: string) => ({
+  id,
+  nomeCompleto: "Joao da Silva",
+  alojamentoAtualId: "aloj-ctx",
+  alojamentoAtual: {
+    id: "aloj-ctx",
+    numeroAlojamento: "05",
+    ala: "B",
+    casaId: "casa-ctx",
+    casa: { id: "casa-ctx", nome: "Casa 01", numero: 1 },
+  },
+});
 
 beforeEach(() => {
   mockedEnsureOperador.mockReset();
@@ -167,9 +187,9 @@ describe("API Transferencias - GET /api/transferencias", () => {
 
 describe("API Transferencias - POST /api/transferencias", () => {
   it("cria transferencia com sucesso", async () => {
-    mockedPrisma.adolescente.findUnique.mockResolvedValue({
-      id: ADOLESCENTE_ID,
-    });
+    mockedPrisma.adolescente.findUnique.mockResolvedValue(
+      buildAdolescenteContext(ADOLESCENTE_ID)
+    );
 
     const transferenciaCriada = {
       id: "trans-2",
@@ -205,6 +225,9 @@ describe("API Transferencias - POST /api/transferencias", () => {
       logAuditoria: {
         create: vi.fn().mockResolvedValue({ id: "log-1" }),
       },
+      historicoMovimentacao: {
+        create: vi.fn().mockResolvedValue({ id: "hist-mov-1" }),
+      },
     };
 
     mockedPrisma.$transaction.mockImplementation(async (fn: any) =>
@@ -233,6 +256,14 @@ describe("API Transferencias - POST /api/transferencias", () => {
         data: expect.objectContaining({
           operadorId: "oper-1",
           acao: "TRANSFERENCIA_CRIAR",
+        }),
+      })
+    );
+    expect(tx.historicoMovimentacao.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          tipo: "SOLICITACAO_TRANSFERENCIA",
+          adolescenteId: ADOLESCENTE_ID,
         }),
       })
     );
@@ -282,6 +313,9 @@ describe("API Transferencias - GET /api/transferencias/[id]", () => {
 
 describe("API Transferencias - PATCH /api/transferencias/[id]", () => {
   it("atualiza transferencia para status APROVADA", async () => {
+    mockedPrisma.adolescente.findUnique.mockResolvedValue(
+      buildAdolescenteContext(OUTRO_ADOLESCENTE_ID)
+    );
     mockedPrisma.solicitacaoTransferencia.findUnique
       .mockResolvedValueOnce({
         id: "trans-3",
@@ -330,6 +364,9 @@ describe("API Transferencias - PATCH /api/transferencias/[id]", () => {
       logAuditoria: {
         create: vi.fn(),
       },
+      historicoMovimentacao: {
+        create: vi.fn(),
+      },
     };
 
     mockedPrisma.$transaction.mockImplementation(async (fn: any) =>
@@ -356,9 +393,20 @@ describe("API Transferencias - PATCH /api/transferencias/[id]", () => {
     expect(tx.solicitacaoTransferencia.update).toHaveBeenCalled();
     expect(tx.historicoTransferencia.create).not.toHaveBeenCalled();
     expect(tx.logAuditoria.create).toHaveBeenCalled();
+    expect(tx.historicoMovimentacao.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          tipo: "TRANSFERENCIA_APROVADA",
+          adolescenteId: OUTRO_ADOLESCENTE_ID,
+        }),
+      })
+    );
   });
 
   it("usa dados existentes ao atualizar status sem reenviar decisao", async () => {
+    mockedPrisma.adolescente.findUnique.mockResolvedValue(
+      buildAdolescenteContext(OUTRO_ADOLESCENTE_ID)
+    );
     const dataDecisao = new Date("2025-11-07T10:00:00Z");
     mockedPrisma.solicitacaoTransferencia.findUnique
       .mockResolvedValueOnce({
@@ -408,6 +456,9 @@ describe("API Transferencias - PATCH /api/transferencias/[id]", () => {
       logAuditoria: {
         create: vi.fn(),
       },
+      historicoMovimentacao: {
+        create: vi.fn(),
+      },
     };
 
     mockedPrisma.$transaction.mockImplementation(async (fn: any) =>
@@ -436,9 +487,20 @@ describe("API Transferencias - PATCH /api/transferencias/[id]", () => {
       })
     );
     expect(tx.historicoTransferencia.create).not.toHaveBeenCalled();
+    expect(tx.historicoMovimentacao.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          tipo: "TRANSFERENCIA_APROVADA",
+          adolescenteId: OUTRO_ADOLESCENTE_ID,
+        }),
+      })
+    );
   });
 
   it("registra transferencia concluida com historico", async () => {
+    mockedPrisma.adolescente.findUnique.mockResolvedValue(
+      buildAdolescenteContext(TERCEIRO_ADOLESCENTE_ID)
+    );
     mockedPrisma.solicitacaoTransferencia.findUnique
       .mockResolvedValueOnce({
         id: "trans-4",
@@ -498,6 +560,9 @@ describe("API Transferencias - PATCH /api/transferencias/[id]", () => {
       logAuditoria: {
         create: vi.fn(),
       },
+      historicoMovimentacao: {
+        create: vi.fn(),
+      },
     };
 
     mockedPrisma.$transaction.mockImplementation(async (fn: any) =>
@@ -534,6 +599,14 @@ describe("API Transferencias - PATCH /api/transferencias/[id]", () => {
           unidadeOrigem: "CENSE Maringa",
           unidadeDestino: "CENSE Cascavel",
           relatorioTransferenciaId: "trans-4",
+        }),
+      })
+    );
+    expect(tx.historicoMovimentacao.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          tipo: "TRANSFERENCIA_EXECUTADA",
+          adolescenteId: TERCEIRO_ADOLESCENTE_ID,
         }),
       })
     );

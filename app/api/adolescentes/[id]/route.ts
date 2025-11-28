@@ -23,6 +23,7 @@ import {
 } from "@/lib/alertas/especiais";
 import { emitMapaEvent } from "@/lib/mapa-event-bus";
 import { invalidateAdolescentesMapaCache } from "@/lib/estrutura/adolescentes-cache";
+import { registrarMovimentacao } from "@/lib/historico/movimentacao";
 
 const historicoRegistroSchema = z
   .array(
@@ -319,8 +320,10 @@ export async function PUT(
         alojamentoAtualId: true,
         alojamentoAtual: {
           select: {
+            id: true,
             casa: {
               select: {
+                id: true,
                 nome: true,
               },
             },
@@ -962,6 +965,39 @@ export async function PUT(
         ipOrigem: request.headers.get("x-forwarded-for") ?? "unknown",
       },
     });
+
+    if (statusMudou && statusAtual === "ATIVO" && novoStatus !== "ATIVO") {
+      const dataDesinternacaoRegistro =
+        data.dataDesinternacao instanceof Date
+          ? data.dataDesinternacao
+          : undefined;
+
+      await registrarMovimentacao(prisma, {
+        adolescenteId: atualizado.id,
+        tipo: novoStatus === "LIBERADO" ? "DESINTERNACAO" : "SAIDA_UNIDADE",
+        descricao:
+          validated.atoInfracionalAtual ||
+          `Alteração de status: ${statusAtual} → ${novoStatus}`,
+        origemCasaId: existente.alojamentoAtual?.casa?.id ?? null,
+        origemAlojamentoId: alojamentoAnterior,
+        operadorId,
+        registradoEm: dataDesinternacaoRegistro ?? new Date(),
+      });
+    }
+
+    if (statusMudou && statusAtual !== "ATIVO" && novoStatus === "ATIVO") {
+      await registrarMovimentacao(prisma, {
+        adolescenteId: atualizado.id,
+        tipo: "RETORNO_UNIDADE",
+        descricao: `Retorno com status ATIVO${
+          atualizado.numeroInterno ? ` - interno ${atualizado.numeroInterno}` : ""
+        }`,
+        destinoCasaId: atualizado.alojamentoAtual?.casa?.id ?? null,
+        destinoAlojamentoId: atualizado.alojamentoAtualId ?? null,
+        operadorId,
+        registradoEm: new Date(),
+      });
+    }
 
     const alertasPendentes = await contarAlertasPendentes(atualizado.id);
     const adolescenteResposta = mapPrismaAdolescente(atualizado);

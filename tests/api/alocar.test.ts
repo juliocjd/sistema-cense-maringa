@@ -15,12 +15,14 @@ vi.mock("@/lib/prisma", () => {
   const operador = { findUnique: mockFn() };
   const logAuditoria = { create: mockFn() };
   const decisaoOperacional = { create: mockFn() };
+  const historicoMovimentacao = { create: mockFn() };
   const txContext = {
     adolescente,
     decisaoOperacional,
     logAuditoria,
     operador,
     alojamento,
+    historicoMovimentacao,
   };
 
   return {
@@ -30,6 +32,7 @@ vi.mock("@/lib/prisma", () => {
       operador,
       logAuditoria,
       decisaoOperacional,
+      historicoMovimentacao,
       $transaction: mockFn().mockImplementation((callback: any) =>
         callback(txContext)
       ),
@@ -47,6 +50,7 @@ const mockedPrisma = prisma as unknown as {
   operador: { findUnique: ReturnType<typeof vi.fn> };
   logAuditoria: { create: ReturnType<typeof vi.fn> };
   decisaoOperacional: { create: ReturnType<typeof vi.fn> };
+  historicoMovimentacao: { create: ReturnType<typeof vi.fn> };
   $transaction: ReturnType<typeof vi.fn>;
 };
 
@@ -101,6 +105,9 @@ beforeEach(() => {
     id: "aloj-1",
     adolescentes: [],
     statusManutencao: "LIVRE",
+    numeroAlojamento: "01",
+    casaId: "casa-1",
+    casa: { id: "casa-1", nome: "Casa 01" },
   });
 
   mockedPrisma.adolescente.findUnique.mockResolvedValue({
@@ -111,6 +118,8 @@ beforeEach(() => {
 
   mockedPrisma.logAuditoria.create.mockResolvedValue({ id: "log-1" } as any);
   mockedPrisma.decisaoOperacional.create.mockResolvedValue({ id: "dec-1" } as any);
+  mockedPrisma.historicoMovimentacao.create.mockResolvedValue({ id: "hist-1" } as any);
+  mockedPrisma.historicoMovimentacao.create.mockResolvedValue({ id: "hist-1" } as any);
   mockedPrisma.operador.findUnique.mockResolvedValue({ id: "oper-default" });
   mockedAuth.mockResolvedValue({ user: { id: "oper-default" } } as any);
 
@@ -124,6 +133,9 @@ beforeEach(() => {
       },
       logAuditoria: {
         create: mockedPrisma.logAuditoria.create,
+      },
+      historicoMovimentacao: {
+        create: mockedPrisma.historicoMovimentacao.create,
       },
     })
   );
@@ -187,6 +199,7 @@ describe("POST /api/alocar", () => {
     const request = createRequest("POST", {
       adolescenteId: "ado-1",
       alojamentoId: "aloj-1",
+      motivoTransferencia: "Adequacao de monitoramento",
       medidas_adicionais: [],
     });
 
@@ -203,6 +216,31 @@ describe("POST /api/alocar", () => {
     expect(mockedPrisma.adolescente.update).toHaveBeenCalledTimes(1);
     expect(mockedPrisma.logAuditoria.create).toHaveBeenCalledTimes(1);
     expect(mockedPrisma.logAuditoria.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("retorna 400 quando transferencia nao informa motivo", async () => {
+    mockedAuth.mockResolvedValueOnce({ user: { id: "oper-1" } } as any);
+    mockedPrisma.operador.findUnique.mockResolvedValueOnce({ id: "oper-1" });
+
+    mockedPrisma.adolescente.findUnique.mockResolvedValueOnce({
+      id: "ado-2",
+      alojamentoAtualId: "aloj-antigo",
+      statusUnidade: "ATIVO",
+      alojamentoAtual: {
+        casa: { id: "casa-1" },
+      },
+    });
+
+    const request = createRequest("POST", {
+      adolescenteId: "ado-2",
+      alojamentoId: "aloj-1",
+    });
+
+    const response = await POST(request);
+    const json = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(json.erro).toContain("motivo");
   });
 
   it("retorna 400 quando verificacao exige justificativa sem fornecer", async () => {

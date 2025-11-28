@@ -3,6 +3,12 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { ensureOperador } from "@/lib/auth/ensure-operador";
+import { registrarMovimentacao } from "@/lib/historico/movimentacao";
+import {
+  MOVIMENTACAO_ADOLESCENTE_SELECT,
+  type MovimentacaoAdolescenteContext,
+  extrairOrigemMovimentacao,
+} from "@/lib/historico/contexto-adolescente";
 import {
   TRANSFERENCIA_STATUS,
   type TransferenciaStatus,
@@ -39,10 +45,12 @@ const parseJsonBody = async (request: NextRequest) => {
   }
 };
 
-const ensureAdolescenteExiste = async (adolescenteId: string) => {
+const ensureAdolescenteExiste = async (
+  adolescenteId: string
+): Promise<MovimentacaoAdolescenteContext> => {
   const adolescente = await prisma.adolescente.findUnique({
     where: { id: adolescenteId },
-    select: { id: true },
+    select: MOVIMENTACAO_ADOLESCENTE_SELECT,
   });
 
   if (!adolescente) {
@@ -51,6 +59,8 @@ const ensureAdolescenteExiste = async (adolescenteId: string) => {
       { status: 404 }
     );
   }
+
+  return adolescente;
 };
 
 export async function GET(request: NextRequest) {
@@ -158,7 +168,9 @@ export async function POST(request: NextRequest) {
     const rawBody = await parseJsonBody(request);
     const body = createTransferenciaSchema.parse(rawBody);
 
-    await ensureAdolescenteExiste(body.adolescenteId);
+    const adolescenteContext = await ensureAdolescenteExiste(
+      body.adolescenteId
+    );
 
     const unidadesSugeridas = sanitizeStringArray(
       body.unidadesSugeridas
@@ -177,6 +189,26 @@ export async function POST(request: NextRequest) {
           operadorSolicitanteId: operadorId,
         },
         include: buildTransferenciaInclude(),
+      });
+
+      const descricaoHistorico = [
+        `Solicitada transferencia: ${body.motivoPrincipal.trim()}`,
+      ];
+      if (unidadesSugeridas.length > 0) {
+        descricaoHistorico.push(
+          `Sugeridas: ${unidadesSugeridas.join(", ")}`
+        );
+      }
+
+      await registrarMovimentacao(tx, {
+        adolescenteId: adolescenteContext.id,
+        tipo: "SOLICITACAO_TRANSFERENCIA",
+        descricao: descricaoHistorico.join(" | "),
+        ...extrairOrigemMovimentacao(adolescenteContext),
+        referenciaTipo: "SOLICITACAO_TRANSFERENCIA",
+        referenciaId: nova.id,
+        operadorId,
+        registradoEm: nova.dataSolicitacao,
       });
 
       await tx.logAuditoria.create({

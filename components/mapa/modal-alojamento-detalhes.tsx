@@ -125,7 +125,8 @@ interface ModalAlojamentoDetalhesProps {
   onTransferir: (
     adolescente: Adolescente,
     destinoAlojamentoId: string,
-    justificativa?: string
+    justificativa?: string,
+    motivoOperador?: string
   ) => Promise<void>;
   onSolicitarAlocacao: () => void;
   onInterditar: (
@@ -223,6 +224,7 @@ export default function ModalAlojamentoDetalhes({
     useState<VerificacaoConflito | null>(null);
   const [transferenciaJustificativa, setTransferenciaJustificativa] =
     useState("");
+  const [transferenciaMotivo, setTransferenciaMotivo] = useState("");
   const [transferindo, setTransferindo] = useState(false);
   const [transferenciaErro, setTransferenciaErro] = useState<string | null>(
     null
@@ -807,6 +809,11 @@ export default function ModalAlojamentoDetalhes({
       return;
     }
 
+    if (transferenciaMotivo.trim().length === 0) {
+      setTransferenciaErro("Informe o motivo da transferencia.");
+      return;
+    }
+
     setTransferindo(true);
     setTransferenciaErro(null);
     try {
@@ -815,11 +822,13 @@ export default function ModalAlojamentoDetalhes({
         transferenciaAlojamentoId,
         transferenciaVerificacao.requer_justificativa
           ? transferenciaJustificativa
-          : undefined
+          : undefined,
+        transferenciaMotivo.trim()
       );
       setTransferenciaCasaId("");
       setTransferenciaAlojamentoId("");
       setTransferenciaJustificativa("");
+      setTransferenciaMotivo("");
       setTransferenciaVerificacao(null);
       onClose(); // Close modal after successful transfer
     } catch (error) {
@@ -1670,6 +1679,23 @@ export default function ModalAlojamentoDetalhes({
                           })}
                         </div>
                       )}
+                    </div>
+                  )}
+
+                  {transferenciaAlojamentoId && (
+                    <div className="mt-3">
+                      <label className="text-xs font-semibold uppercase text-slate-500">
+                        Motivo da transferencia (obrigatorio)
+                      </label>
+                      <textarea
+                        value={transferenciaMotivo}
+                        onChange={(event) =>
+                          setTransferenciaMotivo(event.target.value)
+                        }
+                        rows={2}
+                        placeholder="Descreva por que o adolescente precisa mudar de alojamento"
+                        className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:outline-none resize-none"
+                      />
                     </div>
                   )}
 

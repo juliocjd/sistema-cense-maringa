@@ -41,7 +41,8 @@ interface MapaInterativoProps {
   onTransferir: (
     adolescente: Adolescente,
     destinoAlojamentoId: string,
-    justificativa?: string
+    justificativa?: string,
+    motivoOperador?: string
   ) => Promise<void>;
   onAlterarStatusAlojamento: (
     alojamentoId: string,
@@ -234,10 +235,16 @@ export function MapaInterativo({
   const handleTransferirDoDetalhe = async (
     adolescente: Adolescente,
     destinoAlojamentoId: string,
-    justificativa?: string
+    justificativa?: string,
+    motivoOperador?: string
   ) => {
     try {
-      await onTransferir(adolescente, destinoAlojamentoId, justificativa);
+      await onTransferir(
+        adolescente,
+        destinoAlojamentoId,
+        justificativa,
+        motivoOperador
+      );
       fecharModalDetalhes();
     } catch (error) {
       const errorMessage =

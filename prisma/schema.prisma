@@ -29,8 +29,9 @@ model Operador {
   decisoesOperacionais DecisaoOperacional[]
   solicitacoesTransf   SolicitacaoTransferencia[]
   justificativasAlgemaResponsavel JustificativaAlgema[] @relation("JustificativaAlgemaResponsavel")
-  justificativasAlgemaAprovador   JustificativaAlgema[] @relation("JustificativaAlgemaAprovador")
-  papeis                OperadorPapel[]
+    justificativasAlgemaAprovador   JustificativaAlgema[] @relation("JustificativaAlgemaAprovador")
+    papeis                OperadorPapel[]
+    historicoMovimentacao HistoricoMovimentacao[]
 
   @@map("operadores")
 }
@@ -112,6 +113,8 @@ model Casa {
   // Relações
   alojamentos Alojamento[]
   grupos      Grupo[]
+  historicoOrigemMovimentacao HistoricoMovimentacao[] @relation("HistoricoOrigemCasa")
+  historicoDestinoMovimentacao HistoricoMovimentacao[] @relation("HistoricoDestinoCasa")
 
   @@map("casas")
 }
@@ -134,8 +137,10 @@ model Alojamento {
   alojamentoFrontal Alojamento?             @relation("AlojamentoFrontal", fields: [alojamentoFrontalId], references: [id])
   alojamentoOpo     Alojamento[]            @relation("AlojamentoFrontal")
   zonaRisco         ZonaRisco?              @relation(fields: [zonaRiscoId], references: [id])
-  adolescentes      Adolescente[]
-  zonasRiscoAloj    ZonaRiscoAlojamento[]
+    adolescentes      Adolescente[]
+    zonasRiscoAloj    ZonaRiscoAlojamento[]
+    historicoOrigemMovimentacao HistoricoMovimentacao[] @relation("HistoricoOrigemAlojamento")
+    historicoDestinoMovimentacao HistoricoMovimentacao[] @relation("HistoricoDestinoAlojamento")
 
   @@unique([casaId, numeroAlojamento])
   @@map("alojamentos")
@@ -330,6 +335,7 @@ model Adolescente {
   visitantesLink            AdolescenteVisitanteLink[]
   visitasRegistro           VisitaRegistro[]
   justificativasAlgema      JustificativaAlgema[]
+  historicoMovimentacao     HistoricoMovimentacao[]
 
   @@map("adolescentes")
 }
@@ -711,6 +717,32 @@ model AdolescenteVisitanteLink {
   visitante   Visitante   @relation(fields: [visitanteId], references: [id])
 
   @@map("adolescentes_visitantes_link")
+}
+
+model HistoricoMovimentacao {
+  id                  String     @id @default(uuid())
+  adolescenteId       String     @map("adolescente_id")
+  tipo                String
+  descricao           String?
+  origemCasaId        String?    @map("origem_casa_id")
+  origemAlojamentoId  String?    @map("origem_alojamento_id")
+  destinoCasaId       String?    @map("destino_casa_id")
+  destinoAlojamentoId String?    @map("destino_alojamento_id")
+  referenciaTipo      String?    @map("referencia_tipo")
+  referenciaId        String?    @map("referencia_id")
+  operadorId          String?    @map("operador_id")
+  registradoEm        DateTime?  @map("registrado_em")
+  criadoEm            DateTime   @default(now()) @map("criado_em")
+
+  adolescente         Adolescente @relation(fields: [adolescenteId], references: [id])
+  origemCasa          Casa?       @relation("HistoricoOrigemCasa", fields: [origemCasaId], references: [id])
+  destinoCasa         Casa?       @relation("HistoricoDestinoCasa", fields: [destinoCasaId], references: [id])
+  origemAlojamento    Alojamento? @relation("HistoricoOrigemAlojamento", fields: [origemAlojamentoId], references: [id])
+  destinoAlojamento   Alojamento? @relation("HistoricoDestinoAlojamento", fields: [destinoAlojamentoId], references: [id])
+  operador            Operador?   @relation(fields: [operadorId], references: [id])
+
+  @@index([adolescenteId, registradoEm])
+  @@map("historico_movimentacao")
 }
 
 model VisitaRegistro {

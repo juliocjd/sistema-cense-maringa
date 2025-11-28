@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -24,6 +24,7 @@ import type {
   AdolescenteTatuagemResumo,
   Conflito,
 } from "@/types";
+import type { HistoricoMovimentacaoRegistro } from "@/types";
 
 interface DossieAdolescenteProps {
   adolescente: Adolescente;
@@ -31,6 +32,53 @@ interface DossieAdolescenteProps {
 
 export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
   const [abaAtiva, setAbaAtiva] = useState("geral");
+  const [historicoMovimentacao, setHistoricoMovimentacao] = useState<
+    HistoricoMovimentacaoRegistro[]
+  >([]);
+  const [historicoLoading, setHistoricoLoading] = useState(false);
+  const [historicoErro, setHistoricoErro] = useState<string | null>(null);
+
+  useEffect(() => {
+    let ativo = true;
+    const carregarHistorico = async () => {
+      setHistoricoLoading(true);
+      setHistoricoErro(null);
+      try {
+        const response = await fetch(
+          `/api/adolescentes/${adolescente.id}/historico-movimentacao?take=50`
+        );
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(
+            payload?.erro || "Erro ao carregar histórico de movimentação."
+          );
+        }
+        if (!ativo) {
+          return;
+        }
+        setHistoricoMovimentacao(payload.historico ?? []);
+      } catch (error) {
+        if (!ativo) {
+          return;
+        }
+        setHistoricoErro(
+          error instanceof Error
+            ? error.message
+            : "Erro ao carregar histórico."
+        );
+        setHistoricoMovimentacao([]);
+      } finally {
+        if (ativo) {
+          setHistoricoLoading(false);
+        }
+      }
+    };
+
+    carregarHistorico();
+    return () => {
+      ativo = false;
+    };
+  }, [adolescente.id]);
 
   const abas = [
     { id: "geral", label: "Informações Gerais", icone: User },
@@ -81,7 +129,6 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
     tatuagens: AdolescenteTatuagemResumo[];
     conflitos: Conflito[];
     grupos: AdolescenteGrupoResumo[];
-    historico: any[];
   } = {
     alojamento: adolescente.alojamentoAtual ?? null,
     faccao: adolescente.faccao ?? null,
@@ -93,7 +140,14 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
       ...((adolescente.conflitosB ?? []) as Conflito[]),
     ],
     grupos: (adolescente.grupos ?? []) as AdolescenteGrupoResumo[],
-    historico: [],
+  };
+
+  const formatarNumeroCasa = (numero?: number | string | null) => {
+    if (numero === null || numero === undefined) {
+      return null;
+    }
+    const numeroString = String(numero).padStart(2, "0");
+    return `Casa ${numeroString}`;
   };
 
   const obterDescricaoCasa = (
@@ -119,6 +173,54 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
   const obterNumeroAlojamento = (numero?: string) => {
     if (!numero) return "-";
     return numero.padStart(2, "0");
+  };
+
+  const formatarLocalizacaoHistorico = (
+    casa?: { nome?: string | null; numero?: number | string | null } | null,
+    alojamento?: { numeroAlojamento?: string | null; ala?: string | null } | null
+  ) => {
+    const partes: string[] = [];
+    if (casa) {
+      if (casa.nome) {
+        partes.push(casa.nome);
+      } else if (casa.numero !== null && casa.numero !== undefined) {
+        partes.push(formatarNumeroCasa(casa.numero) ?? "Casa N/I");
+      }
+    }
+    if (alojamento?.numeroAlojamento) {
+      const numero = alojamento.numeroAlojamento.padStart(2, "0");
+      partes.push(`Aloj. ${numero}`);
+    }
+    if (alojamento?.ala) {
+      partes.push(`Ala ${alojamento.ala}`);
+    }
+    return partes.length > 0 ? partes.join(" - ") : "Local não informado";
+  };
+
+  const gerarDescricaoMovimentacao = (
+    registro: HistoricoMovimentacaoRegistro
+  ) => {
+    const origem = formatarLocalizacaoHistorico(
+      registro.origemCasa,
+      registro.origemAlojamento
+    );
+    const destino = formatarLocalizacaoHistorico(
+      registro.destinoCasa,
+      registro.destinoAlojamento
+    );
+
+    if (registro.origemCasa || registro.origemAlojamento) {
+      if (registro.destinoCasa || registro.destinoAlojamento) {
+        return `Movimentado de ${origem} para ${destino}.`;
+      }
+      return `Origem: ${origem}.`;
+    }
+
+    if (registro.destinoCasa || registro.destinoAlojamento) {
+      return `Destino: ${destino}.`;
+    }
+
+    return "Registro adicionado ao histórico do adolescente.";
   };
 
   return (
@@ -807,41 +909,20 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                 Histórico de Movimentações
               </h2>
 
-              {dadosAdicionais.historico.length > 0 ? (
-                <div className="relative">
-                  {/* Timeline */}
-                  <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-gray-300"></div>
-
-                  <div className="space-y-6">
-                    {dadosAdicionais.historico.map((item: any, index: number) => (
-                      <div
-                        key={item.id}
-                        className="relative flex items-start gap-4 ml-12"
-                      >
-                        {/* Bolinha da timeline */}
-                        <div className="absolute -left-9 w-4 h-4 bg-indigo-600 rounded-full border-4 border-white"></div>
-
-                        <div className="flex-1 bg-gray-50 rounded-lg p-4 border border-gray-200">
-                          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between mb-2">
-                            <div>
-                              <span className="bg-indigo-100 text-indigo-800 px-2 py-1 rounded text-xs font-bold">
-                                {item.tipo}
-                              </span>
-                            </div>
-                            <span className="text-xs text-gray-500">
-                              {new Date(item.data).toLocaleString("pt-BR")}
-                            </span>
-                          </div>
-                          <p className="text-gray-800 mb-1">{item.descricao}</p>
-                          <p className="text-xs text-gray-600">
-                            Operador: {item.operador}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+              {historicoLoading && (
+                <div className="text-center py-12 text-gray-500">
+                  <div className="animate-spin rounded-full h-10 w-10 border-4 border-indigo-200 border-t-indigo-600 mx-auto mb-3"></div>
+                  Carregando histórico...
                 </div>
-              ) : (
+              )}
+
+              {historicoErro && (
+                <div className="bg-rose-50 border border-rose-200 text-rose-700 rounded-lg p-4 text-sm">
+                  {historicoErro}
+                </div>
+              )}
+
+              {!historicoLoading && !historicoErro && historicoMovimentacao.length === 0 && (
                 <div className="text-center py-12 text-gray-500">
                   <History size={48} className="mx-auto mb-2 text-gray-400" />
                   <p>Nenhum registro de histórico disponível</p>
@@ -849,6 +930,64 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                     O histórico de movimentações será registrado conforme as
                     ações forem realizadas
                   </p>
+                </div>
+              )}
+
+              {!historicoLoading && !historicoErro && historicoMovimentacao.length > 0 && (
+                <div className="relative">
+                  <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-gray-300"></div>
+                  <div className="space-y-6">
+                    {historicoMovimentacao.map((registro) => (
+                      <div
+                        key={registro.id}
+                        className="relative flex items-start gap-4 ml-12"
+                      >
+                        <div className="absolute -left-9 w-4 h-4 bg-indigo-600 rounded-full border-4 border-white"></div>
+                        <div className="flex-1 bg-gray-50 rounded-lg p-4 border border-gray-200">
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between mb-2">
+                            <span className="bg-indigo-100 text-indigo-800 px-2 py-1 rounded text-xs font-bold">
+                              {registro.tipo}
+                            </span>
+                            <span className="text-xs text-gray-500">
+                              {new Date(
+                                registro.registradoEm ?? registro.criadoEm
+                              ).toLocaleString("pt-BR")}
+                            </span>
+                          </div>
+                          <p className="text-gray-800 mb-1">
+                            {registro.descricao ||
+                              gerarDescricaoMovimentacao(registro)}
+                          </p>
+                          <div className="text-xs text-gray-600 space-y-1">
+                            {registro.origemCasa || registro.origemAlojamento ? (
+                              <p>
+                                <span className="font-semibold text-gray-700">Origem:</span>{" "}
+                                {formatarLocalizacaoHistorico(
+                                  registro.origemCasa,
+                                  registro.origemAlojamento
+                                )}
+                              </p>
+                            ) : null}
+                            {registro.destinoCasa || registro.destinoAlojamento ? (
+                              <p>
+                                <span className="font-semibold text-gray-700">Destino:</span>{" "}
+                                {formatarLocalizacaoHistorico(
+                                  registro.destinoCasa,
+                                  registro.destinoAlojamento
+                                )}
+                              </p>
+                            ) : null}
+                            {registro.operador && (
+                              <p>
+                                <span className="font-semibold text-gray-700">Operador:</span>{" "}
+                                {registro.operador.nomeCompleto}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>

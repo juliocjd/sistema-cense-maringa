@@ -612,8 +612,13 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
   const handleTransferir = async (
     adolescente: AdolescenteTipo,
     destinoAlojamentoId: string,
-    justificativa?: string
+    justificativa?: string,
+    motivoTransferencia?: string
   ) => {
+    if (!motivoTransferencia || motivoTransferencia.trim().length === 0) {
+      throw new Error("Informe o motivo da transferencia.");
+    }
+
     await executarOperacao(async () => {
       const response = await fetch("/api/alocar", {
         method: "POST",
@@ -624,6 +629,7 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
           adolescenteId: adolescente.id,
           alojamentoId: destinoAlojamentoId,
           justificativa,
+          motivoTransferencia,
           medidas_adicionais: [],
         }),
       });

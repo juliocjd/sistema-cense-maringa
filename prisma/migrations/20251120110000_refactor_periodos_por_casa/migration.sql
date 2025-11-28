@@ -7,12 +7,13 @@ UPDATE "configuracoes_visitas"
 SET "periodos_por_casa" = (
   SELECT jsonb_object_agg(casa_num::text, periodo)
   FROM (
-    SELECT generate_series(1, 20) as casa_num,
+    SELECT gs as casa_num,
            CASE
-             WHEN generate_series >= casas_manha_inicio AND generate_series <= casas_manha_fim THEN 'MANHA'
-             WHEN generate_series >= casas_tarde_inicio AND generate_series <= casas_tarde_fim THEN 'TARDE'
+             WHEN gs >= casas_manha_inicio AND gs <= casas_manha_fim THEN 'MANHA'
+             WHEN gs >= casas_tarde_inicio AND gs <= casas_tarde_fim THEN 'TARDE'
              ELSE 'MANHA'
            END as periodo
+    FROM generate_series(1, 20) AS gs
   ) subquery
 )
 WHERE casas_manha_inicio IS NOT NULL;

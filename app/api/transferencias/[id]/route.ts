@@ -3,6 +3,12 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { ensureOperador } from "@/lib/auth/ensure-operador";
+import { registrarMovimentacao } from "@/lib/historico/movimentacao";
+import {
+  MOVIMENTACAO_ADOLESCENTE_SELECT,
+  extrairOrigemMovimentacao,
+  type MovimentacaoAdolescenteContext,
+} from "@/lib/historico/contexto-adolescente";
 import {
   TRANSFERENCIA_STATUS,
   type TransferenciaStatus,
@@ -13,6 +19,59 @@ import {
 } from "@/lib/transferencias/mappers";
 
 const STATUS_SET = new Set<string>(TRANSFERENCIA_STATUS);
+const STATUS_MOVIMENTACAO_TIPO: Partial<
+  Record<TransferenciaStatus, string>
+> = {
+  APROVADA: "TRANSFERENCIA_APROVADA",
+  NEGADA: "TRANSFERENCIA_NEGADA",
+  TRANSFERIDA: "TRANSFERENCIA_EXECUTADA",
+};
+
+const formatarDataCurta = (data?: Date | null) => {
+  if (!data) {
+    return null;
+  }
+  return data.toISOString().slice(0, 10);
+};
+
+const buildDescricaoStatusMovimentacao = (
+  status: TransferenciaStatus,
+  extras: {
+    decisao?: string | null;
+    destino?: string | null;
+    dataTransferencia?: Date | null;
+  }
+) => {
+  const decisao = extras.decisao?.trim();
+  const destino = extras.destino?.trim();
+  const dataTransferencia = extras.dataTransferencia ?? null;
+
+  switch (status) {
+    case "APROVADA":
+      return decisao
+        ? `Transferencia aprovada: ${decisao}`
+        : "Transferencia aprovada";
+    case "NEGADA":
+      return decisao
+        ? `Transferencia negada: ${decisao}`
+        : "Transferencia negada";
+    case "TRANSFERIDA": {
+      const dataFmt = formatarDataCurta(dataTransferencia);
+      if (destino && dataFmt) {
+        return `Transferencia executada para ${destino} em ${dataFmt}`;
+      }
+      if (destino) {
+        return `Transferencia executada para ${destino}`;
+      }
+      if (dataFmt) {
+        return `Transferencia executada em ${dataFmt}`;
+      }
+      return "Transferencia executada";
+    }
+    default:
+      return `Status atualizado para ${status}`;
+  }
+};
 
 const updateTransferenciaSchema = z.object({
     motivoPrincipal: z
@@ -362,6 +421,17 @@ export async function PATCH(
       }
     }
 
+    const statusAlterado =
+      novoStatus !== undefined && novoStatus !== existente.status;
+
+    let adolescenteContext: MovimentacaoAdolescenteContext | null = null;
+    if (statusAlterado && novoStatus) {
+      adolescenteContext = await prisma.adolescente.findUnique({
+        where: { id: existente.adolescenteId },
+        select: MOVIMENTACAO_ADOLESCENTE_SELECT,
+      });
+    }
+
     const hasUpdates =
       Object.keys(updateData).length > 0 ||
       historicoPayload !== undefined;
@@ -410,6 +480,47 @@ export async function PATCH(
             ipOrigem: ip,
           },
         });
+
+        if (statusAlterado && novoStatus) {
+          const tipoHistorico =
+            STATUS_MOVIMENTACAO_TIPO[novoStatus] ??
+            `TRANSFERENCIA_${novoStatus}`;
+          const descricao = buildDescricaoStatusMovimentacao(
+            novoStatus,
+            {
+              decisao: decisaoParaValidar,
+              destino: unidadeDestinoEfetivaParaValidar,
+              dataTransferencia:
+                novoStatus === "TRANSFERIDA"
+                  ? atualizada.dataTransferenciaEfetiva ??
+                    dataTransferenciaEfetivaParaValidar ??
+                    null
+                  : atualizada.dataDecisaoJudicial ??
+                    dataDecisaoParaValidar ??
+                    null,
+            }
+          );
+
+          const registradoEmBase =
+            novoStatus === "TRANSFERIDA"
+              ? atualizada.dataTransferenciaEfetiva ??
+                dataTransferenciaEfetivaParaValidar ??
+                undefined
+              : atualizada.dataDecisaoJudicial ??
+                dataDecisaoParaValidar ??
+                undefined;
+
+          await registrarMovimentacao(tx, {
+            adolescenteId: existente.adolescenteId,
+            tipo: tipoHistorico,
+            descricao,
+            ...extrairOrigemMovimentacao(adolescenteContext ?? undefined),
+            referenciaTipo: "SOLICITACAO_TRANSFERENCIA",
+            referenciaId: atualizada.id,
+            operadorId,
+            registradoEm: registradoEmBase,
+          });
+        }
 
         return atualizada;
       }

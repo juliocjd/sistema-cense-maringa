@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { emitMapaEvent } from "@/lib/mapa-event-bus";
 import { invalidateAdolescentesMapaCache } from "@/lib/estrutura/adolescentes-cache";
+import { registrarMovimentacao } from "@/lib/historico/movimentacao";
 
 type VerificacaoPayload = {
   requer_justificativa?: boolean;
@@ -65,6 +66,7 @@ export async function POST(request: NextRequest) {
     const alojamentoId = ensureString(body.alojamentoId);
     const justificativa = ensureString(body.justificativa);
     const medidasAdicionais = normalizeArrayOfStrings(body.medidas_adicionais);
+    const motivoTransferencia = ensureString(body.motivoTransferencia);
 
     if (!adolescenteId || !alojamentoId) {
       return NextResponse.json(
@@ -121,6 +123,7 @@ export async function POST(request: NextRequest) {
         adolescentes: {
           where: { statusUnidade: "ATIVO" },
         },
+        casa: true,
       },
     });
 
@@ -150,9 +153,12 @@ export async function POST(request: NextRequest) {
 
     const adolescente = await prisma.adolescente.findUnique({
       where: { id: adolescenteId },
-      select: {
-        statusUnidade: true,
-        alojamentoAtualId: true,
+      include: {
+        alojamentoAtual: {
+          include: {
+            casa: true,
+          },
+        },
       },
     });
 
@@ -170,7 +176,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const origemAlojamentoAtualId = adolescente.alojamentoAtualId ?? null;
+    const ehTransferenciaInterna = Boolean(origemAlojamentoAtualId);
+
+    if (ehTransferenciaInterna && motivoTransferencia.length === 0) {
+      return NextResponse.json(
+        { erro: "Informe o motivo da transferencia de alojamento." },
+        { status: 400 }
+      );
+    }
+
     const resultado = await prisma.$transaction(async (tx) => {
+      const origemAlojamentoId = origemAlojamentoAtualId;
+      const origemCasaId = adolescente.alojamentoAtual?.casa?.id ?? null;
+
       const adolescenteAtualizado = await tx.adolescente.update({
         where: { id: adolescenteId },
         data: {
@@ -218,9 +237,30 @@ export async function POST(request: NextRequest) {
             nivel_risco: nivelRisco,
             alertas_count: alertas.length,
             justificativa: justificativa || null,
+            motivo_transferencia: motivoTransferencia || null,
           },
           ipOrigem: request.headers.get("x-forwarded-for") ?? "unknown",
         },
+      });
+
+      const descricaoTransferencia =
+        motivoTransferencia ||
+        justificativa ||
+        `Movimentado para ${alojamento.casa.nome ?? "Casa"} ${
+          alojamento.numeroAlojamento
+        }`;
+
+      await registrarMovimentacao(tx, {
+        adolescenteId,
+        tipo: origemAlojamentoId ? "TRANSFERENCIA_INTERNA" : "ALOCACAO",
+        descricao: descricaoTransferencia,
+        origemCasaId,
+        origemAlojamentoId,
+        destinoCasaId: alojamento.casaId,
+        destinoAlojamentoId: alojamentoId,
+        referenciaTipo: decisao ? "DECISAO_OPERACIONAL" : null,
+        referenciaId: decisao?.id ?? null,
+        operadorId,
       });
 
       return { adolescenteAtualizado, decisao };
@@ -359,6 +399,17 @@ export async function DELETE(request: NextRequest) {
           ipOrigem: request.headers.get("x-forwarded-for") ?? "unknown",
         },
       });
+
+      if (alojamentoAnterior) {
+        await registrarMovimentacao(tx, {
+          adolescenteId,
+          tipo: "DESALOCACAO",
+          descricao: motivo || "Remoção de alojamento",
+          origemCasaId: alojamentoAnterior.casa?.id ?? null,
+          origemAlojamentoId: alojamentoAnterior.id,
+          operadorId,
+        });
+      }
     });
 
     emitMapaEvent({

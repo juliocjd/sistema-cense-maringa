@@ -244,8 +244,13 @@ export default function MapaPage() {
   const handleTransferir = async (
     adolescente: Adolescente,
     destinoAlojamentoId: string,
-    justificativa?: string
+    justificativa?: string,
+    motivoTransferencia?: string
   ): Promise<void> => {
+    if (!motivoTransferencia || motivoTransferencia.trim().length === 0) {
+      throw new Error("Informe o motivo da transferencia.");
+    }
+
     const response = await fetch("/api/alocar", {
       method: "POST",
       headers: {
@@ -255,6 +260,7 @@ export default function MapaPage() {
         adolescenteId: adolescente.id,
         alojamentoId: destinoAlojamentoId,
         justificativa,
+        motivoTransferencia,
         medidas_adicionais: [],
       }),
     });

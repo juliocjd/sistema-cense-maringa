@@ -47,6 +47,8 @@ const prismaSetup = vi.hoisted(() => {
     txTatuagem: { createMany: vi.fn() },
     alertaAtivoGlobal: { count: vi.fn(), groupBy: vi.fn() },
     txAlertas: { updateMany: vi.fn() },
+    historicoMovimentacaoGlobal: { create: vi.fn() },
+    txHistoricoMovimentacao: { create: vi.fn() },
   };
 
   const transaction = vi.fn().mockImplementation((callback: any) =>
@@ -55,6 +57,7 @@ const prismaSetup = vi.hoisted(() => {
       adolescenteHistoricoInfracional: refs.txHistorico,
       adolescenteTatuagem: refs.txTatuagem,
       alertaAtivo: refs.txAlertas,
+      historicoMovimentacao: refs.txHistoricoMovimentacao,
     })
   );
 
@@ -66,6 +69,7 @@ const prismaSetup = vi.hoisted(() => {
       adolescenteHistoricoInfracional: refs.adolescenteHistoricoGlobal,
       adolescenteTatuagem: refs.adolescenteTatuagemGlobal,
       alertaAtivo: refs.alertaAtivoGlobal,
+      historicoMovimentacao: refs.historicoMovimentacaoGlobal,
       $transaction: transaction,
     },
   });
@@ -87,6 +91,8 @@ const {
     txTatuagem: txTatuagemMock,
     alertaAtivoGlobal: alertaAtivoGlobalMock,
     txAlertas: txAlertasMock,
+    historicoMovimentacaoGlobal: historicoMovimentacaoGlobalMock,
+    txHistoricoMovimentacao: txHistoricoMovimentacaoMock,
   },
   transaction: transactionMock,
 } = prismaSetup;
@@ -130,6 +136,8 @@ beforeEach(() => {
     alertaAtivoGlobalMock.count,
     alertaAtivoGlobalMock.groupBy,
     txAlertasMock.updateMany,
+    historicoMovimentacaoGlobalMock.create,
+    txHistoricoMovimentacaoMock.create,
   ].forEach((fn) => fn.mockReset());
 
   alertaAtivoGlobalMock.count.mockResolvedValue(0);
@@ -143,6 +151,7 @@ beforeEach(() => {
       adolescenteHistoricoInfracional: txHistoricoMock,
       adolescenteTatuagem: txTatuagemMock,
       alertaAtivo: txAlertasMock,
+      historicoMovimentacao: txHistoricoMovimentacaoMock,
     })
   );
 });

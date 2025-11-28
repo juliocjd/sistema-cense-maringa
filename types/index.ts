@@ -57,6 +57,40 @@ export interface AdolescenteTatuagemResumo {
   observacoes?: string | null;
 }
 
+export interface HistoricoMovimentacaoRegistro {
+  id: string;
+  tipo: string;
+  descricao?: string | null;
+  registradoEm?: string | null;
+  criadoEm: string;
+  referenciaTipo?: string | null;
+  referenciaId?: string | null;
+  origemCasa?: {
+    id: string;
+    nome?: string | null;
+    numero?: number | string | null;
+  } | null;
+  destinoCasa?: {
+    id: string;
+    nome?: string | null;
+    numero?: number | string | null;
+  } | null;
+  origemAlojamento?: {
+    id: string;
+    numeroAlojamento?: string | null;
+    ala?: Ala | string | null;
+  } | null;
+  destinoAlojamento?: {
+    id: string;
+    numeroAlojamento?: string | null;
+    ala?: Ala | string | null;
+  } | null;
+  operador?: {
+    id: string;
+    nomeCompleto: string;
+  } | null;
+}
+
 export interface FaccaoCatalogo {
   id: string;
   nomeFaccao: string;
