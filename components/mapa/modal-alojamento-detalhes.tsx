@@ -91,6 +91,12 @@ type SugestaoApi = {
   ambientais: string[];
 };
 
+type MotivoAmbientalDetalhado = {
+  original: string;
+  exibicao: string;
+  ehSuicidio: boolean;
+};
+
 interface ModalAlojamentoDetalhesProps {
   isOpen: boolean;
   alojamento: (Alojamento & { casa?: Casa }) | null;
@@ -142,6 +148,45 @@ const nivelClasses: Record<string, string> = {
   MEDIO: "border-yellow-200 bg-yellow-50 text-yellow-700",
   BAIXO: "border-green-200 bg-green-50 text-green-700",
   DEFAULT: "border-slate-200 bg-slate-50 text-slate-600",
+};
+
+const normalizarTexto = (valor: string) =>
+  valor
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+const SUICIDIO_MOTIVO_TAG = normalizarTexto("Monitorar risco de suicidio");
+
+const ehMotivoSuicidio = (mensagem: string) =>
+  normalizarTexto(mensagem).includes(SUICIDIO_MOTIVO_TAG);
+
+const extrairComplementoSuicidio = (mensagem: string) => {
+  const separador = mensagem.indexOf(":");
+  if (separador === -1) {
+    return "";
+  }
+  return mensagem.slice(separador + 1).trim();
+};
+
+const formatarMensagemSuicidio = (
+  mensagem: string,
+  somenteSuicidio: boolean,
+  possuiOutrosFatores: boolean
+) => {
+  if (somenteSuicidio) {
+    return "Nao ha adolescente na frente do alojamento. Monitoramento continuo obrigatorio.";
+  }
+
+  if (possuiOutrosFatores) {
+    return "Nao ha adolescente na frente do alojamento e Tensao Ambiental ativa.";
+  }
+
+  const complemento = extrairComplementoSuicidio(mensagem);
+
+  return complemento
+    ? `Sem vigilancia frontal: ${complemento}`
+    : "Sem vigilancia frontal identificado.";
 };
 
 export default function ModalAlojamentoDetalhes({
@@ -660,6 +705,46 @@ export default function ModalAlojamentoDetalhes({
     alertasEspeciaisPorTipo,
   ]);
 
+  const motivosAmbientaisDetalhados = useMemo<MotivoAmbientalDetalhado[]>(() => {
+    const motivos = avaliacaoRisco?.ambiental?.motivos;
+    if (!motivos?.length) {
+      return [];
+    }
+
+    const temSuicidio = motivos.some(ehMotivoSuicidio);
+    const somenteSuicidio = temSuicidio && motivos.every(ehMotivoSuicidio);
+    const suicidioComOutros = temSuicidio && !somenteSuicidio;
+
+    return motivos.map((motivo) => {
+      if (temSuicidio && ehMotivoSuicidio(motivo)) {
+        return {
+          original: motivo,
+          exibicao: formatarMensagemSuicidio(
+            motivo,
+            somenteSuicidio,
+            suicidioComOutros
+          ),
+          ehSuicidio: true,
+        };
+      }
+
+      return {
+        original: motivo,
+        exibicao: motivo,
+        ehSuicidio: false,
+      };
+    });
+  }, [avaliacaoRisco?.ambiental?.motivos]);
+
+  const possuiSuicidioAmbiental = motivosAmbientaisDetalhados.some(
+    (motivo) => motivo.ehSuicidio
+  );
+  const possuiAmbientalNaoSuicidio = motivosAmbientaisDetalhados.some(
+    (motivo) => !motivo.ehSuicidio
+  );
+  const somenteSuicidioAmbiental =
+    possuiSuicidioAmbiental && !possuiAmbientalNaoSuicidio;
+
   const alojamentosDisponiveis = useMemo(() => {
     if (!transferenciaCasaId) return [];
     const casaSelecionada = casas.find((casa) => casa.id === transferenciaCasaId);
@@ -1058,7 +1143,22 @@ export default function ModalAlojamentoDetalhes({
                                   </p>
                                   {detalhesDoNivel.map((detalhe, idx) => {
                                     // Parser para extrair informações estruturadas da mensagem
-                                    const parsed = parseDetalheMensagem(detalhe.mensagem);
+                                    const precisaReescreverSuicidio =
+                                      detalhe.tipo === "AMBIENTAL" &&
+                                      ehMotivoSuicidio(detalhe.mensagem ?? "");
+
+                                    const mensagemDetalhe =
+                                      precisaReescreverSuicidio
+                                        ? formatarMensagemSuicidio(
+                                            detalhe.mensagem ?? "",
+                                            somenteSuicidioAmbiental,
+                                            possuiAmbientalNaoSuicidio
+                                          )
+                                        : detalhe.mensagem ?? "";
+
+                                    const parsed = parseDetalheMensagem(
+                                      mensagemDetalhe
+                                    );
 
                                     return (
                                       <div
@@ -1141,9 +1241,15 @@ export default function ModalAlojamentoDetalhes({
                                   🌡️ Tensão Ambiental (Nível {avaliacaoRisco.ambiental.nivel})
                                 </p>
                                 <ul className="space-y-1 text-xs text-amber-700">
-                                  {avaliacaoRisco.ambiental.motivos.map((motivo, idx) => (
-                                    <li key={idx}>• {motivo}</li>
-                                  ))}
+                                  {motivosAmbientaisDetalhados.map(
+                                    (motivo, idx) => (
+                                      <li
+                                        key={`ambiental-breakdown-${idx}`}
+                                      >
+                                        • {motivo.exibicao}
+                                      </li>
+                                    )
+                                  )}
                                 </ul>
                               </div>
                             )}
@@ -1173,8 +1279,16 @@ export default function ModalAlojamentoDetalhes({
                       <p className="font-semibold text-amber-800">Ala em tensão</p>
                     </div>
                     <div className="space-y-2">
-                      {avaliacaoRisco.ambiental.motivos.map((motivo, index) => {
-                        const info = formatarMotivoAmbiental(motivo);
+                      {motivosAmbientaisDetalhados.map((motivo, index) => {
+                        if (motivo.ehSuicidio) {
+                          return (
+                            <div key={`ambiental-${index}`} className="rounded-lg border border-amber-300 bg-white/60 p-2">
+                              <p className="text-xs text-amber-900">{motivo.exibicao}</p>
+                            </div>
+                          );
+                        }
+
+                        const info = formatarMotivoAmbiental(motivo.original);
 
                         if (info.formatado) {
                           return (
@@ -1199,11 +1313,10 @@ export default function ModalAlojamentoDetalhes({
                           );
                         }
 
-                        // Fallback: exibir texto original se não conseguir parsear
                         return (
-                          <li key={`ambiental-${index}`} className="text-xs">
-                            {info.textoOriginal}
-                          </li>
+                          <p key={`ambiental-${index}`} className="text-xs text-amber-800">
+                            {info.textoOriginal ?? motivo.exibicao}
+                          </p>
                         );
                       })}
                     </div>

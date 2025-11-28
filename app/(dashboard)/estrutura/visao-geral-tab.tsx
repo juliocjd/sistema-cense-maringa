@@ -747,7 +747,7 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
               </div>
               <div className="flex items-center gap-1">
                 <span className="w-5 h-5 rounded bg-gray-100 border border-gray-300"></span>
-                <span>Nivel 0</span>
+                <span>Livre / desocupado</span>
               </div>
               <div className="flex items-center gap-1">
                 <span className="w-5 h-5 rounded bg-gray-400 border border-gray-600"></span>

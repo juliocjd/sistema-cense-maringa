@@ -26,7 +26,9 @@ export default function MapaPage() {
     setError(null);
 
     try {
-      const mapaResponse = await fetch("/api/mapa/status");
+      const mapaResponse = await fetch("/api/mapa/status?refresh=1", {
+        cache: "no-store",
+      });
 
       if (!mapaResponse.ok) {
         throw new Error("Erro ao carregar dados do mapa");
@@ -53,7 +55,8 @@ export default function MapaPage() {
       let mapaImpactos: Record<string, ImpactoConflitoExterno[]> = {};
       try {
         const impactosResponse = await fetch(
-          "/api/inteligencia/conflitos/impacto?status=ATIVO"
+          "/api/inteligencia/conflitos/impacto?status=ATIVO",
+          { cache: "no-store" }
         );
         if (impactosResponse.ok) {
           const impactosData = await impactosResponse.json();

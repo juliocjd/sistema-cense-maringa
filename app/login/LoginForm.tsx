@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
-import { signIn } from "next-auth/react";
+import { signIn, getCsrfToken } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Loader2, AlertCircle } from "lucide-react";
 
@@ -12,6 +12,25 @@ export default function LoginForm() {
   const [senha, setSenha] = useState("");
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState("");
+  const [csrfToken, setCsrfToken] = useState<string | null>(null);
+
+  useEffect(() => {
+    let ativo = true;
+    getCsrfToken()
+      .then((token) => {
+        if (ativo) {
+          setCsrfToken(token ?? null);
+        }
+      })
+      .catch(() => {
+        if (ativo) {
+          setCsrfToken(null);
+        }
+      });
+    return () => {
+      ativo = false;
+    };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,6 +42,7 @@ export default function LoginForm() {
         email,
         senha,
         redirect: false,
+        csrfToken: csrfToken ?? undefined,
       });
 
       if (result?.error) {

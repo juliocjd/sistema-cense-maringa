@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   AlertTriangle,
@@ -152,8 +153,15 @@ export function Sidebar({
         <div className="flex h-full flex-col">
           <div className="border-b border-indigo-800 p-6 hidden lg:block">
             <Link href="/dashboard" className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-600 text-xl font-bold">
-                CS
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-white via-indigo-50 to-indigo-100 shadow-lg border border-white/40 overflow-hidden">
+                <Image
+                  src="/logo-login.jpg"
+                  alt="CENSE Maringa"
+                  width={48}
+                  height={48}
+                  priority
+                  className="object-cover"
+                />
               </div>
               {expanded && (
                 <div>
