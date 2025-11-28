@@ -106,7 +106,7 @@ export default function GruposPage() {
     <div className="min-h-screen bg-gray-50 p-6">
       {/* Header */}
       <div className="mb-6">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-4">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
               <Users className="text-indigo-600" size={32} />
@@ -119,7 +119,7 @@ export default function GruposPage() {
 
           <Link
             href="/grupos/novo"
-            className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 transition-colors shadow-lg hover:shadow-xl font-semibold"
+            className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 transition-colors shadow-lg hover:shadow-xl font-semibold justify-center w-full lg:w-auto"
           >
             <Plus size={20} />
             Novo Grupo

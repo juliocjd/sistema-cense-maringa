@@ -133,7 +133,7 @@ export function ListagemConflitos({
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-2xl shadow-lg p-6 border-b-4 border-red-600">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h1 className="text-3xl font-bold text-gray-800 mb-2 flex items-center gap-3">
               <Swords className="text-red-600" size={36} />
@@ -145,7 +145,7 @@ export function ListagemConflitos({
           </div>
           <Link
             href="/conflitos/novo"
-            className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 font-semibold shadow-lg"
+            className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 font-semibold shadow-lg justify-center w-full lg:w-auto"
           >
             <Plus size={20} />
             Registrar Conflito

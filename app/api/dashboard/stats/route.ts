@@ -55,6 +55,7 @@ export async function GET(request: NextRequest) {
       alto: 0,
       medio: 0,
       baixo: 0,
+      leve: 0,
     };
     let adolescentesComAlertas = 0;
 
@@ -74,8 +75,10 @@ export async function GET(request: NextRequest) {
           gravidadeAlertas.alto += 1;
         } else if (nivel === 3) {
           gravidadeAlertas.medio += 1;
-        } else {
+        } else if (nivel === 2) {
           gravidadeAlertas.baixo += 1;
+        } else if (nivel === 1) {
+          gravidadeAlertas.leve += 1;
         }
       });
     });
@@ -140,7 +143,8 @@ export async function GET(request: NextRequest) {
           gravidadeAlertas.critico +
           gravidadeAlertas.alto +
           gravidadeAlertas.medio +
-          gravidadeAlertas.baixo,
+          gravidadeAlertas.baixo +
+          gravidadeAlertas.leve,
       },
       conflitosPorTipo: conflitosPorTipo.reduce((acc, item) => {
         const chave = item.tipoConflito ?? "NAO_CLASSIFICADO";

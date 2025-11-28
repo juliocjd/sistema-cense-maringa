@@ -319,17 +319,19 @@ export function MapaInterativo({
         {getIconesAlerta(aloj)}
         <span className="font-bold text-xl text-gray-800">{numero}</span>
         {nomeResumido && (
-          <div className="mt-1 text-[11px] text-gray-800 font-semibold leading-tight text-center w-full flex flex-col items-center">
-            <span>{nomeResumido.primeiro}</span>
+          <div className="mt-1 px-1 text-[8px] sm:text-[11px] text-gray-800 font-semibold leading-tight text-center w-full flex flex-col items-center">
+            <span className="w-full break-words whitespace-normal">{nomeResumido.primeiro}</span>
             {nomeResumido.ultimo && (
-              <span className="text-slate-700 font-medium">
+              <span className="text-slate-700 font-medium text-[7px] sm:text-[10px] w-full break-words whitespace-normal">
                 {nomeResumido.ultimo}
               </span>
             )}
             {ocupante.faccao?.nome && (
-              <span className="inline-flex items-center gap-1 text-[10px] font-medium text-indigo-600 mt-0.5">
-                <Shield size={10} />
-                {ocupante.faccao.nome}
+              <span className="inline-flex items-center gap-1 text-[6.5px] sm:text-[9px] font-medium text-indigo-600 mt-0.5">
+                <Shield size={8} className="flex-shrink-0" />
+                <span className="truncate max-w-[60px] sm:max-w-full">
+                  {ocupante.faccao.nome}
+                </span>
               </span>
             )}
           </div>

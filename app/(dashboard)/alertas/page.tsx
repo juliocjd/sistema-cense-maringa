@@ -201,7 +201,7 @@ function AlertasPageContent() {
     <div className="min-h-screen bg-gray-50 p-6">
       {/* Header */}
       <div className="mb-6">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-4">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
               <Bell className="text-red-600" size={24} />
@@ -214,17 +214,17 @@ function AlertasPageContent() {
             </div>
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
             <button
               onClick={carregarAlertas}
-              className="flex items-center gap-2 bg-white border-2 border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors font-semibold"
+              className="flex items-center gap-2 bg-white border-2 border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors font-semibold justify-center"
             >
               <RefreshCw size={18} />
               Atualizar
             </button>
             <button
               onClick={() => setModalNovoAberto(true)}
-              className="flex items-center gap-2 bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700 transition-colors font-bold shadow-lg"
+              className="flex items-center gap-2 bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700 transition-colors font-bold shadow-lg justify-center"
             >
               <Plus size={20} />
               Novo Alerta

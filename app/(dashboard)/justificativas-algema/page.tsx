@@ -141,7 +141,7 @@ export default function JustificativasAlgemaPage() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-4">
             <div>
               <div className="flex items-center gap-3 mb-2">
                 <Shield className="w-10 h-10 text-indigo-600" />
@@ -156,13 +156,15 @@ export default function JustificativasAlgemaPage() {
               </div>
             </div>
 
-            <Link
-              href="/justificativas-algema/nova"
-              className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2 font-semibold shadow-lg hover:shadow-xl"
-            >
-              <Plus size={20} />
-              Nova Justificativa
-            </Link>
+            <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+              <Link
+                href="/justificativas-algema/nova"
+                className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2 font-semibold shadow-lg hover:shadow-xl justify-center"
+              >
+                <Plus size={20} />
+                Nova Justificativa
+              </Link>
+            </div>
           </div>
 
           {/* Stats Cards */}

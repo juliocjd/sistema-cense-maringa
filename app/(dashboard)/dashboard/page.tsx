@@ -35,6 +35,7 @@ type DashboardStats = {
     alto: number;
     medio: number;
     baixo: number;
+    leve: number;
     total: number;
   };
 };
@@ -255,53 +256,91 @@ export default function DashboardPage() {
       </div>
 
       {/* Card Gravidade dos Alertas */}
-      <div className="bg-white rounded-2xl shadow-lg p-4 md:p-6 border border-gray-100">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg md:text-xl font-bold text-gray-800">Gravidade dos alertas</h3>
-          <span className="text-sm text-gray-500">
-            Total: {stats.gravidadeAlertas.total}
-          </span>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {[
-            {
-              label: "Critico",
-              valor: stats.gravidadeAlertas.critico,
-              descricao: "Nivel 5",
-              classes: "bg-red-50 border border-red-200 text-red-700",
-            },
-            {
-              label: "Alto",
-              valor: stats.gravidadeAlertas.alto,
-              descricao: "Nivel 4",
-              classes: "bg-orange-50 border border-orange-200 text-orange-700",
-            },
-            {
-              label: "Medio",
-              valor: stats.gravidadeAlertas.medio,
-              descricao: "Nivel 3",
-              classes: "bg-amber-50 border border-amber-200 text-amber-700",
-            },
-            {
-              label: "Monitorar",
-              valor: stats.gravidadeAlertas.baixo,
-              descricao: "Nivel 2",
-              classes: "bg-blue-50 border border-blue-200 text-blue-700",
-            },
-          ].map((gravidade) => (
-            <div
-              key={gravidade.label}
-              className={`rounded-xl p-3 flex flex-col gap-1 ${gravidade.classes}`}
-            >
-              <span className="text-xs font-semibold uppercase tracking-wide">
-                {gravidade.label}
-              </span>
-              <span className="text-2xl font-bold">{gravidade.valor}</span>
-              <span className="text-xs text-gray-600">{gravidade.descricao}</span>
+        <div className="bg-white rounded-2xl shadow-lg p-4 md:p-6 border border-gray-100">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="text-lg md:text-xl font-bold text-gray-800">Gravidade dos alertas</h3>
+              <p className="text-xs text-gray-500">
+                Distribuição dos níveis de risco atuais
+              </p>
             </div>
-          ))}
+            <span className="text-sm font-semibold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">
+              Total: {stats.gravidadeAlertas.total}
+            </span>
+          </div>
+          <div className="mt-4 flex flex-col gap-3">
+            <div className="flex flex-wrap gap-3">
+              {[
+                {
+                  label: "Critico",
+                  valor: stats.gravidadeAlertas.critico,
+                  descricao: "Nivel 5",
+                  classes: "bg-red-50 border border-red-200 text-red-700",
+                },
+                {
+                  label: "Alto",
+                  valor: stats.gravidadeAlertas.alto,
+                  descricao: "Nivel 4",
+                  classes: "bg-orange-50 border border-orange-200 text-orange-700",
+                },
+                {
+                  label: "Medio",
+                  valor: stats.gravidadeAlertas.medio,
+                  descricao: "Nivel 3",
+                  classes: "bg-amber-50 border border-amber-200 text-amber-700",
+                },
+                {
+                  label: "Monitorar",
+                  valor: stats.gravidadeAlertas.baixo,
+                  descricao: "Nivel 2",
+                  classes: "bg-blue-50 border border-blue-200 text-blue-700",
+                },
+                {
+                  label: "Observacao",
+                  valor: stats.gravidadeAlertas.leve,
+                  descricao: "Nivel 1",
+                  classes: "bg-teal-50 border border-teal-200 text-teal-700",
+                },
+              ].map((gravidade) => (
+                <div
+                  key={gravidade.label}
+                  className={`flex-1 min-w-[150px] rounded-xl p-3 flex flex-col gap-1 ${gravidade.classes}`}
+                >
+                  <span className="text-xs font-semibold uppercase tracking-wide">
+                    {gravidade.label}
+                  </span>
+                  <span className="text-2xl font-bold">{gravidade.valor}</span>
+                  <span className="text-xs text-gray-600">{gravidade.descricao}</span>
+                </div>
+              ))}
+            </div>
+            <div className="h-2 w-full rounded-full bg-slate-100 overflow-hidden">
+              <div className="flex h-full">
+                {[
+                  { key: "critico", color: "bg-red-500" },
+                  { key: "alto", color: "bg-orange-500" },
+                  { key: "medio", color: "bg-amber-500" },
+                  { key: "baixo", color: "bg-blue-500" },
+                  { key: "leve", color: "bg-teal-500" },
+                ].map((segmento) => {
+                  const valor = stats.gravidadeAlertas[segmento.key as keyof typeof stats.gravidadeAlertas];
+                  const percentual =
+                    stats.gravidadeAlertas.total > 0
+                      ? Math.max((valor / stats.gravidadeAlertas.total) * 100, 1)
+                      : 0;
+                  return (
+                    <div
+                      key={segmento.key}
+                      className={`${segmento.color} transition-all`}
+                      style={{ width: `${percentual}%` }}
+                      title={`${segmento.key.toUpperCase()}: ${valor}`}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
 
       {/* Cards Secundários */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">

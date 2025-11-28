@@ -471,7 +471,7 @@ export default function AnalyticsPage() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-4">
             <div>
               <div className="flex items-center gap-3 mb-2">
                 <BarChart3 className="w-8 h-8 text-indigo-600" />
@@ -490,17 +490,17 @@ export default function AnalyticsPage() {
               )}
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
               <button
                 onClick={() => setMostrarFiltros(!mostrarFiltros)}
-                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
+                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2 justify-center"
               >
                 <Filter size={18} />
                 Filtros
               </button>
               <button
                 onClick={exportarPDF}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 justify-center"
               >
                 <FileDown size={18} />
                 Exportar PDF
@@ -508,7 +508,7 @@ export default function AnalyticsPage() {
               <button
                 onClick={fetchData}
                 disabled={loading}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2 disabled:opacity-50 justify-center"
               >
                 <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
                 {loading ? "Atualizando..." : "Atualizar"}

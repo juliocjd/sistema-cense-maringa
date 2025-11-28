@@ -115,7 +115,7 @@ export function ListagemCIs({ comunicados }: ListagemCIsProps) {
     <div className="space-y-6">
       {/* Header */}
       <div className="bg-white rounded-2xl shadow-lg p-6 border-b-4 border-blue-600">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h1 className="text-3xl font-bold text-gray-800 mb-2 flex items-center gap-3">
               <FileText className="text-blue-600" size={36} />
@@ -127,7 +127,7 @@ export function ListagemCIs({ comunicados }: ListagemCIsProps) {
           </div>
           <Link
             href="/comunicados/novo"
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 font-semibold shadow-lg"
+            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 font-semibold shadow-lg w-full text-center lg:w-auto justify-center"
           >
             <Plus size={20} />
             Novo CI
