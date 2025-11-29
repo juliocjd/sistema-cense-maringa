@@ -201,6 +201,7 @@ export function mapVisitanteDetalhado(
         id: vinculo.adolescente.id,
         nomeCompleto: vinculo.adolescente.nomeCompleto,
         nomeSocial: vinculo.adolescente.nomeSocial ?? null,
+        statusUnidade: vinculo.adolescente.statusUnidade ?? null,
       }));
   }
 

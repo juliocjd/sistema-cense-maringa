@@ -1,10 +1,17 @@
-﻿"use client";
+"use client";
 
-import { useEffect, useState } from "react";
-import { ShieldCheck, Camera, UserCheck, Clock, AlertCircle, CheckCircle, QrCode, Monitor, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import {
+  ShieldCheck,
+  Camera,
+  UserCheck,
+  AlertCircle,
+  CheckCircle,
+  QrCode,
+  Monitor,
+  X,
+} from "lucide-react";
 import { CameraCapture } from "@/components/reconhecimento-facial/camera-capture";
-import { ModalRegistrarVisita } from "@/components/visitantes/modal-registrar-visita";
-import { ModalValidacaoPrevia } from "@/components/visitantes/modal-validacao-previa";
 import { ScannerQRCode } from "@/components/visitantes/scanner-qrcode";
 import { ListaVisitasAndamento } from "@/components/visitantes/lista-visitas-andamento";
 import { BuscaVisitanteManual } from "@/components/visitantes/busca-visitante-manual";
@@ -14,6 +21,7 @@ type Adolescente = {
   id: string;
   nomeCompleto: string;
   nomeSocial: string | null;
+  statusUnidade?: string | null;
 };
 
 type VisitaVisitante = {
@@ -57,8 +65,20 @@ type IdentificacaoResultado = {
   };
 };
 
-const normalizarAdolescentes = (lista?: Adolescente[] | null): Adolescente[] =>
-  Array.isArray(lista) ? lista : [];
+const normalizarAdolescentes = (
+  lista?: (Partial<Adolescente> & { status?: string | null })[] | null
+): Adolescente[] =>
+  Array.isArray(lista)
+    ? lista.map((item) => ({
+        id: item.id ?? "",
+        nomeCompleto: item.nomeCompleto ?? "",
+        nomeSocial: item.nomeSocial ?? null,
+        statusUnidade:
+          item.statusUnidade ??
+          (typeof item.status === "string" ? item.status : null) ??
+          "ATIVO",
+      }))
+    : [];
 
 export default function PortariaPage() {
   const [modoCadastro, setModoCadastro] = useState(false);
@@ -66,17 +86,74 @@ export default function PortariaPage() {
   const [modoQRCode, setModoQRCode] = useState(false);
   const [modoBuscaManual, setModoBuscaManual] = useState(false);
   const [processando, setProcessando] = useState(false);
-  const [resultado, setResultado] = useState<IdentificacaoResultado | null>(null);
+  const [resultado, setResultado] = useState<IdentificacaoResultado | null>(
+    null
+  );
   const [erro, setErro] = useState<string | null>(null);
-  const [mostrarModalValidacao, setMostrarModalValidacao] = useState(false);
-  const [mostrarModalVisita, setMostrarModalVisita] = useState(false);
-  const [adolescenteSelecionadoId, setAdolescenteSelecionadoId] = useState<string>("");
-  const [justificativaHorario, setJustificativaHorario] = useState<string | null>(null);
+  const [adolescenteSelecionadoId, setAdolescenteSelecionadoId] =
+    useState<string>("");
+  const [justificativaHorario, setJustificativaHorario] = useState<string>("");
+  const [observacoesVisita, setObservacoesVisita] = useState<string>("");
   const [validacaoResultado, setValidacaoResultado] = useState<any>(null);
   const [validandoEntrada, setValidandoEntrada] = useState(false);
-  const [origemIdentificacao, setOrigemIdentificacao] = useState<"facial" | "qrcode" | "manual" | null>(null);
+  const [origemIdentificacao, setOrigemIdentificacao] = useState<
+    "facial" | "qrcode" | "manual" | null
+  >(null);
   const [cameraSessionId, setCameraSessionId] = useState(0);
   const [mensagemSucesso, setMensagemSucesso] = useState<string | null>(null);
+  const [adolescentesInativos, setAdolescentesInativos] = useState<
+    Adolescente[]
+  >([]);
+  const justificativaObrigatoria = Boolean(
+    validacaoResultado?.requerJustificativa
+  );
+  const justificativaObrigatoriaAnterior = useRef(false);
+
+  const separarAdolescentesPorStatus = (
+    lista?: Adolescente[] | null
+  ): { ativos: Adolescente[]; inativos: Adolescente[] } => {
+    const normalizados = normalizarAdolescentes(lista);
+    const ativos: Adolescente[] = [];
+    const inativos: Adolescente[] = [];
+
+    normalizados.forEach((adolescente) => {
+      const status = (adolescente.statusUnidade || "ATIVO").toUpperCase();
+      if (status === "ATIVO") {
+        ativos.push(adolescente);
+      } else {
+        inativos.push(adolescente);
+      }
+    });
+
+    return { ativos, inativos };
+  };
+
+  const descreverAdolescentes = (lista: Adolescente[]) =>
+    lista
+      .map((adolescente) => {
+        const nome = adolescente.nomeSocial || adolescente.nomeCompleto;
+        const status = (adolescente.statusUnidade || "DESCONHECIDO").toUpperCase();
+        return `${nome} (${status})`;
+      })
+      .join(", ");
+
+  const prepararAdolescentesParaFluxo = (
+    lista?: Adolescente[] | null
+  ): { ativos: Adolescente[]; inativos: Adolescente[] } => {
+    const { ativos, inativos } = separarAdolescentesPorStatus(lista);
+    setAdolescentesInativos(inativos);
+    return { ativos, inativos };
+  };
+
+  const gerarMensagemSemAtivos = (
+    visitanteNome: string,
+    inativos: Adolescente[]
+  ) => {
+    const detalhes = inativos.length
+      ? ` Vínculos encontrados: ${descreverAdolescentes(inativos)}.`
+      : "";
+    return `Visitante ${visitanteNome} não possui adolescentes ativos autorizados para visitas no momento.${detalhes}`;
+  };
 
   useEffect(() => {
     if (!mensagemSucesso) {
@@ -85,6 +162,16 @@ export default function PortariaPage() {
     const timeout = setTimeout(() => setMensagemSucesso(null), 4000);
     return () => clearTimeout(timeout);
   }, [mensagemSucesso]);
+
+  useEffect(() => {
+    if (justificativaObrigatoria && !justificativaObrigatoriaAnterior.current) {
+      setJustificativaHorario("");
+    }
+    if (!justificativaObrigatoria && justificativaObrigatoriaAnterior.current) {
+      setJustificativaHorario("");
+    }
+    justificativaObrigatoriaAnterior.current = justificativaObrigatoria;
+  }, [justificativaObrigatoria]);
 
   const iniciarFluxoFacial = () => {
     setModoIdentificacao(true);
@@ -110,12 +197,15 @@ export default function PortariaPage() {
     setErro(null);
     setAdolescenteSelecionadoId("");
     setValidacaoResultado(null);
-    setJustificativaHorario(null);
+    setJustificativaHorario("");
+    setObservacoesVisita("");
+    setAdolescentesInativos([]);
   };
 
   const registrarVisitaDireta = async (
     adolescenteId: string,
-    justificativa: string | null
+    justificativa: string | null,
+    observacoes: string | null
   ) => {
     if (!resultado?.visitante) {
       setErro("Nenhum visitante selecionado para registrar a visita.");
@@ -135,7 +225,7 @@ export default function PortariaPage() {
             adolescenteId,
             quantidadeAdultos: 1,
             quantidadeCriancas: 0,
-            observacoes: null,
+            observacoes,
             justificativaHorario: justificativa || null,
           }),
         }
@@ -144,7 +234,21 @@ export default function PortariaPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        setErro(data.erro || "Erro ao registrar visita.");
+        const errosDetalhes = Array.isArray(data.erros)
+          ? data.erros.join(" | ")
+          : "";
+        const alertasDetalhes = Array.isArray(data.alertas)
+          ? data.alertas.join(" | ")
+          : "";
+        const detalhes = [errosDetalhes, alertasDetalhes]
+          .filter((texto) => texto && texto.length > 0)
+          .join(" | ");
+        setErro(
+          `${data.erro || "Erro ao registrar visita."}${
+            detalhes ? ` (${detalhes})` : ""
+          }`
+        );
+        console.error("Erro ao registrar visita:", data);
         return;
       }
 
@@ -216,12 +320,28 @@ export default function PortariaPage() {
         setErro(data.message || "Visitante nao identificado");
         setResultado(data);
       } else if (data.visitante) {
-        const adolescentes = normalizarAdolescentes(data.visitante.adolescentes);
-        // Verificar se ha visitas em andamento ANTES de mostrar sucesso
-        const visitasAbertas = await verificarVisitasEmAndamento(data.visitante.id);
+        const { ativos, inativos } = prepararAdolescentesParaFluxo(
+          data.visitante.adolescentes
+        );
 
-                if (visitasAbertas.length > 0) {
-          // Visitante tem visita em andamento - mostrar erro específico
+        if (ativos.length === 0) {
+          setErro(
+            gerarMensagemSemAtivos(data.visitante.nomeCompleto, inativos)
+          );
+          setResultado(null);
+          if (origemIdentificacao === "facial") {
+            reiniciarSessaoCamera();
+          }
+          return;
+        }
+
+        // Verificar se ha visitas em andamento ANTES de mostrar sucesso
+        const visitasAbertas = await verificarVisitasEmAndamento(
+          data.visitante.id
+        );
+
+        if (visitasAbertas.length > 0) {
+          // Visitante tem visita em andamento - mostrar erro espec�fico
           const nomes = visitasAbertas
             .map((v: any) => v.adolescente?.nomeCompleto || "Adolescente")
             .join(", ");
@@ -239,16 +359,16 @@ export default function PortariaPage() {
             ...data,
             visitante: {
               ...data.visitante,
-              adolescentes,
+              adolescentes: ativos,
               ultimasVisitas: Array.isArray(data.visitante.ultimasVisitas)
                 ? data.visitante.ultimasVisitas.slice(0, 3)
                 : [],
             },
           });
 
-          if (adolescentes.length === 1) {
+          if (ativos.length === 1) {
             // Auto-selecionar se houver apenas 1 adolescente
-            const adolescenteId = adolescentes[0].id;
+            const adolescenteId = ativos[0].id;
             setAdolescenteSelecionadoId(adolescenteId);
             // Validar automaticamente
             await validarEntradaAutomatica(data.visitante.id, adolescenteId);
@@ -263,7 +383,6 @@ export default function PortariaPage() {
       if (origemIdentificacao === "facial") {
         setModoIdentificacao(false);
       }
-
     }
   };
 
@@ -302,7 +421,10 @@ export default function PortariaPage() {
   /**
    * Valida entrada automaticamente (chamada ao selecionar adolescente)
    */
-  const validarEntradaAutomatica = async (visitanteId: string, adolescenteId: string) => {
+  const validarEntradaAutomatica = async (
+    visitanteId: string,
+    adolescenteId: string
+  ) => {
     setValidandoEntrada(true);
     try {
       const response = await fetch("/api/visitas/validar-pre-entrada", {
@@ -331,21 +453,26 @@ export default function PortariaPage() {
   };
 
   /**
-   * Abre modal apropriado baseado na validacao
+   * Confirma entrada imediatamente, usando justificativa/observacao atuais
    */
-  const handleRegistrarVisita = () => {
+  const handleConfirmarEntrada = async () => {
     if (!adolescenteSelecionadoId) {
-      alert("Por favor, selecione um adolescente primeiro");
+      alert("Por favor, selecione um adolescente primeiro.");
       return;
     }
 
-    // Se houver alertas que requerem justificativa, abre modal de validacao
-    if (validacaoResultado?.requerJustificativa) {
-      setMostrarModalValidacao(true);
-    } else {
-      // Se nao houver alertas, vai direto para registro
-      setMostrarModalVisita(true);
+    const justificativaAtual = justificativaHorario.trim();
+
+    if (justificativaObrigatoria && justificativaAtual.length === 0) {
+      alert("Informe a justificativa de horario para continuar.");
+      return;
     }
+
+    await registrarVisitaDireta(
+      adolescenteSelecionadoId,
+      justificativaAtual.length > 0 ? justificativaAtual : null,
+      observacoesVisita.trim() ? observacoesVisita.trim() : null
+    );
   };
 
   /**
@@ -367,27 +494,40 @@ export default function PortariaPage() {
       }
 
       // Verificar visitas em andamento ANTES de mostrar sucesso
-      const visitasAbertas = await verificarVisitasEmAndamento(data.visitante.id);
+      const visitasAbertas = await verificarVisitasEmAndamento(
+        data.visitante.id
+      );
 
       if (visitasAbertas.length > 0) {
-        const nomes = visitasAbertas.map((v: any) => v.adolescente?.nomeCompleto || "Adolescente").join(", ");
+        const nomes = visitasAbertas
+          .map((v: any) => v.adolescente?.nomeCompleto || "Adolescente")
+          .join(", ");
         setErro(
           `ATENCAO: ${data.visitante.nomeCompleto} ja possui visita em andamento com: ${nomes}. ` +
-              `Por favor, finalize a visita atual antes de registrar uma nova.`
+            `Por favor, finalize a visita atual antes de registrar uma nova.`
         );
         setResultado(null);
       } else {
         // Transformar resposta da API de QR Code para formato IdentificacaoResultado
-        const adolescentesVinculadosApi = Array.isArray(data.visitante.adolescentesVinculados)
+        const adolescentesVinculadosApi = Array.isArray(
+          data.visitante.adolescentesVinculados
+        )
           ? data.visitante.adolescentesVinculados
           : [];
         setOrigemIdentificacao("qrcode");
 
-        const adolescentesNormalizados = adolescentesVinculadosApi.map((v: any) => ({
-          id: v.id,
-          nomeCompleto: v.nomeCompleto,
-          nomeSocial: null,
-        }));
+        const { ativos, inativos } = prepararAdolescentesParaFluxo(
+          adolescentesVinculadosApi as Adolescente[]
+        );
+
+        if (ativos.length === 0) {
+          setErro(
+            gerarMensagemSemAtivos(data.visitante.nomeCompleto, inativos)
+          );
+          setResultado(null);
+          setModoQRCode(false);
+          return;
+        }
 
         const resultadoQRCode = {
           success: data.valido,
@@ -407,7 +547,7 @@ export default function PortariaPage() {
             nomeMae: data.visitante.nomeMae || null,
             dataNascimento: "", // Nao vem na API de QR Code
             fotoUrl: data.visitante.urlFoto || "",
-            adolescentes: adolescentesNormalizados,
+            adolescentes: ativos,
             ultimasVisitas: Array.isArray(data.visitasRecentes)
               ? data.visitasRecentes.slice(0, 3).map((v: any) => ({
                   id: v.id,
@@ -422,8 +562,8 @@ export default function PortariaPage() {
         setResultado(resultadoQRCode);
 
         // Auto-selecionar se houver apenas 1 adolescente
-        if (adolescentesVinculadosApi.length === 1) {
-          const adolescenteId = adolescentesVinculadosApi[0].id;
+        if (ativos.length === 1) {
+          const adolescenteId = ativos[0].id;
           setAdolescenteSelecionadoId(adolescenteId);
           await validarEntradaAutomatica(data.visitante.id, adolescenteId);
         }
@@ -437,30 +577,6 @@ export default function PortariaPage() {
     }
   };
 
-  /**
-   * Formata data/hora para exibicao
-   */
-  const formatarDataHora = (dataHora: string) => {
-    return new Date(dataHora).toLocaleString("pt-BR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-
-  /**
-   * Calcula tempo de visita
-   */
-  const calcularTempoVisita = (entrada: string, saida: string | null) => {
-    if (!saida) return "Em andamento";
-    const diff = new Date(saida).getTime() - new Date(entrada).getTime();
-    const horas = Math.floor(diff / (1000 * 60 * 60));
-    const minutos = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    return `${horas}h ${minutos}min`;
-  };
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-50 p-4 md:p-6">
       <div className="max-w-7xl mx-auto">
@@ -468,7 +584,9 @@ export default function PortariaPage() {
         <div className="mb-6 md:mb-8">
           <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-gray-900 flex items-center gap-2 md:gap-3">
             <ShieldCheck className="text-indigo-600 w-8 h-8 md:w-10 md:h-10 lg:w-11 lg:h-11" />
-            <span className="hidden sm:inline">Portaria - Reconhecimento Facial</span>
+            <span className="hidden sm:inline">
+              Portaria - Reconhecimento Facial
+            </span>
             <span className="sm:hidden">Portaria</span>
           </h1>
           <p className="text-gray-600 mt-2 text-sm md:text-base lg:text-lg">
@@ -479,13 +597,13 @@ export default function PortariaPage() {
         {/* Modo Identificacao */}
         {modoIdentificacao && (
           <div className="mb-6">
-        <CameraCapture
-          key={cameraSessionId}
-          onCapture={handleIdentificarVisitante}
-          onCancel={cancelarFluxoFacial}
-          title="Identificacao Facial"
-          subtitle="Posicione o rosto do visitante no centro da camera"
-        />
+            <CameraCapture
+              key={cameraSessionId}
+              onCapture={handleIdentificarVisitante}
+              onCancel={cancelarFluxoFacial}
+              title="Identificacao Facial"
+              subtitle="Posicione o rosto do visitante no centro da camera"
+            />
           </div>
         )}
 
@@ -502,11 +620,15 @@ export default function PortariaPage() {
               <Camera className="text-indigo-600 w-12 h-12 md:w-16 md:h-16" />
               <div className="text-center">
                 <h2 className="text-lg md:text-xl lg:text-2xl font-bold text-gray-900">
-                  <span className="hidden sm:inline">Reconhecimento Facial</span>
+                  <span className="hidden sm:inline">
+                    Reconhecimento Facial
+                  </span>
                   <span className="sm:hidden">Facial</span>
                 </h2>
                 <p className="text-gray-600 mt-1 md:mt-2 text-sm md:text-base">
-                  <span className="hidden sm:inline">Identificacao automatica via camera</span>
+                  <span className="hidden sm:inline">
+                    Identificacao automatica via camera
+                  </span>
                   <span className="sm:hidden">Via camera</span>
                 </p>
               </div>
@@ -529,7 +651,9 @@ export default function PortariaPage() {
                   <span className="sm:hidden">QR Code</span>
                 </h2>
                 <p className="text-gray-600 mt-1 md:mt-2 text-sm md:text-base">
-                  <span className="hidden sm:inline">Identificacao rapida via QR Code</span>
+                  <span className="hidden sm:inline">
+                    Identificacao rapida via QR Code
+                  </span>
                   <span className="sm:hidden">Via QR</span>
                 </p>
               </div>
@@ -552,7 +676,9 @@ export default function PortariaPage() {
                   <span className="sm:hidden">Manual</span>
                 </h2>
                 <p className="text-gray-600 mt-1 md:mt-2 text-sm md:text-base">
-                  <span className="hidden sm:inline">Busca por nome ou CPF</span>
+                  <span className="hidden sm:inline">
+                    Busca por nome ou CPF
+                  </span>
                   <span className="sm:hidden">Por nome/CPF</span>
                 </p>
               </div>
@@ -569,7 +695,9 @@ export default function PortariaPage() {
                   <span className="sm:hidden">Dashboard</span>
                 </h2>
                 <p className="text-gray-600 mt-1 md:mt-2 text-sm md:text-base">
-                  <span className="hidden sm:inline">Painel de controle e estatisticas</span>
+                  <span className="hidden sm:inline">
+                    Painel de controle e estatisticas
+                  </span>
                   <span className="sm:hidden">Painel controle</span>
                 </p>
               </div>
@@ -581,9 +709,18 @@ export default function PortariaPage() {
         {modoBuscaManual && (
           <BuscaVisitanteManual
             onVisitanteSelecionado={(visitante) => {
-              const adolescentesVinculados = Array.isArray(visitante.adolescentes)
-                ? visitante.adolescentes
-                : [];
+              const { ativos, inativos } = prepararAdolescentesParaFluxo(
+                visitante.adolescentes
+              );
+
+              if (ativos.length === 0) {
+                setErro(
+                  gerarMensagemSemAtivos(visitante.nomeCompleto, inativos)
+                );
+                setModoBuscaManual(false);
+                setResultado(null);
+                return;
+              }
 
               setModoBuscaManual(false);
               setMensagemSucesso(null);
@@ -599,15 +736,15 @@ export default function PortariaPage() {
                   nomeMae: visitante.nomeMae || null,
                   dataNascimento: visitante.dataNascimento || "",
                   fotoUrl: visitante.fotoUrl || "",
-                  adolescentes: adolescentesVinculados,
+                  adolescentes: ativos,
                   ultimasVisitas: [],
                 },
               });
               setOrigemIdentificacao("manual");
 
               // Auto-selecionar se so tiver 1 adolescente
-              if (adolescentesVinculados.length === 1) {
-                const adolescenteId = adolescentesVinculados[0].id;
+              if (ativos.length === 1) {
+                const adolescenteId = ativos[0].id;
                 setAdolescenteSelecionadoId(adolescenteId);
                 validarEntradaAutomatica(visitante.id, adolescenteId);
               }
@@ -617,11 +754,14 @@ export default function PortariaPage() {
         )}
 
         {/* Lista de Visitas em Andamento */}
-        {!modoIdentificacao && !modoCadastro && !modoQRCode && !modoBuscaManual && (
-          <div className="mb-8">
-            <ListaVisitasAndamento />
-          </div>
-        )}
+        {!modoIdentificacao &&
+          !modoCadastro &&
+          !modoQRCode &&
+          !modoBuscaManual && (
+            <div className="mb-8">
+              <ListaVisitasAndamento />
+            </div>
+          )}
 
         {/* Resultado da Identificacao */}
         {resultado && (
@@ -645,259 +785,333 @@ export default function PortariaPage() {
               >
                 <X className="w-5 h-5" />
               </button>
-            {resultado.success && resultado.visitante ? (
-              <>
-                {/* Sucesso */}
-                <div className="flex items-center gap-2 md:gap-3 mb-4 md:mb-6 pb-4 md:pb-6 border-b">
-                  <CheckCircle className="text-green-600 w-10 h-10 md:w-12 md:h-12 flex-shrink-0" />
-                  <div>
-                    <h2 className="text-xl md:text-2xl lg:text-3xl font-bold text-green-700">
-                      Visitante Identificado!
-                    </h2>
-                    <p className="text-gray-600 mt-1 text-xs md:text-sm">
-                      Confianca: {resultado.match?.confidence}% | Distancia:{" "}
-                      {resultado.match?.distance.toFixed(3)}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
-                  {/* Dados do Visitante */}
-                  <div>
-                    <h3 className="text-lg md:text-xl font-bold text-gray-900 mb-3 md:mb-4">
-                      Dados do Visitante
-                    </h3>
-                    {resultado.visitante.fotoUrl && (
-                      <img
-                        src={resultado.visitante.fotoUrl}
-                        alt={resultado.visitante.nomeCompleto}
-                        className="w-32 h-32 md:w-40 md:h-40 lg:w-48 lg:h-48 object-cover rounded-lg mb-4 shadow-md"
-                      />
-                    )}
-                    <div className="space-y-2 text-gray-700 text-sm md:text-base">
-                      <p>
-                        <strong>Nome:</strong> {resultado.visitante.nomeCompleto}
-                      </p>
-                      <p>
-                        <strong>CPF:</strong> {resultado.visitante.cpf || "Nao informado"}
-                      </p>
-                      <p>
-                        <strong>RG:</strong> {resultado.visitante.rg || "Nao informado"}
-                      </p>
-                      <p>
-                        <strong>Data de Nascimento:</strong>{" "}
-                        {resultado.visitante.dataNascimento
-                          ? new Date(resultado.visitante.dataNascimento).toLocaleDateString("pt-BR")
-                          : "Nao informado"}
-                      </p>
-                      <p>
-                        <strong>Nome do pai:</strong>{" "}
-                        {resultado.visitante.nomePai || "Nao informado"}
-                      </p>
-                      <p>
-                        <strong>Nome da mae:</strong>{" "}
-                        {resultado.visitante.nomeMae || "Nao informado"}
+              {resultado.success && resultado.visitante ? (
+                <div className="space-y-6">
+                  <div className="flex items-center gap-2 md:gap-3 mb-4 md:mb-6 pb-4 md:pb-6 border-b">
+                    <CheckCircle className="text-green-600 w-10 h-10 md:w-12 md:h-12 flex-shrink-0" />
+                    <div>
+                      <h2 className="text-xl md:text-2xl lg:text-3xl font-bold text-green-700">
+                        Visitante Identificado!
+                      </h2>
+                      <p className="text-gray-600 mt-1 text-xs md:text-sm">
+                        Confianca: {resultado.match?.confidence}% | Distancia:{" "}
+                        {resultado.match?.distance.toFixed(3)}
                       </p>
                     </div>
                   </div>
 
-                  {/* Adolescentes Relacionados - SELECIONAVEIS */}
-                  <div>
-                    <h3 className="text-lg md:text-xl font-bold text-gray-900 mb-3 md:mb-4">
-                      <span className="hidden sm:inline">Adolescentes Relacionados</span>
-                      <span className="sm:hidden">Adolescentes</span>
-                      {resultado.visitante.adolescentes.length > 1 && (
-                        <span className="ml-2 text-xs md:text-sm font-normal text-gray-600">
-                          (Selecione um)
-                        </span>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+                    <div>
+                      <h3 className="text-lg md:text-xl font-bold text-gray-900 mb-3 md:mb-4">
+                        Dados do Visitante
+                      </h3>
+                      {resultado.visitante.fotoUrl && (
+                        <img
+                          src={resultado.visitante.fotoUrl}
+                          alt={resultado.visitante.nomeCompleto}
+                          className="w-32 h-32 md:w-40 md:h-40 lg:w-48 lg:h-48 object-cover rounded-lg mb-4 shadow-md"
+                        />
                       )}
-                    </h3>
-                    {resultado.visitante.adolescentes.length > 0 ? (
-                      <ul className="space-y-2 md:space-y-3">
-                        {resultado.visitante.adolescentes.map((adolescente) => {
-                          const isSelected = adolescenteSelecionadoId === adolescente.id;
-                          return (
-                            <li
-                              key={adolescente.id}
-                              onClick={() => handleSelecionarAdolescente(adolescente.id)}
-                              className={`p-3 md:p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                                isSelected
-                                  ? "bg-green-50 border-green-500 shadow-md"
-                                  : "bg-indigo-50 border-indigo-200 hover:border-indigo-400 hover:shadow"
-                              }`}
-                            >
-                              <div className="flex items-center justify-between gap-2">
-                                <div className="flex-1 min-w-0">
-                                  <p className="font-semibold text-gray-900 text-sm md:text-base truncate">
-                                    {adolescente.nomeSocial || adolescente.nomeCompleto}
-                                  </p>
-                                  {adolescente.nomeSocial && adolescente.nomeCompleto && (
-                                    <p className="text-xs md:text-sm text-gray-600 truncate">
-                                      Nome completo: {adolescente.nomeCompleto}
-                                    </p>
-                                  )}
-                                </div>
-                                {isSelected && (
-                                  <CheckCircle className="text-green-600 flex-shrink-0 w-5 h-5 md:w-6 md:h-6" />
-                                )}
-                              </div>
-                              {isSelected && validandoEntrada && (
-                                <p className="text-xs text-blue-600 mt-2">Validando...</p>
-                              )}
-                              {isSelected && validacaoResultado && (
-                                <div className="mt-3 pt-3 border-t border-green-300">
-                                  {validacaoResultado.alertas.length > 0 && (
-                                    <div className="space-y-1">
-                                      {validacaoResultado.alertas.map((alerta: string, idx: number) => (
-                                        <p key={idx} className="text-xs text-amber-700 flex items-start gap-1">
-                                          <AlertCircle size={14} className="flex-shrink-0 mt-0.5" />
-                                          <span>{alerta}</span>
-                                        </p>
-                                      ))}
-                                    </div>
-                                  )}
-                                  {validacaoResultado.avisos.length > 0 && (
-                                    <div className="space-y-1 mt-2">
-                                      {validacaoResultado.avisos.map((aviso: string, idx: number) => (
-                                        <p key={idx} className="text-xs text-blue-700">
-                                          â„¹ï¸ {aviso}
-                                        </p>
-                                      ))}
-                                    </div>
-                                  )}
-                                  {!validacaoResultado.requerJustificativa && validacaoResultado.alertas.length === 0 && (
-                                    <p className="text-xs text-green-700 flex items-center gap-1">
-                                      <CheckCircle size={14} />
-                                      Tudo OK! Pode registrar a visita.
-                                    </p>
-                                  )}
-                                </div>
-                              )}
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    ) : (
-                      <p className="text-gray-500 text-sm">Nenhum adolescente relacionado</p>
-                    )}
+                      <div className="space-y-2 text-gray-700 text-sm md:text-base">
+                        <p>
+                          <strong>Nome:</strong>{" "}
+                          {resultado.visitante.nomeCompleto}
+                        </p>
+                        <p>
+                          <strong>CPF:</strong>{" "}
+                          {resultado.visitante.cpf || "Nao informado"}
+                        </p>
+                        <p>
+                          <strong>RG:</strong>{" "}
+                          {resultado.visitante.rg || "Nao informado"}
+                        </p>
+                        <p>
+                          <strong>Data de Nascimento:</strong>{" "}
+                          {resultado.visitante.dataNascimento
+                            ? new Date(
+                                resultado.visitante.dataNascimento
+                              ).toLocaleDateString("pt-BR")
+                            : "Nao informado"}
+                        </p>
+                        <p>
+                          <strong>Nome do pai:</strong>{" "}
+                          {resultado.visitante.nomePai || "Nao informado"}
+                        </p>
+                        <p>
+                          <strong>Nome da mae:</strong>{" "}
+                          {resultado.visitante.nomeMae || "Nao informado"}
+                        </p>
+                      </div>
+                    </div>
 
-                    {/* Ultimas Visitas */}
-                    <h3 className="text-lg md:text-xl font-bold text-gray-900 mt-5 md:mt-6 mb-3 md:mb-4">
-                      Ultimas Visitas
-                    </h3>
-                    {resultado.visitante.ultimasVisitas.length > 0 ? (
-                      <ul className="space-y-3">
-                        {resultado.visitante.ultimasVisitas.slice(0, 2).map((visita) => (
-                          <li
-                            key={visita.id}
-                            className="p-3 bg-gray-50 rounded-lg border border-gray-200"
-                          >
-                            <div className="flex items-center gap-2 text-sm">
-                              <Clock size={16} className="text-gray-500" />
-                              <span className="text-gray-700">
-                                {formatarDataHora(visita.dataHoraEntrada)}
+                    <div>
+                      <h3 className="text-lg md:text-xl font-bold text-gray-900 mb-3 md:mb-4">
+                        <span className="hidden sm:inline">
+                          Adolescentes Relacionados
+                        </span>
+                        <span className="sm:hidden">Adolescentes</span>
+                        {resultado.visitante.adolescentes.length > 1 && (
+                          <span className="ml-2 text-xs md:text-sm font-normal text-gray-600">
+                            (Selecione um)
+                          </span>
+                        )}
+                      </h3>
+                      {adolescentesInativos.length > 0 && (
+                        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs md:text-sm text-amber-800">
+                          <p className="font-semibold flex items-center gap-2">
+                            <AlertCircle
+                              size={14}
+                              className="text-amber-600 flex-shrink-0"
+                            />
+                            Alguns adolescentes vinculados não estão ativos
+                          </p>
+                          <ul className="mt-1 list-disc list-inside space-y-0.5">
+                            {adolescentesInativos.map((adolescente) => (
+                              <li key={adolescente.id}>
+                                {(adolescente.nomeSocial ||
+                                  adolescente.nomeCompleto) ??
+                                  "Sem nome"}{" "}
+                                (
+                                {(
+                                  adolescente.statusUnidade || "DESCONHECIDO"
+                                ).toUpperCase()}
+                                )
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {resultado.visitante.adolescentes.length > 0 ? (
+                        <ul className="space-y-2 md:space-y-3">
+                          {resultado.visitante.adolescentes.map(
+                            (adolescente) => {
+                              const isSelected =
+                                adolescenteSelecionadoId === adolescente.id;
+                              return (
+                                <li
+                                  key={adolescente.id}
+                                  onClick={() =>
+                                    handleSelecionarAdolescente(adolescente.id)
+                                  }
+                                  className={`p-3 md:p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                                    isSelected
+                                      ? "bg-green-50 border-green-500 shadow-md"
+                                      : "bg-indigo-50 border-indigo-200 hover:border-indigo-400 hover:shadow"
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div className="flex-1 min-w-0">
+                                      <p className="font-semibold text-gray-900 text-sm md:text-base truncate">
+                                        {adolescente.nomeSocial ||
+                                          adolescente.nomeCompleto}
+                                      </p>
+                                      {adolescente.nomeSocial &&
+                                        adolescente.nomeCompleto && (
+                                          <p className="text-xs md:text-sm text-gray-600 truncate">
+                                            Nome completo:{" "}
+                                            {adolescente.nomeCompleto}
+                                          </p>
+                                        )}
+                                    </div>
+                                    {isSelected && (
+                                      <CheckCircle className="text-green-600 flex-shrink-0 w-5 h-5 md:w-6 md:h-6" />
+                                    )}
+                                  </div>
+                                  {isSelected && validandoEntrada && (
+                                    <p className="text-xs text-blue-600 mt-2">
+                                      Validando...
+                                    </p>
+                                  )}
+                                  {isSelected && validacaoResultado && (
+                                    <div className="mt-3 pt-3 border-t border-green-300">
+                                      {validacaoResultado.alertas.length >
+                                        0 && (
+                                        <div className="space-y-1">
+                                          {validacaoResultado.alertas.map(
+                                            (alerta: string, idx: number) => (
+                                              <p
+                                                key={idx}
+                                                className="text-xs text-amber-700 flex items-start gap-1"
+                                              >
+                                                <AlertCircle
+                                                  size={14}
+                                                  className="flex-shrink-0 mt-0.5"
+                                                />
+                                                <span>{alerta}</span>
+                                              </p>
+                                            )
+                                          )}
+                                        </div>
+                                      )}
+                                      {validacaoResultado.avisos.length > 0 && (
+                                        <div className="space-y-1 mt-2">
+                                          {validacaoResultado.avisos.map(
+                                            (aviso: string, idx: number) => (
+                                              <p
+                                                key={idx}
+                                                className="text-xs text-blue-700"
+                                              >
+                                                ? {aviso}
+                                              </p>
+                                            )
+                                          )}
+                                        </div>
+                                      )}
+                                      {!validacaoResultado.requerJustificativa &&
+                                        validacaoResultado.alertas.length ===
+                                          0 && (
+                                          <p className="text-xs text-green-700 flex items-center gap-1">
+                                            <CheckCircle size={14} />
+                                            Tudo OK! Pode registrar a visita.
+                                          </p>
+                                        )}
+                                    </div>
+                                  )}
+                                </li>
+                              );
+                            }
+                          )}
+                        </ul>
+                      ) : (
+                        <p className="text-gray-500 text-sm">
+                          {adolescentesInativos.length > 0
+                            ? "Nenhum adolescente ativo disponível para este visitante."
+                            : "Nenhum adolescente relacionado"}
+                        </p>
+                      )}
+
+                      <div className="mt-5 space-y-4">
+                        <div className="space-y-2">
+                          <label className="block text-sm font-semibold text-gray-700">
+                            Observações (opcional)
+                          </label>
+                          <textarea
+                            value={observacoesVisita}
+                            onChange={(e) =>
+                              setObservacoesVisita(e.target.value)
+                            }
+                            placeholder="Informe detalhes relevantes desta visita..."
+                            className="w-full min-h-[96px] px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none text-sm"
+                          />
+                        </div>
+
+                        {validacaoResultado?.requerJustificativa && (
+                          <div className="space-y-2">
+                            <label className="block text-sm font-semibold text-gray-700 flex items-center gap-2">
+                              Justificativa de horário
+                              <span className="text-xs font-semibold text-red-600">
+                                Obrigatório
                               </span>
-                            </div>
-                            <p className="text-xs text-gray-500 mt-1">
-                              Duracao:{" "}
-                              {calcularTempoVisita(
-                                visita.dataHoraEntrada,
-                                visita.dataHoraSaida
-                              )}
-                            </p>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="text-gray-500">Nenhuma visita registrada</p>
-                    )}
+                            </label>
+                            <textarea
+                              value={justificativaHorario}
+                              onChange={(e) =>
+                                setJustificativaHorario(e.target.value)
+                              }
+                              placeholder="Especifique o motivo para autorizar a visita fora das regras impostas."
+                              className="w-full min-h-[96px] px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none text-sm"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </div>
 
-                {/* Botoes de Acao */}
-                <div className="mt-6 md:mt-8 flex flex-col sm:flex-row gap-3 md:gap-4">
-                  <button
-                    onClick={handleRegistrarVisita}
-                    disabled={
-                      !adolescenteSelecionadoId || validandoEntrada || processando
-                    }
-                    className={`flex-1 px-4 md:px-6 py-2.5 md:py-3 rounded-lg transition-colors font-semibold shadow-md text-sm md:text-base ${
-                      adolescenteSelecionadoId && !validandoEntrada && !processando
-                        ? "bg-green-600 text-white hover:bg-green-700"
-                        : "bg-gray-300 text-gray-500 cursor-not-allowed"
-                    }`}
-                  >
-                    {validandoEntrada
-                      ? "Validando..."
-                      : processando
-                      ? "Processando..."
-                      : !adolescenteSelecionadoId
-                      ? "Selecione um adolescente"
-                      : validacaoResultado?.requerJustificativa
-                      ? "Registrar Visita (Requer Justificativa)"
-                      : "Registrar Visita"}
-                  </button>
-                  <button
-                    onClick={() => {
-                      limparEstadoVisita();
-                      if (origemIdentificacao === "facial") {
-                        iniciarFluxoFacial();
-                      } else {
-                        setModoIdentificacao(false);
-                        setOrigemIdentificacao(null);
+                  <div className="mt-6 md:mt-8 flex flex-col sm:flex-row gap-3 md:gap-4">
+                    <button
+                      onClick={handleConfirmarEntrada}
+                      disabled={
+                        !adolescenteSelecionadoId ||
+                        validandoEntrada ||
+                        processando ||
+                        (justificativaObrigatoria &&
+                          justificativaHorario.trim().length === 0)
                       }
-                    }}
-                    className="px-4 md:px-6 py-2.5 md:py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors font-semibold shadow-md text-sm md:text-base"
-                  >
-                    Nova Identificacao
-                  </button>
-                </div>
-              </>
-            ) : (
-              /* Falha na Identificacao */
-              <div>
-                <div className="flex items-center gap-2 md:gap-3 mb-4 md:mb-6">
-                  <AlertCircle className="text-amber-600 w-10 h-10 md:w-12 md:h-12 flex-shrink-0" />
-                  <div>
-                    <h2 className="text-xl md:text-2xl lg:text-3xl font-bold text-amber-700">
-                      Visitante Nao Identificado
-                    </h2>
-                    <p className="text-gray-600 mt-1 text-xs md:text-sm">{resultado.message}</p>
+                      className={`flex-1 px-4 md:px-6 py-2.5 md:py-3 rounded-lg transition-colors font-semibold shadow-md text-sm md:text-base ${
+                        adolescenteSelecionadoId &&
+                        !validandoEntrada &&
+                        !processando &&
+                        (!justificativaObrigatoria ||
+                          justificativaHorario.trim().length > 0)
+                          ? "bg-green-600 text-white hover:bg-green-700"
+                          : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                      }`}
+                    >
+                      {validandoEntrada
+                        ? "Validando..."
+                        : processando
+                        ? "Processando..."
+                        : !adolescenteSelecionadoId
+                        ? "Selecione um adolescente"
+                        : justificativaObrigatoria &&
+                          justificativaHorario.trim().length === 0
+                        ? "Informe a justificativa"
+                        : "Confirmar entrada"}
+                    </button>
+                    <button
+                      onClick={() => {
+                        limparEstadoVisita();
+                        if (origemIdentificacao === "facial") {
+                          iniciarFluxoFacial();
+                        } else {
+                          setModoIdentificacao(false);
+                          setOrigemIdentificacao(null);
+                        }
+                      }}
+                      className="px-4 md:px-6 py-2.5 md:py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors font-semibold shadow-md text-sm md:text-base"
+                    >
+                      Nova Identificacao
+                    </button>
                   </div>
                 </div>
+              ) : (
+                <div>
+                  <div className="flex items-center gap-2 md:gap-3 mb-4 md:mb-6">
+                    <AlertCircle className="text-amber-600 w-10 h-10 md:w-12 md:h-12 flex-shrink-0" />
+                    <div>
+                      <h2 className="text-xl md:text-2xl lg:text-3xl font-bold text-amber-700">
+                        Visitante Nao Identificado
+                      </h2>
+                      <p className="text-gray-600 mt-1 text-xs md:text-sm">
+                        {resultado.message}
+                      </p>
+                    </div>
+                  </div>
 
-                <p className="text-gray-700 mb-4 md:mb-6 text-sm md:text-base">
-                  O sistema nao conseguiu identificar automaticamente este visitante.
-                  Possiveis motivos:
-                </p>
+                  <p className="text-gray-700 mb-4 md:mb-6 text-sm md:text-base">
+                    O sistema nao conseguiu identificar automaticamente este
+                    visitante. Possiveis motivos:
+                  </p>
 
-                <ul className="list-disc list-inside space-y-1.5 md:space-y-2 text-gray-700 mb-4 md:mb-6 text-sm md:text-base">
-                  <li>Visitante nao possui face cadastrada no sistema</li>
-                  <li>Qualidade da imagem capturada esta baixa</li>
-                  <li>Iluminacao inadequada</li>
-                  <li>Face parcialmente obstruida</li>
-                </ul>
+                  <ul className="list-disc list-inside space-y-1.5 md:space-y-2 text-gray-700 mb-4 md:mb-6 text-sm md:text-base">
+                    <li>Visitante nao possui face cadastrada no sistema</li>
+                    <li>Qualidade da imagem capturada esta baixa</li>
+                    <li>Iluminacao inadequada</li>
+                    <li>Face parcialmente obstruida</li>
+                  </ul>
 
-                <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
-                  <button
-                    onClick={() => alert("Redirecionar para cadastro manual")}
-                    className="flex-1 px-4 md:px-6 py-2.5 md:py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-semibold shadow-md text-sm md:text-base"
-                  >
-                    <span className="hidden sm:inline">Cadastrar Novo Visitante</span>
-                    <span className="sm:hidden">Cadastrar Visitante</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      limparEstadoVisita();
-                      iniciarFluxoFacial();
-                    }}
-                    className="px-4 md:px-6 py-2.5 md:py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors font-semibold shadow-md text-sm md:text-base"
-                  >
-                    Tentar Novamente
-                  </button>
+                  <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
+                    <button
+                      onClick={() => alert("Redirecionar para cadastro manual")}
+                      className="flex-1 px-4 md:px-6 py-2.5 md:py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-semibold shadow-md text-sm md:text-base"
+                    >
+                      <span className="hidden sm:inline">
+                        Cadastrar Novo Visitante
+                      </span>
+                      <span className="sm:hidden">Cadastrar Visitante</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        limparEstadoVisita();
+                        iniciarFluxoFacial();
+                      }}
+                      className="px-4 md:px-6 py-2.5 md:py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors font-semibold shadow-md text-sm md:text-base"
+                    >
+                      Tentar Novamente
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
             </div>
           </div>
         )}
@@ -907,7 +1121,9 @@ export default function PortariaPage() {
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 md:p-6 flex items-center gap-2 md:gap-3">
             <AlertCircle className="text-red-600 w-7 h-7 md:w-8 md:h-8 flex-shrink-0" />
             <div>
-              <h3 className="text-base md:text-lg font-bold text-red-700">Erro</h3>
+              <h3 className="text-base md:text-lg font-bold text-red-700">
+                Erro
+              </h3>
               <p className="text-red-600 text-sm md:text-base">{erro}</p>
             </div>
           </div>
@@ -917,7 +1133,9 @@ export default function PortariaPage() {
           <div className="fixed top-4 right-4 z-50">
             <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-3 flex items-center gap-2 shadow-lg">
               <CheckCircle className="text-green-600 w-5 h-5" />
-              <p className="text-green-800 text-sm font-semibold">{mensagemSucesso}</p>
+              <p className="text-green-800 text-sm font-semibold">
+                {mensagemSucesso}
+              </p>
             </div>
           </div>
         )}
@@ -942,71 +1160,7 @@ export default function PortariaPage() {
             processando={processando}
           />
         )}
-
-        {/* Modal de Validacao Previa */}
-        {mostrarModalValidacao && resultado?.success && resultado.visitante && (
-          <ModalValidacaoPrevia
-            visitanteId={resultado.visitante.id}
-            visitanteNome={resultado.visitante.nomeCompleto}
-            adolescentes={resultado.visitante.adolescentes}
-            onConfirmar={async (
-              adolescenteId,
-              justificativa,
-              registrarDireto
-            ) => {
-              setAdolescenteSelecionadoId(adolescenteId);
-              setJustificativaHorario(justificativa);
-              setMostrarModalValidacao(false);
-
-              if (registrarDireto) {
-                await registrarVisitaDireta(
-                  adolescenteId,
-                  justificativa ?? null
-                );
-              } else {
-                setMostrarModalVisita(true);
-              }
-            }}
-            onCancelar={() => setMostrarModalValidacao(false)}
-          />
-        )}
-
-        {/* Modal de Registro de Visita */}
-        {mostrarModalVisita && resultado?.success && resultado.visitante && (
-          <ModalRegistrarVisita
-            visitanteId={resultado.visitante.id}
-            visitanteNome={resultado.visitante.nomeCompleto}
-            adolescentes={adolescenteSelecionadoId ? resultado.visitante.adolescentes.filter(a => a.id === adolescenteSelecionadoId) : resultado.visitante.adolescentes}
-            adolescentePreSelecionado={adolescenteSelecionadoId}
-            justificativaPrevia={justificativaHorario}
-            onClose={() => {
-              setMostrarModalVisita(false);
-              setAdolescenteSelecionadoId("");
-              setJustificativaHorario(null);
-            }}
-            onSucesso={() => {
-              // Limpar resultado e voltar para a tela inicial
-              setResultado(null);
-              setErro(null);
-              setMostrarModalVisita(false);
-              setAdolescenteSelecionadoId("");
-              setValidacaoResultado(null);
-              setJustificativaHorario(null);
-              setOrigemIdentificacao("facial");
-              setModoIdentificacao(true);
-              setCameraSessionId((prev) => prev + 1);
-              setMensagemSucesso("Visita registrada com sucesso.");
-            }}
-          />
-        )}
       </div>
     </div>
   );
 }
-
-
-
-
-
-
-

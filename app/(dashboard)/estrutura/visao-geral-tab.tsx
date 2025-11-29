@@ -189,6 +189,14 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
 
   const totalAlojamentosCard = resumoAlojamentos.total || totalAlojamentos;
 
+  const adolescentesAtivos = useMemo(
+    () =>
+      adolescentes.filter(
+        (item) => (item.statusUnidade ?? "").toUpperCase() === "ATIVO"
+      ),
+    [adolescentes]
+  );
+
   const carregarDados = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -712,7 +720,7 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
             <User size={18} />
             <div>
               <p className="text-xs uppercase tracking-wide font-semibold text-purple-600">Adolescentes ativos</p>
-              <p className="text-2xl font-bold text-purple-900 leading-tight">{adolescentes.length}</p>
+              <p className="text-2xl font-bold text-purple-900 leading-tight">{adolescentesAtivos.length}</p>
             </div>
           </div>
         </div>

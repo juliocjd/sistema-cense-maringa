@@ -113,6 +113,7 @@ export async function POST(request: NextRequest) {
                 id: true,
                 nomeCompleto: true,
                 nomeSocial: true,
+                statusUnidade: true,
               },
             },
           },

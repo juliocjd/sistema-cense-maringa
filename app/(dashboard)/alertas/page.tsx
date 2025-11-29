@@ -13,6 +13,7 @@ import {
   XCircle,
   AlertCircle,
   Clock,
+  Minus,
 } from "lucide-react";
 import Link from "next/link";
 import { CardAlerta } from "@/components/alertas/card-alerta";
@@ -67,6 +68,7 @@ function AlertasPageContent() {
   const [filtroAdolescenteId] = useState(initialAdolescenteId);
   const [busca, setBusca] = useState(initialBusca);
   const [alertaEdicao, setAlertaEdicao] = useState<AlertaAtivo | null>(null);
+  const [filtrosVisiveis, setFiltrosVisiveis] = useState(false);
 
   // Modal
   const [modalNovoAberto, setModalNovoAberto] = useState(false);
@@ -294,139 +296,172 @@ function AlertasPageContent() {
 
       {/* Filtros */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Filter size={18} className="text-gray-600" />
-          <h3 className="font-bold text-gray-900">Filtros</h3>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Filter size={18} className="text-gray-600" />
+            <h3 className="font-bold text-gray-900">Filtros</h3>
+            {[
+              filtroStatus !== "ATIVO",
+              Boolean(filtroTipo),
+              Boolean(filtroNivel),
+              Boolean(filtroCasa),
+              Boolean(filtroNumeroAdolescente),
+              Boolean(busca),
+            ].filter(Boolean).length > 0 && (
+              <span className="text-xs font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">
+                {
+                  [
+                    filtroStatus !== "ATIVO",
+                    Boolean(filtroTipo),
+                    Boolean(filtroNivel),
+                    Boolean(filtroCasa),
+                    Boolean(filtroNumeroAdolescente),
+                    Boolean(busca),
+                  ].filter(Boolean).length
+                }{' '}
+                ativo(s)
+              </span>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => setFiltrosVisiveis((prev) => !prev)}
+            className="flex items-center gap-2 px-3 py-1.5 text-sm font-semibold border-2 border-gray-200 rounded-lg hover:border-gray-300 transition-colors"
+          >
+            {filtrosVisiveis ? <Minus size={16} /> : <Plus size={16} />}
+            {filtrosVisiveis ? "Ocultar filtros" : "Mostrar filtros"}
+          </button>
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-2">
-          <div className="rounded-2xl border border-gray-200 p-4 space-y-4">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold uppercase text-gray-500">
-                Situação, risco e tipo
-              </p>
-              <span className="text-[11px] text-gray-400">
-                Atualiza automaticamente
-              </span>
-            </div>
-            <div className="grid gap-3 md:grid-cols-2">
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Status
-                  </label>
-                  <select
-                    value={filtroStatus}
-                    onChange={(e) =>
-                      setFiltroStatus(e.target.value as "ATIVO" | "DESATIVADO" | "TODOS")
-                    }
-                    className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none"
-                  >
-                    <option value="ATIVO">Ativos</option>
-                    <option value="DESATIVADO">Desativados</option>
-                    <option value="TODOS">Todos</option>
-                  </select>
+        {filtrosVisiveis && (
+          <div className="mt-4 grid gap-4 lg:grid-cols-2">
+            <div className="rounded-2xl border border-gray-200 p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold uppercase text-gray-500">
+                  Situa???o, risco e tipo
+                </p>
+                <span className="text-[11px] text-gray-400">
+                  Atualiza automaticamente
+                </span>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Status
+                    </label>
+                    <select
+                      value={filtroStatus}
+                      onChange={(e) =>
+                        setFiltroStatus(e.target.value as "ATIVO" | "DESATIVADO" | "TODOS")
+                      }
+                      className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none"
+                    >
+                      <option value="ATIVO">Ativos</option>
+                      <option value="DESATIVADO">Desativados</option>
+                      <option value="TODOS">Todos</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Tipo de alerta
+                    </label>
+                    <select
+                      value={filtroTipo}
+                      onChange={(e) => setFiltroTipo(e.target.value)}
+                      className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none"
+                    >
+                      <option value="">Todos os tipos</option>
+                      {tiposUnicos.map((tipo) => (
+                        <option key={tipo} value={tipo}>
+                          {tipo}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Tipo de alerta
-                  </label>
-                  <select
-                    value={filtroTipo}
-                    onChange={(e) => setFiltroTipo(e.target.value)}
-                    className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none"
-                  >
-                    <option value="">Todos os tipos</option>
-                    {tiposUnicos.map((tipo) => (
-                      <option key={tipo} value={tipo}>
-                        {tipo}
-                      </option>
-                    ))}
-                  </select>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      N??vel de risco
+                    </label>
+                    <select
+                      value={filtroNivel}
+                      onChange={(e) => setFiltroNivel(e.target.value)}
+                      className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none"
+                    >
+                      <option value="">Todos</option>
+                      <option value="CRITICO">Cr??tico</option>
+                      <option value="ALTO">Alto</option>
+                      <option value="MEDIO">M?dio</option>
+                      <option value="BAIXO">Baixo</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Casa
+                    </label>
+                    <select
+                      value={filtroCasa}
+                      onChange={(e) => setFiltroCasa(e.target.value)}
+                      className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none"
+                    >
+                      <option value="">Todas as casas</option>
+                      {casas.map((casa) => (
+                        <option key={casa.id} value={casa.id}>
+                          {casa.nome}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Nível de risco
-                  </label>
-                  <select
-                    value={filtroNivel}
-                    onChange={(e) => setFiltroNivel(e.target.value)}
-                    className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none"
-                  >
-                    <option value="">Todos</option>
-                    <option value="CRITICO">Crítico</option>
-                    <option value="ALTO">Alto</option>
-                    <option value="MEDIO">Médio</option>
-                    <option value="BAIXO">Baixo</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Casa
-                  </label>
-                  <select
-                    value={filtroCasa}
-                    onChange={(e) => setFiltroCasa(e.target.value)}
-                    className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none"
-                  >
-                    <option value="">Todas as casas</option>
-                    {casas.map((casa) => (
-                      <option key={casa.id} value={casa.id}>
-                        {casa.nome}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
             </div>
-          </div>
 
-          <div className="rounded-2xl border border-gray-200 p-4 space-y-3">
-            <p className="text-xs font-semibold uppercase text-gray-500">
-              Identificação rápida
-            </p>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Número do adolescente
-                </label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={filtroNumeroAdolescente}
-                  onChange={(e) => setFiltroNumeroAdolescente(e.target.value.trim())}
-                  placeholder="Informe o SMS"
-                  className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Buscar por nome ou descrição
-                </label>
-                <div className="relative">
-                  <Search
-                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                    size={18}
-                  />
+            <div className="rounded-2xl border border-gray-200 p-4 space-y-3">
+              <p className="text-xs font-semibold uppercase text-gray-500">
+                Identifica???o r?pida
+              </p>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    N?mero do adolescente
+                  </label>
                   <input
                     type="text"
-                    value={busca}
-                    onChange={(e) => setBusca(e.target.value)}
-                    placeholder="Nome, SMS ou palavras-chave..."
-                    className="w-full pl-10 pr-3 py-3 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none"
+                    inputMode="numeric"
+                    value={filtroNumeroAdolescente}
+                    onChange={(e) => setFiltroNumeroAdolescente(e.target.value.trim())}
+                    placeholder="Informe o SMS"
+                    className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none"
                   />
                 </div>
-                <p className="text-[11px] text-gray-500 mt-1">
-                  Pesquisa simultânea em nome, número e descrição do alerta.
-                </p>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Buscar por nome ou descri???o
+                  </label>
+                  <div className="relative">
+                    <Search
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                      size={18}
+                    />
+                    <input
+                      type="text"
+                      value={busca}
+                      onChange={(e) => setBusca(e.target.value)}
+                      placeholder="Nome, SMS ou palavras-chave..."
+                      className="w-full pl-10 pr-3 py-3 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none"
+                    />
+                  </div>
+                  <p className="text-[11px] text-gray-500 mt-1">
+                    Pesquisa simult?nea em nome, n?mero e descri???o do alerta.
+                  </p>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
-
       {/* Lista de Alertas */}
       {loading ? (
         <div className="text-center py-12">

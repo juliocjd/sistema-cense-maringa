@@ -6,6 +6,10 @@ import {
 import type { RiscoDetalhado, NivelRiscoBasico } from "@/lib/riscos/calcular";
 import type { ConflitosExternosMapa } from "@/lib/riscos/calcular";
 import { mapearAdolescenteParaRisco } from "./utils";
+import {
+  construirMapaAlojamentos,
+  avaliarVigilanciaFrontal,
+} from "@/lib/alocacao/vigilancia-frontal";
 
 const mapearCasas = (casasDb: CasaRisco[]): CasaRisco[] =>
   casasDb.map((casa) => ({
@@ -70,6 +74,7 @@ export const simularAlocacao = ({
   conflitosExternos,
 }: SimulacaoParams) => {
   const casasClonadas = mapearCasas(casasBase);
+  const mapaAlojamentos = construirMapaAlojamentos(casasClonadas);
   removerAdolescenteDasCasas(casasClonadas, adolescente.id);
 
   const casaAlvo = casasClonadas.find((casa) =>
@@ -109,9 +114,34 @@ export const simularAlocacao = ({
 
   alojamentoAlvo.statusManutencao = statusOriginal;
 
+  const vigilanciaFrontal = adolescenteSimulado.alertaRiscoSuicidio
+    ? avaliarVigilanciaFrontal(alojamentoAlvo, mapaAlojamentos)
+    : { valido: true };
+
   const alertas = construirAlertas(resultado.detalhes, resultado.ambiental);
+  if (!vigilanciaFrontal.valido && vigilanciaFrontal.motivo) {
+    const jaExiste = alertas.some(
+      (alerta) => alerta.mensagem === vigilanciaFrontal.motivo
+    );
+    if (!jaExiste) {
+      alertas.push({
+        tipo: "AMBIENTAL",
+        nivel: 2 as NivelRiscoBasico,
+        mensagem: vigilanciaFrontal.motivo,
+        proximidade: undefined,
+      });
+    }
+  }
+
+  const motivosAtualizados = [...resultado.motivos];
+  if (!vigilanciaFrontal.valido && vigilanciaFrontal.motivo) {
+    if (!motivosAtualizados.includes(vigilanciaFrontal.motivo)) {
+      motivosAtualizados.unshift(vigilanciaFrontal.motivo);
+    }
+  }
+
   const requerJustificativa = resultado.nivel >= 3;
-  const permiteAlocacao = resultado.nivel < 5;
+  const permiteAlocacao = vigilanciaFrontal.valido && resultado.nivel < 5;
 
   return {
     status: 200,
@@ -121,7 +151,7 @@ export const simularAlocacao = ({
       nivel_risco: resultado.categoria,
       nivel_numerico: resultado.nivel,
       alertas,
-      motivos: resultado.motivos,
+      motivos: motivosAtualizados,
       alojamento: {
         id: alojamentoAlvo.id,
         numero: alojamentoAlvo.numeroAlojamento,

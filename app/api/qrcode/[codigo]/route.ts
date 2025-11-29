@@ -51,6 +51,7 @@ export async function GET(
                   select: {
                     id: true,
                     nomeCompleto: true,
+                    nomeSocial: true,
                     statusUnidade: true,
                     alojamentoAtual: {
                       select: {
@@ -297,6 +298,7 @@ export async function GET(
           (vinculo) => ({
             id: vinculo.adolescente.id,
             nomeCompleto: vinculo.adolescente.nomeCompleto,
+            nomeSocial: vinculo.adolescente.nomeSocial,
             statusUnidade: vinculo.adolescente.statusUnidade,
             parentesco: vinculo.parentesco,
             numeroCasa: vinculo.adolescente.alojamentoAtual?.casa?.numero || null,

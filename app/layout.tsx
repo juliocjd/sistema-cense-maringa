@@ -1,25 +1,22 @@
-import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
-import './globals.css'
-import { SessionProvider } from '@/components/providers/session-provider'
-
-const inter = Inter({ subsets: ['latin'] })
+import type { Metadata } from "next";
+import "./globals.css";
+import { SessionProvider } from "@/components/providers/session-provider";
 
 export const metadata: Metadata = {
-  title: 'Sistema CENSE Maringá',
-  description: 'Sistema de Inteligência e Gestão Socioeducativa',
-}
+  title: "Sistema CENSE Maringǭ",
+  description: "Sistema de InteligǦncia e Gestǜo Socioeducativa",
+};
 
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: React.ReactNode;
 }) {
   return (
     <html lang="pt-BR">
-      <body className={inter.className} suppressHydrationWarning>
+      <body className="font-sans antialiased" suppressHydrationWarning>
         <SessionProvider>{children}</SessionProvider>
       </body>
     </html>
-  )
+  );
 }

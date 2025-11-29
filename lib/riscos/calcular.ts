@@ -597,9 +597,9 @@ export function calcularRiscoAlojamento({
         frontalInfo.casa,
         frontalInfo.alojamento
       );
-      const mensagem = `Monitorar risco de suicídio: alojamento frontal${
-        localFrontal ? ` (${localFrontal})` : ""
-      } está vazio.`;
+      const mensagem = `Sem vigilancia frontal: ${
+        localFrontal || "alojamento frontal"
+      } esta vazio.`;
       registrarMotivo(2, mensagem, "AMBIENTAL");
     }
   }

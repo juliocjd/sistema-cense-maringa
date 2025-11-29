@@ -11,6 +11,10 @@ import {
   type CasaRisco,
   type ConflitosExternosMapa,
 } from "@/lib/riscos/calcular";
+import {
+  construirMapaAlojamentos,
+  avaliarVigilanciaFrontal,
+} from "@/lib/alocacao/vigilancia-frontal";
 import type { ImpactoConflitoExterno } from "@/types/inteligencia";
 import type { Adolescente, StatusUnidade } from "@/types";
 
@@ -457,6 +461,7 @@ export async function gerarSugestoesParaAlocacao({
   const adolescenteAvaliado = adolescente;
 
   const casas = await carregarCasasComAlojamentos();
+  const mapaAlojamentos = construirMapaAlojamentos(casas);
 
   const mapaBairros =
     bairroParaAnalise && bairroParaAnalise !== ""
@@ -487,12 +492,19 @@ export async function gerarSugestoesParaAlocacao({
         return;
       }
 
-        const avaliacao = avaliarCandidato(
-          casa,
-          alojamento,
-          adolescenteAvaliado,
-          conflitosExternos
-        );
+      if (adolescenteAvaliado.alertaRiscoSuicidio) {
+        const vigilado = avaliarVigilanciaFrontal(alojamento, mapaAlojamentos);
+        if (!vigilado.valido) {
+          return;
+        }
+      }
+
+      const avaliacao = avaliarCandidato(
+        casa,
+        alojamento,
+        adolescenteAvaliado,
+        conflitosExternos
+      );
 
       candidatos.push(avaliacao);
     });

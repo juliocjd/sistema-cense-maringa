@@ -16,6 +16,7 @@ type Visitante = {
     id: string;
     nomeCompleto: string;
     nomeSocial: string | null;
+    statusUnidade?: string | null;
   }>;
 };
 
