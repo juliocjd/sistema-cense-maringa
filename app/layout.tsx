@@ -3,8 +3,8 @@ import "./globals.css";
 import { SessionProvider } from "@/components/providers/session-provider";
 
 export const metadata: Metadata = {
-  title: "Sistema CENSE Maringǭ",
-  description: "Sistema de InteligǦncia e Gestǜo Socioeducativa",
+  title: "Sistema CENSE Maringá",
+  description: "Sistema de Inteligência e Gestão Socioeducativa",
 };
 
 export default function RootLayout({

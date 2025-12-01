@@ -40,11 +40,15 @@ type Conflito = {
 interface ListagemConflitosProps {
   conflitos: Conflito[];
   onExcluir?: (conflito: Conflito) => Promise<void> | void;
+  incluirInativos?: boolean;
+  onToggleInativos?: (value: boolean) => void;
 }
 
 export function ListagemConflitos({
   conflitos,
   onExcluir,
+  incluirInativos = false,
+  onToggleInativos,
 }: ListagemConflitosProps) {
   const [busca, setBusca] = useState("");
   const [filtroStatus, setFiltroStatus] = useState<string>("TODOS");
@@ -84,6 +88,70 @@ export function ListagemConflitos({
     }),
     [conflitos]
   );
+
+  const gerarRelatorioPDF = () => {
+    if (conflitosFiltrados.length === 0) {
+      return;
+    }
+    const linhas = conflitosFiltrados
+      .map(
+        (conflito) => `
+          <tr>
+            <td>${conflito.tipoConflito}</td>
+            <td>${conflito.status}</td>
+            <td>${conflito.participantes
+              .map((p) => `${p.nome} (${p.numeroSms ?? "sem SMS"})`)
+              .join(" vs ")}</td>
+            <td>${new Date(conflito.criadoEm).toLocaleString("pt-BR")}</td>
+            <td>${conflito.resolvidoEm
+              ? new Date(conflito.resolvidoEm).toLocaleString("pt-BR")
+              : "—"}</td>
+            <td>${conflito.descricao ?? "—"}</td>
+          </tr>`
+      )
+      .join("");
+
+    const html = `
+      <html>
+        <head>
+          <title>Relatório de Conflitos</title>
+          <style>
+            body { font-family: sans-serif; padding: 24px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+            th, td { padding: 8px; border: 1px solid #ccc; font-size: 12px; }
+            th { background: #111827; color: #fff; }
+          </style>
+        </head>
+        <body>
+          <h1>Relatório de Conflitos</h1>
+          <p>Gerado em ${new Date().toLocaleString("pt-BR")}</p>
+          <table>
+            <thead>
+              <tr>
+                <th>Tipo</th>
+                <th>Status</th>
+                <th>Participantes</th>
+                <th>Criado em</th>
+                <th>Resolvido em</th>
+                <th>Descrição</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${linhas}
+            </tbody>
+          </table>
+        </body>
+      </html>`;
+
+    const janela = window.open("", "_blank");
+    if (!janela) {
+      return;
+    }
+    janela.document.write(html);
+    janela.document.close();
+    janela.focus();
+    janela.print();
+  };
 
   const getStatusBadge = (status: string) => {
     if (status === "ATIVO") {
@@ -226,6 +294,26 @@ export function ListagemConflitos({
           >
             <Eye size={18} />
             Limpar
+          </button>
+        </div>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
+          <label className="flex items-center gap-2 text-sm text-gray-600">
+            <input
+              type="checkbox"
+              checked={incluirInativos}
+              onChange={(event) =>
+                onToggleInativos && onToggleInativos(event.target.checked)
+              }
+              className="form-checkbox h-4 w-4 text-red-600 border-gray-300 rounded"
+            />
+            Incluir adolescentes inativos/desinternados
+          </label>
+          <button
+            type="button"
+            onClick={gerarRelatorioPDF}
+            className="px-4 py-2 rounded-full border border-red-400 text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors"
+          >
+            Gerar relatório (PDF)
           </button>
         </div>
         {mostrarFiltros && (

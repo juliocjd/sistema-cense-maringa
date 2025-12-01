@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { ListagemConflitos } from "@/components/conflitos/listagem-conflitos";
 
 type Participante = {
@@ -73,14 +73,24 @@ const normalizarConflito = (conflito: ApiConflito): Conflito => {
 export default function ConflitosPage() {
   const [conflitos, setConflitos] = useState<Conflito[]>([]);
   const [loading, setLoading] = useState(true);
+  const [erro, setErro] = useState<string | null>(null);
+  const [incluirInativos, setIncluirInativos] = useState(false);
 
-  useEffect(() => {
-    carregarConflitos();
-  }, []);
+  const participanteStatusParam = useMemo(() => {
+    if (incluirInativos) {
+      return "ATIVO,TRANSFERIDO,LIBERADO,EVADIDO";
+    }
+    return "ATIVO";
+  }, [incluirInativos]);
 
-  const carregarConflitos = async () => {
+  const carregarConflitos = useCallback(async () => {
     try {
-      const response = await fetch("/api/conflitos");
+      setErro(null);
+      setLoading(true);
+      const params = new URLSearchParams({
+        participanteStatus: participanteStatusParam,
+      });
+      const response = await fetch(`/api/conflitos?${params.toString()}`);
 
       if (!response.ok) {
         throw new Error("Erro ao carregar conflitos");
@@ -89,6 +99,9 @@ export default function ConflitosPage() {
       const data = await response.json();
       setConflitos(ordenarConflitos(data.map(normalizarConflito)));
     } catch (error) {
+      const mensagem =
+        error instanceof Error ? error.message : "Erro ao carregar conflitos";
+      setErro(mensagem);
       // Mock de dados para desenvolvimento
       const mockConflitos: ApiConflito[] = [
         {
@@ -214,7 +227,11 @@ export default function ConflitosPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [participanteStatusParam]);
+
+  useEffect(() => {
+    carregarConflitos();
+  }, [carregarConflitos]);
 
   const handleExcluir = async (conflito: Conflito) => {
     if (
@@ -266,6 +283,13 @@ export default function ConflitosPage() {
   }
 
   return (
-    <ListagemConflitos conflitos={conflitos} onExcluir={handleExcluir} />
+    <div className="px-4 py-6">
+      <ListagemConflitos
+        conflitos={conflitos}
+        onExcluir={handleExcluir}
+        incluirInativos={incluirInativos}
+        onToggleInativos={setIncluirInativos}
+      />
+    </div>
   );
 }

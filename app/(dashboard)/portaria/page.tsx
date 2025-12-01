@@ -1130,12 +1130,9 @@ export default function PortariaPage() {
         )}
 
         {mensagemSucesso && (
-          <div className="fixed top-4 right-4 z-50">
-            <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-3 flex items-center gap-2 shadow-lg">
-              <CheckCircle className="text-green-600 w-5 h-5" />
-              <p className="text-green-800 text-sm font-semibold">
-                {mensagemSucesso}
-              </p>
+          <div className="fixed inset-x-0 top-0 z-50 flex justify-center px-4">
+            <div className="w-full max-w-3xl rounded-b-2xl bg-emerald-600 text-white shadow-2xl border border-emerald-500 text-center px-4 py-3 font-semibold tracking-wide">
+              {mensagemSucesso}
             </div>
           </div>
         )}

@@ -216,12 +216,24 @@ const criarConflitosPorPartes = async ({
   };
 };
 
+const parseStatusList = (value: string | null) => {
+  if (!value) {
+    return null;
+  }
+  return value
+    .split(",")
+    .map((status) => status.trim().toUpperCase())
+    .filter((status) => status.length > 0);
+};
+
 // GET /api/conflitos
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status");
     const busca = searchParams.get("busca");
+    const participanteStatusParam = searchParams.get("participanteStatus");
+    const participanteStatus = parseStatusList(participanteStatusParam);
 
     const where: any = {};
 
@@ -256,6 +268,28 @@ export async function GET(request: Request) {
       ];
     }
 
+    if (participanteStatus && participanteStatus.length > 0) {
+      const participanteCondition = {
+        OR: [
+          {
+            adolescenteA: {
+              statusUnidade: {
+                in: participanteStatus,
+              },
+            },
+          },
+          {
+            adolescenteB: {
+              statusUnidade: {
+                in: participanteStatus,
+              },
+            },
+          },
+        ],
+      };
+      where.AND = [...(where.AND ?? []), participanteCondition];
+    }
+
     const conflitos = await prisma.conflito.findMany({
       where,
       include: {
@@ -263,6 +297,7 @@ export async function GET(request: Request) {
           select: {
             id: true,
             nomeCompleto: true,
+            statusUnidade: true,
             numeroSms: true,
             alojamentoAtual: {
               include: {
@@ -275,6 +310,7 @@ export async function GET(request: Request) {
           select: {
             id: true,
             nomeCompleto: true,
+            statusUnidade: true,
             numeroSms: true,
             alojamentoAtual: {
               include: {
