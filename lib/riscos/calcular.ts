@@ -127,6 +127,7 @@ export type RiscoDetalhado = {
   tipo: "CONFLITO_INTERNO" | "CONFLITO_EXTERNO" | "ALIADO" | "AMBIENTAL";
   mensagem: string;
   proximidade?: Proximidade;
+  referenciaConflitoId?: string | null;
 };
 
 export type ConflitosExternosMapa = Record<
@@ -188,10 +189,16 @@ const formatarLocalReferencia = (
   if (alojamento?.numeroAlojamento) {
     partes.push(`Aloj. ${alojamento.numeroAlojamento}`);
   }
-  if (alojamento?.ala) {
-    partes.push(`Ala ${alojamento.ala}`);
+  return partes.join(", ");
+};
+
+const obterNomeFaccao = (
+  faccao?: { nome?: string | null; nomeFaccao?: string | null } | null
+) => {
+  if (!faccao) {
+    return null;
   }
-  return partes.join(" - ");
+  return faccao.nome ?? faccao.nomeFaccao ?? null;
 };
 
 export const criarMapaSlots = (
@@ -365,7 +372,8 @@ export function calcularRiscoAlojamento({
     nivel: 5 | 4 | 3 | 2,
     mensagem: string,
     tipo: RiscoDetalhado["tipo"],
-    proximidade?: Proximidade
+    proximidade?: Proximidade,
+    referencia?: { conflitoId?: string | null }
   ) => {
     const bucket = motivosPorNivel[nivel];
     if (!bucket.includes(mensagem)) {
@@ -375,6 +383,7 @@ export function calcularRiscoAlojamento({
         tipo,
         mensagem,
         proximidade,
+        referenciaConflitoId: referencia?.conflitoId ?? undefined,
       });
     }
   };
@@ -389,7 +398,11 @@ export function calcularRiscoAlojamento({
   const verificarAliados = (
     alvo: { bairroId?: string | null; faccaoId?: string | null },
     contexto: string,
-    opts?: { ignorarIds?: Set<string> }
+    opts?: {
+      ignorarIds?: Set<string>;
+      faccaoNome?: string | null;
+      rivalNome?: string | null;
+    }
   ) => {
     if (!alvo.bairroId && !alvo.faccaoId) {
       return;
@@ -435,9 +448,18 @@ export function calcularRiscoAlojamento({
       // Diferenciar entre ALIANÇA FORTE (facção) e ALIANÇA FRACA (bairro)
       if (mesmaFaccao) {
         // ALIANÇA FORTE: Facção (vínculo organizacional)
-        const resumo = `ALIANÇA FORTE (Facção): ${adolescente.nomeCompleto}${
-          localAliado ? ` - ${localAliado}` : ""
-        } da mesma facção que o rival - ${contexto}`;
+        const faccaoAliado =
+          obterNomeFaccao(adolescente.faccao) ??
+          opts?.faccaoNome ??
+          "facção não identificada";
+        const rivalReferencia = opts?.rivalNome ?? null;
+        const resumo = rivalReferencia
+          ? `ALIANÇA FORTE (Facção): ${adolescente.nomeCompleto}${
+              localAliado ? ` - ${localAliado}` : ""
+            } pertence à facção ${faccaoAliado}, mesma facção de ${rivalReferencia}, que possui conflito ativo com este adolescente.`
+          : `ALIANÇA FORTE (Facção): ${adolescente.nomeCompleto}${
+              localAliado ? ` - ${localAliado}` : ""
+            } pertence à facção ${faccaoAliado}, citada em ${contexto}.`;
 
         if (proximidade === "FRONTAL") {
           registrarMotivo(4, resumo, "ALIADO", proximidade);
@@ -488,13 +510,21 @@ export function calcularRiscoAlojamento({
     }${local ? ` - ${local}` : ""}`;
 
     if (proximidade === "FRONTAL") {
-        registrarMotivo(5, msg, "CONFLITO_INTERNO", proximidade);
+      registrarMotivo(5, msg, "CONFLITO_INTERNO", proximidade, {
+        conflitoId: conflito.id,
+      });
     } else if (proximidade === "MESMA_ALA") {
-      registrarMotivo(4, msg, "CONFLITO_INTERNO", proximidade);
+      registrarMotivo(4, msg, "CONFLITO_INTERNO", proximidade, {
+        conflitoId: conflito.id,
+      });
     } else if (proximidade === "MESMA_CASA") {
-      registrarMotivo(3, msg, "CONFLITO_INTERNO", proximidade);
+      registrarMotivo(3, msg, "CONFLITO_INTERNO", proximidade, {
+        conflitoId: conflito.id,
+      });
     } else if (proximidade === "ZONA_JANELA") {
-      registrarMotivo(2, msg, "CONFLITO_INTERNO", proximidade);
+      registrarMotivo(2, msg, "CONFLITO_INTERNO", proximidade, {
+        conflitoId: conflito.id,
+      });
     }
 
     rivaisDiretos.add(adversarioSlot.adolescente.id);
@@ -508,7 +538,11 @@ export function calcularRiscoAlojamento({
           undefined,
       },
       `conflito interno com ${adversarioSlot.adolescente.nomeCompleto}`,
-      { ignorarIds: rivaisDiretos }
+      {
+        ignorarIds: rivaisDiretos,
+        faccaoNome: obterNomeFaccao(adversarioSlot.adolescente.faccao),
+        rivalNome: adversarioSlot.adolescente.nomeCompleto ?? null,
+      }
     );
   });
 
@@ -563,31 +597,43 @@ export function calcularRiscoAlojamento({
           riscoElevado ? 5 : 4,
           descricao,
           "CONFLITO_EXTERNO",
-          proximidade
+          proximidade,
+          { conflitoId: impacto.conflitoId }
         );
       } else if (proximidade === "MESMA_ALA") {
-        registrarMotivo(4, descricao, "CONFLITO_EXTERNO", proximidade);
+        registrarMotivo(4, descricao, "CONFLITO_EXTERNO", proximidade, {
+          conflitoId: impacto.conflitoId,
+        });
       } else if (proximidade === "MESMA_CASA") {
         registrarMotivo(
           riscoElevado ? 3 : 2,
           descricao,
           "CONFLITO_EXTERNO",
-          proximidade
+          proximidade,
+          { conflitoId: impacto.conflitoId }
         );
       } else if (proximidade === "ZONA_JANELA") {
-        registrarMotivo(2, descricao, "CONFLITO_EXTERNO", proximidade);
+        registrarMotivo(2, descricao, "CONFLITO_EXTERNO", proximidade, {
+          conflitoId: impacto.conflitoId,
+        });
       }
 
       rivaisDiretos.add(adolescente.id);
     });
 
-    verificarAliados(
-      impacto.conflitoTipo === "BAIRRO"
-        ? { bairroId: impacto.conflitoDestino.id }
-        : { faccaoId: impacto.conflitoDestino.id },
-      contexto,
-      { ignorarIds: rivaisDiretos }
-    );
+  verificarAliados(
+    impacto.conflitoTipo === "BAIRRO"
+      ? { bairroId: impacto.conflitoDestino.id }
+      : { faccaoId: impacto.conflitoDestino.id },
+    contexto,
+    {
+      ignorarIds: rivaisDiretos,
+      faccaoNome:
+        impacto.conflitoTipo === "FACCAO"
+          ? impacto.conflitoDestino.nome
+          : undefined,
+    }
+  );
   });
 
   const suicidioGrave = alertaSuicidioExigeMonitoramento(

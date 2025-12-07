@@ -83,10 +83,7 @@ const formatarLocalReferencia = (
   if (alojamento?.numeroAlojamento) {
     partes.push(`Aloj. ${alojamento.numeroAlojamento}`);
   }
-  if (alojamento?.ala) {
-    partes.push(`Ala ${alojamento.ala}`);
-  }
-  return partes.length > 0 ? partes.join(" - ") : null;
+  return partes.length > 0 ? partes.join(", ") : null;
 };
 
 export function MapaInterativo({
@@ -274,8 +271,10 @@ export function MapaInterativo({
     fecharModalDetalhes();
   };
 
-  const getBadgeAmbiental = (avaliacao?: AvaliacaoRiscoAlojamento | null) => {
-    if (!avaliacao?.ambiental?.ativo) return null;
+  const getBadgeAliados = (avaliacao?: AvaliacaoRiscoAlojamento | null) => {
+    if (!avaliacao?.detalhes?.some((detalhe) => detalhe.tipo === "ALIADO")) {
+      return null;
+    }
     return (
       <span className="absolute -left-2 -top-2 rounded-full bg-amber-500/85 px-2 py-0.5 text-[10px] font-semibold text-white shadow backdrop-blur border border-amber-300">
         Aliados do rival na casa
@@ -322,7 +321,7 @@ export function MapaInterativo({
             : "Clique para visualizar acoes e alocar"
         }
       >
-        {getBadgeAmbiental(avaliacao)}
+        {getBadgeAliados(avaliacao)}
         {getIconesAlerta(aloj)}
         <span className="font-bold text-xl text-gray-800">{numero}</span>
         {nomeResumido && (

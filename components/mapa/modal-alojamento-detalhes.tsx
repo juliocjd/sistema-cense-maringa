@@ -51,6 +51,9 @@ type RiscoDetalhadoResumo = {
   adolescenteId?: string;
   tagNivel?: NivelBadge;
   tagLabel?: string;
+  frontalSuicidioLabel?: string;
+  semVigilanciaFrontalLabel?: string;
+  conflitoId?: string;
 };
 
 const ALERTA_DESCRICAO_LIMITE = 220;
@@ -395,6 +398,69 @@ export default function ModalAlojamentoDetalhes({
     return null;
   };
 
+  const alojamentoFrontalInfo = useMemo(() => {
+    if (!alojamento?.alojamentoFrontalId) {
+      return null;
+    }
+
+    for (const casa of casas) {
+      const frontal = casa.alojamentos.find(
+        (a) => a.id === alojamento.alojamentoFrontalId
+      );
+      if (frontal) {
+        return { casa, alojamento: frontal };
+      }
+    }
+    return null;
+  }, [alojamento?.alojamentoFrontalId, casas]);
+
+  const frontalOcupante =
+    alojamentoFrontalInfo?.alojamento.adolescentes?.[0] ?? null;
+
+  const semVigilanciaFrontal = (() => {
+    if (!alojamento) {
+      return false;
+    }
+    if (!alojamento.alojamentoFrontalId) {
+      return true;
+    }
+    if (!alojamentoFrontalInfo) {
+      return true;
+    }
+    const frontal = alojamentoFrontalInfo.alojamento;
+    if (frontal.statusManutencao === "INTERDITADO") {
+      return true;
+    }
+    return frontal.adolescentes.length === 0;
+  })();
+
+  const frontalSuicidioInfo = useMemo(() => {
+    if (!frontalOcupante?.alertaRiscoSuicidio) {
+      return null;
+    }
+
+    const nivel =
+      normalizarNivelTexto(
+        frontalOcupante.alertaRiscoSuicidioNivel ?? null
+      ) ?? "BAIXO";
+
+    const localPartes: string[] = [];
+    if (alojamentoFrontalInfo?.casa?.nome) {
+      localPartes.push(alojamentoFrontalInfo.casa.nome);
+    }
+    const frontalNumero =
+      alojamentoFrontalInfo?.alojamento.numeroAlojamento ?? null;
+    if (frontalNumero) {
+      localPartes.push(`Aloj. ${frontalNumero}`);
+    }
+
+    return {
+      nivel,
+      nivelLabel: formatarNivelBadgeLabel(nivel),
+      local: localPartes.length ? localPartes.join(" - ") : null,
+    };
+  }, [frontalOcupante, alojamentoFrontalInfo]);
+
   const formatarLocalizacao = (local?: {
     casa?: string | null;
     numero?: string | null;
@@ -431,13 +497,13 @@ export default function ModalAlojamentoDetalhes({
   /**
    * Labels descritivos para cada tipo de proximidade
    */
-  const labelProximidade: Record<string, string> = {
-    FRONTAL: "Frontal (risco máximo)",
-    MESMA_ALA: "Mesma ala (alto risco)",
-    MESMA_CASA: "Mesma casa (risco moderado)",
-    ZONA_JANELA: "Zona de janela (risco baixo)",
-    FORA: "Fora de alcance",
-  };
+const labelProximidade: Record<string, string> = {
+  FRONTAL: "Frontal (risco máximo)",
+  MESMA_ALA: "Mesma ala (atenção)",
+  MESMA_CASA: "Mesma casa (risco moderado)",
+  ZONA_JANELA: "Zona de janela (risco baixo)",
+  FORA: "Fora de alcance",
+};
 
   /**
    * Labels descritivos para cada tipo de risco
@@ -623,6 +689,7 @@ const conflitosAvaliacaoDetalhados = useMemo<RiscoDetalhadoResumo[]>(() => {
         descricao,
         nivel: numeroParaNivelBadge(detalhe.nivel),
         envolvidos,
+        conflitoId: detalhe.referenciaConflitoId ?? undefined,
       });
 
       return lista;
@@ -665,6 +732,13 @@ const riscosDetalhados = useMemo(() => {
         normalizarNivelTexto(
           ocupante.alertaRiscoSuicidioNivel ?? info.nivelRisco ?? null
         ) ?? "ALTO";
+      const frontalFlagLabel = frontalSuicidioInfo
+        ? "Frontal com historico de suicidio"
+        : undefined;
+      const semVigilanciaLabel =
+        semVigilanciaFrontal && (suicidioNivel === "ALTO" || suicidioNivel === "CRITICO")
+          ? "Sem vigilancia frontal"
+          : undefined;
       riscos.push({
         titulo: "Risco de suicidio",
         descricao: info.descricao,
@@ -674,6 +748,8 @@ const riscosDetalhados = useMemo(() => {
         adolescenteId: ocupante.id,
         tagNivel: suicidioNivel,
         tagLabel: formatarNivelBadgeLabel(suicidioNivel),
+        frontalSuicidioLabel: frontalFlagLabel,
+        semVigilanciaFrontalLabel: semVigilanciaLabel,
       });
     }
 
@@ -713,7 +789,13 @@ const riscosDetalhados = useMemo(() => {
     riscos.push(...conflitosAvaliacaoDetalhados);
 
     return riscos;
-  }, [ocupante, alertasEspeciaisPorTipo, conflitosAvaliacaoDetalhados]);
+  }, [
+    ocupante,
+    alertasEspeciaisPorTipo,
+    conflitosAvaliacaoDetalhados,
+    frontalSuicidioInfo,
+    semVigilanciaFrontal,
+  ]);
 
 const motivosAmbientaisDetalhados = useMemo<MotivoAmbientalDetalhado[]>(() => {
     const motivos = avaliacaoRisco?.ambiental?.motivos;
@@ -1000,21 +1082,19 @@ const motivosAmbientaisDetalhados = useMemo<MotivoAmbientalDetalhado[]>(() => {
                     <span className="text-xs font-semibold text-indigo-600 px-2 py-0.5 rounded-full bg-indigo-50 border border-indigo-200">
                       Nº interno: {ocupante.numeroInterno ?? "Nao informado"}
                     </span>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
+                    {ocupante.faccao && (
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-purple-700 px-2 py-0.5 rounded-full bg-purple-50 border border-purple-200">
+                        <Shield size={12} />
+                        {ocupante.faccao.nome}
+                      </span>
+                    )}
                     {ocupante.bairroOrigem && (
                       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-amber-200 bg-amber-50 text-amber-700 text-xs font-semibold">
                         <MapPin size={12} />
-                        {ocupante.bairroOrigem.nome}
+                        Regiao {ocupante.bairroOrigem.nome}
                         {ocupante.bairroOrigem.cidade
                           ? ` - ${ocupante.bairroOrigem.cidade}`
                           : ""}
-                      </span>
-                    )}
-                    {ocupante.faccao && (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-purple-200 bg-purple-50 text-purple-700 text-xs font-semibold">
-                        <Shield size={12} />
-                        {ocupante.faccao.nome}
                       </span>
                     )}
                   </div>
@@ -1372,6 +1452,15 @@ const motivosAmbientaisDetalhados = useMemo<MotivoAmbientalDetalhado[]>(() => {
                               params.has("adolescenteId"))
                               ? `/alertas?${params.toString()}`
                               : null;
+                          const conflitoLink = risco.conflitoId
+                            ? `/conflitos/${risco.conflitoId}`
+                            : null;
+                          const actionLink = alertaLink ?? conflitoLink;
+                          const actionLabel = alertaLink
+                            ? "Ver alerta"
+                            : conflitoLink
+                            ? "Ver conflito"
+                            : null;
                           return (
                             <div
                               key={`${risco.titulo}-${index}`}
@@ -1389,6 +1478,18 @@ const motivosAmbientaisDetalhados = useMemo<MotivoAmbientalDetalhado[]>(() => {
                                         className={`text-[10px] font-semibold uppercase tracking-wide rounded-full border px-2 py-0.5 ${nivelBadgeClasses[risco.tagNivel]}`}
                                       >
                                         {risco.tagLabel ?? formatarNivelBadgeLabel(risco.tagNivel)}
+                                      </span>
+                                    )}
+                                    {risco.frontalSuicidioLabel && (
+                                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold rounded-full border border-rose-300 bg-rose-50 px-2 py-0.5 text-rose-800">
+                                        <AlertTriangle size={10} />
+                                        {risco.frontalSuicidioLabel}
+                                      </span>
+                                    )}
+                                    {risco.semVigilanciaFrontalLabel && (
+                                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-amber-800">
+                                        <AlertTriangle size={10} />
+                                        {risco.semVigilanciaFrontalLabel}
                                       </span>
                                     )}
                                   </div>
@@ -1412,12 +1513,12 @@ const motivosAmbientaisDetalhados = useMemo<MotivoAmbientalDetalhado[]>(() => {
                                         <p className="italic flex-1 min-w-[60%]">
                                           ℹ️ {risco.descricao}
                                         </p>
-                                        {alertaLink && (
+                                        {actionLink && actionLabel && (
                                           <Link
-                                            href={alertaLink}
+                                            href={actionLink}
                                             className="inline-flex items-center rounded-full border border-white/70 bg-white/60 px-2.5 py-0.5 text-[10px] font-semibold text-slate-700 hover:bg-white whitespace-nowrap"
                                           >
-                                            Ver alerta
+                                            {actionLabel}
                                           </Link>
                                         )}
                                       </div>

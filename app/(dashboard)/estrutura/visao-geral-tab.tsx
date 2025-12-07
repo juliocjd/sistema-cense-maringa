@@ -156,7 +156,6 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
     conflitos: [],
   });
 
-  const [dropdownConflitosAberto, setDropdownConflitosAberto] = useState(false);
   const ultimoRefreshRef = useRef(0);
   const operacaoEmAndamentoRef = useRef(false);
   const refreshPendenteRef = useRef(false);
@@ -838,91 +837,6 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
                   <span className="text-sm">Atualizando...</span>
                 </div>
               )}
-              {(() => {
-                // Combinar IDs de adolescentes com conflitos internos OU externos
-                const idsComConflitosInternos = new Set(Object.keys(conflitosInternos));
-                const idsComConflitosExternos = new Set(Object.keys(conflitosExternos));
-                const todosIdsComConflitos = new Set([...idsComConflitosInternos, ...idsComConflitosExternos]);
-
-                // Filtrar apenas adolescentes com nível de risco >= 2 (MONITORAR ou superior)
-                const idsComRiscoRelevante = Array.from(todosIdsComConflitos).filter((id) => {
-                  const nivelRisco = riscosPorAdolescente.get(id) ?? 0;
-                  return nivelRisco >= 2;
-                });
-
-                return idsComRiscoRelevante.length > 0 && (
-                  <div className="relative">
-                    <button
-                      onClick={() => setDropdownConflitosAberto(!dropdownConflitosAberto)}
-                      className="px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors flex items-center gap-2 shadow-md"
-                    >
-                      <AlertTriangle size={18} />
-                      <span>Analisar Conflitos ({idsComRiscoRelevante.length})</span>
-                      <ChevronDown size={16} className={`transition-transform ${dropdownConflitosAberto ? 'rotate-180' : ''}`} />
-                    </button>
-
-                    {dropdownConflitosAberto && (
-                      <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl border border-gray-200 z-50 max-h-96 overflow-y-auto">
-                        <div className="p-3 border-b border-gray-200 bg-gray-50">
-                          <p className="text-sm font-semibold text-gray-700">Selecione o adolescente para análise:</p>
-                        </div>
-                        <div className="py-1">
-                          {idsComRiscoRelevante.map((adolescenteId) => {
-                            const adolescente = adolescentes.find(a => a.id === adolescenteId);
-                            const numConflitosInternos = conflitosInternos[adolescenteId]?.length || 0;
-                            const numConflitosExternos = conflitosExternos[adolescenteId]?.length || 0;
-                            const numConflitosTotal = numConflitosInternos + numConflitosExternos;
-                            const alojamento = adolescente?.alojamentoAtualId
-                              ? casas.flatMap(c => c.alojamentos).find(a => a.id === adolescente.alojamentoAtualId)
-                              : null;
-                            const casa = alojamento
-                              ? casas.find(c => c.alojamentos.some(a => a.id === alojamento.id))
-                              : null;
-
-                            return (
-                              <button
-                                key={adolescenteId}
-                                onClick={() => {
-                                  if (adolescente) {
-                                    setModalAnaliseImpacto({
-                                      aberto: true,
-                                      adolescenteId: adolescente.id,
-                                      adolescenteNome: adolescente.nomeCompleto || "Desconhecido",
-                                      adolescenteAlocado: !!adolescente.alojamentoAtualId,
-                                      conflitos: conflitosInternos[adolescente.id] || [],
-                                    });
-                                    setDropdownConflitosAberto(false);
-                                  }
-                                }}
-                                className="w-full px-4 py-3 text-left hover:bg-red-50 transition-colors border-b border-gray-100 last:border-b-0"
-                              >
-                                <div className="flex items-start justify-between gap-2">
-                                  <div className="flex-1">
-                                    <p className="font-semibold text-gray-900">{adolescente?.nomeCompleto || "Desconhecido"}</p>
-                                    <p className="text-sm text-gray-600">SMS: {adolescente?.numeroSms || "N/A"}</p>
-                                    {alojamento && casa ? (
-                                      <p className="text-xs text-blue-600 mt-1">
-                                        {casa.nome} - Aloj {alojamento.numeroAlojamento} (Ala {alojamento.ala})
-                                      </p>
-                                    ) : (
-                                      <p className="text-xs text-orange-600 mt-1 font-medium">Não alocado</p>
-                                    )}
-                                  </div>
-                                  <div className="flex-shrink-0">
-                                    <span className="inline-flex items-center justify-center w-8 h-8 bg-red-100 text-red-700 rounded-full text-xs font-bold">
-                                      {numConflitosTotal}
-                                    </span>
-                                  </div>
-                                </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
             </div>
           </div>
 
