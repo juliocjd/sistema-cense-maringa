@@ -26,6 +26,11 @@ vi.mock("@/lib/prisma", () => {
   const casa = { findUnique: mockFn() };
   const operador = { findUnique: mockFn() };
   const logAuditoria = { create: mockFn() };
+  const adolescente = { findMany: mockFn() };
+  const conflito = { findMany: mockFn() };
+
+  adolescente.findMany.mockResolvedValue([]);
+  conflito.findMany.mockResolvedValue([]);
 
   return {
     prisma: {
@@ -33,6 +38,8 @@ vi.mock("@/lib/prisma", () => {
       casa,
       operador,
       logAuditoria,
+      adolescente,
+      conflito,
     },
   };
 });
@@ -50,6 +57,8 @@ const mockedPrisma = prisma as unknown as {
   casa: { findUnique: ReturnType<typeof vi.fn> };
   operador: { findUnique: ReturnType<typeof vi.fn> };
   logAuditoria: { create: ReturnType<typeof vi.fn> };
+  adolescente: { findMany: ReturnType<typeof vi.fn> };
+  conflito: { findMany: ReturnType<typeof vi.fn> };
 };
 
 const CASA_ID = "00000000-0000-0000-0000-000000000001";
@@ -73,9 +82,11 @@ beforeEach(() => {
     Object.values(value).forEach((fn) => {
       if (typeof fn === "function" && "mockReset" in fn) {
         (fn as any).mockReset();
-      }
-    });
+    }
   });
+  mockedPrisma.adolescente.findMany.mockResolvedValue([]);
+  mockedPrisma.conflito.findMany.mockResolvedValue([]);
+});
 });
 
 describe("GET /api/grupos", () => {

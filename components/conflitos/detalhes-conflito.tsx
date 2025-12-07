@@ -20,6 +20,7 @@ type Participante = {
   nome: string;
   numeroSms: string;
   alojamento?: string | null;
+  lado?: string | null;
 };
 
 type Conflito = {
@@ -29,12 +30,14 @@ type Conflito = {
     nome: string;
     numeroSms: string;
     alojamento?: string | null;
+    lado?: string | null;
   };
   adolescenteB: {
     id: string;
     nome: string;
     numeroSms: string;
     alojamento?: string | null;
+    lado?: string | null;
   };
   tipoConflito: string;
   status: "ATIVO" | "RESOLVIDO";
@@ -80,12 +83,14 @@ export function DetalhesConflito({
           nome: conflito.adolescenteA.nome,
           numeroSms: conflito.adolescenteA.numeroSms,
           alojamento: conflito.adolescenteA.alojamento,
+          lado: conflito.adolescenteA.lado ?? "Lado 1",
         },
         {
           id: conflito.adolescenteB.id,
           nome: conflito.adolescenteB.nome,
           numeroSms: conflito.adolescenteB.numeroSms,
           alojamento: conflito.adolescenteB.alojamento,
+          lado: conflito.adolescenteB.lado ?? "Lado 2",
         },
       ];
   const [mostrarFormMediacao, setMostrarFormMediacao] = useState(false);
@@ -310,7 +315,14 @@ export function DetalhesConflito({
             >
               <h3 className="mb-3 flex items-center gap-2 font-semibold text-gray-700">
                 <User size={18} />
-                {`Participante ${index + 1}`}
+                <span className="flex items-center gap-2">
+                  {`Participante ${index + 1}`}
+                  {participante.lado && (
+                    <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700">
+                      {participante.lado}
+                    </span>
+                  )}
+                </span>
               </h3>
               <p className="text-lg font-bold text-gray-900">{participante.nome}</p>
               <p className="text-sm text-gray-600">

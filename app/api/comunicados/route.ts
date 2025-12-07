@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
+import { aplicarAlertasEspeciais } from "@/lib/alertas/sincronizar-especiais";
 import {
-  aplicarAlertasEspeciais,
   ALERTAS_ESPECIAIS,
-} from "@/lib/alertas/sincronizar-especiais";
+  normalizarNivelRisco,
+} from "@/lib/alertas/especiais";
 
 const prisma = new PrismaClient();
 const CI_ALERTA_ESPECIAL_MAP: Record<string, keyof typeof ALERTAS_ESPECIAIS> =
@@ -20,6 +21,7 @@ const tiposQueGeramAlerta = [
   "SAUDE_CONFIDENCIAL",
   "FUGA",
   "AGRESSAO",
+  "AUTORIZACAO_ESPECIAL",
 ];
 
 /**
@@ -180,6 +182,7 @@ export async function POST(request: NextRequest) {
       gerarAlerta,
       nivelRiscoAlerta,
     } = body;
+    const nivelRiscoNormalizado = normalizarNivelRisco(nivelRiscoAlerta);
 
     // Validações
     if (!numero || !ano) {
@@ -292,6 +295,7 @@ export async function POST(request: NextRequest) {
               {
                 tipo: tipoEspecialCI,
                 descricao: `CI ${numero}/${ano} (${tipoCI}): ${resumoCI}`,
+                nivelRisco: nivelRiscoNormalizado ?? undefined,
               },
             ]);
             alertasGerados.push(`${tipoEspecialCI}-${adolescenteId}`);
@@ -299,7 +303,7 @@ export async function POST(request: NextRequest) {
           }
 
           const nivelRisco =
-            nivelRiscoAlerta ||
+            nivelRiscoNormalizado ||
             (tipoCI === "RISCO_SUICIDIO"
               ? "CRITICO"
               : tipoCI === "FUGA"

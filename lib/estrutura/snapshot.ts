@@ -6,24 +6,13 @@ import {
   type ResultadoRisco,
 } from "@/lib/riscos/calcular";
 import type { ConflitosExternosMapa } from "@/lib/riscos/calcular";
-import type { Adolescente, Alojamento } from "@/types";
+import type { Adolescente, Alojamento, ConflitoResumo } from "@/types";
 import type { ImpactoConflitoExterno } from "@/types/inteligencia";
 import { calcularImpactosExternos } from "@/lib/inteligencia/conflitos";
-
-type ConflitoResumo = {
-  id: string;
-  tipo: string | null;
-  status: string;
-  adversario?: {
-    id: string;
-    nome: string;
-    sms?: string | null;
-    alojamento?: string | null;
-  } | null;
-  origem?: string | null;
-  criadoEm?: string | Date;
-  resolvidoEm?: string | Date | null;
-};
+import {
+  ALERTAS_ESPECIAIS,
+  extrairNivelRiscoSuicidio,
+} from "@/lib/alertas/especiais";
 
 type OcupanteResumo = {
   id: string;
@@ -33,6 +22,7 @@ type OcupanteResumo = {
   foto_url?: string | null;
   status_unidade?: string | null;
   alerta_risco_suicidio?: boolean;
+  alerta_risco_suicidio_nivel?: string | null;
   alerta_perfil_mapeado?: boolean;
   alerta_saude_confidencial?: boolean;
   bairro_origem_id?: string | null;
@@ -281,6 +271,16 @@ const calcularSnapshot = async (): Promise<{
                 },
                 bairroOrigem: true,
                 faccao: true,
+                alertasAtivos: {
+                  where: {
+                    desativadoEm: null,
+                    tipoAlerta: ALERTAS_ESPECIAIS.RISCO_SUICIDIO.tipoAlerta,
+                  },
+                  select: {
+                    tipoAlerta: true,
+                    nivelRisco: true,
+                  },
+                },
               },
             },
           },
@@ -292,7 +292,20 @@ const calcularSnapshot = async (): Promise<{
     carregarImpactosExternosAtivos(),
   ]);
 
-  const casasParaCalculo: CasaRisco[] = casasDb.map((casa) => ({
+  const casasNormalizadas = casasDb.map((casa) => {
+    casa.alojamentos.forEach((alojamento: any) => {
+      alojamento.adolescentes =
+        alojamento.adolescentes?.map((adolescente: any) => ({
+          ...adolescente,
+          alertaRiscoSuicidioNivel: extrairNivelRiscoSuicidio(
+            adolescente.alertasAtivos
+          ),
+        })) ?? [];
+    });
+    return casa;
+  });
+
+  const casasParaCalculo: CasaRisco[] = casasNormalizadas.map((casa) => ({
     id: casa.id,
     nome: casa.nome,
     numero: casa.numero ?? 0,
@@ -390,6 +403,8 @@ const calcularSnapshot = async (): Promise<{
             foto_url: ocupante.fotoUrl,
             status_unidade: ocupante.statusUnidade,
             alerta_risco_suicidio: ocupante.alertaRiscoSuicidio,
+            alerta_risco_suicidio_nivel:
+              (ocupante as any).alertaRiscoSuicidioNivel ?? null,
             alerta_perfil_mapeado: ocupante.alertaPerfilMapeado,
             alerta_saude_confidencial: ocupante.alertaSaudeConfidencial,
             bairro_origem_id: ocupante.bairroOrigemId,

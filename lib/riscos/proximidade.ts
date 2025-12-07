@@ -15,6 +15,8 @@ type SlotInfo = {
   casa?: Pick<Casa, "id" | "numero"> | null;
 };
 
+export type { SlotInfo };
+
 type JanelaConfig = {
   casaA: number;
   alaA: string;

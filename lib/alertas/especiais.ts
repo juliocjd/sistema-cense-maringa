@@ -1,3 +1,16 @@
+export const ALERTA_NIVEL_RISCO = [
+  "CRITICO",
+  "ALTO",
+  "MEDIO",
+  "BAIXO",
+] as const;
+
+export type AlertaNivelRisco = (typeof ALERTA_NIVEL_RISCO)[number];
+
+export const ALERTA_NIVEL_RISCO_VARIADIC = [
+  ...ALERTA_NIVEL_RISCO,
+] as [AlertaNivelRisco, ...AlertaNivelRisco[]];
+
 export const ALERTAS_ESPECIAIS = {
   RISCO_SUICIDIO: {
     tipoAlerta: "RISCO_SUICIDIO",
@@ -69,4 +82,48 @@ export function ehTipoAlertaEspecial(tipo?: string | null): boolean {
   return ALERTA_ESPECIAL_TIPOS.some(
     (chave) => ALERTAS_ESPECIAIS[chave].tipoAlerta === tipo
   );
+}
+
+export function normalizarNivelRisco(
+  valor?: string | null
+): AlertaNivelRisco | null {
+  if (!valor) {
+    return null;
+  }
+  return ALERTA_NIVEL_RISCO.includes(valor as AlertaNivelRisco)
+    ? (valor as AlertaNivelRisco)
+    : null;
+}
+
+export function ehNivelRiscoElevado(nivel?: string | null): boolean {
+  const normalizado = normalizarNivelRisco(nivel);
+  return normalizado === "ALTO" || normalizado === "CRITICO";
+}
+
+type EntradaAlertaEspecial =
+  | { tipo?: string | null; nivelRisco?: string | null }
+  | { tipoAlerta?: string | null; nivelRisco?: string | null };
+
+export function extrairNivelRiscoSuicidio(
+  alertas?: EntradaAlertaEspecial[] | null
+): string | null {
+  if (!alertas) return null;
+  const alvo = alertas.find((alerta) => {
+    const tipo = (alerta as any).tipo ?? (alerta as any).tipoAlerta ?? null;
+    if (!tipo) return false;
+    return (
+      tipo === "RISCO_SUICIDIO" ||
+      tipo === ALERTAS_ESPECIAIS.RISCO_SUICIDIO.tipoAlerta
+    );
+  });
+  return alvo?.nivelRisco ?? null;
+}
+
+export function alertaSuicidioExigeMonitoramento(
+  ativo: boolean,
+  nivel?: string | null
+): boolean {
+  if (!ativo) return false;
+  if (!nivel) return true;
+  return ehNivelRiscoElevado(nivel);
 }

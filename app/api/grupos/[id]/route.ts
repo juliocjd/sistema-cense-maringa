@@ -27,7 +27,8 @@ const getIp = (req: NextRequest) =>
 
 const formatGrupo = (
   grupo: Awaited<ReturnType<typeof prisma.grupo.findUnique>>,
-  incluirMembros: boolean
+  incluirMembros: boolean,
+  mapaConflitos?: Map<string, number>
 ) => {
   if (!grupo) return null;
 
@@ -80,9 +81,7 @@ const formatGrupo = (
                     ala: membro.adolescente.alojamentoAtual.ala,
                   }
                 : null,
-              conflitosAtivos:
-                (membro.adolescente.conflitosA?.length ?? 0) +
-                (membro.adolescente.conflitosB?.length ?? 0),
+              conflitosAtivos: mapaConflitos?.get(membro.adolescente.id) ?? 0,
             },
           }))
         : undefined,
@@ -138,7 +137,62 @@ export async function GET(
       );
     }
 
-    return NextResponse.json(formatGrupo(grupo, incluirMembros));
+    let mapaConflitosPorGrupo: Map<string, number> | undefined;
+
+    if (incluirMembros && Array.isArray(grupo.membros)) {
+      const ativos = grupo.membros.filter((m) => m.dataSaida === null);
+      const idsAtivos = new Set(
+        ativos.map((m) => {
+          const adolescente = (m as any).adolescente;
+          if (adolescente && typeof adolescente.id === "string") {
+            return adolescente.id;
+          }
+          return m.adolescenteId;
+        })
+      );
+
+      if (idsAtivos.size > 0 && prisma.conflito?.findMany) {
+        const conflitos = await prisma.conflito.findMany({
+          where: {
+            status: "ATIVO",
+            OR: [
+              { registroGrupoId: id },
+              { adolescenteAId: { in: Array.from(idsAtivos) } },
+              { adolescenteBId: { in: Array.from(idsAtivos) } },
+            ],
+          },
+          select: {
+            adolescenteAId: true,
+            adolescenteBId: true,
+          },
+        });
+
+        const mapa = new Map<string, number>();
+
+        for (const conflito of conflitos) {
+          if (
+            !idsAtivos.has(conflito.adolescenteAId) ||
+            !idsAtivos.has(conflito.adolescenteBId)
+          ) {
+            continue;
+          }
+
+          const incrementar = (adolescenteId: string) => {
+            mapa.set(adolescenteId, (mapa.get(adolescenteId) ?? 0) + 1);
+          };
+
+          incrementar(conflito.adolescenteAId);
+          incrementar(conflito.adolescenteBId);
+
+        }
+
+        mapaConflitosPorGrupo = mapa;
+      }
+    }
+
+    return NextResponse.json(
+      formatGrupo(grupo, incluirMembros, mapaConflitosPorGrupo)
+    );
   } catch (error) {
     console.error("Erro ao buscar grupo:", error);
     return NextResponse.json(
@@ -314,9 +368,38 @@ export async function DELETE(
       );
     }
 
-    await prisma.grupo.delete({
-      where: { id },
-    });
+    const deleteMembers = async () => {
+      if (prisma.grupoMembro?.deleteMany) {
+        await prisma.grupoMembro.deleteMany({
+          where: {
+            grupoId: id,
+            dataSaida: { not: null },
+          },
+        });
+      }
+    };
+
+    if (prisma.$transaction) {
+      await prisma.$transaction(async (tx) => {
+        if (tx.grupoMembro?.deleteMany) {
+          await tx.grupoMembro.deleteMany({
+            where: {
+              grupoId: id,
+              dataSaida: { not: null },
+            },
+          });
+        }
+
+        await tx.grupo.delete({
+          where: { id },
+        });
+      });
+    } else {
+      await deleteMembers();
+      await prisma.grupo.delete({
+        where: { id },
+      });
+    }
 
     await prisma.logAuditoria.create({
       data: {

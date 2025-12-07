@@ -4,6 +4,7 @@ import {
   classificarProximidade,
   type Proximidade,
 } from "@/lib/riscos/proximidade";
+import { alertaSuicidioExigeMonitoramento } from "@/lib/alertas/especiais";
 
 export type NivelRiscoBasico = 0 | 1 | 2 | 3 | 4 | 5;
 
@@ -86,6 +87,7 @@ export type AdolescenteRisco = Pick<
   | "alertaPerfilMapeado"
   | "alertaSaudeConfidencial"
   | "alertaSaudeDetalhes"
+  | "alertaRiscoSuicidioNivel"
 > & {
   faccao?: { id: string | null; nome?: string | null } | null;
   conflitosA?: ConflitoRisco[];
@@ -588,7 +590,12 @@ export function calcularRiscoAlojamento({
     );
   });
 
-  if (ocupante.alertaRiscoSuicidio && alojamento.alojamentoFrontalId) {
+  const suicidioGrave = alertaSuicidioExigeMonitoramento(
+    ocupante.alertaRiscoSuicidio,
+    ocupante.alertaRiscoSuicidioNivel
+  );
+
+  if (suicidioGrave && alojamento.alojamentoFrontalId) {
     const frontalInfo = localizarAlojamentoComCasa(
       alojamento.alojamentoFrontalId
     );
@@ -601,6 +608,26 @@ export function calcularRiscoAlojamento({
         localFrontal || "alojamento frontal"
       } esta vazio.`;
       registrarMotivo(2, mensagem, "AMBIENTAL");
+    } else if (frontalInfo) {
+      const frontOcupante = frontalInfo.alojamento
+        .adolescentes[0] as AdolescenteRisco | undefined;
+      if (frontOcupante?.alertaRiscoSuicidio) {
+        const localFrontal = formatarLocalReferencia(
+          frontalInfo.casa,
+          frontalInfo.alojamento
+        );
+        const nivelTexto = frontOcupante.alertaRiscoSuicidioNivel
+          ? frontOcupante.alertaRiscoSuicidioNivel.toLowerCase()
+          : null;
+        const mensagem = `Vigilancia frontal compartilhada: ${
+          frontOcupante.nomeCompleto ?? "Adolescente frontal"
+        }${
+          localFrontal ? ` - ${localFrontal}` : ""
+        } tambem possui alerta de risco de suicidio${
+          nivelTexto ? ` (${nivelTexto})` : ""
+        }.`;
+        registrarMotivo(2, mensagem, "AMBIENTAL");
+      }
     }
   }
 

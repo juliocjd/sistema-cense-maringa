@@ -18,16 +18,35 @@ type Grupo = {
   criadoEm: string;
   casa: Casa;
   totalMembros?: number;
+  conflitosAtivos?: number;
+  conflitosSemMediacao?: number;
 };
 
 type CardGrupoProps = {
   grupo: Grupo;
   onAtualizar: () => void;
+  hideActions?: boolean;
+  detalheHref?: string;
 };
 
-export function CardGrupo({ grupo, onAtualizar }: CardGrupoProps) {
+export function CardGrupo({
+  grupo,
+  onAtualizar,
+  hideActions = false,
+  detalheHref,
+}: CardGrupoProps) {
   const [mostrarMenu, setMostrarMenu] = useState(false);
   const [deletando, setDeletando] = useState(false);
+
+  const prioridade = () => {
+    if ((grupo.conflitosSemMediacao ?? 0) > 0) {
+      return { label: "Alerta crítico", color: "bg-red-50 text-red-700" };
+    }
+    if ((grupo.conflitosAtivos ?? 0) > 0) {
+      return { label: "Monitorar conflitos", color: "bg-amber-50 text-amber-700" };
+    }
+    return { label: "Sem conflitos", color: "bg-green-50 text-green-700" };
+  };
 
   const handleDeletar = async () => {
     if (!confirm(`Deseja realmente excluir o grupo "${grupo.nomeGrupo}"?`)) {
@@ -85,52 +104,54 @@ export function CardGrupo({ grupo, onAtualizar }: CardGrupoProps) {
           </div>
 
           {/* Menu de Ações */}
-          <div className="relative">
-            <button
-              onClick={() => setMostrarMenu(!mostrarMenu)}
-              className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <MoreVertical size={18} className="text-gray-600" />
-            </button>
+          {!hideActions && (
+            <div className="relative">
+              <button
+                onClick={() => setMostrarMenu(!mostrarMenu)}
+                className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <MoreVertical size={18} className="text-gray-600" />
+              </button>
 
-            {mostrarMenu && (
-              <>
-                <div
-                  className="fixed inset-0 z-10"
-                  onClick={() => setMostrarMenu(false)}
-                />
-                <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl border border-gray-200 py-1 z-20">
-                  <Link
-                    href={`/grupos/${grupo.id}`}
-                    className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
-                  >
-                    <Eye size={16} />
-                    Ver Detalhes
-                  </Link>
-                  <Link
-                    href={`/grupos/${grupo.id}?acao=adicionar-membro`}
-                    className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
-                  >
-                    <UserPlus size={16} />
-                    Adicionar Membro
-                  </Link>
-                  <button
-                    onClick={handleDeletar}
-                    disabled={deletando || (grupo.totalMembros ?? 0) > 0}
-                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <Trash2 size={16} />
-                    {deletando ? "Excluindo..." : "Excluir Grupo"}
-                  </button>
-                  {(grupo.totalMembros ?? 0) > 0 && (
-                    <div className="px-4 py-2 text-xs text-gray-500 italic">
-                      Remova os membros primeiro
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
+              {mostrarMenu && (
+                <>
+                  <div
+                    className="fixed inset-0 z-10"
+                    onClick={() => setMostrarMenu(false)}
+                  />
+                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl border border-gray-200 py-1 z-20">
+                    <Link
+                      href={detalheHref || `/grupos/${grupo.id}`}
+                      className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                    >
+                      <Eye size={16} />
+                      Ver Detalhes
+                    </Link>
+                    <Link
+                      href={`/grupos/${grupo.id}?acao=adicionar-membro`}
+                      className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                    >
+                      <UserPlus size={16} />
+                      Adicionar Membro
+                    </Link>
+                    <button
+                      onClick={handleDeletar}
+                      disabled={deletando || (grupo.totalMembros ?? 0) > 0}
+                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Trash2 size={16} />
+                      {deletando ? "Excluindo..." : "Excluir Grupo"}
+                    </button>
+                    {(grupo.totalMembros ?? 0) > 0 && (
+                      <div className="px-4 py-2 text-xs text-gray-500 italic">
+                        Remova os membros primeiro
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -162,6 +183,18 @@ export function CardGrupo({ grupo, onAtualizar }: CardGrupoProps) {
         </div>
 
         {/* Botão de Ação Principal */}
+        <div className="flex flex-col gap-2 mb-3">
+          <span className={`text-xs font-semibold px-2 py-1 rounded-full ${prioridade().color}`}>
+            {prioridade().label} · {grupo.conflitosAtivos ?? 0} conflito(s)
+          </span>
+          <p className="text-xs text-gray-500">
+            {prioridade().label === "Alerta crítico"
+              ? "Há conflitos sem mediação - recomende o reagrupamento."
+              : prioridade().label === "Monitorar conflitos"
+              ? "Alguns conflitos ativos exigem atenção."
+              : "Nenhum conflito ativo detectado."}
+          </p>
+        </div>
         <Link
           href={`/grupos/${grupo.id}`}
           className="block w-full text-center bg-indigo-50 text-indigo-700 py-2 rounded-lg hover:bg-indigo-100 transition-colors font-semibold text-sm"

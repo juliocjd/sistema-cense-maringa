@@ -4,6 +4,22 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { auth } from "@/auth";
+import type { Prisma } from "@prisma/client";
+
+const montarFiltroGrupo = (
+  registroGrupoId: string | null,
+  fallbackId: string
+): Prisma.ConflitoWhereInput => {
+  if (registroGrupoId) {
+    return {
+      OR: [
+        { registroGrupoId },
+        { id: registroGrupoId },
+      ],
+    };
+  }
+  return { id: fallbackId };
+};
 
 /**
  * PUT /api/conflitos/:id/resolver
@@ -89,24 +105,47 @@ export async function PUT(
       );
     }
 
-    // Atualizar conflito
-    const conflitoAtualizado = await prisma.$transaction(async (tx) => {
-      const updated = await tx.conflito.update({
-        where: { id: conflitoId },
+    const filtroGrupo = montarFiltroGrupo(
+      conflito.registroGrupoId ?? null,
+      conflitoId
+    );
+
+    const conflitosDoGrupo = await prisma.conflito.findMany({
+      where: filtroGrupo,
+      select: { id: true },
+    });
+
+    if (conflitosDoGrupo.length === 0) {
+      return NextResponse.json(
+        { erro: "Nenhum registro encontrado para resolucao" },
+        { status: 404 }
+      );
+    }
+
+    const idsParaAtualizar = conflitosDoGrupo.map((registro) => registro.id);
+    const resolvidoEm = new Date();
+
+    const resultado = await prisma.$transaction(async (tx) => {
+      const updateResult = await tx.conflito.updateMany({
+        where: {
+          id: {
+            in: idsParaAtualizar,
+          },
+        },
         data: {
           status: "RESOLVIDO",
-          resolvidoEm: new Date(),
+          resolvidoEm,
         },
       });
 
-      // Registrar log de auditoria
       await tx.logAuditoria.create({
         data: {
           operadorId: operadorId,
           acao: "RESOLVER_CONFLITO",
           tabelaAfetada: "conflitos",
-          registroIdAfetado: conflitoId,
+          registroIdAfetado: conflito.registroGrupoId ?? conflitoId,
           detalhesAlteracao: {
+            registrosAtualizados: updateResult.count,
             adolescente_a: conflito.adolescenteA.nomeCompleto,
             adolescente_b: conflito.adolescenteB.nomeCompleto,
             tipo_conflito: conflito.tipoConflito,
@@ -117,24 +156,30 @@ export async function PUT(
         },
       });
 
-      return updated;
+      return updateResult;
     });
+
+    const tempoResolucaoDias = Math.floor(
+      (resolvidoEm.getTime() - conflito.criadoEm.getTime()) /
+        (1000 * 60 * 60 * 24)
+    );
 
     return NextResponse.json({
       sucesso: true,
-      mensagem: "Conflito marcado como resolvido",
+      mensagem:
+        resultado.count > 1
+          ? `Conflito marcado como resolvido para ${resultado.count} registros do grupo.`
+          : "Conflito marcado como resolvido",
+      registrosAfetados: resultado.count,
       conflito: {
-        id: conflitoAtualizado.id,
+        id: conflitoId,
+        registroGrupoId: conflito.registroGrupoId ?? conflitoId,
         adolescentes: `${conflito.adolescenteA.nomeCompleto} vs ${conflito.adolescenteB.nomeCompleto}`,
         tipo: conflito.tipoConflito,
         status: "RESOLVIDO",
-        resolvido_em: conflitoAtualizado.resolvidoEm,
+        resolvido_em: resolvidoEm,
         criado_em: conflito.criadoEm,
-        tempo_resolucao: `${Math.floor(
-          (conflitoAtualizado.resolvidoEm!.getTime() -
-            conflito.criadoEm.getTime()) /
-            (1000 * 60 * 60 * 24)
-        )} dias`,
+        tempo_resolucao: `${tempoResolucaoDias} dias`,
       },
       estatisticas: {
         total_tentativas_mediacao: conflito.tentativasMediacao.length,
@@ -197,77 +242,95 @@ export async function DELETE(
       );
     }
 
-
-    // Buscar conflito
     const conflito = await prisma.conflito.findUnique({
       where: { id: conflitoId },
     });
 
     if (!conflito) {
       return NextResponse.json(
-        { erro: "Conflito não encontrado" },
+        { erro: "Conflito nao encontrado" },
         { status: 404 }
       );
     }
 
-    // Verificar se está resolvido
     if (conflito.status !== "RESOLVIDO") {
       return NextResponse.json(
-        { erro: "Este conflito não está marcado como resolvido" },
+        { erro: "Este conflito nao esta marcado como resolvido" },
         { status: 400 }
       );
     }
 
-    // Reverter resolução
-    const conflitoAtualizado = await prisma.$transaction(async (tx) => {
-      const updated = await tx.conflito.update({
-        where: { id: conflitoId },
+    const filtroGrupo = montarFiltroGrupo(
+      conflito.registroGrupoId ?? null,
+      conflitoId
+    );
+
+    const conflitosDoGrupo = await prisma.conflito.findMany({
+      where: filtroGrupo,
+      select: { id: true },
+    });
+
+    if (conflitosDoGrupo.length === 0) {
+      return NextResponse.json(
+        { erro: "Nenhum registro encontrado para reverter" },
+        { status: 404 }
+      );
+    }
+
+    const idsParaAtualizar = conflitosDoGrupo.map((registro) => registro.id);
+
+    const resultado = await prisma.$transaction(async (tx) => {
+      const updateResult = await tx.conflito.updateMany({
+        where: {
+          id: {
+            in: idsParaAtualizar,
+          },
+        },
         data: {
           status: "ATIVO",
           resolvidoEm: null,
         },
       });
 
-      // Registrar log de auditoria
       await tx.logAuditoria.create({
         data: {
           operadorId: operadorId,
           acao: "REVERTER_RESOLUCAO_CONFLITO",
           tabelaAfetada: "conflitos",
-          registroIdAfetado: conflitoId,
+          registroIdAfetado: conflito.registroGrupoId ?? conflitoId,
           detalhesAlteracao: {
             motivo: body.motivo || "Nao especificado",
+            registrosAtualizados: updateResult.count,
           },
           ipOrigem: request.headers.get("x-forwarded-for") || "unknown",
         },
       });
 
-      return updated;
+      return updateResult;
     });
 
     return NextResponse.json({
       sucesso: true,
-      mensagem: "Resolução do conflito revertida. Conflito marcado como ATIVO",
+      mensagem:
+        resultado.count > 1
+          ? `Resolucao revertida em ${resultado.count} registros do grupo.`
+          : "Resolucao do conflito revertida. Conflito marcado como ATIVO",
+      registrosAfetados: resultado.count,
       conflito: {
-        id: conflitoAtualizado.id,
+        id: conflitoId,
+        registroGrupoId: conflito.registroGrupoId ?? conflitoId,
         status: "ATIVO",
       },
     });
   } catch (error) {
-    console.error("Erro ao reverter resolução:", error);
+    console.error("Erro ao reverter resolucao:", error);
     return NextResponse.json(
       {
-        erro: "Erro ao reverter resolução",
+        erro: "Erro ao reverter resolucao",
         detalhes: error instanceof Error ? error.message : String(error),
       },
       { status: 500 }
     );
   }
 }
-
-
-
-
-
-
 

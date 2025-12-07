@@ -235,7 +235,7 @@ function AlertasPageContent() {
         </div>
 
         {/* Estatísticas */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
@@ -287,6 +287,20 @@ function AlertasPageContent() {
                 <p className="text-sm text-gray-600 font-semibold">Médios</p>
                 <p className="text-2xl font-bold text-yellow-600">
                   {estatisticas.porNivel?.MEDIO || 0}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                <CheckCircle className="text-green-600" size={20} />
+              </div>
+              <div>
+                <p className="text-sm text-gray-600 font-semibold">Baixos</p>
+                <p className="text-2xl font-bold text-green-600">
+                  {estatisticas.porNivel?.BAIXO || 0}
                 </p>
               </div>
             </div>

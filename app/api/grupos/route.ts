@@ -4,7 +4,6 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { z } from "zod";
 
-// Schema de validação para criar grupo
 const createGrupoSchema = z.object({
   nomeGrupo: z.string().min(2, "Nome do grupo deve ter no mínimo 2 caracteres"),
   casaId: z.string().uuid("Casa ID inválido"),
@@ -12,28 +11,86 @@ const createGrupoSchema = z.object({
   status: z.enum(["ATIVO", "INATIVO"]).default("ATIVO"),
 });
 
-// GET /api/grupos - Listar grupos
+const montarMembros = (grupo: any, mapaConflitos?: Map<string, number>) => {
+  if (!Array.isArray(grupo.membros)) {
+    return [];
+  }
+
+  return grupo.membros.map((membro: any) => ({
+    id: membro.id,
+    dataEntrada: membro.dataEntrada,
+    dataSaida: membro.dataSaida,
+    ativo: membro.dataSaida === null,
+    adolescente: {
+      id: membro.adolescente.id,
+      nomeCompleto: membro.adolescente.nomeCompleto,
+      nomeSocial: membro.adolescente.nomeSocial,
+      numeroSms: membro.adolescente.numeroSms,
+      fotoUrl: membro.adolescente.fotoUrl,
+      statusUnidade: membro.adolescente.statusUnidade,
+      alojamento: membro.adolescente.alojamentoAtual
+        ? {
+            id: membro.adolescente.alojamentoAtual.id,
+            numero: membro.adolescente.alojamentoAtual.numeroAlojamento,
+            ala: membro.adolescente.alojamentoAtual.ala,
+          }
+        : null,
+      conflitosAtivos: mapaConflitos?.get(membro.adolescente.id) ?? 0,
+    },
+  }));
+};
+
+const criarMapaContagens = (
+  registros: Array<{ registroGrupoId: string | null; _count: { _all: number } }>
+) => {
+  const mapa = new Map<string, number>();
+  registros.forEach((item) => {
+    if (item.registroGrupoId) {
+      mapa.set(item.registroGrupoId, item._count._all);
+    }
+  });
+  return mapa;
+};
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-
-    // Filtros disponíveis
     const casaId = searchParams.get("casa_id");
     const status = searchParams.get("status");
+    const buscaAdolescente = searchParams.get("adolescente")?.trim();
     const incluirMembros = searchParams.get("incluir_membros") === "true";
 
-    // Construir query dinâmica
     const where: any = {};
+    if (casaId) where.casaId = casaId;
+    if (status) where.status = status;
+    let adolescentesParaFiltrar: string[] | undefined;
 
-    if (casaId) {
-      where.casaId = casaId;
+    if (buscaAdolescente) {
+      const potencials = await prisma.adolescente.findMany({
+        where: {
+          OR: [
+            { nomeCompleto: { contains: buscaAdolescente, mode: "insensitive" } },
+            { id: buscaAdolescente },
+            { numeroSms: buscaAdolescente },
+          ],
+        },
+        select: { id: true },
+      });
+
+      if (potencials.length > 0) {
+        adolescentesParaFiltrar = potencials.map((item) => item.id);
+        where.membros = {
+          some: {
+            adolescenteId: { in: adolescentesParaFiltrar },
+            dataSaida: null,
+          },
+        };
+      } else {
+        // If no matching adolescents, no groups should return
+        return NextResponse.json({ total: 0, grupos: [] });
+      }
     }
 
-    if (status) {
-      where.status = status;
-    }
-
-    // Buscar grupos
     const grupos = await prisma.grupo.findMany({
       where,
       include: {
@@ -46,22 +103,24 @@ export async function GET(request: NextRequest) {
         },
         ...(incluirMembros && {
           membros: {
-            where: { dataSaida: null }, // Apenas membros ativos
+            where: { dataSaida: null },
             include: {
               adolescente: {
-                select: {
-                  id: true,
-                  nomeCompleto: true,
-                  nomeSocial: true,
-                  numeroSms: true,
-                  fotoUrl: true,
-                  statusUnidade: true,
+                include: {
                   alojamentoAtual: {
                     select: {
                       id: true,
                       numeroAlojamento: true,
                       ala: true,
                     },
+                  },
+                  conflitosA: {
+                    where: { status: "ATIVO" },
+                    select: { id: true },
+                  },
+                  conflitosB: {
+                    where: { status: "ATIVO" },
+                    select: { id: true },
                   },
                 },
               },
@@ -72,7 +131,95 @@ export async function GET(request: NextRequest) {
       orderBy: [{ casa: { numero: "asc" } }, { nomeGrupo: "asc" }],
     });
 
-    // Formatar resposta
+    const grupoIds = grupos.map((grupo) => grupo.id);
+
+    const membrosAtivos = grupos.flatMap((grupo) =>
+      (grupo.membros ?? [])
+        .filter((membro: any) => membro.dataSaida === null)
+        .map((membro: any) => ({
+          grupoId: grupo.id,
+          adolescenteId: membro.adolescente.id,
+        }))
+    );
+
+    const grupoAtivosMap = new Map<string, Set<string>>();
+    for (const membro of membrosAtivos) {
+      if (!grupoAtivosMap.has(membro.grupoId)) {
+        grupoAtivosMap.set(membro.grupoId, new Set());
+      }
+      grupoAtivosMap.get(membro.grupoId)?.add(membro.adolescenteId);
+    }
+
+    const conflitos =
+      grupoIds.length === 0 || !prisma.conflito?.findMany
+        ? []
+        : await prisma.conflito.findMany({
+            where: {
+              status: "ATIVO",
+              registroGrupoId: { in: grupoIds },
+            },
+            select: {
+              id: true,
+              registroGrupoId: true,
+              adolescenteAId: true,
+              adolescenteBId: true,
+              tentativasMediacao: {
+                select: {
+                  id: true,
+                },
+              },
+            },
+          });
+
+    const mapaAtivos = new Map<string, number>();
+    const mapaSemMediacao = new Map<string, number>();
+    const mapaConflitosPorGrupo = new Map<string, Map<string, number>>();
+
+    for (const conflito of conflitos) {
+      let grupoId = conflito.registroGrupoId;
+      if (!grupoId) {
+        grupoId = [...grupoAtivosMap.entries()]
+          .find(
+            ([, membrosSet]) =>
+              membrosSet.has(conflito.adolescenteAId) &&
+              membrosSet.has(conflito.adolescenteBId)
+          )?.[0] ?? null;
+      }
+
+      if (!grupoId) {
+        continue;
+      }
+      const membrosAtivosSet = grupoAtivosMap.get(grupoId);
+      if (
+        !membrosAtivosSet ||
+        !membrosAtivosSet.has(conflito.adolescenteAId) ||
+        !membrosAtivosSet.has(conflito.adolescenteBId)
+      ) {
+        continue;
+      }
+
+      mapaAtivos.set(grupoId, (mapaAtivos.get(grupoId) ?? 0) + 1);
+
+      if ((conflito.tentativasMediacao?.length ?? 0) === 0) {
+        mapaSemMediacao.set(grupoId, (mapaSemMediacao.get(grupoId) ?? 0) + 1);
+      }
+
+      const grupoConflitos =
+        mapaConflitosPorGrupo.get(grupoId) ?? new Map<string, number>();
+
+      const atualizarContagem = (adolescenteId: string) => {
+        grupoConflitos.set(
+          adolescenteId,
+          (grupoConflitos.get(adolescenteId) ?? 0) + 1
+        );
+      };
+
+      atualizarContagem(conflito.adolescenteAId);
+      atualizarContagem(conflito.adolescenteBId);
+
+      mapaConflitosPorGrupo.set(grupoId, grupoConflitos);
+    }
+
     const gruposFormatados = grupos.map((grupo) => ({
       id: grupo.id,
       nomeGrupo: grupo.nomeGrupo,
@@ -84,30 +231,13 @@ export async function GET(request: NextRequest) {
         nome: grupo.casa.nome,
         numero: grupo.casa.numero,
       },
-      totalMembros: incluirMembros && "membros" in grupo
-        ? grupo.membros.length
+      totalMembros:
+        incluirMembros && "membros" in grupo ? grupo.membros.length : undefined,
+      membros: incluirMembros
+        ? montarMembros(grupo, mapaConflitosPorGrupo.get(grupo.id))
         : undefined,
-      membros: incluirMembros && "membros" in grupo
-        ? grupo.membros.map((membro: any) => ({
-            id: membro.id,
-            dataEntrada: membro.dataEntrada,
-            adolescente: {
-              id: membro.adolescente.id,
-              nomeCompleto: membro.adolescente.nomeCompleto,
-              nomeSocial: membro.adolescente.nomeSocial,
-              numeroSms: membro.adolescente.numeroSms,
-              fotoUrl: membro.adolescente.fotoUrl,
-              statusUnidade: membro.adolescente.statusUnidade,
-              alojamento: membro.adolescente.alojamentoAtual
-                ? {
-                    id: membro.adolescente.alojamentoAtual.id,
-                    numero: membro.adolescente.alojamentoAtual.numeroAlojamento,
-                    ala: membro.adolescente.alojamentoAtual.ala,
-                  }
-                : null,
-            },
-          }))
-        : undefined,
+      conflitosAtivos: mapaAtivos.get(grupo.id) ?? 0,
+      conflitosSemMediacao: mapaSemMediacao.get(grupo.id) ?? 0,
     }));
 
     return NextResponse.json({
@@ -126,13 +256,9 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/grupos - Criar novo grupo
 export async function POST(request: NextRequest) {
   try {
-    const session = await auth().catch((error) => {
-      console.error("Erro ao obter sessao do auth:", error);
-      return null;
-    });
+    const session = await auth().catch(() => null);
     const operadorId = session?.user?.id ?? null;
 
     if (!operadorId) {
@@ -146,54 +272,44 @@ export async function POST(request: NextRequest) {
       where: { id: operadorId },
       select: { id: true },
     });
-
     if (!operadorExiste) {
       return NextResponse.json(
         { erro: "Operador nao encontrado" },
         { status: 403 }
       );
     }
+
     const body = await request.json();
+    const validated = createGrupoSchema.parse(body);
 
-    // Validar dados
-    const validatedData = createGrupoSchema.parse(body);
-
-    // Verificar se casa existe
     const casa = await prisma.casa.findUnique({
-      where: { id: validatedData.casaId },
+      where: { id: validated.casaId },
     });
-
     if (!casa) {
-      return NextResponse.json(
-        { erro: "Casa não encontrada" },
-        { status: 404 }
-      );
+      return NextResponse.json({ erro: "Casa não encontrada" }, { status: 404 });
     }
 
-    // Verificar se já existe grupo com esse nome na casa
     const grupoExistente = await prisma.grupo.findFirst({
       where: {
-        nomeGrupo: validatedData.nomeGrupo,
-        casaId: validatedData.casaId,
+        nomeGrupo: validated.nomeGrupo,
+        casaId: validated.casaId,
       },
     });
-
     if (grupoExistente) {
       return NextResponse.json(
         {
-          erro: `Já existe um grupo com o nome "${validatedData.nomeGrupo}" na ${casa.nome}`,
+          erro: `Já existe um grupo com o nome "${validated.nomeGrupo}" na ${casa.nome}`,
         },
         { status: 409 }
       );
     }
 
-    // Criar grupo
     const grupo = await prisma.grupo.create({
       data: {
-        nomeGrupo: validatedData.nomeGrupo,
-        casaId: validatedData.casaId,
-        ordemAla: validatedData.ordemAla || undefined,
-        status: validatedData.status,
+        nomeGrupo: validated.nomeGrupo,
+        casaId: validated.casaId,
+        ordemAla: validated.ordemAla || undefined,
+        status: validated.status,
       },
       include: {
         casa: {
@@ -206,18 +322,17 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Log de auditoria
     await prisma.logAuditoria.create({
       data: {
-        operadorId: operadorId,
+        operadorId,
         acao: "INSERT",
-        tabelaAfetada: "Grupos",
+        tabelaAfetada: "grupos",
         registroIdAfetado: grupo.id,
         detalhesAlteracao: {
           nomeGrupo: grupo.nomeGrupo,
           casa: casa.nome,
         },
-        ipOrigem: request.headers.get("x-forwarded-for") || "unknown",
+        ipOrigem: request.headers.get("x-forwarded-for") ?? "unknown",
       },
     });
 
@@ -253,8 +368,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-
-
-
-
-

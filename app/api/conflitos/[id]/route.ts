@@ -29,7 +29,20 @@ const formatarAlojamento = (alojamento?: {
   };
 };
 
-const coletarParticipantes = (conflitos: any[]) => {
+type LadoToken = "LADO_1" | "LADO_2";
+
+const LADO_LABELS: Record<LadoToken, string> = {
+  LADO_1: "Lado 1",
+  LADO_2: "Lado 2",
+};
+
+const ladoOposto = (lado: LadoToken): LadoToken =>
+  lado === "LADO_1" ? "LADO_2" : "LADO_1";
+
+const coletarParticipantes = (
+  conflitos: any[],
+  ladosMap?: Map<string, LadoToken>
+) => {
   const mapa = new Map<
     string,
     {
@@ -37,17 +50,20 @@ const coletarParticipantes = (conflitos: any[]) => {
       nomeCompleto: string;
       numeroSms: string | null;
       alojamentoAtual: ReturnType<typeof formatarAlojamento>;
+      lado?: string;
     }
   >();
 
   const adicionar = (dados: any) => {
     if (!dados) return;
     if (!mapa.has(dados.id)) {
+      const ladoToken = ladosMap?.get(dados.id);
       mapa.set(dados.id, {
         id: dados.id,
         nomeCompleto: dados.nomeCompleto ?? dados.nomeSocial ?? "",
         numeroSms: dados.numeroSms ?? "",
         alojamentoAtual: formatarAlojamento(dados.alojamentoAtual),
+        lado: ladoToken ? LADO_LABELS[ladoToken] : undefined,
       });
     }
   };
@@ -60,23 +76,67 @@ const coletarParticipantes = (conflitos: any[]) => {
   return Array.from(mapa.values());
 };
 
-const mapearConflito = (conflito: any) => {
-  const participante = (dados: any) => ({
-    id: dados.id,
-    nomeCompleto: dados.nomeCompleto,
-    nomeSocial: dados.nomeSocial,
-    numeroSms: dados.numeroSms,
-    fotoUrl: dados.fotoUrl,
-    statusUnidade: dados.statusUnidade,
-    alojamentoAtual: dados.alojamentoAtual
-      ? {
-          id: dados.alojamentoAtual.id,
-          casa: dados.alojamentoAtual.casa?.nome ?? null,
-          numero: dados.alojamentoAtual.numeroAlojamento,
-          ala: dados.alojamentoAtual.ala,
-        }
-      : null,
+const mapearLadosDoGrupo = (conflitos: any[]) => {
+  const lados = new Map<string, LadoToken>();
+
+  conflitos.forEach((item) => {
+    const adolescenteAId = item.adolescenteA?.id;
+    const adolescenteBId = item.adolescenteB?.id;
+    if (!adolescenteAId || !adolescenteBId) {
+      return;
+    }
+
+    const ladoA = lados.get(adolescenteAId);
+    const ladoB = lados.get(adolescenteBId);
+
+    if (!ladoA && !ladoB) {
+      lados.set(adolescenteAId, "LADO_1");
+      lados.set(adolescenteBId, "LADO_2");
+      return;
+    }
+
+    if (ladoA && !ladoB) {
+      lados.set(adolescenteBId, ladoOposto(ladoA));
+      return;
+    }
+
+    if (!ladoA && ladoB) {
+      lados.set(adolescenteAId, ladoOposto(ladoB));
+      return;
+    }
+
+    if (ladoA && ladoB && ladoA === ladoB) {
+      lados.set(adolescenteBId, ladoOposto(ladoA));
+    }
   });
+
+  return lados;
+};
+
+const mapearConflito = (
+  conflito: any,
+  ladosMap?: Map<string, LadoToken>
+) => {
+  const participante = (dados: any) => {
+    const ladoToken = dados?.id ? ladosMap?.get(dados.id) : undefined;
+    return {
+      id: dados.id,
+      nomeCompleto: dados.nomeCompleto,
+      nomeSocial: dados.nomeSocial,
+      numeroSms: dados.numeroSms,
+      fotoUrl: dados.fotoUrl,
+      statusUnidade: dados.statusUnidade,
+      lado: ladoToken ? LADO_LABELS[ladoToken] : undefined,
+      alojamentoAtual: dados.alojamentoAtual
+        ? {
+            id: dados.alojamentoAtual.id,
+            casa: dados.alojamentoAtual.casa?.nome ?? null,
+            numero: dados.alojamentoAtual.numeroAlojamento,
+            ala: dados.alojamentoAtual.ala,
+          }
+        : null,
+    };
+  };
 
   return {
     id: conflito.id,
@@ -108,6 +168,21 @@ const mapearConflito = (conflito: any) => {
       dataProximaAvaliacao: tentativa.dataProximaAvaliacao,
     })),
   };
+};
+
+const montarFiltroPorGrupo = (
+  registroGrupoId: string | null,
+  fallbackId: string
+): Prisma.ConflitoWhereInput => {
+  if (registroGrupoId) {
+    return {
+      OR: [
+        { registroGrupoId },
+        { id: registroGrupoId },
+      ],
+    };
+  }
+  return { id: fallbackId };
 };
 
 const updateSchema = z.object({
@@ -215,8 +290,9 @@ export async function GET(
       },
     });
 
-    const participantes = coletarParticipantes(conflitosAgrupados);
-    const conflitoFormatado = mapearConflito(conflito);
+    const ladosMap = mapearLadosDoGrupo(conflitosAgrupados);
+    const participantes = coletarParticipantes(conflitosAgrupados, ladosMap);
+    const conflitoFormatado = mapearConflito(conflito, ladosMap);
 
     return NextResponse.json({
       ...conflitoFormatado,
@@ -261,7 +337,8 @@ export async function PUT(
     }
 
     const validated = updateSchema.parse(payload);
-    const data: Prisma.ConflitoUpdateInput = {};
+    const data: Prisma.ConflitoUpdateManyMutationInput = {};
+    const camposAtualizados: string[] = [];
     let possuiAlteracoes = false;
 
     if (validated.tipoConflito !== undefined) {
@@ -273,16 +350,19 @@ export async function PUT(
         );
       }
       data.tipoConflito = tipo.toUpperCase();
+      camposAtualizados.push("tipoConflito");
       possuiAlteracoes = true;
     }
 
     if (validated.descricao !== undefined) {
       data.descricao = validated.descricao ?? null;
+      camposAtualizados.push("descricao");
       possuiAlteracoes = true;
     }
 
     if (validated.registroGrupoId !== undefined) {
       data.registroGrupoId = validated.registroGrupoId || null;
+      camposAtualizados.push("registroGrupoId");
       possuiAlteracoes = true;
     }
 
@@ -302,6 +382,7 @@ export async function PUT(
       } else {
         data.resolvidoEm = null;
       }
+      camposAtualizados.push("status");
       possuiAlteracoes = true;
     }
 
@@ -312,9 +393,51 @@ export async function PUT(
       );
     }
 
-    const atualizado = await prisma.conflito.update({
+    const conflitoBase = await prisma.conflito.findUnique({
       where: { id },
+      select: {
+        id: true,
+        registroGrupoId: true,
+      },
+    });
+
+    if (!conflitoBase) {
+      return NextResponse.json(
+        { erro: "Conflito nao encontrado" },
+        { status: 404 }
+      );
+    }
+
+    const filtroGrupo = montarFiltroPorGrupo(
+      conflitoBase.registroGrupoId,
+      conflitoBase.id
+    );
+
+    const conflitosDoGrupo = await prisma.conflito.findMany({
+      where: filtroGrupo,
+      select: { id: true },
+    });
+
+    if (conflitosDoGrupo.length === 0) {
+      return NextResponse.json(
+        { erro: "Nenhum conflito encontrado para atualizacao" },
+        { status: 404 }
+      );
+    }
+
+    const idsParaAtualizar = conflitosDoGrupo.map((registro) => registro.id);
+
+    const resultado = await prisma.conflito.updateMany({
+      where: {
+        id: {
+          in: idsParaAtualizar,
+        },
+      },
       data,
+    });
+
+    const atualizado = await prisma.conflito.findUnique({
+      where: { id },
       include: {
         adolescenteA: {
           select: {
@@ -355,9 +478,27 @@ export async function PUT(
       },
     });
 
+    await prisma.logAuditoria.create({
+      data: {
+        operadorId,
+        acao: "UPDATE",
+        tabelaAfetada: "conflitos",
+        registroIdAfetado: conflitoBase.registroGrupoId ?? id,
+        detalhesAlteracao: {
+          camposAtualizados,
+          registrosAfetados: resultado.count,
+        },
+        ipOrigem: request.headers.get("x-forwarded-for") || "unknown",
+      },
+    });
+
     return NextResponse.json({
-      mensagem: "Conflito atualizado com sucesso",
-      conflito: mapearConflito(atualizado),
+      mensagem:
+        resultado.count > 1
+          ? `Conflito atualizado em ${resultado.count} registros relacionados.`
+          : "Conflito atualizado com sucesso",
+      registrosAfetados: resultado.count,
+      conflito: atualizado ? mapearConflito(atualizado) : null,
     });
   } catch (error) {
     if (error instanceof z.ZodError) {

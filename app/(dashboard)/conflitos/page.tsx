@@ -8,6 +8,7 @@ type Participante = {
   nome: string;
   numeroSms: string;
   alojamento?: string;
+  lado?: string | null;
 };
 
 type ApiConflito = {
@@ -48,11 +49,17 @@ const normalizarConflito = (conflito: ApiConflito): Conflito => {
   const participantes: Participante[] = [];
 
   if (conflito.adolescenteA) {
-    participantes.push({ ...conflito.adolescenteA });
+    participantes.push({
+      ...conflito.adolescenteA,
+      lado: "Lado 1",
+    });
   }
 
   if (conflito.adolescenteB) {
-    participantes.push({ ...conflito.adolescenteB });
+    participantes.push({
+      ...conflito.adolescenteB,
+      lado: "Lado 2",
+    });
   }
 
   return {
@@ -68,6 +75,102 @@ const normalizarConflito = (conflito: ApiConflito): Conflito => {
     ultimaMediacao: conflito.ultimaMediacao,
     participantes,
   };
+};
+
+const agruparConflitosPorGrupo = (lista: Conflito[]): Conflito[] => {
+  const grupos = new Map<
+    string,
+    Conflito & { participantesMap: Map<string, Participante> }
+  >();
+
+  lista.forEach((conflito) => {
+    const grupoId = conflito.registroGrupoId || conflito.id;
+    let grupo = grupos.get(grupoId);
+    const jaExistia = Boolean(grupo);
+
+    if (!grupo) {
+      const participantesMap = new Map<string, Participante>();
+      conflito.participantes.forEach((participante) => {
+        participantesMap.set(participante.id, participante);
+      });
+
+      grupo = {
+        ...conflito,
+        registroGrupoId: grupoId,
+        resolvidoEm: conflito.status === "ATIVO" ? undefined : conflito.resolvidoEm,
+        participantesMap,
+      };
+      grupos.set(grupoId, grupo);
+    } else {
+      conflito.participantes.forEach((participante) => {
+        const atual = grupo!.participantesMap.get(participante.id);
+        if (!atual) {
+          grupo!.participantesMap.set(participante.id, participante);
+        } else if (!atual.lado && participante.lado) {
+          grupo!.participantesMap.set(participante.id, {
+            ...atual,
+            lado: participante.lado,
+          });
+        }
+      });
+    }
+
+    const alvo = grupo!;
+
+    if (alvo.status !== "ATIVO" && conflito.status === "ATIVO") {
+      alvo.status = "ATIVO";
+      alvo.resolvidoEm = undefined;
+    } else if (
+      conflito.status === "RESOLVIDO" &&
+      alvo.status === "RESOLVIDO" &&
+      conflito.resolvidoEm
+    ) {
+      const atual = alvo.resolvidoEm
+        ? new Date(alvo.resolvidoEm).getTime()
+        : null;
+      const novo = new Date(conflito.resolvidoEm).getTime();
+      if (!atual || novo > atual) {
+        alvo.resolvidoEm = conflito.resolvidoEm;
+      }
+    }
+
+    if (new Date(conflito.criadoEm).getTime() < new Date(alvo.criadoEm).getTime()) {
+      alvo.criadoEm = conflito.criadoEm;
+    }
+
+    if (jaExistia) {
+      alvo.tentativasMediacao += conflito.tentativasMediacao ?? 0;
+    }
+
+    if (conflito.ultimaMediacao) {
+      const atual = alvo.ultimaMediacao
+        ? new Date(alvo.ultimaMediacao).getTime()
+        : null;
+      const novo = new Date(conflito.ultimaMediacao).getTime();
+      if (!atual || novo > atual) {
+        alvo.ultimaMediacao = conflito.ultimaMediacao;
+      }
+    }
+
+    if (!alvo.descricao && conflito.descricao) {
+      alvo.descricao = conflito.descricao;
+    }
+
+    if (
+      (!alvo.origem || alvo.origem === "Registro direto") &&
+      conflito.origem &&
+      conflito.origem !== "Registro direto"
+    ) {
+      alvo.origem = conflito.origem;
+    }
+  });
+
+  return Array.from(grupos.values()).map(
+    ({ participantesMap, ...resto }) => ({
+      ...resto,
+      participantes: Array.from(participantesMap.values()),
+    })
+  );
 };
 
 export default function ConflitosPage() {
@@ -97,7 +200,9 @@ export default function ConflitosPage() {
       }
 
       const data = await response.json();
-      setConflitos(ordenarConflitos(data.map(normalizarConflito)));
+      const normalizados = data.map(normalizarConflito);
+      const agrupados = agruparConflitosPorGrupo(normalizados);
+      setConflitos(ordenarConflitos(agrupados));
     } catch (error) {
       const mensagem =
         error instanceof Error ? error.message : "Erro ao carregar conflitos";
@@ -223,7 +328,9 @@ export default function ConflitosPage() {
           tentativasMediacao: 0,
         },
       ];
-      setConflitos(ordenarConflitos(mockConflitos.map(normalizarConflito)));
+      const normalizadosMock = mockConflitos.map(normalizarConflito);
+      const agrupadosMock = agruparConflitosPorGrupo(normalizadosMock);
+      setConflitos(ordenarConflitos(agrupadosMock));
     } finally {
       setLoading(false);
     }

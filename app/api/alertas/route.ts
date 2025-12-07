@@ -6,6 +6,7 @@ import {
   ehAlertaEspecial,
   mapearTipoEspecialPorCodigo,
 } from "@/lib/alertas/sincronizar-especiais";
+import { normalizarNivelRisco } from "@/lib/alertas/especiais";
 
 const prisma = new PrismaClient();
 
@@ -199,6 +200,7 @@ export async function POST(request: NextRequest) {
       descricaoAlerta,
       nivelRisco,
     } = body;
+    const nivelRiscoNormalizado = normalizarNivelRisco(nivelRisco);
 
     // Validações
     if (!adolescenteId) {
@@ -231,7 +233,11 @@ export async function POST(request: NextRequest) {
 
     if (tipoEspecial) {
       await aplicarAlertasEspeciais(prisma, adolescenteId, [
-        { tipo: tipoEspecial, descricao: descricaoAlerta },
+        {
+          tipo: tipoEspecial,
+          descricao: descricaoAlerta,
+          nivelRisco: nivelRiscoNormalizado ?? undefined,
+        },
       ]);
 
       const alertaEspecial = await prisma.alertaAtivo.findFirst({
@@ -257,7 +263,7 @@ export async function POST(request: NextRequest) {
         ciOrigemId: ciOrigemId || null,
         tipoAlerta: tipoAlerta || null,
         descricaoAlerta: descricaoAlerta.trim(),
-        nivelRisco: nivelRisco || null,
+        nivelRisco: nivelRiscoNormalizado ?? null,
       },
       include: ALERTA_INCLUDE,
     });

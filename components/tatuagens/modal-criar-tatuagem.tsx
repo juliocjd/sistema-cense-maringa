@@ -19,6 +19,7 @@ export default function ModalCriarTatuagem({
   const [nomeSimbolo, setNomeSimbolo] = useState("");
   const [significadoAssociado, setSignificadoAssociado] = useState("");
   const [nivelRisco, setNivelRisco] = useState<NivelRisco>(null);
+  const [localizacao, setLocalizacao] = useState("");
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -37,11 +38,12 @@ export default function ModalCriarTatuagem({
       const response = await fetch("/api/tatuagens", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          nomeSimbolo: nomeSimbolo.trim(),
-          significadoAssociado: significadoAssociado.trim() || null,
-          nivelRisco: nivelRisco || null,
-        }),
+      body: JSON.stringify({
+        nomeSimbolo: nomeSimbolo.trim(),
+        significadoAssociado: significadoAssociado.trim() || null,
+        nivelRisco: nivelRisco || null,
+        localizacao: localizacao.trim() || null,
+      }),
       });
 
       if (!response.ok) {
@@ -69,6 +71,7 @@ export default function ModalCriarTatuagem({
       setNomeSimbolo("");
       setSignificadoAssociado("");
       setNivelRisco(null);
+      setLocalizacao("");
       setErro(null);
       onClose();
     }
@@ -141,8 +144,8 @@ export default function ModalCriarTatuagem({
               rows={4}
               maxLength={1000}
               disabled={loading}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-slate-100 disabled:text-slate-500"
-            />
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-slate-100 disabled:text-slate-500"
+          />
             <p className="mt-1 text-xs text-slate-500">
               Máximo de 1000 caracteres ({significadoAssociado.length}/1000)
             </p>
@@ -219,6 +222,25 @@ export default function ModalCriarTatuagem({
             </div>
             <p className="mt-2 text-xs text-slate-500">
               Classifique o nível de risco associado a esta tatuagem no contexto institucional
+            </p>
+          </div>
+
+          {/* Localização */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">
+              Local onde se encontra
+            </label>
+            <input
+              type="text"
+              value={localizacao}
+              onChange={(e) => setLocalizacao(e.target.value)}
+              placeholder="Ex: Braço direito, Costas, Peito..."
+              maxLength={60}
+              disabled={loading}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-slate-100 disabled:text-slate-500"
+            />
+            <p className="mt-1 text-xs text-slate-500">
+              Máximo de 60 caracteres
             </p>
           </div>
 

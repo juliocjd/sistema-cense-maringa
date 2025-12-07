@@ -9,6 +9,7 @@ type Participante = {
   nome: string;
   numeroSms: string;
   alojamento?: string | null;
+  lado?: string | null;
 };
 
 type Conflito = {
@@ -36,6 +37,7 @@ type ApiParticipante = {
     numero?: string | number | null;
     ala?: string | null;
   } | null;
+  lado?: string | null;
 };
 
 type ApiConflito = {
@@ -102,6 +104,7 @@ const mapearParticipante = (dados: ApiParticipante): Participante => ({
   nome: formatarNome(dados),
   numeroSms: dados.numeroSms ?? "",
   alojamento: formatarAlojamento(dados.alojamento ?? dados.alojamentoAtual),
+  lado: dados.lado ?? null,
 });
 
 const normalizarConflito = (dados: ApiConflito): Conflito => ({
@@ -226,7 +229,10 @@ export default function ConflitoPorIdPage() {
 
       setConflito({
         ...mockConflito,
-        participantes: [mockConflito.adolescenteA, mockConflito.adolescenteB],
+        participantes: [
+          { ...mockConflito.adolescenteA, lado: "Lado 1" },
+          { ...mockConflito.adolescenteB, lado: "Lado 2" },
+        ],
       });
       setMediacoes(mockMediacoes);
     } finally {

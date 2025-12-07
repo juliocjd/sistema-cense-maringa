@@ -21,6 +21,7 @@ type Participante = {
   nome: string;
   numeroSms: string;
   alojamento?: string;
+  lado?: string | null;
 };
 
 type Conflito = {
@@ -355,19 +356,19 @@ export function ListagemConflitos({
           conflitosFiltrados.map((conflito) => {
             const participantes = conflito.participantes ?? [];
             const primeiro = participantes[0];
-            const segundo = participantes[1];
-            const extras = participantes.slice(2);
+            const demais = participantes.slice(1);
             const semParticipantes = participantes.length === 0;
             const fallbackTitulo =
               conflito.descricao?.trim() ||
               conflito.tipoConflito ||
               "Conflito registrado";
 
-            const titulo = segundo
-              ? `${primeiro.nome} x ${segundo.nome}${
-                  extras.length ? ` +${extras.length}` : ""
-                }`
-              : primeiro?.nome ?? fallbackTitulo;
+            const titulo =
+              primeiro && demais.length > 0
+                ? `${primeiro.nome} x ${demais
+                    .map((participante) => participante.nome)
+                    .join(", ")}`
+                : primeiro?.nome ?? fallbackTitulo;
 
             return (
               <div
@@ -427,7 +428,14 @@ export function ListagemConflitos({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                   {participantes.map((participante) => (
                     <div key={participante.id} className="bg-gray-50 rounded-lg p-3">
-                      <p className="text-xs text-gray-600 mb-1">Participante</p>
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-xs text-gray-600">Participante</p>
+                        {participante.lado && (
+                          <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold uppercase text-red-700 tracking-wide">
+                            {participante.lado}
+                          </span>
+                        )}
+                      </div>
                       <p className="font-semibold text-gray-800">{participante.nome}</p>
                       <p className="text-sm text-gray-600">
                         SMS: {participante.numeroSms}

@@ -7,6 +7,7 @@ import type {
   BairroConflitoInfo,
   FaccaoConflitoInfo,
 } from "@/lib/conflitos";
+import { extrairNivelRiscoSuicidio } from "@/lib/alertas/especiais";
 
 type PrismaAdolescente = any;
 
@@ -73,6 +74,11 @@ export const mapearAdolescenteParaRisco = (
   bairroOrigemId: adolescente.bairroOrigemId,
   faccaoGrupoId: adolescente.faccaoGrupoId,
   alertaRiscoSuicidio: adolescente.alertaRiscoSuicidio,
+  alertaRiscoSuicidioNivel:
+    adolescente.alertaRiscoSuicidioNivel ??
+    extrairNivelRiscoSuicidio(
+      (adolescente as any).alertasAtivos ?? adolescente.alertasEspeciais
+    ),
   alertaPerfilMapeado: adolescente.alertaPerfilMapeado,
   alertaSaudeConfidencial: adolescente.alertaSaudeConfidencial,
   alertaSaudeDetalhes: adolescente.alertaSaudeDetalhes,

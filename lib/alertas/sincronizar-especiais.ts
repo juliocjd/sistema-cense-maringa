@@ -4,15 +4,21 @@ import {
   ALERTA_ESPECIAL_CODIGOS,
   ALERTAS_ESPECIAIS,
   type AlertaEspecialTipo,
+  type AlertaNivelRisco,
   ehTipoAlertaEspecial,
   mapearTipoEspecialPorCodigo,
+  normalizarNivelRisco,
   obterDescricaoPadrao,
 } from "./especiais";
-export { mapearTipoEspecialPorCodigo, ALERTAS_ESPECIAIS } from "./especiais";
+export {
+  mapearTipoEspecialPorCodigo,
+  ALERTAS_ESPECIAIS,
+} from "./especiais";
 
 export type AlertaEspecialEntrada = {
   tipo: AlertaEspecialTipo;
   descricao?: string | null;
+  nivelRisco?: AlertaNivelRisco | null;
 };
 
 type PrismaExecutor = Prisma.TransactionClient | PrismaClient;
@@ -34,11 +40,12 @@ export async function obterAlertasEspeciaisAtivos(
     if (!tipo) {
       return lista;
     }
-    lista.push({
-      tipo,
-      descricao: alerta.descricaoAlerta ?? undefined,
-    });
-    return lista;
+      lista.push({
+        tipo,
+        descricao: alerta.descricaoAlerta ?? undefined,
+        nivelRisco: normalizarNivelRisco(alerta.nivelRisco) ?? undefined,
+      });
+      return lista;
   }, []);
 }
 
@@ -103,13 +110,18 @@ export async function aplicarAlertasEspeciais(
 
     if (desejado) {
       const descricao = obterDescricaoPadrao(tipo, desejado.descricao);
+      const nivelRiscoFinal =
+        desejado.nivelRisco ??
+        meta.nivelPadrao ??
+        existente?.nivelRisco ??
+        null;
 
       if (existente) {
         await executor.alertaAtivo.update({
           where: { id: existente.id },
           data: {
             descricaoAlerta: descricao,
-            nivelRisco: meta.nivelPadrao ?? existente.nivelRisco ?? null,
+            nivelRisco: nivelRiscoFinal,
             desativadoEm: null,
           },
         });
@@ -119,7 +131,7 @@ export async function aplicarAlertasEspeciais(
             adolescenteId,
             tipoAlerta: meta.tipoAlerta,
             descricaoAlerta: descricao,
-            nivelRisco: meta.nivelPadrao ?? null,
+            nivelRisco: nivelRiscoFinal,
           },
         });
       }
@@ -137,9 +149,21 @@ export async function aplicarAlertasEspeciais(
 export function mapearAlertasEspeciaisDoPayload(
   payload: AlertaEspecialEntrada[] | undefined,
   fallback: {
-    riscoSuicidio?: { ativo: boolean; descricao?: string | null };
-    perfilMapeado?: { ativo: boolean; descricao?: string | null };
-    saudeConfidencial?: { ativo: boolean; descricao?: string | null };
+    riscoSuicidio?: {
+      ativo: boolean;
+      descricao?: string | null;
+      nivelRisco?: AlertaNivelRisco | null;
+    };
+    perfilMapeado?: {
+      ativo: boolean;
+      descricao?: string | null;
+      nivelRisco?: AlertaNivelRisco | null;
+    };
+    saudeConfidencial?: {
+      ativo: boolean;
+      descricao?: string | null;
+      nivelRisco?: AlertaNivelRisco | null;
+    };
   }
 ): AlertaEspecialEntrada[] {
   const mapa = new Map<AlertaEspecialTipo, AlertaEspecialEntrada>();
@@ -149,6 +173,7 @@ export function mapearAlertasEspeciaisDoPayload(
       mapa.set(alerta.tipo, {
         tipo: alerta.tipo,
         descricao: alerta.descricao ?? undefined,
+        nivelRisco: alerta.nivelRisco ?? undefined,
       });
     }
   });
@@ -157,6 +182,7 @@ export function mapearAlertasEspeciaisDoPayload(
     mapa.set("RISCO_SUICIDIO", {
       tipo: "RISCO_SUICIDIO",
       descricao: fallback.riscoSuicidio.descricao ?? undefined,
+      nivelRisco: fallback.riscoSuicidio.nivelRisco ?? undefined,
     });
   }
 
@@ -164,6 +190,7 @@ export function mapearAlertasEspeciaisDoPayload(
     mapa.set("PERFIL_MAPEADO", {
       tipo: "PERFIL_MAPEADO",
       descricao: fallback.perfilMapeado.descricao ?? undefined,
+      nivelRisco: fallback.perfilMapeado.nivelRisco ?? undefined,
     });
   }
 
@@ -171,6 +198,7 @@ export function mapearAlertasEspeciaisDoPayload(
     mapa.set("SAUDE_CONFIDENCIAL", {
       tipo: "SAUDE_CONFIDENCIAL",
       descricao: fallback.saudeConfidencial.descricao ?? undefined,
+      nivelRisco: fallback.saudeConfidencial.nivelRisco ?? undefined,
     });
   }
 

@@ -84,6 +84,7 @@ export function ModalAdicionarMembro({
       setCarregandoAdolescentes(true);
       const params = new URLSearchParams({
         status: "ATIVO",
+        excluir_grupos: "true",
       });
       if (casaId) {
         params.set("casa_id", casaId);

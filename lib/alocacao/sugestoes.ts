@@ -17,10 +17,17 @@ import {
 } from "@/lib/alocacao/vigilancia-frontal";
 import type { ImpactoConflitoExterno } from "@/types/inteligencia";
 import type { Adolescente, StatusUnidade } from "@/types";
+import {
+  ALERTAS_ESPECIAIS,
+  alertaSuicidioExigeMonitoramento,
+  extrairNivelRiscoSuicidio,
+} from "@/lib/alertas/especiais";
 
 type AdolescenteComConflitos = NonNullable<
   Awaited<ReturnType<typeof carregarAdolescenteParaSugestoes>>
->;
+> & {
+  alertaRiscoSuicidioNivel?: string | null;
+};
 
 type CasaComAlojamentos = Awaited<
   ReturnType<typeof carregarCasasComAlojamentos>
@@ -50,7 +57,7 @@ interface SugestaoParams {
 }
 
 async function carregarAdolescenteParaSugestoes(adolescenteId: string) {
-  return prisma.adolescente.findUnique({
+  const resultado = await prisma.adolescente.findUnique({
     where: { id: adolescenteId },
     include: {
       bairroOrigem: true,
@@ -77,12 +84,30 @@ async function carregarAdolescenteParaSugestoes(adolescenteId: string) {
           },
         },
       },
+      alertasAtivos: {
+        where: {
+          desativadoEm: null,
+          tipoAlerta: ALERTAS_ESPECIAIS.RISCO_SUICIDIO.tipoAlerta,
+        },
+        select: {
+          tipoAlerta: true,
+          nivelRisco: true,
+        },
+      },
     },
   });
+  return resultado
+    ? {
+        ...resultado,
+        alertaRiscoSuicidioNivel: extrairNivelRiscoSuicidio(
+          resultado.alertasAtivos
+        ),
+      }
+    : null;
 }
 
 async function carregarCasasComAlojamentos() {
-  return prisma.casa.findMany({
+  const casas = await prisma.casa.findMany({
     orderBy: { numero: "asc" },
     include: {
       alojamentos: {
@@ -95,12 +120,36 @@ async function carregarCasasComAlojamentos() {
             include: {
               bairroOrigem: true,
               faccao: true,
+              alertasAtivos: {
+                where: {
+                  desativadoEm: null,
+                  tipoAlerta: ALERTAS_ESPECIAIS.RISCO_SUICIDIO.tipoAlerta,
+                },
+                select: {
+                  tipoAlerta: true,
+                  nivelRisco: true,
+                },
+              },
             },
           },
         },
       },
     },
   });
+
+  return casas.map((casa) => ({
+    ...casa,
+    alojamentos: casa.alojamentos.map((alojamento) => ({
+      ...alojamento,
+      adolescentes:
+        alojamento.adolescentes?.map((adolescente: any) => ({
+          ...adolescente,
+          alertaRiscoSuicidioNivel: extrairNivelRiscoSuicidio(
+            adolescente.alertasAtivos
+          ),
+        })) ?? [],
+    })),
+  }));
 }
 
 const normalizarCasaParaCalculo = (
@@ -193,6 +242,12 @@ const preencherAdolescenteBasico = (
       }
     : null;
 
+  const alertaSuicidioNivel =
+    base.alertaRiscoSuicidioNivel ??
+    extrairNivelRiscoSuicidio(
+      (base as any).alertasAtivos ?? (base as any).alertasEspeciais
+    );
+
   return {
     ...adolescente,
     statusUnidade: (base.statusUnidade ?? "ATIVO") as StatusUnidade,
@@ -222,6 +277,7 @@ const preencherAdolescenteBasico = (
     conflitosResolvidos: (base as any).conflitosResolvidos ?? [],
     historicoInfracional: (base as any).historicoInfracional ?? [],
     alertaRiscoSuicidio: base.alertaRiscoSuicidio ?? false,
+    alertaRiscoSuicidioNivel: alertaSuicidioNivel ?? null,
     alertaPerfilMapeado: base.alertaPerfilMapeado ?? false,
     alertaSaudeConfidencial: base.alertaSaudeConfidencial ?? false,
     alertaSaudeDetalhes: base.alertaSaudeDetalhes ?? null,
@@ -265,6 +321,7 @@ const criarCandidatoFallback = (
     grupos: [],
     tatuagens: [],
     alertaRiscoSuicidio: false,
+    alertaRiscoSuicidioNivel: null,
     alertaPerfilMapeado: false,
     alertaSaudeConfidencial: false,
     alertaSaudeDetalhes: null,
@@ -492,11 +549,19 @@ export async function gerarSugestoesParaAlocacao({
         return;
       }
 
-      if (adolescenteAvaliado.alertaRiscoSuicidio) {
+      let avisosVigilancia: string[] = [];
+
+      if (
+        alertaSuicidioExigeMonitoramento(
+          adolescenteAvaliado.alertaRiscoSuicidio ?? false,
+          adolescenteAvaliado.alertaRiscoSuicidioNivel
+        )
+      ) {
         const vigilado = avaliarVigilanciaFrontal(alojamento, mapaAlojamentos);
         if (!vigilado.valido) {
           return;
         }
+        avisosVigilancia = vigilado.avisos ?? [];
       }
 
       const avaliacao = avaliarCandidato(
@@ -505,6 +570,12 @@ export async function gerarSugestoesParaAlocacao({
         adolescenteAvaliado,
         conflitosExternos
       );
+
+      if (avisosVigilancia.length > 0) {
+        const combinado = new Set(avaliacao.alertas);
+        avisosVigilancia.forEach((aviso) => combinado.add(aviso));
+        avaliacao.alertas = Array.from(combinado);
+      }
 
       candidatos.push(avaliacao);
     });

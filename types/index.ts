@@ -46,6 +46,23 @@ export interface Conflito {
   adversarioLocal?: string | null;
 }
 
+export interface ConflitoResumo {
+  id: string;
+  tipo: string | null;
+  status: string;
+  adversario?: {
+    id: string;
+    nome: string;
+    sms?: string | null;
+    alojamento?: string | null;
+  } | null;
+  adolescenteAId?: string | null;
+  adolescenteBId?: string | null;
+  origem?: string | null;
+  criadoEm?: string | Date;
+  resolvidoEm?: string | Date | null;
+}
+
 export interface AdolescenteTatuagemResumo {
   id: string;
   catalogoId: string;
@@ -187,6 +204,7 @@ export interface Adolescente {
   alertaPerfilMapeado: boolean;
   alertaSaudeConfidencial: boolean;
   alertaSaudeDetalhes?: string | null;
+  alertaRiscoSuicidioNivel?: string | null;
 
   conflitosA: Conflito[];
   conflitosB: Conflito[];
@@ -220,7 +238,7 @@ export type AdolescenteCadastroPayload = Partial<
   >
   > & {
     alertasEspeciais?: Array<
-      Pick<AdolescenteAlertaEspecial, "tipo" | "descricao">
+      Pick<AdolescenteAlertaEspecial, "tipo" | "descricao" | "nivelRisco">
     >;
     historicoInfracional?: AdolescenteHistoricoRegistroInput[];
     tatuagens?: Array<{

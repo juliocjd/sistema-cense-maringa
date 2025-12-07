@@ -19,7 +19,9 @@ import {
 } from "@/lib/alertas/sincronizar-especiais";
 import {
   ALERTA_ESPECIAL_TIPOS,
+  ALERTA_NIVEL_RISCO_VARIADIC,
   type AlertaEspecialTipo,
+  type AlertaNivelRisco,
 } from "@/lib/alertas/especiais";
 import { emitMapaEvent } from "@/lib/mapa-event-bus";
 import { invalidateAdolescentesMapaCache } from "@/lib/estrutura/adolescentes-cache";
@@ -44,12 +46,14 @@ const ALERTA_ESPECIAL_ENUM = z.enum(
     ...AlertaEspecialTipo[]
   ]
 );
+const ALERTA_NIVEL_ENUM = z.enum(ALERTA_NIVEL_RISCO_VARIADIC);
 
 const FACCAO_ORIGEM_ENUM = z.enum(["CONFESSADA", "OBSERVACAO"]);
 
 const alertaEspecialSchema = z.object({
   tipo: ALERTA_ESPECIAL_ENUM,
   descricao: z.string().optional().nullable(),
+  nivelRisco: ALERTA_NIVEL_ENUM.optional().nullable(),
 });
 
 const contarAlertasPendentes = async (adolescenteId: string) =>

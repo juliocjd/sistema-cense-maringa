@@ -24,6 +24,7 @@ const createSchema = z.object({
     .enum(allowedNiveis)
     .optional()
     .nullable(),
+  localizacao: z.string().max(60).optional().nullable(),
 });
 
 const ensureString = (value: unknown): string => {
@@ -68,12 +69,13 @@ export async function GET(request: NextRequest) {
 
     const tatuagens = await prisma.tatuagemCatalogo.findMany({
       where,
-      select: {
-        id: true,
-        nomeSimbolo: true,
-        significadoAssociado: true,
-        nivelRisco: true,
-        _count: incluirTotal
+        select: {
+          id: true,
+          nomeSimbolo: true,
+          significadoAssociado: true,
+          nivelRisco: true,
+          localizacao: true,
+          _count: incluirTotal
           ? {
               select: { adolescentesTatuagens: true },
             }
@@ -89,6 +91,7 @@ export async function GET(request: NextRequest) {
         nomeSimbolo: tatuagem.nomeSimbolo,
         significadoAssociado: tatuagem.significadoAssociado,
         nivelRisco: tatuagem.nivelRisco,
+        localizacao: tatuagem.localizacao,
         totalUso: incluirTotal
           ? tatuagem._count?.adolescentesTatuagens ?? 0
           : undefined,
@@ -148,7 +151,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { nomeSimbolo, significadoAssociado, nivelRisco } = parsedBody.data;
+    const { nomeSimbolo, significadoAssociado, nivelRisco, localizacao } =
+      parsedBody.data;
 
     const existente = await prisma.tatuagemCatalogo.findUnique({
       where: { nomeSimbolo },
@@ -167,6 +171,7 @@ export async function POST(request: NextRequest) {
         nomeSimbolo,
         significadoAssociado: significadoAssociado ?? null,
         nivelRisco: nivelRisco ?? null,
+        localizacao: localizacao ?? null,
       },
     });
 
@@ -190,6 +195,7 @@ export async function POST(request: NextRequest) {
         nomeSimbolo: tatuagem.nomeSimbolo,
         significadoAssociado: tatuagem.significadoAssociado,
         nivelRisco: tatuagem.nivelRisco,
+        localizacao: tatuagem.localizacao,
         mensagem: "Tatuagem cadastrada com sucesso",
       },
       { status: 201 }
@@ -205,4 +211,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-

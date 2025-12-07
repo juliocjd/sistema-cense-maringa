@@ -228,6 +228,7 @@ export async function POST(
     const alertasAdicionais = new Set<string>();
     let nivelRiscoMaximo = 0;
     let requerJustificativa = false;
+    const conflitosInternosIds = new Set<string>();
 
     const registrarConflitoExtra = (
       ocupante: any,
@@ -407,6 +408,7 @@ export async function POST(
             nome: adversario.nomeCompleto,
           },
         });
+        conflitosInternosIds.add(conflito.id);
         requerJustificativa = true;
         continue;
       }
@@ -456,14 +458,14 @@ export async function POST(
       );
     }
 
-    const resultado = await prisma.$transaction(async (tx) => {
-      const novoMembro = await tx.grupoMembro.create({
-        data: {
-          grupoId,
-          adolescenteId,
-          dataEntrada: new Date(),
-        },
-        include: {
+      const resultado = await prisma.$transaction(async (tx) => {
+        const novoMembro = await tx.grupoMembro.create({
+          data: {
+            grupoId,
+            adolescenteId,
+            dataEntrada: new Date(),
+          },
+          include: {
           adolescente: true,
           grupo: {
             include: { casa: true },
@@ -511,6 +513,16 @@ export async function POST(
           ipOrigem: request.headers.get("x-forwarded-for") ?? "unknown",
         },
       });
+
+      if (conflitosInternosIds.size > 0) {
+        const conflictModel = (tx as any)?.conflito ?? prisma.conflito;
+        if (conflictModel?.updateMany) {
+          await conflictModel.updateMany({
+            where: { id: { in: Array.from(conflitosInternosIds) } },
+            data: { registroGrupoId: grupoId },
+          });
+        }
+      }
 
       return { novoMembro, decisaoId };
     });

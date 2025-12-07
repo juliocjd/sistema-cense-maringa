@@ -49,6 +49,8 @@ type RiscoDetalhadoResumo = {
   alertaEspecialTipo?: string;
   alertaEspecialId?: string;
   adolescenteId?: string;
+  tagNivel?: NivelBadge;
+  tagLabel?: string;
 };
 
 const ALERTA_DESCRICAO_LIMITE = 220;
@@ -151,6 +153,15 @@ const nivelClasses: Record<string, string> = {
   DEFAULT: "border-slate-200 bg-slate-50 text-slate-600",
 };
 
+type NivelBadge = "CRITICO" | "ALTO" | "MEDIO" | "BAIXO";
+
+const nivelBadgeClasses: Record<NivelBadge, string> = {
+  CRITICO: "border-red-300 bg-red-100 text-red-800",
+  ALTO: "border-orange-300 bg-orange-100 text-orange-800",
+  MEDIO: "border-yellow-300 bg-yellow-100 text-yellow-800",
+  BAIXO: "border-blue-300 bg-blue-100 text-blue-800",
+};
+
 const normalizarTexto = (valor: string) =>
   valor
     .normalize("NFD")
@@ -190,13 +201,46 @@ const formatarMensagemSuicidio = (
     : "Sem vigilancia frontal identificado.";
 };
 
+const numeroParaNivelBadge = (valor?: number | null): NivelBadge => {
+  if (!valor || valor <= 2) return "BAIXO";
+  if (valor === 3) return "MEDIO";
+  if (valor === 4) return "ALTO";
+  return "CRITICO";
+};
+
+const normalizarNivelTexto = (
+  valor?: string | null
+): NivelBadge | null => {
+  if (!valor) return null;
+  const texto = valor.toUpperCase();
+  if (texto === "CRITICO") return "CRITICO";
+  if (texto === "ALTO") return "ALTO";
+  if (texto === "MEDIO") return "MEDIO";
+  if (texto === "BAIXO") return "BAIXO";
+  return null;
+};
+
+const formatarNivelBadgeLabel = (nivel: NivelBadge) => {
+  switch (nivel) {
+    case "CRITICO":
+      return "Crítico";
+    case "ALTO":
+      return "Alto";
+    case "MEDIO":
+      return "Médio";
+    case "BAIXO":
+    default:
+      return "Baixo";
+  }
+};
+
 export default function ModalAlojamentoDetalhes({
   isOpen,
   alojamento,
   avaliacaoRisco,
   onClose,
   casas,
-  conflitosExternos,
+  conflitosExternos: _conflitosExternos,
   onDesalocar,
   onDesinternar,
   onTransferir,
@@ -319,19 +363,6 @@ export default function ModalAlojamentoDetalhes({
       verificarTransferencia();
     }
   }, [transferenciaAlojamentoId, ocupante?.id]);
-
-  const impactosPorConflito = useMemo(() => {
-    const mapa = new Map<string, ImpactoConflitoExterno[]>();
-    Object.values(conflitosExternos).forEach((lista) => {
-      lista.forEach((impacto) => {
-        if (!mapa.has(impacto.conflitoId)) {
-          mapa.set(impacto.conflitoId, []);
-        }
-        mapa.get(impacto.conflitoId)!.push(impacto);
-      });
-    });
-    return mapa;
-  }, [conflitosExternos]);
 
   const localizarAdolescente = (
     adolescenteId?: string | null
@@ -507,28 +538,101 @@ export default function ModalAlojamentoDetalhes({
     ];
   }, [ocupante]);
 
-  const conflitosInternosAtivos = useMemo(
-    () => conflitosInternos.filter((conflito) => conflito.status !== "RESOLVIDO"),
-    [conflitosInternos]
-  );
-
-  const conflitosResolvidosLista = useMemo(() => {
-    if (!ocupante) return [];
-    const mapa = new Map<string, Conflito>();
-    (ocupante.conflitosResolvidos ?? []).forEach((conflito) => {
-      mapa.set(conflito.id, conflito);
+const conflitosResolvidosLista = useMemo(() => {
+  if (!ocupante) return [];
+  const mapa = new Map<string, Conflito>();
+  (ocupante.conflitosResolvidos ?? []).forEach((conflito) => {
+    mapa.set(conflito.id, conflito);
+  });
+  conflitosInternos
+    .filter((conflito) => conflito.status === "RESOLVIDO")
+    .forEach((conflito) => {
+      if (!mapa.has(conflito.id)) {
+        mapa.set(conflito.id, conflito);
+      }
     });
-    conflitosInternos
-      .filter((conflito) => conflito.status === "RESOLVIDO")
-      .forEach((conflito) => {
-        if (!mapa.has(conflito.id)) {
-          mapa.set(conflito.id, conflito);
-        }
-      });
-    return Array.from(mapa.values());
-  }, [ocupante, conflitosInternos]);
+  return Array.from(mapa.values());
+}, [ocupante, conflitosInternos]);
 
-  const riscosDetalhados = useMemo(() => {
+const conflitosAvaliacaoDetalhados = useMemo<RiscoDetalhadoResumo[]>(() => {
+  if (!avaliacaoRisco?.detalhes?.length) {
+    return [];
+  }
+
+  return avaliacaoRisco.detalhes.reduce<RiscoDetalhadoResumo[]>(
+    (lista, detalhe) => {
+      if (
+        detalhe.tipo !== "CONFLITO_INTERNO" &&
+        detalhe.tipo !== "CONFLITO_EXTERNO"
+      ) {
+        return lista;
+      }
+
+      const parsed = parseDetalheMensagem(detalhe.mensagem);
+      const proximidadeLabel = detalhe.proximidade
+        ? labelProximidade[detalhe.proximidade] ?? detalhe.proximidade
+        : null;
+      const tituloBase =
+        labelTipoRisco[detalhe.tipo] ?? "Risco identificado";
+      const titulo = proximidadeLabel
+        ? `${tituloBase} • ${proximidadeLabel}`
+        : tituloBase;
+
+      let descricao = detalhe.mensagem;
+      let envolvidos: RiscoEnvolvido[] | undefined = undefined;
+
+      if (parsed.tipo === "conflito_interno") {
+        descricao = `Conflito ${parsed.tipoConflito ?? "interno"} com ${
+          parsed.nomeRival ?? "adversário"
+        }`;
+        if (parsed.local) {
+          descricao = `${descricao} - ${parsed.local}`;
+        }
+        if (parsed.nomeRival) {
+          envolvidos = [
+            {
+              nome: parsed.nomeRival,
+              local: parsed.local ?? null,
+            },
+          ];
+        }
+      } else if (parsed.tipo === "conflito_externo") {
+        descricao = parsed.origem
+          ? `Rival associado a ${parsed.origem}`
+          : detalhe.mensagem;
+        if (parsed.nomeRival) {
+          envolvidos = [
+            {
+              nome: parsed.nomeRival,
+              local: parsed.local ?? null,
+            },
+          ];
+        }
+      } else if (parsed.tipo === "alianca") {
+        descricao = `${parsed.vinculo} - ${parsed.contexto}`;
+        envolvidos = [
+          {
+            nome: parsed.nome,
+            local: parsed.local ?? null,
+          },
+        ];
+      }
+
+      lista.push({
+        titulo,
+        descricao,
+        nivel: numeroParaNivelBadge(detalhe.nivel),
+        envolvidos,
+      });
+
+      return lista;
+    },
+    []
+  );
+}, [avaliacaoRisco?.detalhes]);
+
+  
+const riscosDetalhados = useMemo(() => {
     if (!ocupante) return [];
 
     const riscos: RiscoDetalhadoResumo[] = [];
@@ -548,6 +652,7 @@ export default function ModalAlojamentoDetalhes({
         descricao: descricaoNormalizada,
         tipoAlerta: ALERTAS_ESPECIAIS[tipo].tipoAlerta,
         alertaId: registro?.id ?? undefined,
+        nivelRisco: registro?.nivelRisco ?? null,
       };
     };
 
@@ -556,13 +661,19 @@ export default function ModalAlojamentoDetalhes({
         "RISCO_SUICIDIO",
         "Marcado no cadastro do adolescente."
       );
+      const suicidioNivel =
+        normalizarNivelTexto(
+          ocupante.alertaRiscoSuicidioNivel ?? info.nivelRisco ?? null
+        ) ?? "ALTO";
       riscos.push({
         titulo: "Risco de suicidio",
         descricao: info.descricao,
-        nivel: "ALTO",
+        nivel: suicidioNivel,
         alertaEspecialTipo: info.tipoAlerta,
         alertaEspecialId: info.alertaId,
         adolescenteId: ocupante.id,
+        tagNivel: suicidioNivel,
+        tagLabel: formatarNivelBadgeLabel(suicidioNivel),
       });
     }
 
@@ -599,115 +710,12 @@ export default function ModalAlojamentoDetalhes({
       });
     }
 
-    const externos = conflitosExternos[ocupante.id] ?? [];
-
-    // Agrupar conflitos externos por conflitoId para evitar duplicação
-    const conflitosProcessados = new Set<string>();
-
-    externos.forEach((impacto) => {
-      // Evitar processar o mesmo conflito múltiplas vezes
-      if (conflitosProcessados.has(impacto.conflitoId)) {
-        return;
-      }
-      conflitosProcessados.add(impacto.conflitoId);
-
-      // Buscar TODOS os registros deste conflito
-      const todosRelacionados =
-        impactosPorConflito
-          .get(impacto.conflitoId)
-          ?.filter((registro) => registro.adolescente.id !== ocupante.id) ??
-        [];
-
-      // Filtrar apenas os RIVAIS (do bairro/facção oposta), não os aliados do mesmo bairro/facção
-      const rivaisReais = todosRelacionados.filter((registro) => {
-        if (impacto.conflitoTipo === "BAIRRO") {
-          // O adolescente rival deve ser do bairro de DESTINO do conflito (não do mesmo bairro do ocupante)
-          // IMPORTANTE: O campo é "bairro", não "bairroOrigem"
-          return registro.adolescente.bairro?.id === impacto.conflitoDestino.id;
-        } else if (impacto.conflitoTipo === "FACCAO") {
-          // O adolescente rival deve ser da facção de DESTINO do conflito (não da mesma facção do ocupante)
-          return registro.adolescente.faccao?.id === impacto.conflitoDestino.id;
-        }
-        return false;
-      });
-
-      // Mapear TODOS os rivais reais encontrados
-      const envolvidos =
-        rivaisReais.length > 0
-          ? rivaisReais.map((registro) => {
-              const localDireto = localizarAdolescente(
-                registro.adolescente.id
-              );
-              const fallback = registro.adolescente.alojamento
-                ? {
-                    casa: registro.adolescente.alojamento.casa?.nome ?? null,
-                    numero: registro.adolescente.alojamento.numero ?? null,
-                    ala: registro.adolescente.alojamento.ala ?? null,
-                  }
-                : null;
-
-              return {
-                id: registro.adolescente.id,
-                nome: registro.adolescente.nome,
-                local: formatarLocalizacao(localDireto ?? fallback ?? undefined),
-              };
-            })
-          : undefined;
-
-      const destinoComplemento = impacto.conflitoDestino.complemento
-        ? ` (${impacto.conflitoDestino.complemento})`
-        : "";
-
-      // Criar UM ÚNICO card com TODOS os rivais deste conflito
-      riscos.push({
-        titulo:
-          impacto.conflitoTipo === "FACCAO"
-            ? `Rivais por facção: ${impacto.conflitoDestino.nome}${destinoComplemento}`
-            : `Rivais territoriais: ${impacto.conflitoDestino.nome}${destinoComplemento}`,
-        descricao:
-          impacto.conflitoTipo === "FACCAO"
-            ? `Adolescentes da facção rival ${impacto.conflitoDestino.nome} alocados na unidade.`
-            : `Adolescentes do bairro rival ${impacto.conflitoDestino.nome}${destinoComplemento} alocados na unidade.`,
-        nivel:
-          impacto.risco === "ALTO"
-            ? "ALTO"
-            : impacto.risco === "MEDIO"
-            ? "MEDIO"
-            : "BAIXO",
-        envolvidos,
-      });
-    });
-
-    conflitosInternosAtivos.forEach((conflito) => {
-      const adversario = conflito.adversario;
-      const localAdversario = localizarAdolescente(adversario?.id);
-
-      riscos.push({
-        titulo: `Conflito interno (${conflito.tipoConflito ?? "N/I"})`,
-        descricao: conflito.descricao ?? "Registro interno.",
-        nivel: "ALTO",
-        envolvidos: adversario
-          ? [
-              {
-                id: adversario.id,
-                nome: adversario.nomeCompleto,
-                local: formatarLocalizacao(localAdversario ?? undefined),
-              },
-            ]
-          : undefined,
-      });
-    });
+    riscos.push(...conflitosAvaliacaoDetalhados);
 
     return riscos;
-  }, [
-    ocupante,
-    conflitosExternos,
-    impactosPorConflito,
-    conflitosInternosAtivos,
-    alertasEspeciaisPorTipo,
-  ]);
+  }, [ocupante, alertasEspeciaisPorTipo, conflitosAvaliacaoDetalhados]);
 
-  const motivosAmbientaisDetalhados = useMemo<MotivoAmbientalDetalhado[]>(() => {
+const motivosAmbientaisDetalhados = useMemo<MotivoAmbientalDetalhado[]>(() => {
     const motivos = avaliacaoRisco?.ambiental?.motivos;
     if (!motivos?.length) {
       return [];
@@ -1372,7 +1380,18 @@ export default function ModalAlojamentoDetalhes({
                               <div className="flex items-start gap-2">
                                 <span className="text-lg">⚔️</span>
                                 <div className="flex-1 space-y-1">
-                                  <p className="text-xs font-bold text-slate-800">{risco.titulo}</p>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <p className="text-xs font-bold text-slate-800">
+                                      {risco.titulo}
+                                    </p>
+                                    {risco.tagNivel && (
+                                      <span
+                                        className={`text-[10px] font-semibold uppercase tracking-wide rounded-full border px-2 py-0.5 ${nivelBadgeClasses[risco.tagNivel]}`}
+                                      >
+                                        {risco.tagLabel ?? formatarNivelBadgeLabel(risco.tagNivel)}
+                                      </span>
+                                    )}
+                                  </div>
 
                                   {risco.envolvidos && risco.envolvidos.length > 0 && (
                                     <div className="space-y-1.5 mt-2">

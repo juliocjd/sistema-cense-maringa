@@ -32,6 +32,7 @@ model Operador {
     justificativasAlgemaAprovador   JustificativaAlgema[] @relation("JustificativaAlgemaAprovador")
     papeis                OperadorPapel[]
     historicoMovimentacao HistoricoMovimentacao[]
+  gruposEspeciais      GrupoEspecial[]
 
   @@map("operadores")
 }
@@ -115,6 +116,7 @@ model Casa {
   grupos      Grupo[]
   historicoOrigemMovimentacao HistoricoMovimentacao[] @relation("HistoricoOrigemCasa")
   historicoDestinoMovimentacao HistoricoMovimentacao[] @relation("HistoricoDestinoCasa")
+  gruposEspeciaisCasa GrupoEspecialCasa[]
 
   @@map("casas")
 }
@@ -249,6 +251,7 @@ model TatuagemCatalogo {
   nomeSimbolo           String  @unique @map("nome_simbolo")
   significadoAssociado  String? @map("significado_associado")
   nivelRisco            String? @map("nivel_risco") // 'ALTO', 'MÉDIO', 'BAIXO'
+  localizacao           String? @map("localizacao")
 
   // Relações
   adolescentesTatuagens AdolescenteTatuagem[]
@@ -320,14 +323,14 @@ model Adolescente {
   bairroOrigem              Bairro?                     @relation(fields: [bairroOrigemId], references: [id])
   alojamentoAtual           Alojamento?                 @relation(fields: [alojamentoAtualId], references: [id])
   faseInternacaoAtual       FaseInternacao?             @relation(fields: [faseInternacaoAtualId], references: [id])
-  
+
   conflitosA                Conflito[]                  @relation("AdolescenteA")
   conflitosB                Conflito[]                  @relation("AdolescenteB")
   comunicadosInternos       ComunicadoInternoAdolescente[]
   alertasAtivos             AlertaAtivo[]
   tatuagens                 AdolescenteTatuagem[]
   historicoInfracional      AdolescenteHistoricoInfracional[]
-  gruposMembros             GrupoMembro[]
+   gruposMembros             GrupoMembro[]
   decisoesOperacionais      DecisaoOperacional[]
   solicitacoesTransf        SolicitacaoTransferencia[]
   historicoTransferencias   HistoricoTransferencia[]
@@ -336,6 +339,7 @@ model Adolescente {
   visitasRegistro           VisitaRegistro[]
   justificativasAlgema      JustificativaAlgema[]
   historicoMovimentacao     HistoricoMovimentacao[]
+  gruposEspeciais           GrupoEspecialMembro[]
 
   @@map("adolescentes")
 }
@@ -393,6 +397,51 @@ model Grupo {
   eventosGrupos           EventoEspecialGrupo[]
 
   @@map("grupos")
+}
+
+model GrupoEspecial {
+  id          String    @id @default(uuid())
+  nome        String
+  tipo        String    @default("ESPECIAL")
+  descricao   String?
+  operadorId  String    @map("operador_id")
+  criadoEm    DateTime  @default(now()) @map("criado_em")
+  ativo       Boolean   @default(true)
+
+  operador    Operador             @relation(fields: [operadorId], references: [id])
+  casas       GrupoEspecialCasa[]
+  membros     GrupoEspecialMembro[]
+
+  @@map("grupos_especiais")
+}
+
+model GrupoEspecialCasa {
+  id           String        @id @default(uuid())
+  grupoId      String        @map("grupo_id")
+  casaId       String        @map("casa_id")
+  criadoEm     DateTime      @default(now()) @map("criado_em")
+
+  grupo        GrupoEspecial @relation(fields: [grupoId], references: [id])
+  casa         Casa          @relation(fields: [casaId], references: [id])
+
+  @@unique([grupoId, casaId])
+  @@map("grupos_especiais_casas")
+}
+
+model GrupoEspecialMembro {
+  id            String       @id @default(uuid())
+  grupoId       String       @map("grupo_id")
+  adolescenteId String       @map("adolescente_id")
+  dataEntrada   DateTime     @default(now()) @map("data_entrada")
+  dataSaida     DateTime?    @map("data_saida")
+  justificativa String?      @map("justificativa")
+  criadoEm      DateTime     @default(now()) @map("criado_em")
+
+  grupo         GrupoEspecial @relation(fields: [grupoId], references: [id])
+  adolescente   Adolescente   @relation(fields: [adolescenteId], references: [id])
+
+  @@unique([grupoId, adolescenteId])
+  @@map("grupos_especiais_membros")
 }
 
 model GrupoMembro {

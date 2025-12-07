@@ -10,6 +10,7 @@ import {
   construirMapaAlojamentos,
   avaliarVigilanciaFrontal,
 } from "@/lib/alocacao/vigilancia-frontal";
+import { alertaSuicidioExigeMonitoramento } from "@/lib/alertas/especiais";
 
 const mapearCasas = (casasDb: CasaRisco[]): CasaRisco[] =>
   casasDb.map((casa) => ({
@@ -114,9 +115,13 @@ export const simularAlocacao = ({
 
   alojamentoAlvo.statusManutencao = statusOriginal;
 
-  const vigilanciaFrontal = adolescenteSimulado.alertaRiscoSuicidio
+  const exigeVigilancia = alertaSuicidioExigeMonitoramento(
+    adolescenteSimulado.alertaRiscoSuicidio ?? false,
+    adolescenteSimulado.alertaRiscoSuicidioNivel
+  );
+  const vigilanciaFrontal = exigeVigilancia
     ? avaliarVigilanciaFrontal(alojamentoAlvo, mapaAlojamentos)
-    : { valido: true };
+    : { valido: true, avisos: [] };
 
   const alertas = construirAlertas(resultado.detalhes, resultado.ambiental);
   if (!vigilanciaFrontal.valido && vigilanciaFrontal.motivo) {
@@ -132,6 +137,17 @@ export const simularAlocacao = ({
       });
     }
   }
+  vigilanciaFrontal.avisos?.forEach((aviso) => {
+    const existe = alertas.some((alerta) => alerta.mensagem === aviso);
+    if (!existe) {
+      alertas.push({
+        tipo: "AMBIENTAL",
+        nivel: 2 as NivelRiscoBasico,
+        mensagem: aviso,
+        proximidade: undefined,
+      });
+    }
+  });
 
   const motivosAtualizados = [...resultado.motivos];
   if (!vigilanciaFrontal.valido && vigilanciaFrontal.motivo) {
@@ -139,6 +155,11 @@ export const simularAlocacao = ({
       motivosAtualizados.unshift(vigilanciaFrontal.motivo);
     }
   }
+  vigilanciaFrontal.avisos?.forEach((aviso) => {
+    if (!motivosAtualizados.includes(aviso)) {
+      motivosAtualizados.push(aviso);
+    }
+  });
 
   const requerJustificativa = resultado.nivel >= 3;
   const permiteAlocacao = vigilanciaFrontal.valido && resultado.nivel < 5;

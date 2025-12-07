@@ -14,6 +14,7 @@ const updateSchema = z
     nomeSimbolo: z.string().min(2).optional(),
     significadoAssociado: z.string().max(1000).optional().nullable(),
     nivelRisco: z.enum(allowedNiveis).optional().nullable(),
+    localizacao: z.string().max(60).optional().nullable(),
   })
   .refine(
     (value) => Object.keys(value).length > 0,
@@ -114,6 +115,7 @@ export async function GET(
       nomeSimbolo: tatuagem.nomeSimbolo,
       significadoAssociado: tatuagem.significadoAssociado,
       nivelRisco: tatuagem.nivelRisco,
+      localizacao: tatuagem.localizacao,
       totalUso: tatuagem._count?.adolescentesTatuagens ?? usos.length,
       adolescentes:
         incluirAdolescentes
@@ -248,6 +250,9 @@ export async function PUT(
         ...(parsedBody.data.nivelRisco !== undefined
           ? { nivelRisco: parsedBody.data.nivelRisco ?? null }
           : {}),
+        ...(parsedBody.data.localizacao !== undefined
+          ? { localizacao: parsedBody.data.localizacao ?? null }
+          : {}),
       },
     });
 
@@ -374,4 +379,3 @@ export async function DELETE(
     );
   }
 }
-

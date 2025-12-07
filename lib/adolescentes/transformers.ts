@@ -3,6 +3,7 @@ import type { Adolescente, StatusUnidade, Ala } from "@/types";
 import {
   ALERTA_ESPECIAL_TIPOS,
   ALERTAS_ESPECIAIS,
+  extrairNivelRiscoSuicidio,
   mapearTipoEspecialPorCodigo,
 } from "@/lib/alertas/especiais";
 
@@ -186,6 +187,7 @@ export function mapPrismaAdolescente(
           alerta
         ): alerta is NonNullable<typeof alerta> => Boolean(alerta)
       ) ?? [];
+  const alertaSuicidioNivel = extrairNivelRiscoSuicidio(alertasEspeciais);
 
   return {
     id: adolescente.id,
@@ -243,6 +245,7 @@ export function mapPrismaAdolescente(
     alertaPerfilMapeado: adolescente.alertaPerfilMapeado ?? false,
     alertaSaudeConfidencial: adolescente.alertaSaudeConfidencial ?? false,
     alertaSaudeDetalhes: adolescente.alertaSaudeDetalhes ?? null,
+    alertaRiscoSuicidioNivel: alertaSuicidioNivel,
     conflitosA:
       adolescente.conflitosA
         ?.filter(

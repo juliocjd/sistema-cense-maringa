@@ -1,5 +1,8 @@
 type AdolescenteSlim = {
   id: string;
+  nomeCompleto?: string | null;
+  alertaRiscoSuicidio?: boolean;
+  alertaRiscoSuicidioNivel?: string | null;
 };
 
 type AlojamentoBasico = {
@@ -28,6 +31,7 @@ export type VigilanciaFrontalResultado = {
   valido: boolean;
   motivo?: string;
   localFrontal?: string;
+  avisos?: string[];
 };
 
 const formatarCasa = (casa?: CasaBasica | null) => {
@@ -111,6 +115,8 @@ export const avaliarVigilanciaFrontal = <
     };
   }
 
+  const avisos: string[] = [];
+
   if (!frontalInfo.alojamento.adolescentes.length) {
     return {
       valido: false,
@@ -119,5 +125,22 @@ export const avaliarVigilanciaFrontal = <
     };
   }
 
+  const sentinela = frontalInfo.alojamento
+    .adolescentes[0] as AdolescenteSlim | undefined;
+  if (sentinela?.alertaRiscoSuicidio) {
+    const nivel = sentinela.alertaRiscoSuicidioNivel
+      ? sentinela.alertaRiscoSuicidioNivel.toLowerCase()
+      : null;
+    const nome = sentinela.nomeCompleto ?? "Adolescente frontal";
+    avisos.push(
+      `Atencao: ${nome}${
+        nivel ? ` (risco ${nivel})` : ""
+      } tambem possui alerta de risco de suicidio no alojamento frontal.`
+    );
+  }
+
+  if (avisos.length > 0) {
+    return { valido: true, localFrontal: local, avisos };
+  }
   return { valido: true, localFrontal: local };
 };

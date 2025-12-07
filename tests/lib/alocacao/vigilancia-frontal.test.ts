@@ -6,12 +6,16 @@ import {
 import { simularAlocacao } from "@/lib/alocacao/simulador";
 import type { CasaRisco } from "@/lib/riscos/calcular";
 
-const criarAdolescenteRisco = (id: string) => ({
+const criarAdolescenteRisco = (
+  id: string,
+  opts?: { suicidio?: boolean; nivel?: string | null }
+) => ({
   id,
   nomeCompleto: `Adolescente ${id}`,
   bairroOrigemId: null,
   faccaoGrupoId: null,
-  alertaRiscoSuicidio: false,
+  alertaRiscoSuicidio: opts?.suicidio ?? false,
+  alertaRiscoSuicidioNivel: opts?.nivel ?? null,
   alertaPerfilMapeado: false,
   alertaSaudeConfidencial: false,
   alertaSaudeDetalhes: null,
@@ -22,8 +26,12 @@ const criarAdolescenteRisco = (id: string) => ({
 
 const criarCasaBasica = ({
   frontalOcupado,
+  sentinelaSuicida = false,
+  sentinelaNivel = "ALTO",
 }: {
   frontalOcupado: boolean;
+  sentinelaSuicida?: boolean;
+  sentinelaNivel?: string;
 }): CasaRisco[] => [
   {
     id: "casa-1",
@@ -59,7 +67,14 @@ const criarCasaBasica = ({
         nivelRisco: null,
         icones: [],
         alertas: [],
-        adolescentes: frontalOcupado ? [criarAdolescenteRisco("sentinela")] : [],
+        adolescentes: frontalOcupado
+          ? [
+              criarAdolescenteRisco("sentinela", {
+                suicidio: sentinelaSuicida,
+                nivel: sentinelaNivel,
+              }),
+            ]
+          : [],
       },
     ],
   },
@@ -85,6 +100,21 @@ describe("avaliarVigilanciaFrontal", () => {
     expect(resultado.valido).toBe(true);
     expect(resultado.motivo).toBeUndefined();
     expect(resultado.localFrontal).toContain("Casa 01");
+    expect(resultado.avisos).toBeUndefined();
+  });
+
+  it("emite aviso quando frontal tambem possui alerta de suicidio", () => {
+    const casas = criarCasaBasica({
+      frontalOcupado: true,
+      sentinelaSuicida: true,
+    });
+    const mapa = construirMapaAlojamentos(casas);
+    const alvo = casas[0].alojamentos[0];
+
+    const resultado = avaliarVigilanciaFrontal(alvo, mapa);
+    expect(resultado.valido).toBe(true);
+    expect(resultado.avisos).toBeTruthy();
+    expect(resultado.avisos?.[0]).toContain("alerta de risco de suicidio");
   });
 });
 
@@ -95,6 +125,7 @@ describe("simularAlocacao - vigilancia frontal para risco de suicidio", () => {
     bairroOrigemId: null,
     faccaoGrupoId: null,
     alertaRiscoSuicidio: true,
+    alertaRiscoSuicidioNivel: "ALTO",
     alertaPerfilMapeado: false,
     alertaSaudeConfidencial: false,
     alertaSaudeDetalhes: null,
@@ -136,6 +167,44 @@ describe("simularAlocacao - vigilancia frontal para risco de suicidio", () => {
     });
 
     expect(resultado.status).toBe(200);
+    expect(resultado.dados.permite_alocacao).toBe(true);
+    expect(
+      resultado.dados.alertas.some((alerta: any) =>
+        alerta.mensagem.includes("Sem vigilancia frontal")
+      )
+    ).toBe(false);
+  });
+
+  it("mantem alerta mas nao bloqueia quando frontal tambem tem suicidio", () => {
+    const casas = criarCasaBasica({
+      frontalOcupado: true,
+      sentinelaSuicida: true,
+      sentinelaNivel: "ALTO",
+    });
+    const resultado = simularAlocacao({
+      adolescente: adolescenteBase,
+      alojamentoId: "aloj-alvo",
+      casasBase: casas,
+      conflitosExternos: {},
+    });
+
+    expect(resultado.dados.permite_alocacao).toBe(true);
+    expect(
+      resultado.dados.alertas.some((alerta: any) =>
+        alerta.mensagem.includes("tambem possui alerta de risco de suicidio")
+      )
+    ).toBe(true);
+  });
+
+  it("nao exige vigilancia frontal quando nivel do alerta for baixo", () => {
+    const casas = criarCasaBasica({ frontalOcupado: false });
+    const resultado = simularAlocacao({
+      adolescente: { ...adolescenteBase, alertaRiscoSuicidioNivel: "BAIXO" },
+      alojamentoId: "aloj-alvo",
+      casasBase: casas,
+      conflitosExternos: {},
+    });
+
     expect(resultado.dados.permite_alocacao).toBe(true);
     expect(
       resultado.dados.alertas.some((alerta: any) =>
