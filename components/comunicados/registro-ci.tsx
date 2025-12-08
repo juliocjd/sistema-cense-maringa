@@ -2,15 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
-import {
-  ArrowLeft,
-  Save,
-  Upload,
-  X,
-  Search,
-  AlertTriangle,
-  FileText,
-} from "lucide-react";
+import { ArrowLeft, Save, X, Search, AlertTriangle } from "lucide-react";
 import {
   TIPO_CI_OPTIONS,
   TIPOS_CONFLITO_AUTOMATICO,
@@ -37,7 +29,6 @@ export function RegistroCI({ adolescentes, onSalvar }: RegistroCIProps) {
   );
   const [tipoCi, setTipoCi] = useState("");
   const [resumoCi, setResumoCi] = useState("");
-  const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [adolescentesSelecionados, setAdolescentesSelecionados] = useState<
     Adolescente[]
   >([]);
@@ -77,17 +68,6 @@ export function RegistroCI({ adolescentes, onSalvar }: RegistroCIProps) {
       (a.nomeCompleto.toLowerCase().includes(buscaAdolescente.toLowerCase()) ||
         a.numeroSms.includes(buscaAdolescente))
   );
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      if (file.type === "application/pdf") {
-        setPdfFile(file);
-      } else {
-        alert("Por favor, selecione um arquivo PDF");
-      }
-    }
-  };
 
   const adicionarAdolescente = (adolescente: Adolescente) => {
     setAdolescentesSelecionados([...adolescentesSelecionados, adolescente]);
@@ -189,12 +169,18 @@ export function RegistroCI({ adolescentes, onSalvar }: RegistroCIProps) {
         "adolescentesIds",
         JSON.stringify(selecionadosParaEnvio.map((a) => a.id))
       );
+      if (modoConflito) {
+        formData.append(
+          "ladoAIds",
+          JSON.stringify(ladoA.map((participante) => participante.id))
+        );
+        formData.append(
+          "ladoBIds",
+          JSON.stringify(ladoB.map((participante) => participante.id))
+        );
+      }
       formData.append("gerarConflito", gerarConflito ? "true" : "false");
       formData.append("gerarAlerta", gerarAlerta ? "true" : "false");
-
-      if (pdfFile) {
-        formData.append("pdf", pdfFile);
-      }
 
       await onSalvar(formData);
 
@@ -581,56 +567,6 @@ export function RegistroCI({ adolescentes, onSalvar }: RegistroCIProps) {
             />
           </div>
 
-          {/* Upload PDF */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Upload do PDF (Opcional)
-            </label>
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 transition-all">
-              <input
-                type="file"
-                accept="application/pdf"
-                onChange={handleFileChange}
-                className="hidden"
-                id="pdf-upload"
-              />
-              <label
-                htmlFor="pdf-upload"
-                className="cursor-pointer flex flex-col items-center gap-2"
-              >
-                {pdfFile ? (
-                  <>
-                    <FileText size={48} className="text-blue-600" />
-                    <p className="font-semibold text-gray-800">
-                      {pdfFile.name}
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      {(pdfFile.size / 1024 / 1024).toFixed(2)} MB
-                    </p>
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        setPdfFile(null);
-                      }}
-                      className="mt-2 px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors text-sm font-semibold"
-                    >
-                      Remover arquivo
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <Upload size={48} className="text-gray-400" />
-                    <p className="font-semibold text-gray-700">
-                      Clique para fazer upload do PDF
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      ou arraste o arquivo aqui
-                    </p>
-                  </>
-                )}
-              </label>
-            </div>
-          </div>
         </div>
 
         {/* Botões */}

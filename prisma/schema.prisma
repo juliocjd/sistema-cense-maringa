@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,75 +7,65 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ============================================
-// AUTENTICAÇÃO E CONTROLE DE ACESSO
-// ============================================
-
 model Operador {
-  id            String   @id @default(uuid())
-  nomeCompleto  String   @map("nome_completo")
-  email         String   @unique
-  senhaHash     String   @map("senha_hash")
-  funcaoRole    String   @map("funcao_role") // 'ADMIN', 'OPERADOR'
-  status        String   @default("ATIVO")
-  criadoEm      DateTime @default(now()) @map("criado_em")
-  atualizadoEm  DateTime @updatedAt @map("atualizado_em")
-
-  // Relações
-  logAuditoria         LogAuditoria[]
-  decisoesOperacionais DecisaoOperacional[]
-  solicitacoesTransf   SolicitacaoTransferencia[]
-  justificativasAlgemaResponsavel JustificativaAlgema[] @relation("JustificativaAlgemaResponsavel")
-    justificativasAlgemaAprovador   JustificativaAlgema[] @relation("JustificativaAlgemaAprovador")
-    papeis                OperadorPapel[]
-    historicoMovimentacao HistoricoMovimentacao[]
-  gruposEspeciais      GrupoEspecial[]
+  id                              String                     @id @default(uuid())
+  nomeCompleto                    String                     @map("nome_completo")
+  email                           String                     @unique
+  senhaHash                       String                     @map("senha_hash")
+  funcaoRole                      String                     @map("funcao_role")
+  status                          String                     @default("ATIVO")
+  criadoEm                        DateTime                   @default(now()) @map("criado_em")
+  atualizadoEm                    DateTime                   @updatedAt @map("atualizado_em")
+  decisoesOperacionais            DecisaoOperacional[]
+  gruposEspeciais                 GrupoEspecial[]
+  historicoMovimentacao           HistoricoMovimentacao[]
+  justificativasAlgemaAprovador   JustificativaAlgema[]      @relation("JustificativaAlgemaAprovador")
+  justificativasAlgemaResponsavel JustificativaAlgema[]      @relation("JustificativaAlgemaResponsavel")
+  logAuditoria                    LogAuditoria[]
+  papeis                          OperadorPapel[]
+  solicitacoesTransf              SolicitacaoTransferencia[]
 
   @@map("operadores")
 }
 
 model Permissao {
-  id        String   @id @default(uuid())
-  codigo    String   @unique
-  descricao String
-  criadoEm  DateTime @default(now()) @map("criado_em")
-  atualizadoEm DateTime @updatedAt @map("atualizado_em")
-
-  papeis PapelPermissao[]
+  id           String           @id @default(uuid())
+  codigo       String           @unique
+  descricao    String
+  criadoEm     DateTime         @default(now()) @map("criado_em")
+  atualizadoEm DateTime         @default(now()) @updatedAt @map("atualizado_em")
+  papeis       PapelPermissao[]
 
   @@map("permissoes")
 }
 
 model Papel {
-  id         String   @id @default(uuid())
-  nome       String   @unique
-  descricao  String?
-  criadoEm   DateTime @default(now()) @map("criado_em")
-  atualizadoEm DateTime @updatedAt @map("atualizado_em")
-
-  permissoes PapelPermissao[]
-  operadores OperadorPapel[]
+  id           String           @id @default(uuid())
+  nome         String           @unique
+  descricao    String?
+  criadoEm     DateTime         @default(now()) @map("criado_em")
+  atualizadoEm DateTime         @default(now()) @updatedAt @map("atualizado_em")
+  operadores   OperadorPapel[]
+  permissoes   PapelPermissao[]
 
   @@map("papeis")
 }
 
 model PapelPermissao {
-  id          String @id @default(uuid())
-  papelId     String @map("papel_id")
-  permissaoId String @map("permissao_id")
-
-  papel      Papel      @relation(fields: [papelId], references: [id])
-  permissao  Permissao  @relation(fields: [permissaoId], references: [id])
+  id          String    @id @default(uuid())
+  papelId     String    @map("papel_id")
+  permissaoId String    @map("permissao_id")
+  papel       Papel     @relation(fields: [papelId], references: [id])
+  permissao   Permissao @relation(fields: [permissaoId], references: [id])
 
   @@unique([papelId, permissaoId])
   @@map("papeis_permissoes")
 }
 
 model OperadorPapel {
-  id         String @id @default(uuid())
-  operadorId String @map("operador_id")
-  papelId    String @map("papel_id")
-
+  id         String   @id @default(uuid())
+  operadorId String   @map("operador_id")
+  papelId    String   @map("papel_id")
   operador   Operador @relation(fields: [operadorId], references: [id])
   papel      Papel    @relation(fields: [papelId], references: [id])
 
@@ -87,116 +74,95 @@ model OperadorPapel {
 }
 
 model TecnicoReferencia {
-  id          String    @id @default(uuid())
-  nome        String
-  atividade   String?
-  email       String    @unique
-  telefone    String?
-  criadoEm    DateTime  @default(now()) @map("criado_em")
-  atualizadoEm DateTime @updatedAt @map("atualizado_em")
-
+  id                     String        @id @default(uuid())
+  nome                   String
+  atividade              String?
+  email                  String        @unique
+  telefone               String?
+  criadoEm               DateTime      @default(now()) @map("criado_em")
+  atualizadoEm           DateTime      @updatedAt @map("atualizado_em")
   adolescentesReferencia Adolescente[] @relation("TecnicoReferencia")
 
   @@map("agentes_profissionais")
 }
 
-// ============================================
-// ESTRUTURA FÍSICA
-// ============================================
-
 model Casa {
-  id          String   @id @default(uuid())
-  nome        String // 'Casa 01', 'Casa 02'...
-  numero      Int
-  isolada     Boolean  @default(false)
-  observacoes String?
-
-  // Relações
-  alojamentos Alojamento[]
-  grupos      Grupo[]
-  historicoOrigemMovimentacao HistoricoMovimentacao[] @relation("HistoricoOrigemCasa")
+  id                           String                  @id @default(uuid())
+  nome                         String
+  numero                       Int
+  isolada                      Boolean                 @default(false)
+  observacoes                  String?
+  alojamentos                  Alojamento[]
+  grupos                       Grupo[]
+  gruposEspeciaisCasa          GrupoEspecialCasa[]
   historicoDestinoMovimentacao HistoricoMovimentacao[] @relation("HistoricoDestinoCasa")
-  gruposEspeciaisCasa GrupoEspecialCasa[]
+  historicoOrigemMovimentacao  HistoricoMovimentacao[] @relation("HistoricoOrigemCasa")
 
   @@map("casas")
 }
 
 model Alojamento {
-  id                      String  @id @default(uuid())
-  casaId                  String  @map("casa_id")
-  numeroAlojamento        String  @map("numero_alojamento") // '01', '02'...
-  ala                     String? // 'A', 'B', NULL (para Casa 08)
-  statusManutencao        String  @default("LIVRE") @map("status_manutencao") // 'LIVRE', 'INTERDITADO'
-  alojamentoFrontalId     String? @map("alojamento_frontal_id")
-  zonaRiscoId             String? @map("zona_risco_id")
-  localizacaoPreferencial Boolean @default(false) @map("localizacao_preferencial")
-  interdicaoJustificativa String? @map("interdicao_justificativa")
-  interdicaoDocumentoTipo String? @map("interdicao_documento_tipo")
-  interdicaoDocumentoReferencia String? @map("interdicao_documento_referencia")
-
-  // Relações
-  casa              Casa                    @relation(fields: [casaId], references: [id])
-  alojamentoFrontal Alojamento?             @relation("AlojamentoFrontal", fields: [alojamentoFrontalId], references: [id])
-  alojamentoOpo     Alojamento[]            @relation("AlojamentoFrontal")
-  zonaRisco         ZonaRisco?              @relation(fields: [zonaRiscoId], references: [id])
-    adolescentes      Adolescente[]
-    zonasRiscoAloj    ZonaRiscoAlojamento[]
-    historicoOrigemMovimentacao HistoricoMovimentacao[] @relation("HistoricoOrigemAlojamento")
-    historicoDestinoMovimentacao HistoricoMovimentacao[] @relation("HistoricoDestinoAlojamento")
+  id                            String                  @id @default(uuid())
+  casaId                        String                  @map("casa_id")
+  numeroAlojamento              String                  @map("numero_alojamento")
+  ala                           String?
+  statusManutencao              String                  @default("LIVRE") @map("status_manutencao")
+  alojamentoFrontalId           String?                 @map("alojamento_frontal_id")
+  zonaRiscoId                   String?                 @map("zona_risco_id")
+  localizacaoPreferencial       Boolean                 @default(false) @map("localizacao_preferencial")
+  interdicaoJustificativa       String?                 @map("interdicao_justificativa")
+  interdicaoDocumentoTipo       String?                 @map("interdicao_documento_tipo") @db.VarChar(64)
+  interdicaoDocumentoReferencia String?                 @map("interdicao_documento_referencia")
+  adolescentes                  Adolescente[]
+  alojamentoFrontal             Alojamento?             @relation("AlojamentoFrontal", fields: [alojamentoFrontalId], references: [id])
+  alojamentoOpo                 Alojamento[]            @relation("AlojamentoFrontal")
+  casa                          Casa                    @relation(fields: [casaId], references: [id])
+  zonaRisco                     ZonaRisco?              @relation(fields: [zonaRiscoId], references: [id])
+  historicoDestinoMovimentacao  HistoricoMovimentacao[] @relation("HistoricoDestinoAlojamento")
+  historicoOrigemMovimentacao   HistoricoMovimentacao[] @relation("HistoricoOrigemAlojamento")
+  zonasRiscoAloj                ZonaRiscoAlojamento[]
 
   @@unique([casaId, numeroAlojamento])
   @@map("alojamentos")
 }
 
 model ZonaRisco {
-  id        String  @id @default(uuid())
-  nomeZona  String  @map("nome_zona")
-  descricao String?
-
-  // Relações
-  alojamentos      Alojamento[]
-  alojamentosLink  ZonaRiscoAlojamento[]
-  zonasVinculoA    ZonaRiscoVinculo[]    @relation("ZonaA")
-  zonasVinculoB    ZonaRiscoVinculo[]    @relation("ZonaB")
+  id              String                @id @default(uuid())
+  nomeZona        String                @map("nome_zona")
+  descricao       String?
+  alojamentos     Alojamento[]
+  alojamentosLink ZonaRiscoAlojamento[]
+  zonasVinculoA   ZonaRiscoVinculo[]    @relation("ZonaA")
+  zonasVinculoB   ZonaRiscoVinculo[]    @relation("ZonaB")
 
   @@map("zonas_risco")
 }
 
 model ZonaRiscoAlojamento {
-  id           String @id @default(uuid())
-  zonaId       String @map("zona_id")
-  alojamentoId String @map("alojamento_id")
-
-  // Relações
-  zona       ZonaRisco  @relation(fields: [zonaId], references: [id])
-  alojamento Alojamento @relation(fields: [alojamentoId], references: [id])
+  id           String     @id @default(uuid())
+  zonaId       String     @map("zona_id")
+  alojamentoId String     @map("alojamento_id")
+  alojamento   Alojamento @relation(fields: [alojamentoId], references: [id])
+  zona         ZonaRisco  @relation(fields: [zonaId], references: [id])
 
   @@map("zonas_risco_alojamentos")
 }
 
 model ZonaRiscoVinculo {
-  id      String @id @default(uuid())
-  zonaAId String @map("zona_a_id")
-  zonaBId String @map("zona_b_id")
-
-  // Relações
-  zonaA ZonaRisco @relation("ZonaA", fields: [zonaAId], references: [id])
-  zonaB ZonaRisco @relation("ZonaB", fields: [zonaBId], references: [id])
+  id      String    @id @default(uuid())
+  zonaAId String    @map("zona_a_id")
+  zonaBId String    @map("zona_b_id")
+  zonaA   ZonaRisco @relation("ZonaA", fields: [zonaAId], references: [id])
+  zonaB   ZonaRisco @relation("ZonaB", fields: [zonaBId], references: [id])
 
   @@map("zonas_risco_vinculos")
 }
 
-// ============================================
-// CATÁLOGOS
-// ============================================
-
 model Faccao {
-  id         String  @id @default(uuid())
-  nomeFaccao String  @unique @map("nome_faccao")
-  descricao  String?
-
-  // Relações
-  adolescentes Adolescente[]
+  id               String           @id @default(uuid())
+  nomeFaccao       String           @unique @map("nome_faccao")
+  descricao        String?
+  adolescentes     Adolescente[]
   conflitosFaccaoA FaccaoConflito[] @relation("FaccaoA")
   conflitosFaccaoB FaccaoConflito[] @relation("FaccaoB")
 
@@ -204,26 +170,23 @@ model Faccao {
 }
 
 model FaccaoConflito {
-  id        String  @id @default(uuid())
-  faccaoAId String  @map("faccao_a_id")
-  faccaoBId String  @map("faccao_b_id")
-  status    String  @default("ATIVO")
-  fonteInformacao String? @map("fonte_informacao")
-  criadoEm  DateTime @default(now()) @map("criado_em")
-  atualizadoEm DateTime @updatedAt @map("atualizado_em")
-
-  faccaoA Faccao @relation("FaccaoA", fields: [faccaoAId], references: [id])
-  faccaoB Faccao @relation("FaccaoB", fields: [faccaoBId], references: [id])
+  id              String   @id @default(uuid())
+  faccaoAId       String   @map("faccao_a_id")
+  faccaoBId       String   @map("faccao_b_id")
+  status          String   @default("ATIVO")
+  criadoEm        DateTime @default(now()) @map("criado_em")
+  atualizadoEm    DateTime @updatedAt @map("atualizado_em")
+  fonteInformacao String?  @map("fonte_informacao")
+  faccaoA         Faccao   @relation("FaccaoA", fields: [faccaoAId], references: [id])
+  faccaoB         Faccao   @relation("FaccaoB", fields: [faccaoBId], references: [id])
 
   @@map("faccoes_conflitos")
 }
 
 model Bairro {
-  id         String @id @default(uuid())
-  nomeBairro String @map("nome_bairro")
-  cidade     String
-
-  // Relações
+  id                String           @id @default(uuid())
+  nomeBairro        String           @map("nome_bairro")
+  cidade            String
   adolescentes      Adolescente[]
   bairrosConflitosA BairroConflito[] @relation("BairroA")
   bairrosConflitosB BairroConflito[] @relation("BairroB")
@@ -233,846 +196,671 @@ model Bairro {
 }
 
 model BairroConflito {
-  id        String  @id @default(uuid())
-  bairroAId String  @map("bairro_a_id")
-  barroBId  String  @map("bairro_b_id")
-  status    String  @default("ATIVO")
+  id              String  @id @default(uuid())
+  bairroAId       String  @map("bairro_a_id")
+  barroBId        String  @map("bairro_b_id")
+  status          String  @default("ATIVO")
   fonteInformacao String? @map("fonte_informacao")
-
-  // Relações
-  bairroA Bairro @relation("BairroA", fields: [bairroAId], references: [id])
-  bairroB Bairro @relation("BairroB", fields: [barroBId], references: [id])
+  bairroA         Bairro  @relation("BairroA", fields: [bairroAId], references: [id])
+  bairroB         Bairro  @relation("BairroB", fields: [barroBId], references: [id])
 
   @@map("bairros_conflitos")
 }
 
 model TatuagemCatalogo {
-  id                    String  @id @default(uuid())
-  nomeSimbolo           String  @unique @map("nome_simbolo")
-  significadoAssociado  String? @map("significado_associado")
-  nivelRisco            String? @map("nivel_risco") // 'ALTO', 'MÉDIO', 'BAIXO'
-  localizacao           String? @map("localizacao")
-
-  // Relações
+  id                    String                @id @default(uuid())
+  nomeSimbolo           String                @unique @map("nome_simbolo")
+  significadoAssociado  String?               @map("significado_associado")
+  nivelRisco            String?               @map("nivel_risco")
+  localizacao           String?               @map("localizacao") @db.VarChar(60)
   adolescentesTatuagens AdolescenteTatuagem[]
 
   @@map("tatuagens_catalogo")
 }
 
 model FaseInternacao {
-  id             String  @id @default(uuid())
-  nomeFase       String  @unique @map("nome_fase")
-  descricaoFase  String? @map("descricao_fase")
-  ordem          Int?
-  permiteCasa08  Boolean @default(false) @map("permite_casa_08")
-
-  // Relações
-  adolescentes Adolescente[]
+  id            String        @id @default(uuid())
+  nomeFase      String        @unique @map("nome_fase")
+  descricaoFase String?       @map("descricao_fase")
+  ordem         Int?
+  permiteCasa08 Boolean       @default(false) @map("permite_casa_08")
+  adolescentes  Adolescente[]
 
   @@map("fases_internacao")
 }
 
-// ============================================
-// ADOLESCENTES (CORE)
-// ============================================
-
 model Adolescente {
-  id                        String    @id @default(uuid())
-  nomeCompleto              String    @map("nome_completo")
-  nomeSocial                String?   @map("nome_social")
-  fotoUrl                   String?   @map("foto_url")
-  numeroSms                 String?   @map("numero_sms")
-  numeroInterno             Int?      @map("numero_interno")
-  dataNascimento            DateTime? @map("data_nascimento") @db.Date
-  dataEntrada               DateTime? @map("data_entrada")
-  numeroProcesso            String?   @map("numero_processo")
-  atoInfracionalAtual       String?   @map("ato_infracional_atual")
-  atoInfracionalAno         Int?      @map("ato_infracional_ano")
-  atoInfracionalProcesso    String?   @map("ato_infracional_processo")
-  atoInfracionalGravidade   Boolean   @default(false) @map("ato_infracional_gravidade")
-  atoInfracionalGravidadeObs String?  @map("ato_infracional_gravidade_obs")
-  statusUnidade             String    @default("ATIVO") @map("status_unidade")
-  
-  // Perfil de Risco
-  vulgo                     String?   @map("vulgo")
-  faccaoGrupoId             String?   @map("faccao_grupo_id")
-  faccaoFuncao              String?   @map("faccao_funcao")
-  faccaoInformacaoOrigem    String?   @map("faccao_informacao_origem")
-  faccaoInformacaoDetalhe   String?   @map("faccao_informacao_detalhe")
-  bairroOrigemId            String?   @map("bairro_origem_id")
-  riscoFuga                 String?   @map("risco_fuga")
-  
-  // Alertas
-  alertaRiscoSuicidio       Boolean   @default(false) @map("alerta_risco_suicidio")
-  alertaPerfilMapeado       Boolean   @default(false) @map("alerta_perfil_mapeado")
-  alertaSaudeConfidencial   Boolean   @default(false) @map("alerta_saude_confidencial")
-  alertaSaudeDetalhes       String?   @map("alerta_saude_detalhes")
-  
-  // Alocação Atual
-  alojamentoAtualId         String?   @map("alojamento_atual_id")
-  faseInternacaoAtualId     String?   @map("fase_internacao_atual_id")
-  tecnicoReferenciaId       String?   @map("agente_referencia_id")
-  tecnicoReferencia         TecnicoReferencia? @relation("TecnicoReferencia", fields: [tecnicoReferenciaId], references: [id])
-  dataDesinternacao         DateTime? @map("data_desinternacao")
-  
-  criadoEm                  DateTime  @default(now()) @map("criado_em")
-  atualizadoEm              DateTime  @updatedAt @map("atualizado_em")
-
-  // Relações
-  faccao                    Faccao?                     @relation(fields: [faccaoGrupoId], references: [id])
-  bairroOrigem              Bairro?                     @relation(fields: [bairroOrigemId], references: [id])
-  alojamentoAtual           Alojamento?                 @relation(fields: [alojamentoAtualId], references: [id])
-  faseInternacaoAtual       FaseInternacao?             @relation(fields: [faseInternacaoAtualId], references: [id])
-
-  conflitosA                Conflito[]                  @relation("AdolescenteA")
-  conflitosB                Conflito[]                  @relation("AdolescenteB")
-  comunicadosInternos       ComunicadoInternoAdolescente[]
-  alertasAtivos             AlertaAtivo[]
-  tatuagens                 AdolescenteTatuagem[]
-  historicoInfracional      AdolescenteHistoricoInfracional[]
-   gruposMembros             GrupoMembro[]
-  decisoesOperacionais      DecisaoOperacional[]
-  solicitacoesTransf        SolicitacaoTransferencia[]
-  historicoTransferencias   HistoricoTransferencia[]
-  eventosParticipantes      EventoEspecialParticipante[]
-  visitantesLink            AdolescenteVisitanteLink[]
-  visitasRegistro           VisitaRegistro[]
-  justificativasAlgema      JustificativaAlgema[]
-  historicoMovimentacao     HistoricoMovimentacao[]
-  gruposEspeciais           GrupoEspecialMembro[]
+  id                         String                            @id @default(uuid())
+  nomeCompleto               String                            @map("nome_completo")
+  nomeSocial                 String?                           @map("nome_social")
+  fotoUrl                    String?                           @map("foto_url")
+  numeroSms                  String?                           @map("numero_sms")
+  dataNascimento             DateTime?                         @map("data_nascimento") @db.Date
+  dataEntrada                DateTime?                         @map("data_entrada")
+  numeroProcesso             String?                           @map("numero_processo")
+  atoInfracionalAtual        String?                           @map("ato_infracional_atual")
+  statusUnidade              String                            @default("ATIVO") @map("status_unidade")
+  faccaoGrupoId              String?                           @map("faccao_grupo_id")
+  bairroOrigemId             String?                           @map("bairro_origem_id")
+  riscoFuga                  String?                           @map("risco_fuga")
+  alertaRiscoSuicidio        Boolean                           @default(false) @map("alerta_risco_suicidio")
+  alertaPerfilMapeado        Boolean                           @default(false) @map("alerta_perfil_mapeado")
+  alertaSaudeConfidencial    Boolean                           @default(false) @map("alerta_saude_confidencial")
+  alertaSaudeDetalhes        String?                           @map("alerta_saude_detalhes")
+  alojamentoAtualId          String?                           @map("alojamento_atual_id")
+  faseInternacaoAtualId      String?                           @map("fase_internacao_atual_id")
+  criadoEm                   DateTime                          @default(now()) @map("criado_em")
+  atualizadoEm               DateTime                          @updatedAt @map("atualizado_em")
+  atoInfracionalAno          Int?                              @map("ato_infracional_ano")
+  atoInfracionalProcesso     String?                           @map("ato_infracional_processo")
+  atoInfracionalGravidade    Boolean                           @default(false) @map("ato_infracional_gravidade")
+  atoInfracionalGravidadeObs String?                           @map("ato_infracional_gravidade_obs")
+  tecnicoReferenciaId        String?                           @map("agente_referencia_id")
+  dataDesinternacao          DateTime?                         @map("data_desinternacao")
+  numeroInterno              Int?                              @map("numero_interno")
+  vulgo                      String?                           @map("vulgo")
+  faccaoFuncao               String?                           @map("faccao_funcao")
+  faccaoInformacaoOrigem     String?                           @map("faccao_informacao_origem")
+  faccaoInformacaoDetalhe    String?                           @map("faccao_informacao_detalhe")
+  tecnicoReferencia          TecnicoReferencia?                @relation("TecnicoReferencia", fields: [tecnicoReferenciaId], references: [id])
+  alojamentoAtual            Alojamento?                       @relation(fields: [alojamentoAtualId], references: [id])
+  bairroOrigem               Bairro?                           @relation(fields: [bairroOrigemId], references: [id])
+  faccao                     Faccao?                           @relation(fields: [faccaoGrupoId], references: [id])
+  faseInternacaoAtual        FaseInternacao?                   @relation(fields: [faseInternacaoAtualId], references: [id])
+  historicoInfracional       AdolescenteHistoricoInfracional[]
+  tatuagens                  AdolescenteTatuagem[]
+  visitantesLink             AdolescenteVisitanteLink[]
+  alertasAtivos              AlertaAtivo[]
+  comunicadosInternos        ComunicadoInternoAdolescente[]
+  conflitosA                 Conflito[]                        @relation("AdolescenteA")
+  conflitosB                 Conflito[]                        @relation("AdolescenteB")
+  decisoesOperacionais       DecisaoOperacional[]
+  eventosParticipantes       EventoEspecialParticipante[]
+  gruposEspeciais            GrupoEspecialMembro[]
+  gruposMembros              GrupoMembro[]
+  historicoMovimentacao      HistoricoMovimentacao[]
+  historicoTransferencias    HistoricoTransferencia[]
+  justificativasAlgema       JustificativaAlgema[]
+  solicitacoesTransf         SolicitacaoTransferencia[]
+  visitasRegistro            VisitaRegistro[]
 
   @@map("adolescentes")
 }
 
 model AdolescenteTatuagem {
-  id                 String  @id @default(uuid())
-  adolescenteId      String  @map("adolescente_id")
-  tatuagemCatalogoId String  @map("tatuagem_catalogo_id")
-  localCorpo         String? @map("local_corpo")
-  fotoUrl            String? @map("foto_url")
+  id                 String           @id @default(uuid())
+  adolescenteId      String           @map("adolescente_id")
+  tatuagemCatalogoId String           @map("tatuagem_catalogo_id")
+  localCorpo         String?          @map("local_corpo")
+  fotoUrl            String?          @map("foto_url")
   observacoes        String?
-  significadoPessoal String? @map("significado_pessoal")
-
-  // Relações
-  adolescente      Adolescente       @relation(fields: [adolescenteId], references: [id])
-  tatuagemCatalogo TatuagemCatalogo  @relation(fields: [tatuagemCatalogoId], references: [id])
+  significadoPessoal String?          @map("significado_pessoal")
+  adolescente        Adolescente      @relation(fields: [adolescenteId], references: [id])
+  tatuagemCatalogo   TatuagemCatalogo @relation(fields: [tatuagemCatalogoId], references: [id])
 
   @@map("adolescentes_tatuagens")
 }
 
 model AdolescenteHistoricoInfracional {
-  id                        String  @id @default(uuid())
-  adolescenteId             String  @map("adolescente_id")
-  atoInfracionalDescricao   String  @map("ato_infracional_descricao")
-  atoInfracionalAno         Int?    @map("ato_infracional_ano")
-  atoInfracionalProcesso    String? @map("ato_infracional_processo")
-  atoInfracionalGravidade   Boolean @default(false) @map("ato_infracional_gravidade")
-  atoInfracionalGravidadeObs String? @map("ato_infracional_gravidade_obs")
-  unidadeInternacao         String? @map("unidade_internacao")
-  ano                       Int?
-  observacoes               String?
-
-  // Relações
-  adolescente Adolescente @relation(fields: [adolescenteId], references: [id])
+  id                         String      @id @default(uuid())
+  adolescenteId              String      @map("adolescente_id")
+  atoInfracionalDescricao    String      @map("ato_infracional_descricao")
+  unidadeInternacao          String?     @map("unidade_internacao")
+  ano                        Int?
+  observacoes                String?
+  atoInfracionalAno          Int?        @map("ato_infracional_ano")
+  atoInfracionalProcesso     String?     @map("ato_infracional_processo")
+  atoInfracionalGravidade    Boolean     @default(false) @map("ato_infracional_gravidade")
+  atoInfracionalGravidadeObs String?     @map("ato_infracional_gravidade_obs")
+  adolescente                Adolescente @relation(fields: [adolescenteId], references: [id])
 
   @@map("adolescentes_historico_infracional")
 }
 
-// ============================================
-// GRUPOS
-// ============================================
-
 model Grupo {
-  id        String   @id @default(uuid())
-  nomeGrupo String   @map("nome_grupo")
-  casaId    String   @map("casa_id")
-  ordemAla  String?  @map("ordem_ala") // 'A', 'B', 'C'
-  status    String   @default("ATIVO")
-  criadoEm  DateTime @default(now()) @map("criado_em")
-
-  // Relações
-  casa                    Casa                     @relation(fields: [casaId], references: [id])
-  membros                 GrupoMembro[]
-  decisoesOperacionais    DecisaoOperacional[]
-  eventosGrupos           EventoEspecialGrupo[]
+  id                   String                @id @default(uuid())
+  nomeGrupo            String                @map("nome_grupo")
+  casaId               String                @map("casa_id")
+  ordemAla             String?               @map("ordem_ala")
+  status               String                @default("ATIVO")
+  criadoEm             DateTime              @default(now()) @map("criado_em")
+  decisoesOperacionais DecisaoOperacional[]
+  eventosGrupos        EventoEspecialGrupo[]
+  casa                 Casa                  @relation(fields: [casaId], references: [id])
+  membros              GrupoMembro[]
 
   @@map("grupos")
 }
 
 model GrupoEspecial {
-  id          String    @id @default(uuid())
-  nome        String
-  tipo        String    @default("ESPECIAL")
-  descricao   String?
-  operadorId  String    @map("operador_id")
-  criadoEm    DateTime  @default(now()) @map("criado_em")
-  ativo       Boolean   @default(true)
-
-  operador    Operador             @relation(fields: [operadorId], references: [id])
-  casas       GrupoEspecialCasa[]
-  membros     GrupoEspecialMembro[]
+  id         String                @id @default(uuid()) @db.Uuid
+  nome       String
+  tipo       String                @default("ESPECIAL")
+  descricao  String?
+  operadorId String                @map("operador_id")
+  criadoEm   DateTime              @default(now()) @map("criado_em")
+  ativo      Boolean               @default(true)
+  operador   Operador              @relation(fields: [operadorId], references: [id], onUpdate: NoAction)
+  casas      GrupoEspecialCasa[]
+  membros    GrupoEspecialMembro[]
 
   @@map("grupos_especiais")
 }
 
 model GrupoEspecialCasa {
-  id           String        @id @default(uuid())
-  grupoId      String        @map("grupo_id")
-  casaId       String        @map("casa_id")
-  criadoEm     DateTime      @default(now()) @map("criado_em")
-
-  grupo        GrupoEspecial @relation(fields: [grupoId], references: [id])
-  casa         Casa          @relation(fields: [casaId], references: [id])
+  id       String        @id @default(uuid()) @db.Uuid
+  grupoId  String        @map("grupo_id") @db.Uuid
+  casaId   String        @map("casa_id")
+  criadoEm DateTime      @default(now()) @map("criado_em")
+  casa     Casa          @relation(fields: [casaId], references: [id], onUpdate: NoAction)
+  grupo    GrupoEspecial @relation(fields: [grupoId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([grupoId, casaId])
   @@map("grupos_especiais_casas")
 }
 
 model GrupoEspecialMembro {
-  id            String       @id @default(uuid())
-  grupoId       String       @map("grupo_id")
-  adolescenteId String       @map("adolescente_id")
-  dataEntrada   DateTime     @default(now()) @map("data_entrada")
-  dataSaida     DateTime?    @map("data_saida")
-  justificativa String?      @map("justificativa")
-  criadoEm      DateTime     @default(now()) @map("criado_em")
-
-  grupo         GrupoEspecial @relation(fields: [grupoId], references: [id])
-  adolescente   Adolescente   @relation(fields: [adolescenteId], references: [id])
+  id            String        @id @default(uuid()) @db.Uuid
+  grupoId       String        @map("grupo_id") @db.Uuid
+  adolescenteId String        @map("adolescente_id")
+  dataEntrada   DateTime      @default(now()) @map("data_entrada")
+  dataSaida     DateTime?     @map("data_saida")
+  justificativa String?       @map("justificativa")
+  criadoEm      DateTime      @default(now()) @map("criado_em")
+  adolescente   Adolescente   @relation(fields: [adolescenteId], references: [id], onUpdate: NoAction)
+  grupo         GrupoEspecial @relation(fields: [grupoId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([grupoId, adolescenteId])
   @@map("grupos_especiais_membros")
 }
 
 model GrupoMembro {
-  id            String    @id @default(uuid())
-  grupoId       String    @map("grupo_id")
-  adolescenteId String    @map("adolescente_id")
-  dataEntrada   DateTime  @default(now()) @map("data_entrada")
-  dataSaida     DateTime? @map("data_saida")
-
-  // Relações
-  grupo       Grupo       @relation(fields: [grupoId], references: [id])
-  adolescente Adolescente @relation(fields: [adolescenteId], references: [id])
+  id            String      @id @default(uuid())
+  grupoId       String      @map("grupo_id")
+  adolescenteId String      @map("adolescente_id")
+  dataEntrada   DateTime    @default(now()) @map("data_entrada")
+  dataSaida     DateTime?   @map("data_saida")
+  adolescente   Adolescente @relation(fields: [adolescenteId], references: [id])
+  grupo         Grupo       @relation(fields: [grupoId], references: [id])
 
   @@unique([grupoId, adolescenteId])
   @@map("grupos_membros")
 }
 
-// ============================================
-// CONFLITOS E COMUNICADOS
-// ============================================
-
 model Conflito {
-  id              String    @id @default(uuid())
-  adolescenteAId  String    @map("adolescente_a_id")
-  adolescenteBId  String    @map("adolescente_b_id")
-  tipoConflito    String?   @map("tipo_conflito")
-  status          String    @default("ATIVO")
-  ciOrigemId      String?   @map("ci_origem_id")
-  descricao       String?
-  registroGrupoId String?   @map("registro_grupo_id")
-  criadoEm        DateTime  @default(now()) @map("criado_em")
-  resolvidoEm     DateTime? @map("resolvido_em")
-
-  // Relações
-  adolescenteA       Adolescente           @relation("AdolescenteA", fields: [adolescenteAId], references: [id])
-  adolescenteB       Adolescente           @relation("AdolescenteB", fields: [adolescenteBId], references: [id])
-  ciOrigem           ComunicadoInterno?    @relation(fields: [ciOrigemId], references: [id])
+  id                 String              @id @default(uuid())
+  adolescenteAId     String              @map("adolescente_a_id")
+  adolescenteBId     String              @map("adolescente_b_id")
+  tipoConflito       String?             @map("tipo_conflito")
+  status             String              @default("ATIVO")
+  ciOrigemId         String?             @map("ci_origem_id")
+  descricao          String?
+  criadoEm           DateTime            @default(now()) @map("criado_em")
+  resolvidoEm        DateTime?           @map("resolvido_em")
+  registroGrupoId    String?             @map("registro_grupo_id")
+  adolescenteA       Adolescente         @relation("AdolescenteA", fields: [adolescenteAId], references: [id])
+  adolescenteB       Adolescente         @relation("AdolescenteB", fields: [adolescenteBId], references: [id])
+  ciOrigem           ComunicadoInterno?  @relation(fields: [ciOrigemId], references: [id])
   tentativasMediacao TentativaMediacao[]
 
   @@map("conflitos")
 }
 
 model ComunicadoInterno {
-  id          String   @id @default(uuid())
-  numero      Int
-  ano         Int
-  dataFato    DateTime @map("data_fato") @db.Date
-  tipoCI      String   @map("tipo_ci")
-  resumoCI    String   @map("resumo_ci")
-  caminhoPdf  String?  @map("caminho_pdf")
-  operadorId  String?  @map("operador_id")
-  criadoEm    DateTime @default(now()) @map("criado_em")
-
-  // Relações
-  adolescentes ComunicadoInternoAdolescente[]
-  conflitos    Conflito[]
+  id            String                         @id @default(uuid())
+  numero        Int
+  ano           Int
+  dataFato      DateTime                       @map("data_fato") @db.Date
+  tipoCI        String                         @map("tipo_ci")
+  resumoCI      String                         @map("resumo_ci")
+  caminhoPdf    String?                        @map("caminho_pdf")
+  operadorId    String?                        @map("operador_id")
+  criadoEm      DateTime                       @default(now()) @map("criado_em")
   alertasAtivos AlertaAtivo[]
+  adolescentes  ComunicadoInternoAdolescente[]
+  conflitos     Conflito[]
 
   @@unique([numero, ano])
   @@map("comunicados_internos")
 }
 
 model ComunicadoInternoAdolescente {
-  id            String @id @default(uuid())
-  ciId          String @map("ci_id")
-  adolescenteId String @map("adolescente_id")
-
-  // Relações
-  ci          ComunicadoInterno @relation(fields: [ciId], references: [id])
-  adolescente Adolescente       @relation(fields: [adolescenteId], references: [id])
+  id            String            @id @default(uuid())
+  ciId          String            @map("ci_id")
+  adolescenteId String            @map("adolescente_id")
+  adolescente   Adolescente       @relation(fields: [adolescenteId], references: [id])
+  ci            ComunicadoInterno @relation(fields: [ciId], references: [id])
+  ladoConflito  String? @map("lado_conflito")
 
   @@map("comunicados_internos_adolescentes_link")
 }
 
 model AlertaAtivo {
-  id               String    @id @default(uuid())
-  adolescenteId    String    @map("adolescente_id")
-  ciOrigemId       String?   @map("ci_origem_id")
-  tipoAlerta       String?   @map("tipo_alerta")
-  descricaoAlerta  String    @map("descricao_alerta")
-  nivelRisco       String?   @map("nivel_risco")
-  criadoEm         DateTime  @default(now()) @map("criado_em")
-  desativadoEm     DateTime? @map("desativado_em")
-
-  // Relações
-  adolescente Adolescente        @relation(fields: [adolescenteId], references: [id], onDelete: Cascade)
-  ciOrigem    ComunicadoInterno? @relation(fields: [ciOrigemId], references: [id])
+  id              String             @id @default(uuid())
+  adolescenteId   String             @map("adolescente_id")
+  ciOrigemId      String?            @map("ci_origem_id")
+  tipoAlerta      String?            @map("tipo_alerta")
+  descricaoAlerta String             @map("descricao_alerta")
+  nivelRisco      String?            @map("nivel_risco")
+  criadoEm        DateTime           @default(now()) @map("criado_em")
+  desativadoEm    DateTime?          @map("desativado_em")
+  adolescente     Adolescente        @relation(fields: [adolescenteId], references: [id], onDelete: Cascade)
+  ciOrigem        ComunicadoInterno? @relation(fields: [ciOrigemId], references: [id])
 
   @@map("alertas_ativos")
 }
 
-// ============================================
-// MEDIAÇÃO
-// ============================================
-
 model TentativaMediacao {
-  id                       String    @id @default(uuid())
-  conflitoId               String    @map("conflito_id")
-  dataTentativa            DateTime  @map("data_tentativa") @db.Date
-  profissionalResponsavel  String    @map("profissional_responsavel")
-  tipoIntervencao          String?   @map("tipo_intervencao")
-  resultado                String?
-  observacoes              String?
-  proximaAcaoRecomendada   String?   @map("proxima_acao_recomendada")
-  dataProximaAvaliacao     DateTime? @map("data_proxima_avaliacao") @db.Date
-  criadoEm                 DateTime  @default(now()) @map("criado_em")
-
-  // Relações
-  conflito Conflito @relation(fields: [conflitoId], references: [id])
+  id                      String    @id @default(uuid())
+  conflitoId              String    @map("conflito_id")
+  dataTentativa           DateTime  @map("data_tentativa") @db.Date
+  profissionalResponsavel String    @map("profissional_responsavel")
+  tipoIntervencao         String?   @map("tipo_intervencao")
+  resultado               String?
+  observacoes             String?
+  proximaAcaoRecomendada  String?   @map("proxima_acao_recomendada")
+  dataProximaAvaliacao    DateTime? @map("data_proxima_avaliacao") @db.Date
+  criadoEm                DateTime  @default(now()) @map("criado_em")
+  conflito                Conflito  @relation(fields: [conflitoId], references: [id])
 
   @@map("tentativas_mediacao")
 }
 
-// ============================================
-// DECISÕES E AUDITORIA
-// ============================================
-
 model DecisaoOperacional {
-  id                    String   @id @default(uuid())
-  operadorId            String   @map("operador_id")
-  dataHora              DateTime @default(now()) @map("data_hora")
-  tipoOperacao          String   @map("tipo_operacao")
-  adolescenteId         String?  @map("adolescente_id")
-  grupoId               String?  @map("grupo_id")
-  alojamentoId          String?  @map("alojamento_id")
-  nivelAlerta           String?  @map("nivel_alerta")
-  conflitosDetectados   Json?    @map("conflitos_detectados")
-  justificativaOperador String   @map("justificativa_operador")
-  medidasAdicionais     String[] @map("medidas_adicionais")
-  status                String   @default("EXECUTADO")
-
-  // Relações
-  operador    Operador     @relation(fields: [operadorId], references: [id])
-  adolescente Adolescente? @relation(fields: [adolescenteId], references: [id])
-  grupo       Grupo?       @relation(fields: [grupoId], references: [id])
+  id                    String       @id @default(uuid())
+  operadorId            String       @map("operador_id")
+  dataHora              DateTime     @default(now()) @map("data_hora")
+  tipoOperacao          String       @map("tipo_operacao")
+  adolescenteId         String?      @map("adolescente_id")
+  grupoId               String?      @map("grupo_id")
+  alojamentoId          String?      @map("alojamento_id")
+  nivelAlerta           String?      @map("nivel_alerta")
+  conflitosDetectados   Json?        @map("conflitos_detectados")
+  justificativaOperador String       @map("justificativa_operador")
+  medidasAdicionais     String[]     @map("medidas_adicionais")
+  status                String       @default("EXECUTADO")
+  adolescente           Adolescente? @relation(fields: [adolescenteId], references: [id])
+  grupo                 Grupo?       @relation(fields: [grupoId], references: [id])
+  operador              Operador     @relation(fields: [operadorId], references: [id])
 
   @@map("decisoes_operacionais")
 }
 
 model LogAuditoria {
-  id                String   @id @default(uuid())
-  operadorId        String?  @map("operador_id")
-  dataHora          DateTime @default(now()) @map("data_hora")
+  id                String    @id @default(uuid())
+  operadorId        String?   @map("operador_id")
+  dataHora          DateTime  @default(now()) @map("data_hora")
   acao              String
-  tabelaAfetada     String?  @map("tabela_afetada")
-  registroIdAfetado String?  @map("registro_id_afetado")
-  detalhesAlteracao Json?    @map("detalhes_alteracao")
-  ipOrigem          String?  @map("ip_origem")
-
-  // Relações
-  operador Operador? @relation(fields: [operadorId], references: [id])
+  tabelaAfetada     String?   @map("tabela_afetada")
+  registroIdAfetado String?   @map("registro_id_afetado")
+  detalhesAlteracao Json?     @map("detalhes_alteracao")
+  ipOrigem          String?   @map("ip_origem")
+  operador          Operador? @relation(fields: [operadorId], references: [id])
 
   @@map("log_auditoria")
 }
 
-// ============================================
-// EVENTOS ESPECIAIS
-// ============================================
-
 model EventoEspecial {
-  id             String    @id @default(uuid())
-  nomeEvento     String    @map("nome_evento")
-  dataHoraInicio DateTime  @map("data_hora_inicio")
-  dataHoraFim    DateTime? @map("data_hora_fim")
+  id             String                       @id @default(uuid())
+  nomeEvento     String                       @map("nome_evento")
+  dataHoraInicio DateTime                     @map("data_hora_inicio")
+  dataHoraFim    DateTime?                    @map("data_hora_fim")
   tipo           String?
-  status         String    @default("PLANEJADO")
+  status         String                       @default("PLANEJADO")
   observacoes    String?
-  criadoPor      String?   @map("criado_por")
-  criadoEm       DateTime  @default(now()) @map("criado_em")
-
-  // Relações
-  grupos        EventoEspecialGrupo[]
-  participantes EventoEspecialParticipante[]
+  criadoPor      String?                      @map("criado_por")
+  criadoEm       DateTime                     @default(now()) @map("criado_em")
+  grupos         EventoEspecialGrupo[]
+  participantes  EventoEspecialParticipante[]
 
   @@map("eventos_especiais")
 }
 
 model EventoEspecialGrupo {
-  id       String @id @default(uuid())
-  eventoId String @map("evento_id")
-  grupoId  String @map("grupo_id")
-
-  // Relações
-  evento EventoEspecial @relation(fields: [eventoId], references: [id])
-  grupo  Grupo          @relation(fields: [grupoId], references: [id])
+  id       String         @id @default(uuid())
+  eventoId String         @map("evento_id")
+  grupoId  String         @map("grupo_id")
+  evento   EventoEspecial @relation(fields: [eventoId], references: [id])
+  grupo    Grupo          @relation(fields: [grupoId], references: [id])
 
   @@map("eventos_especiais_grupos")
 }
 
 model EventoEspecialParticipante {
-  id            String @id @default(uuid())
-  eventoId      String @map("evento_id")
-  adolescenteId String @map("adolescente_id")
-
-  // Relações
-  evento      EventoEspecial @relation(fields: [eventoId], references: [id])
-  adolescente Adolescente    @relation(fields: [adolescenteId], references: [id])
+  id            String         @id @default(uuid())
+  eventoId      String         @map("evento_id")
+  adolescenteId String         @map("adolescente_id")
+  adolescente   Adolescente    @relation(fields: [adolescenteId], references: [id])
+  evento        EventoEspecial @relation(fields: [eventoId], references: [id])
 
   @@map("eventos_especiais_participantes")
 }
 
-// ============================================
-// JUSTIFICATIVAS DE ALGEMA
-// ============================================
-
 model JustificativaAlgema {
-  id                    String   @id @default(uuid())
-  numeroDocumento       String   @unique @map("numero_documento") // Ex: "JA-001/2025"
-  adolescenteId         String   @map("adolescente_id")
-  operadorResponsavelId String   @map("operador_responsavel_id")
-
-  // Dados do Contexto
-  dataHoraOcorrencia    DateTime @map("data_hora_ocorrencia")
-  motivoPrincipal       String   @map("motivo_principal")     // TRANSFERENCIA_JUDICIAL, AUDIENCIA, ATENDIMENTO_EXTERNO, FUGA_TENTATIVA, AGRESSAO_GRAVE
-  destinoMovimentacao   String?  @map("destino_movimentacao") // Para onde está sendo conduzido
-
-  // Fundamentação Legal
-  fundamentacaoLegal    String   @map("fundamentacao_legal")  // Texto detalhado da justificativa
-  atoInfracionalBase    String?  @map("ato_infracional_base") // Ato que justifica
-  numeroProcesso        String?  @map("numero_processo")
-  decisaoJudicial       String?  @map("decisao_judicial")     // Número da decisão judicial que determinou
-
-  // Avaliação de Risco
-  riscoFuga             String   @map("risco_fuga")           // BAIXO, MEDIO, ALTO
-  riscoAgressao         String   @map("risco_agressao")       // BAIXO, MEDIO, ALTO
-  riscoAutolesao        String   @map("risco_autolesao")      // BAIXO, MEDIO, ALTO
-  historicoComportamental String? @map("historico_comportamental") // Descrição de incidentes anteriores
-
-  // Análise Automática de Inteligência
-  fatoresAgravantes     String[] @map("fatores_agravantes")  // Fatores identificados automaticamente pelo sistema
-  pontuacaoRiscoFuga    Int?     @map("pontuacao_risco_fuga")
-  pontuacaoRiscoAgressao Int?    @map("pontuacao_risco_agressao")
-  pontuacaoRiscoAutolesao Int?   @map("pontuacao_risco_autolesao")
-  fundamentacaoAutomatica String? @map("fundamentacao_automatica") // Fundamentação gerada pelo sistema de inteligência
-
-  // Medidas de Segurança e Protocolo
-  medidasSeguranca      String[] @map("medidas_seguranca")    // Medidas adotadas durante o transporte
-  equipeProfissional    String[] @map("equipe_profissional") // Quem acompanhou (agentes, psicólogos, etc)
-  veiculoUtilizado      String?  @map("veiculo_utilizado")   // Identificação do veículo
-
-  // Observações e Monitoramento
-  observacoesAdicionais String?  @map("observacoes_adicionais")
-  horaInicio            DateTime? @map("hora_inicio")         // Quando foi colocada a algema
-  horaFim               DateTime? @map("hora_fim")            // Quando foi retirada
-  duracaoMinutos        Int?     @map("duracao_minutos")
-
-  // Controle e Auditoria
-  status                String   @default("EMITIDO")          // EMITIDO, ANEXADO_PROCESSO, ARQUIVADO
-  arquivoPdfPath        String?  @map("arquivo_pdf_path")
-  criadoEm              DateTime @default(now()) @map("criado_em")
-  atualizadoEm          DateTime @updatedAt @map("atualizado_em")
-
-  // Revisão e Aprovação (opcional, para fluxo de aprovação)
-  aprovadoPor           String?  @map("aprovado_por")
-  dataAprovacao         DateTime? @map("data_aprovacao")
-
-  // Relações
-  adolescente      Adolescente @relation(fields: [adolescenteId], references: [id])
-  operadorResponsavel Operador @relation("JustificativaAlgemaResponsavel", fields: [operadorResponsavelId], references: [id])
-  aprovador        Operador?   @relation("JustificativaAlgemaAprovador", fields: [aprovadoPor], references: [id])
+  id                      String      @id @default(uuid())
+  numeroDocumento         String      @unique @map("numero_documento")
+  adolescenteId           String      @map("adolescente_id")
+  operadorResponsavelId   String      @map("operador_responsavel_id")
+  dataHoraOcorrencia      DateTime    @map("data_hora_ocorrencia")
+  motivoPrincipal         String      @map("motivo_principal")
+  destinoMovimentacao     String?     @map("destino_movimentacao")
+  fundamentacaoLegal      String      @map("fundamentacao_legal")
+  atoInfracionalBase      String?     @map("ato_infracional_base")
+  numeroProcesso          String?     @map("numero_processo")
+  decisaoJudicial         String?     @map("decisao_judicial")
+  riscoFuga               String      @map("risco_fuga")
+  riscoAgressao           String      @map("risco_agressao")
+  riscoAutolesao          String      @map("risco_autolesao")
+  historicoComportamental String?     @map("historico_comportamental")
+  fatoresAgravantes       String[]    @map("fatores_agravantes")
+  pontuacaoRiscoFuga      Int?        @map("pontuacao_risco_fuga")
+  pontuacaoRiscoAgressao  Int?        @map("pontuacao_risco_agressao")
+  pontuacaoRiscoAutolesao Int?        @map("pontuacao_risco_autolesao")
+  fundamentacaoAutomatica String?     @map("fundamentacao_automatica")
+  medidasSeguranca        String[]    @map("medidas_seguranca")
+  equipeProfissional      String[]    @map("equipe_profissional")
+  veiculoUtilizado        String?     @map("veiculo_utilizado")
+  observacoesAdicionais   String?     @map("observacoes_adicionais")
+  horaInicio              DateTime?   @map("hora_inicio")
+  horaFim                 DateTime?   @map("hora_fim")
+  duracaoMinutos          Int?        @map("duracao_minutos")
+  status                  String      @default("EMITIDO")
+  arquivoPdfPath          String?     @map("arquivo_pdf_path")
+  criadoEm                DateTime    @default(now()) @map("criado_em")
+  atualizadoEm            DateTime    @updatedAt @map("atualizado_em")
+  aprovadoPor             String?     @map("aprovado_por")
+  dataAprovacao           DateTime?   @map("data_aprovacao")
+  adolescente             Adolescente @relation(fields: [adolescenteId], references: [id])
+  aprovador               Operador?   @relation("JustificativaAlgemaAprovador", fields: [aprovadoPor], references: [id])
+  operadorResponsavel     Operador    @relation("JustificativaAlgemaResponsavel", fields: [operadorResponsavelId], references: [id])
 
   @@map("justificativas_algema")
 }
 
-// ============================================
-// VISITANTES (FASE 3)
-// ============================================
-
 model Visitante {
-  id                      String    @id @default(uuid())
-  nomeCompleto            String    @map("nome_completo")
-  cpf                     String?   @unique
-  rg                      String?   @map("rg")
-  nomePai                 String?   @map("nome_pai")
-  nomeMae                 String?   @map("nome_mae")
-  profissao               String?   @map("profissao")
-  dataNascimento          DateTime? @map("data_nascimento") @db.Date
-  enderecoCompleto        String?   @map("endereco_completo")
-  telefones               String[]
-  email                   String?   // Email para notificações
-  fotoUrl                 String?   @map("foto_url")
-
-  // Reconhecimento Facial
-  faceEmbeddings          Json?     @map("face_embeddings")
-  consentimentoBiometria  Boolean   @default(false) @map("consentimento_biometria")
-  dataConsentimento       DateTime? @map("data_consentimento")
-
-  // Controle de Acesso
-  ativo                   Boolean   @default(true) // Visitante ativo/inativo
-  bloqueado               Boolean   @default(false) // Bloqueio temporário
-  motivoBloqueio          String?   @map("motivo_bloqueio")
-  dataBloqueio            DateTime? @map("data_bloqueio")
-  dataDesbloqueio         DateTime? @map("data_desbloqueio") // Prazo do bloqueio
-  operadorBloqueioId      String?   @map("operador_bloqueio_id")
-
-  criadoEm                DateTime  @default(now()) @map("criado_em")
-  atualizadoEm            DateTime  @updatedAt @map("atualizado_em")
-
-  // Relações
-  adolescentesLink        AdolescenteVisitanteLink[]
-  visitasRegistro         VisitaRegistro[]
-  verificacoesFaciais     VerificacaoFacial[]
-  notificacoesEnviadas    NotificacaoVisitante[]
-  historicoBloqueios      HistoricoBloqueio[]
-  qrCodes                 QRCodeVisitante[]
-  fotosEvidencia          FotoEvidencia[]
-  notificacoesWhatsApp    NotificacaoWhatsApp[]
+  id                     String                     @id @default(uuid())
+  nomeCompleto           String                     @map("nome_completo")
+  cpf                    String?                    @unique
+  dataNascimento         DateTime?                  @map("data_nascimento") @db.Date
+  enderecoCompleto       String?                    @map("endereco_completo")
+  telefones              String[]
+  fotoUrl                String?                    @map("foto_url")
+  criadoEm               DateTime                   @default(now()) @map("criado_em")
+  atualizadoEm           DateTime                   @updatedAt @map("atualizado_em")
+  faceEmbeddings         Json?                      @map("face_embeddings")
+  consentimentoBiometria Boolean                    @default(false) @map("consentimento_biometria")
+  dataConsentimento      DateTime?                  @map("data_consentimento")
+  email                  String?
+  ativo                  Boolean                    @default(true)
+  bloqueado              Boolean                    @default(false)
+  dataBloqueio           DateTime?                  @map("data_bloqueio")
+  dataDesbloqueio        DateTime?                  @map("data_desbloqueio")
+  motivoBloqueio         String?                    @map("motivo_bloqueio")
+  operadorBloqueioId     String?                    @map("operador_bloqueio_id")
+  rg                     String?                    @map("rg")
+  nomePai                String?                    @map("nome_pai")
+  nomeMae                String?                    @map("nome_mae")
+  profissao              String?                    @map("profissao")
+  adolescentesLink       AdolescenteVisitanteLink[]
+  fotosEvidencia         FotoEvidencia[]
+  historicoBloqueios     HistoricoBloqueio[]
+  notificacoesEnviadas   NotificacaoVisitante[]
+  notificacoesWhatsApp   NotificacaoWhatsApp[]
+  qrCodes                QRCodeVisitante[]
+  verificacoesFaciais    VerificacaoFacial[]
+  visitasRegistro        VisitaRegistro[]
 
   @@map("visitantes")
 }
 
 model AdolescenteVisitanteLink {
-  id            String  @id @default(uuid())
-  adolescenteId String  @map("adolescente_id")
-  visitanteId   String  @map("visitante_id")
+  id            String      @id @default(uuid())
+  adolescenteId String      @map("adolescente_id")
+  visitanteId   String      @map("visitante_id")
   parentesco    String?
-  autorizado    Boolean @default(true)
+  autorizado    Boolean     @default(true)
   observacoes   String?
-
-  // Relações
-  adolescente Adolescente @relation(fields: [adolescenteId], references: [id])
-  visitante   Visitante   @relation(fields: [visitanteId], references: [id])
+  adolescente   Adolescente @relation(fields: [adolescenteId], references: [id])
+  visitante     Visitante   @relation(fields: [visitanteId], references: [id])
 
   @@map("adolescentes_visitantes_link")
 }
 
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
 model HistoricoMovimentacao {
-  id                  String     @id @default(uuid())
-  adolescenteId       String     @map("adolescente_id")
+  id                  String      @id @default(uuid())
+  adolescenteId       String      @map("adolescente_id")
   tipo                String
   descricao           String?
-  origemCasaId        String?    @map("origem_casa_id")
-  origemAlojamentoId  String?    @map("origem_alojamento_id")
-  destinoCasaId       String?    @map("destino_casa_id")
-  destinoAlojamentoId String?    @map("destino_alojamento_id")
-  referenciaTipo      String?    @map("referencia_tipo")
-  referenciaId        String?    @map("referencia_id")
-  operadorId          String?    @map("operador_id")
-  registradoEm        DateTime?  @map("registrado_em")
-  criadoEm            DateTime   @default(now()) @map("criado_em")
-
-  adolescente         Adolescente @relation(fields: [adolescenteId], references: [id])
-  origemCasa          Casa?       @relation("HistoricoOrigemCasa", fields: [origemCasaId], references: [id])
-  destinoCasa         Casa?       @relation("HistoricoDestinoCasa", fields: [destinoCasaId], references: [id])
-  origemAlojamento    Alojamento? @relation("HistoricoOrigemAlojamento", fields: [origemAlojamentoId], references: [id])
+  origemCasaId        String?     @map("origem_casa_id")
+  origemAlojamentoId  String?     @map("origem_alojamento_id")
+  destinoCasaId       String?     @map("destino_casa_id")
+  destinoAlojamentoId String?     @map("destino_alojamento_id")
+  referenciaTipo      String?     @map("referencia_tipo")
+  referenciaId        String?     @map("referencia_id")
+  operadorId          String?     @map("operador_id")
+  registradoEm        DateTime?   @map("registrado_em")
+  criadoEm            DateTime    @default(now()) @map("criado_em")
+  adolescente         Adolescente @relation(fields: [adolescenteId], references: [id], onDelete: Cascade)
   destinoAlojamento   Alojamento? @relation("HistoricoDestinoAlojamento", fields: [destinoAlojamentoId], references: [id])
+  destinoCasa         Casa?       @relation("HistoricoDestinoCasa", fields: [destinoCasaId], references: [id])
   operador            Operador?   @relation(fields: [operadorId], references: [id])
+  origemAlojamento    Alojamento? @relation("HistoricoOrigemAlojamento", fields: [origemAlojamentoId], references: [id])
+  origemCasa          Casa?       @relation("HistoricoOrigemCasa", fields: [origemCasaId], references: [id])
 
-  @@index([adolescenteId, registradoEm])
   @@map("historico_movimentacao")
 }
 
 model VisitaRegistro {
-  id                    String    @id @default(uuid())
-  visitanteId           String    @map("visitante_id")
-  adolescenteId         String    @map("adolescente_id")
-  dataHoraEntrada       DateTime  @map("data_hora_entrada")
-  dataHoraSaida         DateTime? @map("data_hora_saida")
-  operadorEntradaId     String?   @map("operador_entrada_id")
-  operadorSaidaId       String?   @map("operador_saida_id")
-
-  // Controles e Validações
-  tipoVisita            String    @default("REGULAR") @map("tipo_visita") // REGULAR, ESPECIAL, JUDICIAL
-  periodoAutorizado     String    @map("periodo_autorizado") // MANHA, TARDE
-  periodoRealizado      String    @map("periodo_realizado") // MANHA, TARDE
-  horarioDiferente      Boolean   @default(false) @map("horario_diferente")
-  justificativaHorario  String?   @map("justificativa_horario")
-
-  // Acompanhantes (para controle de limite)
-  quantidadeAdultos     Int       @default(1) @map("quantidade_adultos")
-  quantidadeCriancas    Int       @default(0) @map("quantidade_criancas")
-
-  // Alertas
-  alertaFaccaoRival     Boolean   @default(false) @map("alerta_faccao_rival")
-  alertaHorario         Boolean   @default(false) @map("alerta_horario")
-  alertaLimiteVisitas   Boolean   @default(false) @map("alerta_limite_visitas")
-  observacoesAlertas    String?   @map("observacoes_alertas")
-
-  // Observações gerais
-  observacoes           String?
-
-  criadoEm              DateTime  @default(now()) @map("criado_em")
-  atualizadoEm          DateTime  @updatedAt @map("atualizado_em")
-
-  // Relações
-  visitante             Visitante   @relation(fields: [visitanteId], references: [id])
-  adolescente           Adolescente @relation(fields: [adolescenteId], references: [id])
+  id                   String      @id @default(uuid())
+  visitanteId          String      @map("visitante_id")
+  adolescenteId        String      @map("adolescente_id")
+  dataHoraEntrada      DateTime    @map("data_hora_entrada")
+  dataHoraSaida        DateTime?   @map("data_hora_saida")
+  alertaFaccaoRival    Boolean     @default(false) @map("alerta_faccao_rival")
+  alertaHorario        Boolean     @default(false) @map("alerta_horario")
+  alertaLimiteVisitas  Boolean     @default(false) @map("alerta_limite_visitas")
+  atualizadoEm         DateTime    @updatedAt @map("atualizado_em")
+  criadoEm             DateTime    @default(now()) @map("criado_em")
+  horarioDiferente     Boolean     @default(false) @map("horario_diferente")
+  justificativaHorario String?     @map("justificativa_horario")
+  observacoes          String?
+  observacoesAlertas   String?     @map("observacoes_alertas")
+  operadorEntradaId    String?     @map("operador_entrada_id")
+  operadorSaidaId      String?     @map("operador_saida_id")
+  periodoAutorizado    String      @map("periodo_autorizado")
+  periodoRealizado     String      @map("periodo_realizado")
+  quantidadeAdultos    Int         @default(1) @map("quantidade_adultos")
+  quantidadeCriancas   Int         @default(0) @map("quantidade_criancas")
+  tipoVisita           String      @default("REGULAR") @map("tipo_visita")
+  adolescente          Adolescente @relation(fields: [adolescenteId], references: [id])
+  visitante            Visitante   @relation(fields: [visitanteId], references: [id])
 
   @@map("visitas_registro")
 }
 
 model VerificacaoFacial {
-  id                String   @id @default(uuid())
-  visitanteId       String   @map("visitante_id")
-  dataHora          DateTime @default(now()) @map("data_hora")
-  resultado         String   // "SUCESSO", "FALHA", "BLOQUEADO", "MANUAL"
-  confianca         Float?   // Score de matching (0-100)
-  fotoCapturadaUrl  String?  @map("foto_capturada_url")
-  operadorId        String?  @map("operador_id")
-  ipOrigem          String?  @map("ip_origem")
-
-  // Relações
-  visitante Visitante @relation(fields: [visitanteId], references: [id], onDelete: Cascade)
+  id               String    @id @default(uuid())
+  visitanteId      String    @map("visitante_id")
+  dataHora         DateTime  @default(now()) @map("data_hora")
+  resultado        String
+  confianca        Float?
+  fotoCapturadaUrl String?   @map("foto_capturada_url")
+  operadorId       String?   @map("operador_id")
+  ipOrigem         String?   @map("ip_origem")
+  visitante        Visitante @relation(fields: [visitanteId], references: [id], onDelete: Cascade)
 
   @@map("verificacoes_faciais")
 }
 
-// Configurações de Visitas (editável, não fixo no código)
 model ConfiguracaoVisitas {
-  id                      String   @id @default(uuid())
-
-  // Dias permitidos
-  diasPermitidos          Json     @map("dias_permitidos") // [6] = sábado (0=dom, 6=sab)
-
-  // Limites de visitantes
-  limiteAdultosPadrao     Int      @default(2) @map("limite_adultos_padrao")
-  limiteCriancasPadrao    Int      @default(1) @map("limite_criancas_padrao")
-
-  // Regra especial para segundo sábado
-  habilitarRegraSegundoSabado Boolean @default(true) @map("habilitar_regra_segundo_sabado")
-  limiteAdultosSegundoSab Int      @default(2) @map("limite_adultos_segundo_sab")
-  limiteCriancasSegundoSab Int     @default(1) @map("limite_criancas_segundo_sab")
-  permitirAlternativa     Boolean  @default(true) @map("permitir_alternativa") // 2 adultos + 1 criança OU 1 adulto + 2 crianças
-
-  // Idade considerada criança
-  idadeLimiteCrianca      Int      @default(12) @map("idade_limite_crianca")
-
-  // Períodos de visita por casa (mapeamento: { "1": "MANHA", "2": "MANHA", "8": "MANHA", etc })
-  periodosPorCasa         Json     @default("{\"1\":\"MANHA\",\"2\":\"MANHA\",\"3\":\"MANHA\",\"4\":\"MANHA\",\"5\":\"TARDE\",\"6\":\"TARDE\",\"7\":\"TARDE\",\"8\":\"TARDE\"}") @map("periodos_por_casa")
-
-  // Janelas de identificação (entrada na portaria)
-  janelaIdentificacaoManhaInicio String @default("08:00") @map("janela_identificacao_manha_inicio")
-  janelaIdentificacaoManhaFim    String @default("09:00") @map("janela_identificacao_manha_fim")
-  janelaIdentificacaoTardeInicio String @default("13:00") @map("janela_identificacao_tarde_inicio")
-  janelaIdentificacaoTardeFim    String @default("14:00") @map("janela_identificacao_tarde_fim")
-
-  // Janelas de permanência na área de segurança
-  horarioManhaInicio      String   @default("08:00") @map("horario_manha_inicio")
-  horarioManhaFim         String   @default("12:00") @map("horario_manha_fim")
-  horarioTardeInicio      String   @default("13:00") @map("horario_tarde_inicio")
-  horarioTardeFim         String   @default("17:00") @map("horario_tarde_fim")
-
-  // Limite de visitas por período
-  quantidadeVisitasMensal Int      @default(2) @map("quantidade_visitas_mensal")
-
-  // Duração da visita em minutos
-  duracaoVisitaMinutos    Int      @default(120) @map("duracao_visita_minutos") // 2 horas padrão
-
-  ativo                   Boolean  @default(true)
-  criadoEm                DateTime @default(now()) @map("criado_em")
-  atualizadoEm            DateTime @updatedAt @map("atualizado_em")
+  id                             String   @id @default(uuid())
+  diasPermitidos                 Json     @map("dias_permitidos")
+  limiteAdultosPadrao            Int      @default(2) @map("limite_adultos_padrao")
+  limiteCriancasPadrao           Int      @default(1) @map("limite_criancas_padrao")
+  habilitarRegraSegundoSabado    Boolean  @default(true) @map("habilitar_regra_segundo_sabado")
+  limiteAdultosSegundoSab        Int      @default(2) @map("limite_adultos_segundo_sab")
+  limiteCriancasSegundoSab       Int      @default(1) @map("limite_criancas_segundo_sab")
+  permitirAlternativa            Boolean  @default(true) @map("permitir_alternativa")
+  idadeLimiteCrianca             Int      @default(12) @map("idade_limite_crianca")
+  horarioManhaInicio             String   @default("08:00") @map("horario_manha_inicio")
+  horarioManhaFim                String   @default("12:00") @map("horario_manha_fim")
+  horarioTardeInicio             String   @default("13:00") @map("horario_tarde_inicio")
+  horarioTardeFim                String   @default("17:00") @map("horario_tarde_fim")
+  quantidadeVisitasMensal        Int      @default(2) @map("quantidade_visitas_mensal")
+  ativo                          Boolean  @default(true)
+  criadoEm                       DateTime @default(now()) @map("criado_em")
+  atualizadoEm                   DateTime @updatedAt @map("atualizado_em")
+  duracaoVisitaMinutos           Int      @default(120) @map("duracao_visita_minutos")
+  periodosPorCasa                Json     @default("{\"1\": \"MANHA\", \"2\": \"MANHA\", \"3\": \"MANHA\", \"4\": \"MANHA\", \"5\": \"TARDE\", \"6\": \"TARDE\", \"7\": \"TARDE\", \"8\": \"TARDE\"}") @map("periodos_por_casa")
+  janelaIdentificacaoManhaInicio String   @default("08:00") @map("janela_identificacao_manha_inicio")
+  janelaIdentificacaoManhaFim    String   @default("09:00") @map("janela_identificacao_manha_fim")
+  janelaIdentificacaoTardeInicio String   @default("13:00") @map("janela_identificacao_tarde_inicio")
+  janelaIdentificacaoTardeFim    String   @default("14:00") @map("janela_identificacao_tarde_fim")
 
   @@map("configuracoes_visitas")
 }
 
-// Templates de E-mail
 model TemplateEmail {
-  id                String   @id @default(uuid())
-  nome              String   @unique // "ORIENTACOES_VISITA", "CONFIRMACAO_AGENDAMENTO", etc
-  assunto           String
-  corpo             String   @db.Text // Corpo do email (pode ter variáveis: {{nome}}, {{data}}, etc)
-  ativo             Boolean  @default(true)
-  criadoEm          DateTime @default(now()) @map("criado_em")
-  atualizadoEm      DateTime @updatedAt @map("atualizado_em")
+  id           String   @id @default(uuid())
+  nome         String   @unique
+  assunto      String
+  corpo        String
+  ativo        Boolean  @default(true)
+  criadoEm     DateTime @default(now()) @map("criado_em")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
 
   @@map("templates_email")
 }
 
-// Notificações Enviadas
 model NotificacaoVisitante {
-  id                String   @id @default(uuid())
-  visitanteId       String   @map("visitante_id")
-  tipoNotificacao   String   @map("tipo_notificacao") // ORIENTACOES, AGENDAMENTO, CANCELAMENTO, ALERTA
+  id                String    @id @default(uuid())
+  visitanteId       String    @map("visitante_id")
+  tipoNotificacao   String    @map("tipo_notificacao")
   assunto           String
-  mensagem          String   @db.Text
-  emailDestinatario String   @map("email_destinatario")
-
-  statusEnvio       String   @default("PENDENTE") @map("status_envio") // PENDENTE, ENVIADO, ERRO
-  erroEnvio         String?  @map("erro_envio")
+  mensagem          String
+  emailDestinatario String    @map("email_destinatario")
+  statusEnvio       String    @default("PENDENTE") @map("status_envio")
+  erroEnvio         String?   @map("erro_envio")
   dataEnvio         DateTime? @map("data_envio")
-
-  criadoEm          DateTime @default(now()) @map("criado_em")
-
-  // Relações
+  criadoEm          DateTime  @default(now()) @map("criado_em")
   visitante         Visitante @relation(fields: [visitanteId], references: [id])
 
   @@map("notificacoes_visitantes")
 }
 
-// Alertas de Facções Rivais
 model AlertaFaccaoRival {
-  id                String   @id @default(uuid())
-  visitanteId       String   @map("visitante_id")
-  faccao1Id         String   @map("faccao_1_id")
-  faccao2Id         String   @map("faccao_2_id")
-  adolescente1Id    String   @map("adolescente_1_id")
-  adolescente2Id    String   @map("adolescente_2_id")
-
-  nivelAlerta       String   @default("MEDIO") // BAIXO, MEDIO, ALTO, CRITICO
-  observacoes       String?
-
-  visualizado       Boolean  @default(false)
-  dataVisualizacao  DateTime? @map("data_visualizacao")
-  operadorId        String?   @map("operador_id")
-
-  criadoEm          DateTime @default(now()) @map("criado_em")
+  id               String    @id @default(uuid())
+  visitanteId      String    @map("visitante_id")
+  faccao1Id        String    @map("faccao_1_id")
+  faccao2Id        String    @map("faccao_2_id")
+  adolescente1Id   String    @map("adolescente_1_id")
+  adolescente2Id   String    @map("adolescente_2_id")
+  observacoes      String?
+  visualizado      Boolean   @default(false)
+  dataVisualizacao DateTime? @map("data_visualizacao")
+  operadorId       String?   @map("operador_id")
+  criadoEm         DateTime  @default(now()) @map("criado_em")
+  nivelAlerta      String    @default("MEDIO")
 
   @@map("alertas_faccoes_rivais")
 }
 
-// ============================================
-// TRANSFERÊNCIAS (FASE 4)
-// ============================================
-
 model SolicitacaoTransferencia {
-  id                      String    @id @default(uuid())
-  adolescenteId           String    @map("adolescente_id")
-  motivoPrincipal         String    @map("motivo_principal")
-  unidadesSugeridas       String[]  @map("unidades_sugeridas")
-  observacoesAdicionais   String?   @map("observacoes_adicionais")
-  relatorioGeradoPath     String?   @map("relatorio_gerado_path")
-  status                  String    @default("AGUARDANDO")
-  dataSolicitacao         DateTime  @default(now()) @map("data_solicitacao")
-  operadorSolicitanteId   String    @map("operador_solicitante_id")
-  dataDecisaoJudicial     DateTime? @map("data_decisao_judicial")
-  decisaoJudicial         String?   @map("decisao_judicial")
-  unidadeDestinoEfetiva   String?   @map("unidade_destino_efetiva")
-  dataTransferenciaEfetiva DateTime? @map("data_transferencia_efetiva")
-
-  // Relações
-  adolescente         Adolescente              @relation(fields: [adolescenteId], references: [id])
-  operadorSolicitante Operador                 @relation(fields: [operadorSolicitanteId], references: [id])
-  historicoTransf     HistoricoTransferencia[]
+  id                       String                   @id @default(uuid())
+  adolescenteId            String                   @map("adolescente_id")
+  motivoPrincipal          String                   @map("motivo_principal")
+  unidadesSugeridas        String[]                 @map("unidades_sugeridas")
+  observacoesAdicionais    String?                  @map("observacoes_adicionais")
+  relatorioGeradoPath      String?                  @map("relatorio_gerado_path")
+  status                   String                   @default("AGUARDANDO")
+  dataSolicitacao          DateTime                 @default(now()) @map("data_solicitacao")
+  operadorSolicitanteId    String                   @map("operador_solicitante_id")
+  dataDecisaoJudicial      DateTime?                @map("data_decisao_judicial")
+  decisaoJudicial          String?                  @map("decisao_judicial")
+  unidadeDestinoEfetiva    String?                  @map("unidade_destino_efetiva")
+  dataTransferenciaEfetiva DateTime?                @map("data_transferencia_efetiva")
+  historicoTransf          HistoricoTransferencia[]
+  adolescente              Adolescente              @relation(fields: [adolescenteId], references: [id])
+  operadorSolicitante      Operador                 @relation(fields: [operadorSolicitanteId], references: [id])
 
   @@map("solicitacoes_transferencia")
 }
 
 model HistoricoTransferencia {
-  id                       String    @id @default(uuid())
-  adolescenteId            String    @map("adolescente_id")
-  unidadeOrigem            String    @map("unidade_origem")
-  unidadeDestino           String    @map("unidade_destino")
-  dataTransferencia        DateTime  @map("data_transferencia") @db.Date
+  id                       String                    @id @default(uuid())
+  adolescenteId            String                    @map("adolescente_id")
+  unidadeOrigem            String                    @map("unidade_origem")
+  unidadeDestino           String                    @map("unidade_destino")
+  dataTransferencia        DateTime                  @map("data_transferencia") @db.Date
   motivo                   String?
-  conflitosNaOrigem        Int?      @map("conflitos_na_origem")
-  relatorioTransferenciaId String?   @map("relatorio_transferencia_id")
-
-  // Relações
-  adolescente            Adolescente               @relation(fields: [adolescenteId], references: [id])
-  relatorioTransferencia SolicitacaoTransferencia? @relation(fields: [relatorioTransferenciaId], references: [id])
+  conflitosNaOrigem        Int?                      @map("conflitos_na_origem")
+  relatorioTransferenciaId String?                   @map("relatorio_transferencia_id")
+  adolescente              Adolescente               @relation(fields: [adolescenteId], references: [id])
+  relatorioTransferencia   SolicitacaoTransferencia? @relation(fields: [relatorioTransferenciaId], references: [id])
 
   @@map("historico_transferencias")
 }
 
-// ============================================
-// MELHORIAS DO SISTEMA DE VISITAS
-// ============================================
-
-// Histórico de Bloqueios de Visitantes
 model HistoricoBloqueio {
-  id                String    @id @default(uuid())
-  visitanteId       String    @map("visitante_id")
-  motivoBloqueio    String    @map("motivo_bloqueio")
-  dataBloqueio      DateTime  @map("data_bloqueio")
-  dataDesbloqueio   DateTime? @map("data_desbloqueio")
-  prazoPrevisao     DateTime? @map("prazo_previsao") // Previsão de desbloqueio
-  desbloqueado      Boolean   @default(false)
-  operadorBloqueioId String   @map("operador_bloqueio_id")
-  operadorDesbloqueioId String? @map("operador_desbloqueio_id")
-  observacoes       String?
-  criadoEm          DateTime  @default(now()) @map("criado_em")
-
-  // Relações
-  visitante         Visitante @relation(fields: [visitanteId], references: [id], onDelete: Cascade)
+  id                    String    @id @default(uuid())
+  visitanteId           String    @map("visitante_id")
+  motivoBloqueio        String    @map("motivo_bloqueio")
+  dataBloqueio          DateTime  @map("data_bloqueio")
+  dataDesbloqueio       DateTime? @map("data_desbloqueio")
+  prazoPrevisao         DateTime? @map("prazo_previsao")
+  desbloqueado          Boolean   @default(false)
+  operadorBloqueioId    String    @map("operador_bloqueio_id")
+  operadorDesbloqueioId String?   @map("operador_desbloqueio_id")
+  observacoes           String?
+  criadoEm              DateTime  @default(now()) @map("criado_em")
+  visitante             Visitante @relation(fields: [visitanteId], references: [id], onDelete: Cascade)
 
   @@map("historico_bloqueios")
 }
 
-// QR Codes para Visitantes
 model QRCodeVisitante {
-  id                String    @id @default(uuid())
-  visitanteId       String    @map("visitante_id")
-  codigoQR          String    @unique @map("codigo_qr") // Hash único para o QR Code
-  imagemQRUrl       String?   @map("imagem_qr_url") // URL da imagem do QR Code
-  ativo             Boolean   @default(true)
-  validoAte         DateTime? @map("valido_ate") // Expiração opcional
-  quantidadeUsos    Int       @default(0) @map("quantidade_usos")
-  criadoEm          DateTime  @default(now()) @map("criado_em")
-  atualizadoEm      DateTime  @updatedAt @map("atualizado_em")
-
-  // Relações
-  visitante         Visitante @relation(fields: [visitanteId], references: [id], onDelete: Cascade)
+  id             String    @id @default(uuid())
+  visitanteId    String    @map("visitante_id")
+  codigoQR       String    @unique @map("codigo_qr")
+  imagemQRUrl    String?   @map("imagem_qr_url")
+  ativo          Boolean   @default(true)
+  validoAte      DateTime? @map("valido_ate")
+  quantidadeUsos Int       @default(0) @map("quantidade_usos")
+  criadoEm       DateTime  @default(now()) @map("criado_em")
+  atualizadoEm   DateTime  @updatedAt @map("atualizado_em")
+  visitante      Visitante @relation(fields: [visitanteId], references: [id], onDelete: Cascade)
 
   @@map("qrcodes_visitantes")
 }
 
-// Fotos de Evidência (Auto-exclusão após 2 meses)
 model FotoEvidencia {
-  id                String    @id @default(uuid())
-  visitaId          String?   @map("visita_id") // Opcional: pode ser foto de tentativa de acesso
-  visitanteId       String    @map("visitante_id")
-  fotoUrl           String    @map("foto_url")
-  tipoFoto          String    @map("tipo_foto") // ENTRADA, TENTATIVA_ACESSO, BLOQUEIO
-  dataCaptura       DateTime  @default(now()) @map("data_captura")
-  dataExclusao      DateTime  @map("data_exclusao") // Auto-calculado: dataCaptura + 2 meses
-  excluida          Boolean   @default(false)
-  criadoEm          DateTime  @default(now()) @map("criado_em")
-
-  // Relações
-  visitante         Visitante @relation(fields: [visitanteId], references: [id], onDelete: Cascade)
+  id           String    @id @default(uuid())
+  visitaId     String?   @map("visita_id")
+  visitanteId  String    @map("visitante_id")
+  fotoUrl      String    @map("foto_url")
+  tipoFoto     String    @map("tipo_foto")
+  dataCaptura  DateTime  @default(now()) @map("data_captura")
+  dataExclusao DateTime  @map("data_exclusao")
+  excluida     Boolean   @default(false)
+  criadoEm     DateTime  @default(now()) @map("criado_em")
+  visitante    Visitante @relation(fields: [visitanteId], references: [id], onDelete: Cascade)
 
   @@map("fotos_evidencia")
 }
 
-// Notificações WhatsApp
 model NotificacaoWhatsApp {
-  id                String    @id @default(uuid())
-  visitanteId       String    @map("visitante_id")
-  telefone          String
-  tipoNotificacao   String    @map("tipo_notificacao") // ORIENTACOES, AGENDAMENTO, CANCELAMENTO, ALERTA
-  mensagem          String    @db.Text
-
-  statusEnvio       String    @default("PENDENTE") @map("status_envio") // PENDENTE, ENVIADO, ERRO, LIDO
-  erroEnvio         String?   @map("erro_envio")
-  dataEnvio         DateTime? @map("data_envio")
-  dataLeitura       DateTime? @map("data_leitura")
-
-  criadoEm          DateTime  @default(now()) @map("criado_em")
-
-  // Relações
-  visitante         Visitante @relation(fields: [visitanteId], references: [id])
+  id              String    @id @default(uuid())
+  visitanteId     String    @map("visitante_id")
+  telefone        String
+  tipoNotificacao String    @map("tipo_notificacao")
+  mensagem        String
+  statusEnvio     String    @default("PENDENTE") @map("status_envio")
+  erroEnvio       String?   @map("erro_envio")
+  dataEnvio       DateTime? @map("data_envio")
+  dataLeitura     DateTime? @map("data_leitura")
+  criadoEm        DateTime  @default(now()) @map("criado_em")
+  visitante       Visitante @relation(fields: [visitanteId], references: [id])
 
   @@map("notificacoes_whatsapp")
 }

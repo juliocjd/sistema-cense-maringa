@@ -19,6 +19,20 @@ type ComunicadoInterno = {
     id: string;
     nome: string;
     numeroSms: string;
+    ladoConflito?: "LADO_1" | "LADO_2" | null;
+  }>;
+  conflitos?: Array<{
+    id: string;
+    adolescenteA?: {
+      id?: string | null;
+      nome?: string | null;
+      numeroSms?: string | null;
+    } | null;
+    adolescenteB?: {
+      id?: string | null;
+      nome?: string | null;
+      numeroSms?: string | null;
+    } | null;
   }>;
   criadoEm: string;
   temConflito: boolean;
@@ -64,14 +78,31 @@ export default function ComunicadosPage() {
               id: "adol-001",
               nome: "João da Silva Santos",
               numeroSms: "12345",
+              ladoConflito: "LADO_1",
             },
             {
               id: "adol-003",
               nome: "Pedro Henrique Oliveira",
               numeroSms: "12347",
+              ladoConflito: "LADO_2",
             },
           ],
           criadoEm: "2025-10-20T14:30:00",
+          conflitos: [
+            {
+              id: "conf-001",
+              adolescenteA: {
+                id: "adol-001",
+                nome: "João da Silva Santos",
+                numeroSms: "12345",
+              },
+              adolescenteB: {
+                id: "adol-003",
+                nome: "Pedro Henrique Oliveira",
+                numeroSms: "12347",
+              },
+            },
+          ],
           temConflito: true,
           temAlerta: false,
         },
@@ -93,9 +124,11 @@ export default function ComunicadosPage() {
               id: "adol-004",
               nome: "Carlos Eduardo Mendes",
               numeroSms: "12349",
+              ladoConflito: null,
             },
           ],
           criadoEm: "2025-10-22T10:15:00",
+          conflitos: [],
           temConflito: false,
           temAlerta: true,
         },
@@ -117,9 +150,11 @@ export default function ComunicadosPage() {
               id: "adol-007",
               nome: "Rafael dos Santos Lima",
               numeroSms: "12351",
+              ladoConflito: null,
             },
           ],
           criadoEm: "2025-10-25T16:45:00",
+          conflitos: [],
           temConflito: false,
           temAlerta: true,
         },
@@ -141,9 +176,11 @@ export default function ComunicadosPage() {
               id: "adol-005",
               nome: "Ana Paula Rodrigues",
               numeroSms: "12348",
+              ladoConflito: null,
             },
           ],
           criadoEm: "2025-10-28T09:00:00",
+          conflitos: [],
           temConflito: false,
           temAlerta: false,
         },
@@ -165,14 +202,31 @@ export default function ComunicadosPage() {
               id: "adol-001",
               nome: "João da Silva Santos",
               numeroSms: "12345",
+              ladoConflito: "LADO_1",
             },
             {
               id: "adol-008",
               nome: "Lucas Ferreira Costa",
               numeroSms: "12353",
+              ladoConflito: "LADO_2",
             },
           ],
           criadoEm: "2025-10-29T11:20:00",
+          conflitos: [
+            {
+              id: "conf-002",
+              adolescenteA: {
+                id: "adol-001",
+                nome: "João da Silva Santos",
+                numeroSms: "12345",
+              },
+              adolescenteB: {
+                id: "adol-008",
+                nome: "Lucas Ferreira Costa",
+                numeroSms: "12353",
+              },
+            },
+          ],
           temConflito: true,
           temAlerta: false,
         },

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
+import { auth } from "@/auth";
 import { aplicarAlertasEspeciais } from "@/lib/alertas/sincronizar-especiais";
 import {
   ALERTAS_ESPECIAIS,
@@ -23,6 +24,85 @@ const tiposQueGeramAlerta = [
   "AGRESSAO",
   "AUTORIZACAO_ESPECIAL",
 ];
+
+type ComunicadosPayload = {
+  numero?: string | number | null;
+  ano?: string | number | null;
+  dataFato?: string | null;
+  tipoCI?: string | null;
+  resumoCI?: string | null;
+  caminhoPdf?: string | null;
+  operadorId?: string | null;
+  adolescentesIds?: string[] | string | null;
+  ladoAIds?: string[] | string | null;
+  ladoBIds?: string[] | string | null;
+  gerarConflito?: boolean | string | null;
+  gerarAlerta?: boolean | string | null;
+  nivelRiscoAlerta?: string | null;
+};
+
+const parseAdolescentesIds = (valor: unknown): string[] => {
+  if (Array.isArray(valor)) {
+    return valor.map((item) => String(item));
+  }
+  if (typeof valor === "string") {
+    const trimmed = valor.trim();
+    if (!trimmed) return [];
+    try {
+      const parsed = JSON.parse(trimmed);
+      return Array.isArray(parsed) ? parsed.map((item) => String(item)) : [trimmed];
+    } catch {
+      return [trimmed];
+    }
+  }
+  return [];
+};
+
+const parseBoolean = (value: unknown): boolean => {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    return value.toLowerCase() === "true";
+  }
+  return false;
+};
+
+const parsePayload = async (request: NextRequest): Promise<ComunicadosPayload> => {
+  const contentType = request.headers.get("content-type") ?? "";
+
+  if (contentType.includes("multipart/form-data")) {
+    const formData = await request.formData();
+    const getString = (campo: string) => {
+      const valor = formData.get(campo);
+      if (typeof valor === "string") return valor;
+      return valor ? String(valor) : null;
+    };
+
+    return {
+      numero: getString("numero"),
+      ano: getString("ano"),
+      dataFato: getString("dataFato"),
+      tipoCI: getString("tipoCI") ?? getString("tipoCi"),
+      resumoCI: getString("resumoCI") ?? getString("resumoCi"),
+      caminhoPdf: getString("caminhoPdf"),
+      operadorId: getString("operadorId"),
+      adolescentesIds: parseAdolescentesIds(getString("adolescentesIds")),
+      ladoAIds: parseAdolescentesIds(getString("ladoAIds")),
+      ladoBIds: parseAdolescentesIds(getString("ladoBIds")),
+      gerarConflito: parseBoolean(getString("gerarConflito")),
+      gerarAlerta: parseBoolean(getString("gerarAlerta")),
+      nivelRiscoAlerta: getString("nivelRiscoAlerta"),
+    };
+  }
+
+  const json = (await request.json()) as ComunicadosPayload;
+  return {
+    ...json,
+    tipoCI: json.tipoCI ?? (json as any)?.tipoCi ?? null,
+    resumoCI: json.resumoCI ?? (json as any)?.resumoCi ?? null,
+    ladoAIds: json.ladoAIds ?? (json as any)?.lado1Ids ?? null,
+    ladoBIds: json.ladoBIds ?? (json as any)?.lado2Ids ?? null,
+  };
+};
 
 /**
  * GET /api/comunicados
@@ -71,9 +151,23 @@ export async function GET(request: NextRequest) {
             },
           },
           conflitos: {
-            select: {
-              id: true,
-              status: true,
+            include: {
+              adolescenteA: {
+                select: {
+                  id: true,
+                  nomeCompleto: true,
+                  nomeSocial: true,
+                  numeroSms: true,
+                },
+              },
+              adolescenteB: {
+                select: {
+                  id: true,
+                  nomeCompleto: true,
+                  nomeSocial: true,
+                  numeroSms: true,
+                },
+              },
             },
           },
           alertasAtivos: {
@@ -132,6 +226,31 @@ export async function GET(request: NextRequest) {
         id: link.adolescente.id,
         nome: link.adolescente.nomeCompleto,
         numeroSms: link.adolescente.numeroSms,
+        ladoConflito: link.ladoConflito as "LADO_1" | "LADO_2" | null,
+      })),
+      conflitos: ci.conflitos.map((conflito) => ({
+        id: conflito.id,
+        status: conflito.status,
+        adolescenteA: conflito.adolescenteA
+          ? {
+              id: conflito.adolescenteA.id,
+              nome:
+                conflito.adolescenteA.nomeCompleto ??
+                conflito.adolescenteA.nomeSocial ??
+                "Participante A",
+              numeroSms: conflito.adolescenteA.numeroSms ?? "Nao informado",
+            }
+          : null,
+        adolescenteB: conflito.adolescenteB
+          ? {
+              id: conflito.adolescenteB.id,
+              nome:
+                conflito.adolescenteB.nomeCompleto ??
+                conflito.adolescenteB.nomeSocial ??
+                "Participante B",
+              numeroSms: conflito.adolescenteB.numeroSms ?? "Nao informado",
+            }
+          : null,
       })),
       criadoEm: ci.criadoEm.toISOString(),
       temConflito: ci.conflitos.length > 0,
@@ -168,24 +287,58 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const payload = await parsePayload(request);
+    const session = await auth().catch(() => null);
     const {
       numero,
       ano,
       dataFato,
-      tipoCI,
+      tipoCI: tipoCIEntrada,
       resumoCI,
       caminhoPdf,
       operadorId,
       adolescentesIds,
+      ladoAIds,
+      ladoBIds,
       gerarConflito,
       gerarAlerta,
       nivelRiscoAlerta,
-    } = body;
+    } = payload;
+    const tipoCI = tipoCIEntrada ?? undefined;
     const nivelRiscoNormalizado = normalizarNivelRisco(nivelRiscoAlerta);
+    const numeroInt =
+      typeof numero === "number"
+        ? numero
+        : parseInt(String(numero ?? "").trim(), 10);
+    const anoInt =
+      typeof ano === "number" ? ano : parseInt(String(ano ?? "").trim(), 10);
+    const adolescentesIdsArray = parseAdolescentesIds(adolescentesIds);
+    const lado1Ids = parseAdolescentesIds(ladoAIds);
+    const lado2Ids = parseAdolescentesIds(ladoBIds);
+    const gerarConflitoBool = parseBoolean(gerarConflito);
+    const deveGerarConflito =
+      gerarConflito === undefined
+        ? tipoCI === "CONFLITO"
+        : gerarConflitoBool;
+    const gerarAlertaEntrada =
+      gerarAlerta === undefined ? undefined : parseBoolean(gerarAlerta);
+    const deveGerarAlerta =
+      gerarAlertaEntrada === undefined
+        ? (tipoCI ? tiposQueGeramAlerta.includes(tipoCI) : false)
+        : gerarAlertaEntrada;
+    const caminhoPdfNormalizado =
+      typeof caminhoPdf === "string" && caminhoPdf.trim().length > 0
+        ? caminhoPdf.trim()
+        : null;
+    const ladoConflitoMap = new Map<string, "LADO_1" | "LADO_2">();
+    lado1Ids.forEach((id) => ladoConflitoMap.set(id, "LADO_1"));
+    lado2Ids.forEach((id) => ladoConflitoMap.set(id, "LADO_2"));
+    if (tipoCI !== "CONFLITO") {
+      ladoConflitoMap.clear();
+    }
 
     // Validações
-    if (!numero || !ano) {
+    if (!numeroInt || !anoInt) {
       return NextResponse.json(
         { erro: "Número e ano são obrigatórios" },
         { status: 400 }
@@ -213,7 +366,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!adolescentesIds || adolescentesIds.length === 0) {
+    if (!adolescentesIdsArray || adolescentesIdsArray.length === 0) {
       return NextResponse.json(
         { erro: "Pelo menos um adolescente deve ser vinculado" },
         { status: 400 }
@@ -224,77 +377,166 @@ export async function POST(request: NextRequest) {
     const ciExistente = await prisma.comunicadoInterno.findUnique({
       where: {
         numero_ano: {
-          numero: parseInt(numero),
-          ano: parseInt(ano),
+          numero: numeroInt,
+          ano: anoInt,
         },
       },
     });
 
     if (ciExistente) {
       return NextResponse.json(
-        { erro: `CI ${numero}/${ano} já existe` },
+        { erro: `CI ${numeroInt}/${anoInt} já existe` },
         { status: 400 }
       );
     }
+
+    // Definir operador responsável:
+    const operadorSessaoId =
+      typeof session?.user?.id === "string" ? session.user.id : null;
+    const operadorInformado =
+      typeof operadorId === "string" && operadorId.trim().length > 0
+        ? operadorId.trim()
+        : null;
+    const operadorResponsavelId = operadorInformado ?? operadorSessaoId ?? null;
 
     // Criar CI em transação
     const resultado = await prisma.$transaction(async (tx) => {
       // 1. Criar comunicado interno
       const ci = await tx.comunicadoInterno.create({
         data: {
-          numero: parseInt(numero),
-          ano: parseInt(ano),
+          numero: numeroInt,
+          ano: anoInt,
           dataFato: new Date(dataFato),
           tipoCI,
           resumoCI: resumoCI.trim(),
-          caminhoPdf: caminhoPdf || null,
-          operadorId: operadorId || null,
+          caminhoPdf: caminhoPdfNormalizado,
+          operadorId: operadorResponsavelId,
         },
       });
 
       // 2. Vincular adolescentes
       await tx.comunicadoInternoAdolescente.createMany({
-        data: adolescentesIds.map((adolescenteId: string) => ({
+        data: adolescentesIdsArray.map((adolescenteId: string) => ({
           ciId: ci.id,
           adolescenteId,
+          ladoConflito:
+            tipoCI === "CONFLITO"
+              ? ladoConflitoMap.get(adolescenteId) ?? null
+              : null,
         })),
       });
 
       // 3. Gerar conflitos automaticamente
       const conflitosGerados: string[] = [];
 
-      if (
-        (gerarConflito === true || tipoCI === "CONFLITO") &&
-        adolescentesIds.length >= 2
-      ) {
-        // Criar conflito entre o primeiro adolescente e todos os outros
-        for (let i = 1; i < adolescentesIds.length; i++) {
-          const conflito = await tx.conflito.create({
-            data: {
-              adolescenteAId: adolescentesIds[0],
-              adolescenteBId: adolescentesIds[i],
-              tipoConflito: "CI_" + tipoCI,
-              status: "ATIVO",
-              ciOrigemId: ci.id,
-              descricao: `Conflito registrado via CI ${numero}/${ano}: ${resumoCI.substring(0, 100)}`,
-            },
+      if (deveGerarConflito && adolescentesIdsArray.length >= 2) {
+        const lado1 =
+          lado1Ids.length > 0
+            ? lado1Ids
+            : adolescentesIdsArray.length > 0
+            ? [adolescentesIdsArray[0]]
+            : [];
+        const lado2 =
+          lado2Ids.length > 0
+            ? lado2Ids
+            : adolescentesIdsArray.slice(1);
+
+        const pares: Array<{ aId: string; bId: string }> = [];
+        lado1.forEach((aId) => {
+          lado2.forEach((bId) => {
+            if (!aId || !bId || aId === bId) return;
+            pares.push({ aId, bId });
           });
-          conflitosGerados.push(conflito.id);
+        });
+
+        const condicoesExistentes =
+          pares.length > 0
+            ? pares.map(({ aId, bId }) => ({
+                OR: [
+                  { AND: [{ adolescenteAId: aId }, { adolescenteBId: bId }] },
+                  { AND: [{ adolescenteAId: bId }, { adolescenteBId: aId }] },
+                ],
+              }))
+            : [];
+
+        const existentesSet =
+          condicoesExistentes.length > 0
+            ? new Set(
+                (
+                  await tx.conflito.findMany({
+                    where: {
+                      status: "ATIVO",
+                      OR: condicoesExistentes,
+                    },
+                    select: {
+                      adolescenteAId: true,
+                      adolescenteBId: true,
+                    },
+                  })
+                ).map((item) =>
+                  [item.adolescenteAId, item.adolescenteBId].sort().join("|")
+                )
+              )
+            : new Set<string>();
+
+        const paresNovos =
+          pares.length > 0
+            ? pares.filter(
+                ({ aId, bId }) =>
+                  !existentesSet.has([aId, bId].sort().join("|"))
+              )
+            : [];
+
+        const gerarDescricao = (texto: string) =>
+          `Conflito registrado via CI ${numeroInt}/${anoInt}: ${texto.substring(
+            0,
+            100
+          )}`;
+
+        if (paresNovos.length === 0 && pares.length === 0) {
+          for (let i = 1; i < adolescentesIdsArray.length; i++) {
+            const conflito = await tx.conflito.create({
+              data: {
+                adolescenteAId: adolescentesIdsArray[0],
+                adolescenteBId: adolescentesIdsArray[i],
+                tipoConflito: "CI_" + tipoCI,
+                status: "ATIVO",
+                ciOrigemId: ci.id,
+                descricao: gerarDescricao(resumoCI),
+              },
+            });
+            conflitosGerados.push(conflito.id);
+          }
+        } else {
+          for (const { aId, bId } of paresNovos) {
+            const conflito = await tx.conflito.create({
+              data: {
+                adolescenteAId: aId,
+                adolescenteBId: bId,
+                tipoConflito: "CI_" + tipoCI,
+                status: "ATIVO",
+                ciOrigemId: ci.id,
+                descricao: gerarDescricao(resumoCI),
+              },
+            });
+            conflitosGerados.push(conflito.id);
+          }
         }
       }
 
       // 4. Gerar alertas automaticamente
       const alertasGerados: string[] = [];
-      if (gerarAlerta === true || tiposQueGeramAlerta.includes(tipoCI)) {
+      if (deveGerarAlerta) {
         const tipoEspecialCI =
-          tipoCI && CI_ALERTA_ESPECIAL_MAP[tipoCI as keyof typeof CI_ALERTA_ESPECIAL_MAP];
+          tipoCI &&
+          CI_ALERTA_ESPECIAL_MAP[tipoCI as keyof typeof CI_ALERTA_ESPECIAL_MAP];
 
-        for (const adolescenteId of adolescentesIds) {
+        for (const adolescenteId of adolescentesIdsArray) {
           if (tipoEspecialCI) {
             await aplicarAlertasEspeciais(tx, adolescenteId, [
               {
                 tipo: tipoEspecialCI,
-                descricao: `CI ${numero}/${ano} (${tipoCI}): ${resumoCI}`,
+                descricao: `CI ${numeroInt}/${anoInt} (${tipoCI}): ${resumoCI}`,
                 nivelRisco: nivelRiscoNormalizado ?? undefined,
               },
             ]);
@@ -326,7 +568,7 @@ export async function POST(request: NextRequest) {
               adolescenteId,
               ciOrigemId: ci.id,
               tipoAlerta,
-              descricaoAlerta: `Alerta gerado por CI ${numero}/${ano} (${tipoCI}): ${resumoCI}`,
+              descricaoAlerta: `Alerta gerado por CI ${numeroInt}/${anoInt} (${tipoCI}): ${resumoCI}`,
               nivelRisco,
             },
           });

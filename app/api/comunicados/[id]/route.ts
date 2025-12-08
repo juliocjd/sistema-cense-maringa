@@ -3,6 +3,32 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
+const parseAdolescentesIds = (valor: unknown): string[] => {
+  if (Array.isArray(valor)) {
+    return valor
+      .map((item) => String(item).trim())
+      .filter((item) => item.length > 0);
+  }
+
+  if (typeof valor === "string") {
+    const trimmed = valor.trim();
+    if (!trimmed) return [];
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map((item) => String(item).trim())
+          .filter((item) => item.length > 0);
+      }
+    } catch {
+      // Mantém valor simples
+    }
+    return [trimmed];
+  }
+
+  return [];
+};
+
 /**
  * GET /api/comunicados/[id]
  * Detalhes completos de um comunicado interno
@@ -13,6 +39,20 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+    let removerConflitos = true;
+    let removerAlertas = true;
+
+    if (request.headers.get("content-type")?.includes("application/json")) {
+      const body = await request.json().catch(() => null);
+      if (body && typeof body === "object") {
+        if (typeof (body as any).removerConflitos === "boolean") {
+          removerConflitos = (body as any).removerConflitos;
+        }
+        if (typeof (body as any).removerAlertas === "boolean") {
+          removerAlertas = (body as any).removerAlertas;
+        }
+      }
+    }
 
     const ci = await prisma.comunicadoInterno.findUnique({
       where: { id },
@@ -85,6 +125,14 @@ export async function GET(
     }
 
     // Formatar resposta
+    const operador =
+      ci.operadorId
+        ? await prisma.operador.findUnique({
+            where: { id: ci.operadorId },
+            select: { id: true, nomeCompleto: true },
+          })
+        : null;
+
     const ciFormatado = {
       id: ci.id,
       numero: ci.numero,
@@ -93,9 +141,14 @@ export async function GET(
       tipoCi: ci.tipoCI,
       resumoCi: ci.resumoCI,
       caminhoPdf: ci.caminhoPdf,
-      operadorId: ci.operadorId,
+      operador: operador
+        ? { id: operador.id, nome: operador.nomeCompleto }
+        : null,
       criadoEm: ci.criadoEm.toISOString(),
-      adolescentes: ci.adolescentes.map((link) => link.adolescente),
+      adolescentes: ci.adolescentes.map((link) => ({
+        ...link.adolescente,
+        ladoConflito: link.ladoConflito,
+      })),
       conflitos: ci.conflitos.map((conflito) => ({
         id: conflito.id,
         adolescenteA: conflito.adolescenteA,
@@ -151,17 +204,197 @@ export async function PATCH(
       );
     }
 
-    // Atualizar CI
-    const ci = await prisma.comunicadoInterno.update({
+    const dataAtualizacao: Record<string, unknown> = {};
+
+    const lado1Ids = parseAdolescentesIds(
+      (body?.ladoAIds ?? body?.lado1Ids) ?? null
+    );
+    const lado2Ids = parseAdolescentesIds(
+      (body?.ladoBIds ?? body?.lado2Ids) ?? null
+    );
+    const ladoConflitoMap = new Map<string, "LADO_1" | "LADO_2">();
+    lado1Ids.forEach((id) => ladoConflitoMap.set(id, "LADO_1"));
+    lado2Ids.forEach((id) => ladoConflitoMap.set(id, "LADO_2"));
+
+    if (body.numero !== undefined) {
+      const numeroInt = parseInt(String(body.numero), 10);
+      if (!Number.isFinite(numeroInt) || numeroInt <= 0) {
+        return NextResponse.json(
+          { erro: "Número inválido para o CI" },
+          { status: 400 }
+        );
+      }
+      dataAtualizacao.numero = numeroInt;
+    }
+
+    if (body.ano !== undefined) {
+      const anoInt = parseInt(String(body.ano), 10);
+      if (!Number.isFinite(anoInt) || anoInt < 2000) {
+        return NextResponse.json(
+          { erro: "Ano inválido para o CI" },
+          { status: 400 }
+        );
+      }
+      dataAtualizacao.ano = anoInt;
+    }
+
+    if (body.dataFato !== undefined) {
+      const data = new Date(body.dataFato);
+      if (Number.isNaN(data.getTime())) {
+        return NextResponse.json(
+          { erro: "Data do fato inválida" },
+          { status: 400 }
+        );
+      }
+      dataAtualizacao.dataFato = data;
+    }
+
+    if (body.tipoCI !== undefined) {
+      if (typeof body.tipoCI !== "string" || body.tipoCI.trim().length === 0) {
+        return NextResponse.json(
+          { erro: "Tipo de CI inválido" },
+          { status: 400 }
+        );
+      }
+      dataAtualizacao.tipoCI = body.tipoCI.trim().toUpperCase();
+    }
+
+    if (body.resumoCI !== undefined) {
+      const resumo = String(body.resumoCI).trim();
+      if (!resumo) {
+        return NextResponse.json(
+          { erro: "Resumo do CI não pode ficar vazio" },
+          { status: 400 }
+        );
+      }
+      dataAtualizacao.resumoCI = resumo;
+    }
+
+    if (body.caminhoPdf !== undefined) {
+      dataAtualizacao.caminhoPdf =
+        body.caminhoPdf && String(body.caminhoPdf).trim().length > 0
+          ? String(body.caminhoPdf).trim()
+          : null;
+    }
+
+    const adolescentesIdsRaw =
+      body.adolescentesIds !== undefined
+        ? body.adolescentesIds
+        : body.adolescentes !== undefined
+        ? body.adolescentes
+        : undefined;
+
+    let adolescentesIdsArray: string[] | undefined;
+    if (adolescentesIdsRaw !== undefined) {
+      adolescentesIdsArray = parseAdolescentesIds(adolescentesIdsRaw);
+      if (adolescentesIdsArray.length === 0) {
+        return NextResponse.json(
+          { erro: "Pelo menos um adolescente deve ser vinculado" },
+          { status: 400 }
+        );
+      }
+    }
+
+    if (Object.keys(dataAtualizacao).length === 0) {
+      return NextResponse.json(
+        { erro: "Nenhum dado válido enviado para atualização" },
+        { status: 400 }
+      );
+    }
+
+    const numeroFinal =
+      (dataAtualizacao.numero as number | undefined) ?? ciExistente.numero;
+    const anoFinal =
+      (dataAtualizacao.ano as number | undefined) ?? ciExistente.ano;
+    const tipoFinal =
+      (dataAtualizacao.tipoCI as string | undefined) ?? ciExistente.tipoCI;
+
+    if (
+      numeroFinal !== ciExistente.numero ||
+      anoFinal !== ciExistente.ano
+    ) {
+      const ciDuplicado = await prisma.comunicadoInterno.findUnique({
+        where: {
+          numero_ano: {
+            numero: numeroFinal,
+            ano: anoFinal,
+          },
+        },
+      });
+
+      if (ciDuplicado && ciDuplicado.id !== id) {
+        return NextResponse.json(
+          { erro: `Já existe um CI ${numeroFinal}/${anoFinal}` },
+          { status: 400 }
+        );
+      }
+    }
+
+    const ciAtualizado = await prisma.$transaction(async (tx) => {
+      const atualizado = await tx.comunicadoInterno.update({
+        where: { id },
+        data: dataAtualizacao,
+      });
+
+      if (adolescentesIdsArray) {
+        const vinculados = await tx.comunicadoInternoAdolescente.findMany({
+          where: { ciId: id },
+          select: { adolescenteId: true, ladoConflito: true },
+        });
+        const existentesSet = new Set(
+          vinculados.map((item) => item.adolescenteId)
+        );
+        const novosSet = new Set(adolescentesIdsArray);
+
+        const paraAdicionar = adolescentesIdsArray.filter(
+          (adolescenteId) => !existentesSet.has(adolescenteId)
+        );
+        const paraRemover = vinculados
+          .map((item) => item.adolescenteId)
+          .filter((adolescenteId) => !novosSet.has(adolescenteId));
+
+        if (paraAdicionar.length > 0) {
+          await tx.comunicadoInternoAdolescente.createMany({
+            data: paraAdicionar.map((adolescenteId) => ({
+              ciId: id,
+              adolescenteId,
+              ladoConflito:
+                tipoFinal === "CONFLITO"
+                  ? ladoConflitoMap.get(adolescenteId) ?? null
+                  : null,
+            })),
+          });
+        }
+
+        if (paraRemover.length > 0) {
+          await tx.comunicadoInternoAdolescente.deleteMany({
+            where: {
+              ciId: id,
+              adolescenteId: { in: paraRemover },
+            },
+          });
+        }
+      }
+
+      if (tipoFinal === "CONFLITO" && ladoConflitoMap.size > 0) {
+        for (const [adolescenteId, lado] of ladoConflitoMap.entries()) {
+          await tx.comunicadoInternoAdolescente.updateMany({
+            where: { ciId: id, adolescenteId },
+            data: { ladoConflito: lado },
+          });
+        }
+      } else if (tipoFinal !== "CONFLITO") {
+        await tx.comunicadoInternoAdolescente.updateMany({
+          where: { ciId: id },
+          data: { ladoConflito: null },
+        });
+      }
+
+      return atualizado;
+    });
+
+    const resposta = await prisma.comunicadoInterno.findUnique({
       where: { id },
-      data: {
-        ...(body.dataFato !== undefined && {
-          dataFato: new Date(body.dataFato),
-        }),
-        ...(body.tipoCI !== undefined && { tipoCI: body.tipoCI }),
-        ...(body.resumoCI !== undefined && { resumoCI: body.resumoCI }),
-        ...(body.caminhoPdf !== undefined && { caminhoPdf: body.caminhoPdf }),
-      },
       include: {
         adolescentes: {
           include: {
@@ -177,7 +410,7 @@ export async function PATCH(
       },
     });
 
-    return NextResponse.json(ci);
+    return NextResponse.json(resposta ?? ciAtualizado);
   } catch (error) {
     console.error("Erro ao atualizar comunicado:", error);
     return NextResponse.json(
@@ -198,6 +431,20 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
+    let removerConflitos = true;
+    let removerAlertas = true;
+
+    if (request.headers.get("content-type")?.includes("application/json")) {
+      const body = await request.json().catch(() => null);
+      if (body && typeof body === "object") {
+        if (typeof (body as any).removerConflitos === "boolean") {
+          removerConflitos = (body as any).removerConflitos;
+        }
+        if (typeof (body as any).removerAlertas === "boolean") {
+          removerAlertas = (body as any).removerAlertas;
+        }
+      }
+    }
 
     // Verificar se CI existe
     const ciExistente = await prisma.comunicadoInterno.findUnique({
@@ -217,15 +464,29 @@ export async function DELETE(
 
     // Deletar em transação
     await prisma.$transaction(async (tx) => {
-      // 1. Deletar conflitos vinculados
-      await tx.conflito.deleteMany({
-        where: { ciOrigemId: id },
-      });
+      // 1. Tratar conflitos vinculados
+      if (removerConflitos) {
+        await tx.conflito.deleteMany({
+          where: { ciOrigemId: id },
+        });
+      } else {
+        await tx.conflito.updateMany({
+          where: { ciOrigemId: id },
+          data: { ciOrigemId: null },
+        });
+      }
 
-      // 2. Deletar alertas vinculados
-      await tx.alertaAtivo.deleteMany({
-        where: { ciOrigemId: id },
-      });
+      // 2. Tratar alertas vinculados
+      if (removerAlertas) {
+        await tx.alertaAtivo.deleteMany({
+          where: { ciOrigemId: id },
+        });
+      } else {
+        await tx.alertaAtivo.updateMany({
+          where: { ciOrigemId: id },
+          data: { ciOrigemId: null },
+        });
+      }
 
       // 3. Deletar vínculos com adolescentes
       await tx.comunicadoInternoAdolescente.deleteMany({
@@ -240,8 +501,12 @@ export async function DELETE(
 
     return NextResponse.json({
       mensagem: "Comunicado removido com sucesso",
-      conflitosRemovidos: ciExistente.conflitos.length,
-      alertasRemovidos: ciExistente.alertasAtivos.length,
+      conflitosRemovidos: removerConflitos
+        ? ciExistente.conflitos.length
+        : 0,
+      alertasRemovidos: removerAlertas
+        ? ciExistente.alertasAtivos.length
+        : 0,
     });
   } catch (error) {
     console.error("Erro ao deletar comunicado:", error);

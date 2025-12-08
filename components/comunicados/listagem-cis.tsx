@@ -15,6 +15,28 @@ import {
   CheckCircle,
 } from "lucide-react";
 
+type AdolescenteResumo = {
+  id: string;
+  nome: string;
+  numeroSms: string;
+  ladoConflito?: "LADO_1" | "LADO_2" | null;
+};
+
+type ConflitoResumo = {
+  id: string;
+  status?: string;
+  adolescenteA?: {
+    id?: string | null;
+    nome?: string | null;
+    numeroSms?: string | null;
+  } | null;
+  adolescenteB?: {
+    id?: string | null;
+    nome?: string | null;
+    numeroSms?: string | null;
+  } | null;
+};
+
 type ComunicadoInterno = {
   id: string;
   numero: number;
@@ -27,11 +49,8 @@ type ComunicadoInterno = {
     id: string;
     nome: string;
   };
-  adolescentes: Array<{
-    id: string;
-    nome: string;
-    numeroSms: string;
-  }>;
+  adolescentes: AdolescenteResumo[];
+  conflitos?: ConflitoResumo[];
   criadoEm: string;
   temConflito: boolean;
   temAlerta: boolean;
@@ -40,6 +59,97 @@ type ComunicadoInterno = {
 interface ListagemCIsProps {
   comunicados: ComunicadoInterno[];
 }
+
+const obterLadosConflito = (ci: ComunicadoInterno) => {
+  if (
+    ci.tipoCi !== "CONFLITO" ||
+    !ci.conflitos ||
+    ci.conflitos.length === 0
+  ) {
+    const temLados = ci.adolescentes.some(
+      (participante) => participante.ladoConflito
+    );
+    if (!temLados) {
+      return null;
+    }
+  }
+
+  const participantesRegistrados = ci.adolescentes.filter(
+    (participante) => participante.ladoConflito
+  );
+
+  if (participantesRegistrados.length > 0) {
+    const lado1 = participantesRegistrados.filter(
+      (participante) => participante.ladoConflito === "LADO_1"
+    );
+    const lado2 = participantesRegistrados.filter(
+      (participante) => participante.ladoConflito === "LADO_2"
+    );
+    return {
+      lado1,
+      lado2,
+    };
+  }
+
+  const mapaParticipantes = new Map(
+    ci.adolescentes.map((participante) => [participante.id, participante])
+  );
+  const lado1 = new Map<string, AdolescenteResumo>();
+  const lado2 = new Map<string, AdolescenteResumo>();
+
+  const resolverParticipante = (
+    registro:
+      | {
+          id?: string | null;
+          nome?: string | null;
+          numeroSms?: string | null;
+        }
+      | null
+      | undefined,
+    fallbackId: string
+  ): AdolescenteResumo | null => {
+    if (!registro) return null;
+    if (registro.id) {
+      const existente = mapaParticipantes.get(registro.id);
+      if (existente) return existente;
+    }
+    const participanteId = registro.id ?? fallbackId;
+    const existente = mapaParticipantes.get(participanteId);
+    if (existente) return existente;
+    return {
+      id: participanteId,
+      nome: registro.nome ?? "Participante",
+      numeroSms: registro.numeroSms ?? "Nao informado",
+    };
+  };
+
+  ci.conflitos.forEach((conflito, index) => {
+    const participanteA = resolverParticipante(
+      conflito.adolescenteA ?? null,
+      `${conflito.id}-A-${index}`
+    );
+    const participanteB = resolverParticipante(
+      conflito.adolescenteB ?? null,
+      `${conflito.id}-B-${index}`
+    );
+
+    if (participanteA) {
+      lado1.set(participanteA.id, participanteA);
+    }
+    if (participanteB) {
+      lado2.set(participanteB.id, participanteB);
+    }
+  });
+
+  if (lado1.size === 0 && lado2.size === 0) {
+    return null;
+  }
+
+  return {
+    lado1: Array.from(lado1.values()),
+    lado2: Array.from(lado2.values()),
+  };
+};
 
 export function ListagemCIs({ comunicados }: ListagemCIsProps) {
   const [busca, setBusca] = useState("");
@@ -294,6 +404,9 @@ export function ListagemCIs({ comunicados }: ListagemCIsProps) {
         ) : (
           cisFiltrados.map((ci) => {
             const badge = getTipoBadge(ci.tipoCi);
+            const ladosConflito = obterLadosConflito(ci);
+            const exibirLados =
+              ci.tipoCi === "CONFLITO" && ladosConflito !== null;
             return (
               <div
                 key={ci.id}
@@ -383,22 +496,67 @@ export function ListagemCIs({ comunicados }: ListagemCIsProps) {
                     <p className="text-sm font-semibold text-gray-700 mb-2">
                       Adolescentes envolvidos:
                     </p>
-                    <div className="flex flex-wrap gap-2">
-                      {ci.adolescentes.slice(0, 3).map((adolescente) => (
-                        <Link
-                          key={adolescente.id}
-                          href={`/adolescentes/${adolescente.id}`}
-                          className="px-3 py-1 bg-indigo-100 text-indigo-800 rounded-full text-sm font-semibold hover:bg-indigo-200 transition-colors"
-                        >
-                          {adolescente.nome} (SMS: {adolescente.numeroSms})
-                        </Link>
-                      ))}
-                      {ci.adolescentes.length > 3 && (
-                        <span className="px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-sm font-semibold">
-                          +{ci.adolescentes.length - 3} mais
-                        </span>
-                      )}
-                    </div>
+                    {exibirLados && ladosConflito ? (
+                      <div className="grid gap-4 md:grid-cols-2">
+                        {[
+                          { titulo: "Lado 1", lista: ladosConflito.lado1 },
+                          { titulo: "Lado 2", lista: ladosConflito.lado2 },
+                        ].map(({ titulo, lista }) => (
+                          <div
+                            key={titulo}
+                            className="rounded-2xl border border-indigo-100 bg-indigo-50/70 p-3"
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <p className="text-sm font-semibold text-gray-800">
+                                {titulo}
+                              </p>
+                              <span className="text-[11px] font-semibold text-gray-500">
+                                {lista.length} participante(s)
+                              </span>
+                            </div>
+                            {lista.length === 0 ? (
+                              <p className="text-xs text-gray-500">
+                                Nenhum adolescente neste lado.
+                              </p>
+                            ) : (
+                              <div className="space-y-2">
+                                {lista.map((participante) => (
+                                  <Link
+                                    key={participante.id}
+                                    href={`/adolescentes/${participante.id}`}
+                                    className="block rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm hover:bg-indigo-100"
+                                  >
+                                    <p className="font-semibold text-gray-800">
+                                      {participante.nome}
+                                    </p>
+                                    <p className="text-xs text-gray-500">
+                                      SMS: {participante.numeroSms}
+                                    </p>
+                                  </Link>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {ci.adolescentes.slice(0, 3).map((adolescente) => (
+                          <Link
+                            key={adolescente.id}
+                            href={`/adolescentes/${adolescente.id}`}
+                            className="px-3 py-1 bg-indigo-100 text-indigo-800 rounded-full text-sm font-semibold hover:bg-indigo-200 transition-colors"
+                          >
+                            {adolescente.nome} (SMS: {adolescente.numeroSms})
+                          </Link>
+                        ))}
+                        {ci.adolescentes.length > 3 && (
+                          <span className="px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-sm font-semibold">
+                            +{ci.adolescentes.length - 3} mais
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
