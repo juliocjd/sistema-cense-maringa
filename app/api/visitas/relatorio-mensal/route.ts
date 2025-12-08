@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { ensureOperador } from "@/lib/auth/ensure-operador";
 
+const formatPeriodoDescricao = (inicio: Date, fim: Date) =>
+  `${inicio.toLocaleDateString("pt-BR")} - ${fim.toLocaleDateString("pt-BR")}`;
+
 export async function GET(request: NextRequest) {
   const authResult = await ensureOperador(request);
   if (!authResult.ok) {
@@ -11,27 +14,58 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const mesParam = searchParams.get("mes"); // formato: YYYY-MM
+    const inicioParam = searchParams.get("inicio"); // YYYY-MM-DD
+    const fimParam = searchParams.get("fim"); // YYYY-MM-DD
     const adolescenteId = searchParams.get("adolescenteId");
 
-    let mes: Date;
-    let inicioMes: Date;
-    let fimMes: Date;
+    let inicioPeriodo: Date;
+    let fimPeriodo: Date;
+    let periodoDescricao: string;
 
-    if (mesParam) {
+    if (inicioParam && fimParam) {
+      const inicio = new Date(`${inicioParam}T00:00:00`);
+      const fim = new Date(`${fimParam}T23:59:59`);
+
+      if (Number.isNaN(inicio.getTime()) || Number.isNaN(fim.getTime())) {
+        return NextResponse.json(
+          { erro: "Periodo invalido" },
+          { status: 400 }
+        );
+      }
+
+      if (inicio > fim) {
+        return NextResponse.json(
+          { erro: "Data inicial maior que final" },
+          { status: 400 }
+        );
+      }
+
+      inicioPeriodo = inicio;
+      fimPeriodo = fim;
+      periodoDescricao = `Periodo ${formatPeriodoDescricao(inicio, fim)}`;
+    } else if (mesParam) {
       const [ano, mesNumero] = mesParam.split("-").map(Number);
-      mes = new Date(ano, mesNumero - 1, 1);
-      inicioMes = new Date(ano, mesNumero - 1, 1);
-      fimMes = new Date(ano, mesNumero, 0, 23, 59, 59);
+      const mes = new Date(ano, mesNumero - 1, 1);
+      inicioPeriodo = new Date(ano, mesNumero - 1, 1);
+      fimPeriodo = new Date(ano, mesNumero, 0, 23, 59, 59);
+      periodoDescricao = mes.toLocaleDateString("pt-BR", {
+        month: "long",
+        year: "numeric",
+      });
     } else {
-      mes = new Date();
-      inicioMes = new Date(mes.getFullYear(), mes.getMonth(), 1);
-      fimMes = new Date(mes.getFullYear(), mes.getMonth() + 1, 0, 23, 59, 59);
+      const hoje = new Date();
+      inicioPeriodo = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+      fimPeriodo = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0, 23, 59, 59);
+      periodoDescricao = hoje.toLocaleDateString("pt-BR", {
+        month: "long",
+        year: "numeric",
+      });
     }
 
     const where: any = {
       dataHoraEntrada: {
-        gte: inicioMes,
-        lte: fimMes,
+        gte: inicioPeriodo,
+        lte: fimPeriodo,
       },
     };
 
@@ -164,11 +198,11 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       mes: {
-        ano: mes.getFullYear(),
-        mes: mes.getMonth() + 1,
-        nome: mes.toLocaleDateString("pt-BR", { month: "long", year: "numeric" }),
-        inicio: inicioMes,
-        fim: fimMes,
+        ano: inicioPeriodo.getFullYear(),
+        mes: inicioPeriodo.getMonth() + 1,
+        nome: periodoDescricao,
+        inicio: inicioPeriodo,
+        fim: fimPeriodo,
       },
       estatisticas: {
         totalVisitas,

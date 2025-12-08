@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Download, RefreshCw } from "lucide-react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 import { ImpactoConflitoPayload } from "@/types/inteligencia";
 
@@ -62,36 +64,50 @@ export default function RelatorioImpactoCard({
     }
   };
 
-  const exportarCsv = () => {
+  const exportarPdf = () => {
     if (dados.impactos.length === 0) {
       return;
     }
-    const linhas = [
-      "adolescente_nome;status;tipo_conflito;origem;destino;risco",
-    ];
-    dados.impactos.forEach((item) => {
-      linhas.push(
-        [
-          item.adolescente.nome,
-          item.adolescente.status,
-          item.conflitoTipo,
-          item.conflitoOrigem.nome,
-          item.conflitoDestino.nome,
-          item.risco,
-        ].join(";")
-      );
+    const doc = new jsPDF();
+    doc.setFontSize(14);
+    doc.text("Internos impactados por conflitos", 14, 16);
+    doc.setFontSize(10);
+    doc.text(
+      `Gerado em ${new Date(dados.geradoEm).toLocaleString("pt-BR")}`,
+      14,
+      24
+    );
+    doc.text(
+      `Total de registros: ${dados.totalRegistros} | Tipo filtro: ${dados.filtros.tipo}`,
+      14,
+      30
+    );
+    doc.text(
+      `Status filtro: ${dados.filtros.status} ${
+        dados.filtros.conflitoId
+          ? `| Conflito selecionado: ${dados.filtros.conflitoId}`
+          : ""
+      }`,
+      14,
+      36
+    );
+
+    autoTable(doc, {
+      startY: 42,
+      head: [["Nome", "Status", "Tipo", "Origem", "Destino", "Risco"]],
+      body: dados.impactos.map((item) => [
+        item.adolescente.nome,
+        item.adolescente.status,
+        item.conflitoTipo,
+        item.conflitoOrigem.nome,
+        item.conflitoDestino.nome,
+        item.risco,
+      ]),
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [79, 70, 229] },
     });
-    const blob = new Blob([linhas.join("\n")], {
-      type: "text/csv;charset=utf-8;",
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "relatorio-conflitos-externos.csv";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+
+    doc.save("internos-impactados-conflitos.pdf");
   };
 
   useEffect(() => {
@@ -109,7 +125,7 @@ export default function RelatorioImpactoCard({
     >
       <header className="mb-4">
         <p className="text-xs uppercase tracking-wide text-indigo-500">
-          Relatorio de impacto
+          Internos impactados por conflitos
         </p>
         <h3 className="text-xl font-semibold text-slate-900">
           {dados.totalRegistros} apontamentos
@@ -168,12 +184,12 @@ export default function RelatorioImpactoCard({
           </button>
           <button
             type="button"
-            onClick={exportarCsv}
+            onClick={exportarPdf}
             disabled={dados.impactos.length === 0}
             className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
           >
             <Download size={14} />
-            Exportar
+            Exportar PDF
           </button>
         </div>
       </div>

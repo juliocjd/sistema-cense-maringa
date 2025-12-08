@@ -4,10 +4,9 @@ import { ensureOperador } from "@/lib/auth/ensure-operador";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
-/**
- * GET /api/visitas/relatorio-mensal/pdf
- * Gera PDF do relatório mensal de visitas
- */
+const formatPeriodoTexto = (inicio: Date, fim: Date) =>
+  `${inicio.toLocaleDateString("pt-BR")} - ${fim.toLocaleDateString("pt-BR")}`;
+
 export async function GET(request: NextRequest) {
   const authResult = await ensureOperador(request);
   if (!authResult.ok) {
@@ -16,31 +15,65 @@ export async function GET(request: NextRequest) {
 
   try {
     const { searchParams } = new URL(request.url);
-    const mesParam = searchParams.get("mes"); // formato: YYYY-MM
+    const mesParam = searchParams.get("mes");
+    const inicioParam = searchParams.get("inicio");
+    const fimParam = searchParams.get("fim");
+    const adolescenteId = searchParams.get("adolescenteId");
 
-    let mes: Date;
-    let inicioMes: Date;
-    let fimMes: Date;
+    let inicioPeriodo: Date;
+    let fimPeriodo: Date;
+    let descricaoPeriodo: string;
 
-    if (mesParam) {
+    if (inicioParam && fimParam) {
+      const inicio = new Date(`${inicioParam}T00:00:00`);
+      const fim = new Date(`${fimParam}T23:59:59`);
+      if (Number.isNaN(inicio.getTime()) || Number.isNaN(fim.getTime())) {
+        return NextResponse.json(
+          { erro: "Periodo invalido" },
+          { status: 400 }
+        );
+      }
+      if (inicio > fim) {
+        return NextResponse.json(
+          { erro: "Data inicial maior que final" },
+          { status: 400 }
+        );
+      }
+      inicioPeriodo = inicio;
+      fimPeriodo = fim;
+      descricaoPeriodo = formatPeriodoTexto(inicio, fim);
+    } else if (mesParam) {
       const [ano, mesNumero] = mesParam.split("-").map(Number);
-      mes = new Date(ano, mesNumero - 1, 1);
-      inicioMes = new Date(ano, mesNumero - 1, 1);
-      fimMes = new Date(ano, mesNumero, 0, 23, 59, 59);
+      const mesBase = new Date(ano, mesNumero - 1, 1);
+      inicioPeriodo = new Date(ano, mesNumero - 1, 1);
+      fimPeriodo = new Date(ano, mesNumero, 0, 23, 59, 59);
+      descricaoPeriodo = mesBase.toLocaleDateString("pt-BR", {
+        month: "long",
+        year: "numeric",
+      });
     } else {
-      mes = new Date();
-      inicioMes = new Date(mes.getFullYear(), mes.getMonth(), 1);
-      fimMes = new Date(mes.getFullYear(), mes.getMonth() + 1, 0, 23, 59, 59);
+      const hoje = new Date();
+      inicioPeriodo = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+      fimPeriodo = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0, 23, 59, 59);
+      descricaoPeriodo = hoje.toLocaleDateString("pt-BR", {
+        month: "long",
+        year: "numeric",
+      });
     }
 
-    // Buscar todas as visitas do mês
-    const visitas = await prisma.visitaRegistro.findMany({
-      where: {
-        dataHoraEntrada: {
-          gte: inicioMes,
-          lte: fimMes,
-        },
+    const where: any = {
+      dataHoraEntrada: {
+        gte: inicioPeriodo,
+        lte: fimPeriodo,
       },
+    };
+
+    if (adolescenteId) {
+      where.adolescenteId = adolescenteId;
+    }
+
+    const visitas = await prisma.visitaRegistro.findMany({
+      where,
       include: {
         visitante: {
           select: {
@@ -68,7 +101,16 @@ export async function GET(request: NextRequest) {
       orderBy: { dataHoraEntrada: "asc" },
     });
 
-    // Calcular estatísticas
+    let adolescenteNome: string | null = null;
+    if (adolescenteId) {
+      const ado = await prisma.adolescente.findUnique({
+        where: { id: adolescenteId },
+        select: { nomeCompleto: true, nomeSocial: true },
+      });
+      adolescenteNome =
+        ado?.nomeCompleto || ado?.nomeSocial || "Adolescente filtrado";
+    }
+
     const totalVisitas = visitas.length;
     const totalPessoas = visitas.reduce(
       (acc, v) => acc + v.quantidadeAdultos + v.quantidadeCriancas,
@@ -83,52 +125,47 @@ export async function GET(request: NextRequest) {
       ESPECIAL: visitas.filter((v) => v.periodoAutorizado === "ESPECIAL").length,
     };
 
-    // Criar PDF
     const doc = new jsPDF();
-    const mesNome = mes.toLocaleDateString("pt-BR", {
-      month: "long",
-      year: "numeric",
-    });
 
-    // Header
     doc.setFontSize(18);
     doc.setFont("helvetica", "bold");
-    doc.text("Relatório Mensal de Visitas", 105, 15, { align: "center" });
+    doc.text("Relatorio de Visitas", 105, 15, { align: "center" });
 
-    doc.setFontSize(14);
+    doc.setFontSize(13);
     doc.setFont("helvetica", "normal");
-    doc.text(`CENSE Maringá - ${mesNome}`, 105, 23, { align: "center" });
+    doc.text(`CENSE Maringa - ${descricaoPeriodo}`, 105, 23, { align: "center" });
+    if (adolescenteNome) {
+      doc.setFontSize(11);
+      doc.text(`Filtro: ${adolescenteNome}`, 105, 30, { align: "center" });
+    }
 
-    // Estatísticas Gerais
     doc.setFontSize(12);
     doc.setFont("helvetica", "bold");
-    doc.text("Estatísticas Gerais", 14, 35);
+    doc.text("Estatisticas gerais", 14, 40);
 
-    doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
     const stats = [
-      `Total de Visitas: ${totalVisitas}`,
-      `Total de Pessoas: ${totalPessoas} (visitantes + acompanhantes)`,
-      `Visitantes Únicos: ${visitantesUnicos}`,
-      `Adolescentes Visitados: ${adolescentesVisitados}`,
+      `Total de visitas: ${totalVisitas}`,
+      `Total de pessoas: ${totalPessoas}`,
+      `Visitantes unicos: ${visitantesUnicos}`,
+      `Adolescentes visitados: ${adolescentesVisitados}`,
       "",
-      `Visitas por Período:`,
-      `  • Manhã: ${visitasPorPeriodo.MANHA}`,
-      `  • Tarde: ${visitasPorPeriodo.TARDE}`,
-      `  • Especial: ${visitasPorPeriodo.ESPECIAL}`,
+      `Visitas por periodo:`,
+      `  - Manha: ${visitasPorPeriodo.MANHA}`,
+      `  - Tarde: ${visitasPorPeriodo.TARDE}`,
+      `  - Especial: ${visitasPorPeriodo.ESPECIAL}`,
     ];
 
-    let yPos = 42;
-    stats.forEach((stat) => {
-      doc.text(stat, 14, yPos);
+    let yPos = 47;
+    stats.forEach((texto) => {
+      doc.text(texto, 14, yPos);
       yPos += 5;
     });
 
-    // Tabela de Visitas
-    yPos += 5;
     doc.setFont("helvetica", "bold");
     doc.setFontSize(12);
-    doc.text("Detalhamento das Visitas", 14, yPos);
+    doc.text("Detalhamento das visitas", 14, yPos + 5);
 
     const tableData = visitas.map((visita) => [
       new Date(visita.dataHoraEntrada).toLocaleDateString("pt-BR"),
@@ -139,40 +176,29 @@ export async function GET(request: NextRequest) {
       visita.visitante.nomeCompleto,
       visita.adolescente.nomeCompleto || visita.adolescente.nomeSocial || "",
       visita.adolescente.alojamentoAtual?.casa
-        ? `Casa ${visita.adolescente.alojamentoAtual.casa.numero}`
+        ? visita.adolescente.alojamentoAtual.casa.nome ??
+          `Casa ${visita.adolescente.alojamentoAtual.casa.numero}`
         : "N/A",
       visita.periodoAutorizado,
       String(visita.quantidadeAdultos + visita.quantidadeCriancas),
     ]);
 
     autoTable(doc, {
-      startY: yPos + 5,
-      head: [
-        [
-          "Data",
-          "Hora",
-          "Visitante",
-          "Adolescente",
-          "Casa",
-          "Período",
-          "Pessoas",
-        ],
-      ],
+      startY: yPos + 10,
+      head: [["Data", "Hora", "Visitante", "Adolescente", "Casa", "Periodo", "Pessoas"]],
       body: tableData,
       styles: { fontSize: 8 },
       headStyles: { fillColor: [79, 70, 229] },
-      alternateRowStyles: { fillColor: [249, 250, 251] },
-      margin: { top: 10 },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
     });
 
-    // Footer
     const pageCount = doc.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i);
       doc.setFontSize(8);
       doc.setFont("helvetica", "normal");
       doc.text(
-        `Página ${i} de ${pageCount}`,
+        `Pagina ${i} de ${pageCount}`,
         105,
         doc.internal.pageSize.height - 10,
         { align: "center" }
@@ -184,21 +210,22 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Gerar buffer do PDF
     const pdfBuffer = Buffer.from(doc.output("arraybuffer"));
 
-    // Retornar PDF
+    const nomeArquivoBase =
+      inicioParam || mesParam || new Date().toISOString().slice(0, 7);
+
     return new NextResponse(pdfBuffer, {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="relatorio-visitas-${mesParam || "atual"}.pdf"`,
+        "Content-Disposition": `attachment; filename="relatorio-visitas-${nomeArquivoBase}.pdf"`,
       },
     });
   } catch (error) {
     console.error("Erro ao gerar PDF:", error);
     return NextResponse.json(
       {
-        error: "Erro ao gerar PDF do relatório",
+        error: "Erro ao gerar PDF do relatorio",
         detalhes: error instanceof Error ? error.message : "Erro desconhecido",
       },
       { status: 500 }

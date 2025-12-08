@@ -3,10 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { ensureOperador } from "@/lib/auth/ensure-operador";
 import * as XLSX from "xlsx";
 
-/**
- * GET /api/visitas/relatorio-mensal/excel
- * Gera arquivo Excel do relatório mensal de visitas
- */
+const formatPeriodoTexto = (inicio: Date, fim: Date) =>
+  `${inicio.toLocaleDateString("pt-BR")} - ${fim.toLocaleDateString("pt-BR")}`;
+
 export async function GET(request: NextRequest) {
   const authResult = await ensureOperador(request);
   if (!authResult.ok) {
@@ -15,31 +14,65 @@ export async function GET(request: NextRequest) {
 
   try {
     const { searchParams } = new URL(request.url);
-    const mesParam = searchParams.get("mes"); // formato: YYYY-MM
+    const mesParam = searchParams.get("mes");
+    const inicioParam = searchParams.get("inicio");
+    const fimParam = searchParams.get("fim");
+    const adolescenteId = searchParams.get("adolescenteId");
 
-    let mes: Date;
-    let inicioMes: Date;
-    let fimMes: Date;
+    let inicioPeriodo: Date;
+    let fimPeriodo: Date;
+    let descricaoPeriodo: string;
 
-    if (mesParam) {
+    if (inicioParam && fimParam) {
+      const inicio = new Date(`${inicioParam}T00:00:00`);
+      const fim = new Date(`${fimParam}T23:59:59`);
+      if (Number.isNaN(inicio.getTime()) || Number.isNaN(fim.getTime())) {
+        return NextResponse.json(
+          { erro: "Periodo invalido" },
+          { status: 400 }
+        );
+      }
+      if (inicio > fim) {
+        return NextResponse.json(
+          { erro: "Data inicial maior que final" },
+          { status: 400 }
+        );
+      }
+      inicioPeriodo = inicio;
+      fimPeriodo = fim;
+      descricaoPeriodo = formatPeriodoTexto(inicio, fim);
+    } else if (mesParam) {
       const [ano, mesNumero] = mesParam.split("-").map(Number);
-      mes = new Date(ano, mesNumero - 1, 1);
-      inicioMes = new Date(ano, mesNumero - 1, 1);
-      fimMes = new Date(ano, mesNumero, 0, 23, 59, 59);
+      const mesBase = new Date(ano, mesNumero - 1, 1);
+      inicioPeriodo = new Date(ano, mesNumero - 1, 1);
+      fimPeriodo = new Date(ano, mesNumero, 0, 23, 59, 59);
+      descricaoPeriodo = mesBase.toLocaleDateString("pt-BR", {
+        month: "long",
+        year: "numeric",
+      });
     } else {
-      mes = new Date();
-      inicioMes = new Date(mes.getFullYear(), mes.getMonth(), 1);
-      fimMes = new Date(mes.getFullYear(), mes.getMonth() + 1, 0, 23, 59, 59);
+      const hoje = new Date();
+      inicioPeriodo = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+      fimPeriodo = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0, 23, 59, 59);
+      descricaoPeriodo = hoje.toLocaleDateString("pt-BR", {
+        month: "long",
+        year: "numeric",
+      });
     }
 
-    // Buscar todas as visitas do mês
-    const visitas = await prisma.visitaRegistro.findMany({
-      where: {
-        dataHoraEntrada: {
-          gte: inicioMes,
-          lte: fimMes,
-        },
+    const where: any = {
+      dataHoraEntrada: {
+        gte: inicioPeriodo,
+        lte: fimPeriodo,
       },
+    };
+
+    if (adolescenteId) {
+      where.adolescenteId = adolescenteId;
+    }
+
+    const visitas = await prisma.visitaRegistro.findMany({
+      where,
       include: {
         visitante: {
           select: {
@@ -69,7 +102,6 @@ export async function GET(request: NextRequest) {
       orderBy: { dataHoraEntrada: "asc" },
     });
 
-    // Calcular estatísticas
     const totalVisitas = visitas.length;
     const totalPessoas = visitas.reduce(
       (acc, v) => acc + v.quantidadeAdultos + v.quantidadeCriancas,
@@ -84,34 +116,38 @@ export async function GET(request: NextRequest) {
       ESPECIAL: visitas.filter((v) => v.periodoAutorizado === "ESPECIAL").length,
     };
 
-    // Criar workbook
     const workbook = XLSX.utils.book_new();
 
-    // Aba 1: Estatísticas
     const statsData = [
-      ["Relatório Mensal de Visitas - CENSE Maringá"],
-      [
-        mes.toLocaleDateString("pt-BR", { month: "long", year: "numeric" }),
-      ],
+      ["Relatorio de Visitas - CENSE Maringa"],
+      [descricaoPeriodo],
       [],
-      ["Estatísticas Gerais"],
-      ["Total de Visitas", totalVisitas],
-      ["Total de Pessoas", totalPessoas],
-      ["Visitantes Únicos", visitantesUnicos],
-      ["Adolescentes Visitados", adolescentesVisitados],
+      ["Estatisticas gerais"],
+      ["Total de visitas", totalVisitas],
+      ["Total de pessoas", totalPessoas],
+      ["Visitantes unicos", visitantesUnicos],
+      ["Adolescentes visitados", adolescentesVisitados],
       [],
-      ["Visitas por Período"],
-      ["Manhã", visitasPorPeriodo.MANHA],
+      ["Visitas por periodo"],
+      ["Manha", visitasPorPeriodo.MANHA],
       ["Tarde", visitasPorPeriodo.TARDE],
       ["Especial", visitasPorPeriodo.ESPECIAL],
       [],
+      [
+        adolescenteId
+          ? `Filtro por adolescente: ${
+              visitas[0]?.adolescente.nomeCompleto ||
+              visitas[0]?.adolescente.nomeSocial ||
+              adolescenteId
+            }`
+          : "Sem filtro de adolescente",
+      ],
       [`Gerado em: ${new Date().toLocaleString("pt-BR")}`],
     ];
 
     const wsStats = XLSX.utils.aoa_to_sheet(statsData);
-    XLSX.utils.book_append_sheet(workbook, wsStats, "Estatísticas");
+    XLSX.utils.book_append_sheet(workbook, wsStats, "Estatisticas");
 
-    // Aba 2: Visitas Detalhadas
     const visitasData = visitas.map((visita) => ({
       Data: new Date(visita.dataHoraEntrada).toLocaleDateString("pt-BR"),
       Hora: new Date(visita.dataHoraEntrada).toLocaleTimeString("pt-BR", {
@@ -119,34 +155,35 @@ export async function GET(request: NextRequest) {
         minute: "2-digit",
       }),
       Visitante: visita.visitante.nomeCompleto,
-      "CPF Visitante": visita.visitante.cpf || "Não informado",
-      "Telefone Visitante": visita.visitante.telefones?.[0] || "Não informado",
+      "CPF Visitante": visita.visitante.cpf || "Nao informado",
+      "Telefone Visitante": visita.visitante.telefones?.[0] || "Nao informado",
       Adolescente: visita.adolescente.nomeCompleto || visita.adolescente.nomeSocial || "",
       Casa: visita.adolescente.alojamentoAtual?.casa
-        ? `Casa ${visita.adolescente.alojamentoAtual.casa.numero}`
+        ? visita.adolescente.alojamentoAtual.casa.nome ??
+          `Casa ${visita.adolescente.alojamentoAtual.casa.numero}`
         : "N/A",
       Alojamento: visita.adolescente.alojamentoAtual?.numeroAlojamento || "N/A",
-      Período: visita.periodoAutorizado,
+      Periodo: visita.periodoAutorizado,
       Adultos: visita.quantidadeAdultos,
-      Crianças: visita.quantidadeCriancas,
+      Criancas: visita.quantidadeCriancas,
       "Total Pessoas": visita.quantidadeAdultos + visita.quantidadeCriancas,
-      "Alerta Facção": visita.alertaFaccaoRival ? "SIM" : "NÃO",
-      "Alerta Horário": visita.alertaHorario ? "SIM" : "NÃO",
-      "Alerta Limite": visita.alertaLimiteVisitas ? "SIM" : "NÃO",
-      Observações: visita.observacoes || "",
+      "Alerta Faccao": visita.alertaFaccaoRival ? "SIM" : "NAO",
+      "Alerta Horario": visita.alertaHorario ? "SIM" : "NAO",
+      "Alerta Limite": visita.alertaLimiteVisitas ? "SIM" : "NAO",
+      Observacoes: visita.observacoes || "",
     }));
 
     const wsVisitas = XLSX.utils.json_to_sheet(visitasData);
     XLSX.utils.book_append_sheet(workbook, wsVisitas, "Visitas");
 
-    // Aba 3: Por Adolescente
     const visitasPorAdolescente = visitas.reduce((acc, visita) => {
       const key = visita.adolescenteId;
       if (!acc[key]) {
         acc[key] = {
           Adolescente: visita.adolescente.nomeCompleto || visita.adolescente.nomeSocial || "",
           Casa: visita.adolescente.alojamentoAtual?.casa
-            ? `Casa ${visita.adolescente.alojamentoAtual.casa.numero}`
+            ? visita.adolescente.alojamentoAtual.casa.nome ??
+              `Casa ${visita.adolescente.alojamentoAtual.casa.numero}`
             : "N/A",
           "Total Visitas": 0,
           "Total Pessoas": 0,
@@ -164,20 +201,19 @@ export async function GET(request: NextRequest) {
       Casa: item.Casa,
       "Total Visitas": item["Total Visitas"],
       "Total Pessoas": item["Total Pessoas"],
-      "Visitantes Únicos": item.Visitantes.size,
-      "Média Pessoas/Visita": (item["Total Pessoas"] / item["Total Visitas"]).toFixed(1),
+      "Visitantes unicos": item.Visitantes.size,
+      "Media pessoas/visita": (item["Total Pessoas"] / item["Total Visitas"]).toFixed(1),
     }));
 
     const wsAdolescentes = XLSX.utils.json_to_sheet(adolescentesData);
     XLSX.utils.book_append_sheet(workbook, wsAdolescentes, "Por Adolescente");
 
-    // Aba 4: Por Visitante
     const visitasPorVisitante = visitas.reduce((acc, visita) => {
       const key = visita.visitanteId;
       if (!acc[key]) {
         acc[key] = {
           Visitante: visita.visitante.nomeCompleto,
-          CPF: visita.visitante.cpf || "Não informado",
+          CPF: visita.visitante.cpf || "Nao informado",
           "Total Visitas": 0,
           "Total Pessoas": 0,
           Adolescentes: new Set<string>(),
@@ -196,29 +232,30 @@ export async function GET(request: NextRequest) {
       CPF: item.CPF,
       "Total Visitas": item["Total Visitas"],
       "Total Pessoas": item["Total Pessoas"],
-      "Adolescentes Visitados": item.Adolescentes.size,
-      "Média Pessoas/Visita": (item["Total Pessoas"] / item["Total Visitas"]).toFixed(1),
+      "Adolescentes visitados": item.Adolescentes.size,
+      "Media pessoas/visita": (item["Total Pessoas"] / item["Total Visitas"]).toFixed(1),
     }));
 
     const wsVisitantes = XLSX.utils.json_to_sheet(visitantesData);
     XLSX.utils.book_append_sheet(workbook, wsVisitantes, "Por Visitante");
 
-    // Gerar buffer do Excel
     const excelBuffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
 
-    // Retornar Excel
+    const nomeArquivoBase =
+      inicioParam || mesParam || new Date().toISOString().slice(0, 7);
+
     return new NextResponse(excelBuffer, {
       headers: {
         "Content-Type":
           "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "Content-Disposition": `attachment; filename="relatorio-visitas-${mesParam || "atual"}.xlsx"`,
+        "Content-Disposition": `attachment; filename="relatorio-visitas-${nomeArquivoBase}.xlsx"`,
       },
     });
   } catch (error) {
     console.error("Erro ao gerar Excel:", error);
     return NextResponse.json(
       {
-        error: "Erro ao gerar Excel do relatório",
+        error: "Erro ao gerar Excel do relatorio",
         detalhes: error instanceof Error ? error.message : "Erro desconhecido",
       },
       { status: 500 }

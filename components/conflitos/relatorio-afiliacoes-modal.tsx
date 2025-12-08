@@ -1,13 +1,15 @@
 "use client";
 
 import {
+  ChangeEvent,
   ReactNode,
   useEffect,
   useMemo,
   useState,
-  ChangeEvent,
 } from "react";
-import { Users, MapPin, Shield, Loader2, X, FileText } from "lucide-react";
+import { FileText, Loader2, MapPin, Shield, Download, X } from "lucide-react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 type RelatorioTipo = "REGIAO" | "FACCAO";
 type StatusFiltro = "ATIVOS" | "INATIVOS" | "OUTROS" | "TODOS";
@@ -40,16 +42,8 @@ const TIPOS: Array<{
   label: string;
   icon: ReactNode;
 }> = [
-  {
-    value: "REGIAO",
-    label: "Regiões mapeadas",
-    icon: <MapPin size={14} />,
-  },
-  {
-    value: "FACCAO",
-    label: "Facções cadastradas",
-    icon: <Shield size={14} />,
-  },
+  { value: "REGIAO", label: "Regioes mapeadas", icon: <MapPin size={14} /> },
+  { value: "FACCAO", label: "Faccoes cadastradas", icon: <Shield size={14} /> },
 ];
 
 const STATUS_OPTIONS: Array<{ value: StatusFiltro; label: string }> = [
@@ -59,6 +53,21 @@ const STATUS_OPTIONS: Array<{ value: StatusFiltro; label: string }> = [
   { value: "TODOS", label: "Todos" },
 ];
 
+const STATUS_LABELS: Record<StatusFiltro, string> = {
+  ATIVOS: "Ativos",
+  INATIVOS: "Inativos",
+  OUTROS: "Outros status",
+  TODOS: "Todos os status",
+};
+
+const formatarStatusLabel = (valor?: StatusFiltro) =>
+  STATUS_LABELS[valor ?? "ATIVOS"];
+
+const formatarTituloRelatorio = (tipo: RelatorioTipo) =>
+  tipo === "FACCAO"
+    ? "Relatorio - Internos por faccoes"
+    : "Relatorio - Internos por regioes";
+
 export default function RelatorioAfiliacoesModalTrigger() {
   const [aberto, setAberto] = useState(false);
   const [tipo, setTipo] = useState<RelatorioTipo>("REGIAO");
@@ -66,6 +75,7 @@ export default function RelatorioAfiliacoesModalTrigger() {
   const [dados, setDados] = useState<RelatorioResponse | null>(null);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [gerandoPdf, setGerandoPdf] = useState(false);
 
   const totalInternos = useMemo(() => {
     if (!dados) return 0;
@@ -90,18 +100,16 @@ export default function RelatorioAfiliacoesModalTrigger() {
         );
         if (!response.ok) {
           const payload = await response.json().catch(() => null);
-          throw new Error(payload?.erro ?? "Falha ao carregar relatório.");
+          throw new Error(payload?.erro ?? "Falha ao carregar relatorio.");
         }
         const json = (await response.json()) as RelatorioResponse;
         setDados(json);
       } catch (error) {
-        if ((error as Error).name === "AbortError") {
-          return;
-        }
+        if ((error as Error).name === "AbortError") return;
         setErro(
           error instanceof Error
             ? error.message
-            : "Erro inesperado ao gerar relatório."
+            : "Erro inesperado ao gerar relatorio."
         );
       } finally {
         setCarregando(false);
@@ -121,19 +129,92 @@ export default function RelatorioAfiliacoesModalTrigger() {
     setStatusFiltro(event.target.value as StatusFiltro);
   };
 
-  const toggleModal = () => {
-    setAberto(true);
+  const gerarPdf = () => {
+    if (!dados || dados.grupos.length === 0) return;
+    setGerandoPdf(true);
+    try {
+      const doc = new jsPDF();
+      const titulo = formatarTituloRelatorio(dados.tipo);
+      doc.setFontSize(14);
+      doc.text(titulo, 14, 16);
+      doc.setFontSize(10);
+      doc.text(
+        `Status filtrado: ${formatarStatusLabel(dados.statusFiltro)}`,
+        14,
+        24
+      );
+      doc.text(
+        `Grupos: ${dados.grupos.length} | Adolescentes listados: ${totalInternos}`,
+        14,
+        30
+      );
+      doc.text(
+        `Emitido em ${new Date().toLocaleString("pt-BR", {
+          dateStyle: "short",
+          timeStyle: "short",
+        })}`,
+        14,
+        36
+      );
+
+      let posY = 44;
+      dados.grupos.forEach((grupo, index) => {
+        doc.setFontSize(12);
+        const linhaTitulo = `${index + 1}. ${grupo.nome}${
+          grupo.cidade ? ` - ${grupo.cidade}` : ""
+        }`;
+        doc.text(linhaTitulo, 14, posY);
+        doc.setFontSize(9);
+        doc.text(`Total registrado: ${grupo.total}`, 14, posY + 6);
+        if (grupo.descricao) {
+          doc.text(grupo.descricao, 14, posY + 12);
+        }
+
+        if (grupo.adolescentes.length === 0) {
+          posY += grupo.descricao ? 24 : 18;
+          doc.text("Nenhum adolescente listado para este grupo.", 14, posY);
+          posY += 12;
+          return;
+        }
+
+        autoTable(doc, {
+          startY: posY + 14,
+          head: [["Nome", "SMS", "Status", "Alojamento"]],
+          body: grupo.adolescentes.map((adolescente) => [
+            adolescente.nome,
+            adolescente.numeroSms ?? "Nao informado",
+            adolescente.statusUnidade ?? "Nao informado",
+            adolescente.alojamento ?? "Nao informado",
+          ]),
+          styles: { fontSize: 8 },
+          headStyles: { fillColor: [79, 70, 229], textColor: 255 },
+          margin: { left: 14, right: 14 },
+        });
+        const finalY =
+          (doc as jsPDF & { lastAutoTable?: { finalY: number } })
+            .lastAutoTable?.finalY ?? posY + 14;
+        posY = finalY + 14;
+      });
+
+      const nomeArquivo = `relatorio-internos-${dados.tipo.toLowerCase()}-${
+        (dados.statusFiltro ?? "ATIVOS").toLowerCase()
+      }.pdf`;
+      doc.save(nomeArquivo);
+    } finally {
+      setGerandoPdf(false);
+    }
   };
+  const podeGerarPdf =
+    Boolean(dados && dados.grupos.length > 0) && !carregando && !gerandoPdf;
 
   return (
     <>
       <button
         type="button"
-        onClick={toggleModal}
-        className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-400 hover:text-slate-900"
+        onClick={() => setAberto(true)}
+        className="inline-flex items-center justify-center rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
       >
-        <Users size={16} />
-        Relatório de Internos
+        Abrir relatorio
       </button>
 
       {aberto && (
@@ -147,14 +228,14 @@ export default function RelatorioAfiliacoesModalTrigger() {
               <div className="flex items-start justify-between border-b border-slate-200 px-6 py-4">
                 <div>
                   <p className="text-xs uppercase tracking-wide text-indigo-500">
-                    Inteligência operacional
+                    Inteligencia operacional
                   </p>
                   <h2 className="text-2xl font-bold text-slate-900">
-                    Relatório de internos por afiliação
+                    Relatorio de internos por faccao ou regiao
                   </h2>
                   <p className="text-sm text-slate-600">
-                    Consulte rapidamente os adolescentes conforme regiões
-                    mapeadas ou facções cadastradas.
+                    Consulte rapidamente os adolescentes conforme regioes
+                    mapeadas ou faccoes cadastradas.
                   </p>
                 </div>
                 <button
@@ -202,19 +283,30 @@ export default function RelatorioAfiliacoesModalTrigger() {
                     </select>
                   </div>
                 </div>
-                <div className="text-right text-sm text-slate-600">
+                <div className="flex flex-col gap-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <span className="font-semibold text-slate-900">
-                      {dados?.grupos.length ?? 0}
-                    </span>{" "}
-                    grupo(s) encontrados
+                    <div>
+                      <span className="font-semibold text-slate-900">
+                        {dados?.grupos.length ?? 0}
+                      </span>{" "}
+                      grupo(s) encontrados
+                    </div>
+                    <div>
+                      <span className="font-semibold text-slate-900">
+                        {totalInternos}
+                      </span>{" "}
+                      adolescente(s) listados
+                    </div>
                   </div>
-                  <div>
-                    <span className="font-semibold text-slate-900">
-                      {totalInternos}
-                    </span>{" "}
-                    adolescente(s) listados
-                  </div>
+                  <button
+                    type="button"
+                    onClick={gerarPdf}
+                    disabled={!podeGerarPdf}
+                    className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Download size={16} />
+                    Gerar PDF
+                  </button>
                 </div>
               </div>
 
@@ -222,7 +314,7 @@ export default function RelatorioAfiliacoesModalTrigger() {
                 {carregando && (
                   <div className="flex h-full flex-col items-center justify-center gap-3 text-slate-500">
                     <Loader2 className="h-6 w-6 animate-spin" />
-                    <p>Gerando relatório...</p>
+                    <p>Gerando relatorio...</p>
                   </div>
                 )}
 
@@ -234,7 +326,7 @@ export default function RelatorioAfiliacoesModalTrigger() {
 
                 {!carregando && !erro && dados?.grupos.length === 0 && (
                   <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                    Não há dados disponíveis para o tipo selecionado.
+                    Nao ha dados disponiveis para o tipo selecionado.
                   </div>
                 )}
 
@@ -249,7 +341,7 @@ export default function RelatorioAfiliacoesModalTrigger() {
                         <div>
                           <p className="text-sm font-semibold text-slate-900">
                             {grupo.nome}
-                            {grupo.cidade ? ` • ${grupo.cidade}` : ""}
+                            {grupo.cidade ? ` - ${grupo.cidade}` : ""}
                           </p>
                           {grupo.descricao && (
                             <p className="text-xs text-slate-500">
@@ -284,13 +376,13 @@ export default function RelatorioAfiliacoesModalTrigger() {
                                       {adolescente.nome}
                                     </td>
                                     <td className="px-3 py-2">
-                                      {adolescente.numeroSms ?? "—"}
+                                      {adolescente.numeroSms ?? "Nao informado"}
                                     </td>
                                     <td className="px-3 py-2 text-xs uppercase">
-                                      {adolescente.statusUnidade ?? "—"}
+                                      {adolescente.statusUnidade ?? "Desconhecido"}
                                     </td>
                                     <td className="px-3 py-2 text-sm text-slate-600">
-                                      {adolescente.alojamento ?? "Não informado"}
+                                      {adolescente.alojamento ?? "Nao informado"}
                                     </td>
                                   </tr>
                                 ))}
@@ -306,7 +398,7 @@ export default function RelatorioAfiliacoesModalTrigger() {
               <div className="flex items-center justify-between border-t border-slate-200 px-6 py-4 text-sm text-slate-600">
                 <div className="flex items-center gap-2">
                   <FileText size={16} />
-                  Relatório atualizado em tempo real.
+                  Relatorio atualizado em tempo real.
                 </div>
                 <button
                   type="button"

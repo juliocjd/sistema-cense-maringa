@@ -22,9 +22,9 @@ export default function RelatorioImpactoModalTrigger({
       <button
         type="button"
         onClick={() => setAberto(true)}
-        className="inline-flex items-center justify-center rounded-lg border border-indigo-200 px-5 py-2 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-600 hover:text-white"
+        className="inline-flex items-center justify-center rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
       >
-        Relatorio de impacto
+        Abrir relatorio
       </button>
 
       {aberto && (
@@ -33,17 +33,17 @@ export default function RelatorioImpactoModalTrigger({
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold text-slate-900">
-                  Relatorio de impacto
+                  Internos impactados por conflitos externos
                 </h3>
                 <p className="text-sm text-slate-500">
-                  Gere e exporte o impacto atualizado dos conflitos externos.
+                  Gere e exporte a lista de adolescentes afetados por conflitos territoriais ou de faccao.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setAberto(false)}
                 className="rounded-full p-2 text-slate-500 hover:bg-slate-100"
-                aria-label="Fechar relatorio de impacto"
+                aria-label="Fechar relatorio de internos impactados"
               >
                 <X size={20} />
               </button>

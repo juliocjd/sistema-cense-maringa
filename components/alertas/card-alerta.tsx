@@ -155,14 +155,6 @@ export function CardAlerta({
             )}
           </div>
 
-          <div className="mt-2 flex items-center gap-2 text-xs text-gray-600">
-            <User size={14} className="text-gray-500" />
-            <span className="font-semibold text-gray-700">Operador:</span>
-            <span>
-              {alerta.operadorResponsavel?.nomeCompleto ?? "Não informado"}
-            </span>
-          </div>
-
           {/* Menu de Ações */}
           <div className="relative">
             <button
@@ -329,9 +321,20 @@ export function CardAlerta({
         )}
 
         {/* Data de Criação */}
-        <div className="flex items-center gap-2 text-xs text-gray-500">
-          <Calendar size={12} />
-          Criado em {formatarData(alerta.criadoEm)}
+        <div className="flex flex-col gap-1 text-xs text-gray-500">
+          <div className="flex items-center gap-2">
+            <Calendar size={12} />
+            Criado em {formatarData(alerta.criadoEm)}
+          </div>
+          <div className="flex items-center gap-2">
+            <User size={12} />
+            <span>
+              Operador:{" "}
+              <span className="font-semibold text-gray-700">
+                {alerta.operadorResponsavel?.nomeCompleto ?? "Não informado"}
+              </span>
+            </span>
+          </div>
         </div>
 
         {/* Data de Desativação */}

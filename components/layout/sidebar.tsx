@@ -101,6 +101,7 @@ export function Sidebar({
       {
         section: "Relatorios",
         items: [
+          { label: "Central de Relatorios", href: "/relatorios", icon: FileText },
           { label: "Analytics", href: "/analytics", icon: PieChart },
           { label: "Justificativas de Algema", href: "/justificativas-algema", icon: Shield },
         ],
