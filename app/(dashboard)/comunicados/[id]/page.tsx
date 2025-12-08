@@ -19,14 +19,14 @@ type ComunicadoInterno = {
   dataFato: string;
   tipoCi: string;
   resumoCi: string;
-  caminhoPdf?: string | null;
+  caminhoPdf?: string;
   operador?: {
     id: string;
     nome: string;
   } | null;
   adolescentes: AdolescenteResumo[];
   criadoEm: string;
-  conflitosGerados?: Array<{
+  conflitosGerados: Array<{
     id: string;
     adolescenteA: {
       id: string;
@@ -37,7 +37,7 @@ type ComunicadoInterno = {
       nome: string;
     } | null;
   }>;
-  alertasGerados?: Array<{
+  alertasGerados: Array<{
     id: string;
     adolescente: string;
     tipo: string;
@@ -117,7 +117,7 @@ const formatarAlojamento = (dados?: {
     nome?: string | null;
     numero?: string | number | null;
   } | null;
-}) => {
+} | null) => {
   if (!dados) return undefined;
 
   const partes: string[] = [];
@@ -145,7 +145,7 @@ const normalizarCI = (payload: ApiCI): ComunicadoInterno => ({
   dataFato: payload.dataFato,
   tipoCi: payload.tipoCi ?? payload.tipoCI ?? "N/A",
   resumoCi: payload.resumoCi ?? payload.resumoCI ?? "",
-  caminhoPdf: payload.caminhoPdf ?? null,
+  caminhoPdf: payload.caminhoPdf ?? undefined,
   operador: payload.operador ?? null,
   criadoEm: payload.criadoEm,
   adolescentes: (payload.adolescentes ?? []).map((adolescente) => ({
@@ -154,7 +154,7 @@ const normalizarCI = (payload: ApiCI): ComunicadoInterno => ({
     numeroSms: adolescente.numeroSms ?? "Nao informado",
     alojamento:
       adolescente.alojamento ??
-      formatarAlojamento(adolescente.alojamentoAtual),
+      formatarAlojamento(adolescente.alojamentoAtual ?? null),
     ladoConflito: adolescente.ladoConflito === "LADO_2"
       ? "LADO_2"
       : adolescente.ladoConflito === "LADO_1"
@@ -252,8 +252,14 @@ export default function CIPorIdPage() {
         conflitosGerados: [
           {
             id: "conf-001",
-            adolescenteA: "João da Silva Santos",
-            adolescenteB: "Pedro Henrique Oliveira",
+            adolescenteA: {
+              id: "adol-001",
+              nome: "João da Silva Santos",
+            },
+            adolescenteB: {
+              id: "adol-003",
+              nome: "Pedro Henrique Oliveira",
+            },
           },
         ],
         alertasGerados: [],

@@ -46,10 +46,9 @@ const criarCasaBasica = ({
         ala: "A",
         statusManutencao: "LIVRE",
         alojamentoFrontalId: "aloj-frontal",
-        alojamentoFrontal: null,
         localizacaoPreferencial: false,
-        corRisco: null,
-        nivelRisco: null,
+        corRisco: undefined,
+        nivelRisco: undefined,
         icones: [],
         alertas: [],
         adolescentes: [],
@@ -59,12 +58,11 @@ const criarCasaBasica = ({
         casaId: "casa-1",
         numeroAlojamento: "10",
         ala: "B",
-        statusManutencao: frontalOcupado ? "OCUPADO" : "LIVRE",
+        statusManutencao: "LIVRE",
         alojamentoFrontalId: "aloj-alvo",
-        alojamentoFrontal: null,
         localizacaoPreferencial: false,
-        corRisco: null,
-        nivelRisco: null,
+        corRisco: undefined,
+        nivelRisco: undefined,
         icones: [],
         alertas: [],
         adolescentes: frontalOcupado
@@ -144,14 +142,15 @@ describe("simularAlocacao - vigilancia frontal para risco de suicidio", () => {
     });
 
     expect(resultado.status).toBe(200);
-    expect(resultado.dados.permite_alocacao).toBe(false);
+    const dados = resultado.dados!;
+    expect(dados.permite_alocacao).toBe(false);
     expect(
-      resultado.dados.alertas.some((alerta: any) =>
+      dados.alertas.some((alerta: any) =>
         alerta.mensagem.includes("Sem vigilancia frontal")
       )
     ).toBe(true);
     expect(
-      resultado.dados.motivos.some((motivo: string) =>
+      dados.motivos.some((motivo: string) =>
         motivo.includes("Sem vigilancia frontal")
       )
     ).toBe(true);
@@ -167,9 +166,10 @@ describe("simularAlocacao - vigilancia frontal para risco de suicidio", () => {
     });
 
     expect(resultado.status).toBe(200);
-    expect(resultado.dados.permite_alocacao).toBe(true);
+    const dados = resultado.dados!;
+    expect(dados.permite_alocacao).toBe(true);
     expect(
-      resultado.dados.alertas.some((alerta: any) =>
+      dados.alertas.some((alerta: any) =>
         alerta.mensagem.includes("Sem vigilancia frontal")
       )
     ).toBe(false);
@@ -188,9 +188,10 @@ describe("simularAlocacao - vigilancia frontal para risco de suicidio", () => {
       conflitosExternos: {},
     });
 
-    expect(resultado.dados.permite_alocacao).toBe(true);
+    const dados = resultado.dados!;
+    expect(dados.permite_alocacao).toBe(true);
     expect(
-      resultado.dados.alertas.some((alerta: any) =>
+      dados.alertas.some((alerta: any) =>
         alerta.mensagem.includes("tambem possui alerta de risco de suicidio")
       )
     ).toBe(true);
@@ -205,9 +206,10 @@ describe("simularAlocacao - vigilancia frontal para risco de suicidio", () => {
       conflitosExternos: {},
     });
 
-    expect(resultado.dados.permite_alocacao).toBe(true);
+    const dados = resultado.dados!;
+    expect(dados.permite_alocacao).toBe(true);
     expect(
-      resultado.dados.alertas.some((alerta: any) =>
+      dados.alertas.some((alerta: any) =>
         alerta.mensagem.includes("Sem vigilancia frontal")
       )
     ).toBe(false);

@@ -17,6 +17,21 @@ type ApiCI = {
   resumoCI?: string;
   caminhoPdf?: string | null;
   adolescentes?: ApiAdolescente[];
+  conflitos?: Array<{
+    id?: string | null;
+    adolescenteA?: {
+      id?: string | null;
+      nome?: string | null;
+      nomeCompleto?: string | null;
+      numeroSms?: string | null;
+    } | null;
+    adolescenteB?: {
+      id?: string | null;
+      nome?: string | null;
+      nomeCompleto?: string | null;
+      numeroSms?: string | null;
+    } | null;
+  }>;
 };
 
 type FormState = {
@@ -181,10 +196,10 @@ export default function EditarCIPage() {
         alojamento: formatarAlojamento(item.alojamentoAtual, item.alojamento),
         ladoConflito:
           item.ladoConflito === "LADO_1"
-            ? "LADO_1"
-            : item.ladoConflito === "LADO_2"
-            ? "LADO_2"
-            : null,
+          ? "LADO_1"
+          : item.ladoConflito === "LADO_2"
+          ? "LADO_2"
+          : null,
       }));
       setAdolescentesLista((prev) => mergeAdolescentes(normalizados, prev));
     } catch {
@@ -208,7 +223,7 @@ export default function EditarCIPage() {
         tipoCi: data.tipoCi ?? data.tipoCI ?? "",
         resumoCi: data.resumoCi ?? data.resumoCI ?? "",
       });
-      const participantes =
+      const participantes: Adolescente[] =
         Array.isArray(data.adolescentes) && data.adolescentes.length > 0
           ? data.adolescentes.map((item) => ({
               id: item.id,

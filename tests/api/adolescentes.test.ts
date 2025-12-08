@@ -97,7 +97,7 @@ const {
   transaction: transactionMock,
 } = prismaSetup;
 
-const mockedAuth = auth as unknown as ReturnType<typeof vi.fn>;
+const mockedAuth = vi.mocked(auth as unknown as ReturnType<typeof vi.fn>);
 
 const buildRequest = (
   method: string,

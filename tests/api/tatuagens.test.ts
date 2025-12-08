@@ -33,7 +33,7 @@ vi.mock("@/lib/prisma", () => {
   };
 });
 
-const mockedAuth = vi.mocked(auth);
+const mockedAuth = vi.mocked(auth as unknown as ReturnType<typeof vi.fn>);
 const mockedPrisma = prisma as unknown as {
   tatuagemCatalogo: {
     findMany: ReturnType<typeof vi.fn>;

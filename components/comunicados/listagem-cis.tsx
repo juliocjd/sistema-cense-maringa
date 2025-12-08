@@ -91,6 +91,10 @@ const obterLadosConflito = (ci: ComunicadoInterno) => {
     };
   }
 
+  if (!ci.conflitos || ci.conflitos.length === 0) {
+    return null;
+  }
+
   const mapaParticipantes = new Map(
     ci.adolescentes.map((participante) => [participante.id, participante])
   );
