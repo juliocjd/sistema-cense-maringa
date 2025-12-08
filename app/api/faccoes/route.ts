@@ -125,10 +125,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { nomeFaccao, descricao } = parsed.data;
+    const nomeNormalizado = parsed.data.nomeFaccao.trim();
+    const descricaoEntrada = parsed.data.descricao;
+    const descricaoNormalizada =
+      typeof descricaoEntrada === "string"
+        ? descricaoEntrada.trim()
+        : descricaoEntrada;
 
     const existente = await prisma.faccao.findUnique({
-      where: { nomeFaccao },
+      where: { nomeFaccao: nomeNormalizado },
       select: { id: true },
     });
 
@@ -141,8 +146,11 @@ export async function POST(request: NextRequest) {
 
     const faccao = await prisma.faccao.create({
       data: {
-        nomeFaccao,
-        descricao: descricao ?? null,
+        nomeFaccao: nomeNormalizado,
+        descricao:
+          descricaoNormalizada && descricaoNormalizada.length > 0
+            ? descricaoNormalizada
+            : null,
       },
     });
 
@@ -179,4 +187,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-

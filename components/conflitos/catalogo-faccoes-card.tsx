@@ -31,12 +31,14 @@ export default function CatalogoFaccoesCard({
     setMensagem(null);
 
     try {
+      const nomeFaccao = form.nome.trim();
+      const descricaoNormalizada = form.descricao.trim();
       const payload = {
-        nomeFaccao: form.nome.trim(),
-        descricao: form.descricao.trim() || undefined,
+        nomeFaccao,
+        descricao: descricaoNormalizada.length > 0 ? descricaoNormalizada : null,
       };
 
-      if (!payload.nomeFaccao) {
+      if (!nomeFaccao) {
         throw new Error("Informe o nome da faccao.");
       }
 

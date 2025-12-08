@@ -24,6 +24,10 @@ type ApiConflito = {
   resolvidoEm?: string;
   tentativasMediacao: number;
   ultimaMediacao?: string;
+  operadorResponsavel?: {
+    id: string;
+    nomeCompleto: string;
+  } | null;
 };
 
 type Conflito = Omit<ApiConflito, "adolescenteA" | "adolescenteB"> & {
@@ -73,6 +77,7 @@ const normalizarConflito = (conflito: ApiConflito): Conflito => {
     resolvidoEm: conflito.resolvidoEm,
     tentativasMediacao: conflito.tentativasMediacao,
     ultimaMediacao: conflito.ultimaMediacao,
+    operadorResponsavel: conflito.operadorResponsavel ?? null,
     participantes,
   };
 };

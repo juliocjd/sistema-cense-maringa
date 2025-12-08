@@ -192,6 +192,24 @@ export async function PUT(
       );
     }
 
+    const nomeAtualizado =
+      typeof parsedBody.data.nomeFaccao === "string"
+        ? parsedBody.data.nomeFaccao.trim()
+        : undefined;
+
+    if (nomeAtualizado !== undefined && nomeAtualizado.length < 2) {
+      return NextResponse.json(
+        { erro: "Nome da faccao deve ter ao menos 2 caracteres" },
+        { status: 400 }
+      );
+    }
+
+    const descricaoEntrada = parsedBody.data.descricao;
+    const descricaoNormalizada =
+      typeof descricaoEntrada === "string"
+        ? descricaoEntrada.trim()
+        : descricaoEntrada;
+
     const faccaoExistente = await prisma.faccao.findUnique({
       where: { id: faccaoId },
       select: { id: true, nomeFaccao: true },
@@ -204,12 +222,9 @@ export async function PUT(
       );
     }
 
-    if (
-      parsedBody.data.nomeFaccao &&
-      parsedBody.data.nomeFaccao !== faccaoExistente.nomeFaccao
-    ) {
+    if (nomeAtualizado && nomeAtualizado !== faccaoExistente.nomeFaccao) {
       const conflitoNome = await prisma.faccao.findUnique({
-        where: { nomeFaccao: parsedBody.data.nomeFaccao },
+        where: { nomeFaccao: nomeAtualizado },
         select: { id: true },
       });
       if (conflitoNome) {
@@ -223,11 +238,14 @@ export async function PUT(
     const faccaoAtualizada = await prisma.faccao.update({
       where: { id: faccaoId },
       data: {
-        ...(parsedBody.data.nomeFaccao
-          ? { nomeFaccao: parsedBody.data.nomeFaccao }
-          : {}),
-        ...(parsedBody.data.descricao !== undefined
-          ? { descricao: parsedBody.data.descricao ?? null }
+        ...(nomeAtualizado ? { nomeFaccao: nomeAtualizado } : {}),
+        ...(descricaoEntrada !== undefined
+          ? {
+              descricao:
+                descricaoNormalizada && descricaoNormalizada.length > 0
+                  ? descricaoNormalizada
+                  : null,
+            }
           : {}),
       },
     });
@@ -238,7 +256,17 @@ export async function PUT(
         acao: "FACCAO_ATUALIZAR",
         tabelaAfetada: "faccoes",
         registroIdAfetado: faccaoAtualizada.id,
-        detalhesAlteracao: parsedBody.data,
+        detalhesAlteracao: {
+          ...(nomeAtualizado ? { nomeFaccao: nomeAtualizado } : {}),
+          ...(descricaoEntrada !== undefined
+            ? {
+                descricao:
+                  descricaoNormalizada && descricaoNormalizada.length > 0
+                    ? descricaoNormalizada
+                    : null,
+              }
+            : {}),
+        },
         ipOrigem: getIp(request),
       },
     });

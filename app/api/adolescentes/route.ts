@@ -523,7 +523,11 @@ export async function POST(request: NextRequest) {
       await aplicarAlertasEspeciais(
         tx,
         base.id,
-        alertasEspeciaisSelecionados
+        alertasEspeciaisSelecionados,
+        {
+          operadorId,
+          ipOrigem: request.headers.get("x-forwarded-for") ?? "unknown",
+        }
       );
 
       return tx.adolescente.findUnique({

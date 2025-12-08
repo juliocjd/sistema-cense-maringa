@@ -10,6 +10,7 @@ import FormConflito from "@/components/conflitos/form-conflito";
 import CatalogoBairrosCard from "@/components/conflitos/catalogo-bairros-card";
 import CatalogoFaccoesCard from "@/components/conflitos/catalogo-faccoes-card";
 import RelatorioImpactoModalTrigger from "@/components/conflitos/relatorio-impacto-modal-trigger";
+import RelatorioAfiliacoesModalTrigger from "@/components/conflitos/relatorio-afiliacoes-modal";
 import { CatalogoBairro, CatalogoFaccao } from "@/types/inteligencia";
 
 async function buscarCatalogoBairros(): Promise<CatalogoBairro[]> {
@@ -18,8 +19,9 @@ async function buscarCatalogoBairros(): Promise<CatalogoBairro[]> {
       id: true,
       nomeBairro: true,
       cidade: true,
-      _count: {
-        select: { adolescentes: true },
+      adolescentes: {
+        where: { statusUnidade: "ATIVO" },
+        select: { id: true },
       },
     },
     orderBy: [{ cidade: "asc" }, { nomeBairro: "asc" }],
@@ -29,7 +31,7 @@ async function buscarCatalogoBairros(): Promise<CatalogoBairro[]> {
     id: bairro.id,
     nome: bairro.nomeBairro,
     cidade: bairro.cidade,
-    totalAdolescentes: bairro._count.adolescentes,
+    totalAdolescentes: bairro.adolescentes.length,
   }));
 }
 
@@ -39,8 +41,9 @@ async function buscarCatalogoFaccoes(): Promise<CatalogoFaccao[]> {
       id: true,
       nomeFaccao: true,
       descricao: true,
-      _count: {
-        select: { adolescentes: true },
+      adolescentes: {
+        where: { statusUnidade: "ATIVO" },
+        select: { id: true },
       },
     },
     orderBy: { nomeFaccao: "asc" },
@@ -50,7 +53,7 @@ async function buscarCatalogoFaccoes(): Promise<CatalogoFaccao[]> {
     id: faccao.id,
     nome: faccao.nomeFaccao,
     descricao: faccao.descricao,
-    totalAdolescentes: faccao._count.adolescentes,
+    totalAdolescentes: faccao.adolescentes.length,
   }));
 }
 
@@ -85,10 +88,13 @@ export default async function InteligenciaConflitos({
               Painel preventivo para mapear conflitos entre bairros e faccoes antes da alocacao de adolescentes.
             </p>
           </div>
-          <RelatorioImpactoModalTrigger
-            resumo={impactoResumo}
-            conflitoIdDefault={conflitoIdDefault}
-          />
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <RelatorioAfiliacoesModalTrigger />
+            <RelatorioImpactoModalTrigger
+              resumo={impactoResumo}
+              conflitoIdDefault={conflitoIdDefault}
+            />
+          </div>
         </header>
 
         <div className="grid gap-6 lg:grid-cols-[1.6fr,1fr]">

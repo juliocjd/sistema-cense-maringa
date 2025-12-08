@@ -902,11 +902,17 @@ export async function PUT(
         await registrarEntrada(entrada);
       }
 
+      const contextoLogAlertas = {
+        operadorId,
+        ipOrigem: request.headers.get("x-forwarded-for") ?? "unknown",
+      };
+
       if (deveAplicarAlertasEspeciais) {
         await aplicarAlertasEspeciais(
           tx,
           id,
-          alertasEspeciaisAtualizados
+          alertasEspeciaisAtualizados,
+          contextoLogAlertas
         );
       }
 

@@ -288,6 +288,10 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const payload = await parsePayload(request);
+    const ipOrigem =
+      request.headers.get("x-forwarded-for") ||
+      request.headers.get("cf-connecting-ip") ||
+      "unknown";
     const session = await auth().catch(() => null);
     const {
       numero,
@@ -506,6 +510,21 @@ export async function POST(request: NextRequest) {
               },
             });
             conflitosGerados.push(conflito.id);
+            if (operadorResponsavelId) {
+              await tx.logAuditoria.create({
+                data: {
+                  operadorId: operadorResponsavelId,
+                  acao: "INSERT",
+                  tabelaAfetada: "conflitos",
+                  registroIdAfetado: conflito.registroGrupoId ?? conflito.id,
+                  detalhesAlteracao: {
+                    tipoConflito: conflito.tipoConflito,
+                    origem: `CI ${numeroInt}/${anoInt}`,
+                  },
+                  ipOrigem,
+                },
+              });
+            }
           }
         } else {
           for (const { aId, bId } of paresNovos) {
@@ -520,6 +539,21 @@ export async function POST(request: NextRequest) {
               },
             });
             conflitosGerados.push(conflito.id);
+            if (operadorResponsavelId) {
+              await tx.logAuditoria.create({
+                data: {
+                  operadorId: operadorResponsavelId,
+                  acao: "INSERT",
+                  tabelaAfetada: "conflitos",
+                  registroIdAfetado: conflito.registroGrupoId ?? conflito.id,
+                  detalhesAlteracao: {
+                    tipoConflito: conflito.tipoConflito,
+                    origem: `CI ${numeroInt}/${anoInt}`,
+                  },
+                  ipOrigem,
+                },
+              });
+            }
           }
         }
       }
@@ -533,13 +567,21 @@ export async function POST(request: NextRequest) {
 
         for (const adolescenteId of adolescentesIdsArray) {
           if (tipoEspecialCI) {
-            await aplicarAlertasEspeciais(tx, adolescenteId, [
+            await aplicarAlertasEspeciais(
+              tx,
+              adolescenteId,
+              [
+                {
+                  tipo: tipoEspecialCI,
+                  descricao: `CI ${numeroInt}/${anoInt} (${tipoCI}): ${resumoCI}`,
+                  nivelRisco: nivelRiscoNormalizado ?? undefined,
+                },
+              ],
               {
-                tipo: tipoEspecialCI,
-                descricao: `CI ${numeroInt}/${anoInt} (${tipoCI}): ${resumoCI}`,
-                nivelRisco: nivelRiscoNormalizado ?? undefined,
-              },
-            ]);
+                operadorId: operadorResponsavelId,
+                ipOrigem,
+              }
+            );
             alertasGerados.push(`${tipoEspecialCI}-${adolescenteId}`);
             continue;
           }
@@ -573,6 +615,21 @@ export async function POST(request: NextRequest) {
             },
           });
           alertasGerados.push(alerta.id);
+          if (operadorResponsavelId) {
+            await tx.logAuditoria.create({
+              data: {
+                operadorId: operadorResponsavelId,
+                acao: "INSERT",
+                tabelaAfetada: "alertas_ativos",
+                registroIdAfetado: alerta.id,
+                detalhesAlteracao: {
+                  tipoAlerta,
+                  nivelRisco,
+                },
+                ipOrigem,
+              },
+            });
+          }
         }
       }
 

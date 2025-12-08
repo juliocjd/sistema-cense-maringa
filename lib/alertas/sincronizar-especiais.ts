@@ -88,10 +88,16 @@ export async function atualizarFlagsAlertasEspeciais(
   });
 }
 
+type OperadorContexto = {
+  operadorId?: string | null;
+  ipOrigem?: string | null;
+};
+
 export async function aplicarAlertasEspeciais(
   executor: PrismaExecutor,
   adolescenteId: string,
-  alertas: AlertaEspecialEntrada[]
+  alertas: AlertaEspecialEntrada[],
+  contexto?: OperadorContexto
 ) {
   const ativos = await executor.alertaAtivo.findMany({
     where: {
@@ -126,7 +132,7 @@ export async function aplicarAlertasEspeciais(
           },
         });
       } else {
-        await executor.alertaAtivo.create({
+        const alertaCriado = await executor.alertaAtivo.create({
           data: {
             adolescenteId,
             tipoAlerta: meta.tipoAlerta,
@@ -134,6 +140,22 @@ export async function aplicarAlertasEspeciais(
             nivelRisco: nivelRiscoFinal,
           },
         });
+
+        if (contexto?.operadorId) {
+          await executor.logAuditoria.create({
+            data: {
+              operadorId: contexto.operadorId,
+              acao: "INSERT",
+              tabelaAfetada: "alertas_ativos",
+              registroIdAfetado: alertaCriado.id,
+              detalhesAlteracao: {
+                tipoAlerta: meta.tipoAlerta,
+                nivelRisco: nivelRiscoFinal,
+              },
+              ipOrigem: contexto.ipOrigem ?? "unknown",
+            },
+          });
+        }
       }
     } else if (existente) {
       await executor.alertaAtivo.update({

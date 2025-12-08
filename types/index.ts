@@ -44,6 +44,10 @@ export interface Conflito {
     numeroSms?: string | null;
   } | null;
   adversarioLocal?: string | null;
+  operadorResponsavel?: {
+    id: string;
+    nomeCompleto: string;
+  } | null;
 }
 
 export interface ConflitoResumo {
@@ -383,5 +387,9 @@ export interface AlertaAtivo {
     resumoCI: string;
     tipoCI: string;
     dataFato?: string | null;
+  } | null;
+  operadorResponsavel?: {
+    id: string;
+    nomeCompleto: string;
   } | null;
 }

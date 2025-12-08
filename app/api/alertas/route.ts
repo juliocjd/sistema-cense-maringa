@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
+import { auth } from "@/auth";
 import {
   aplicarAlertasEspeciais,
   atualizarFlagsAlertasEspeciais,
@@ -28,6 +29,53 @@ const ALERTA_INCLUDE = {
     },
   },
 } as const;
+
+const obterIpOrigem = (request: NextRequest | Request) =>
+  request.headers.get("x-forwarded-for") ||
+  request.headers.get("cf-connecting-ip") ||
+  "unknown";
+
+const mapearOperadoresCriadores = async (ids: string[]) => {
+  if (ids.length === 0) {
+    return new Map<
+      string,
+      { id: string; nomeCompleto: string }
+    >();
+  }
+
+  const logs = await prisma.logAuditoria.findMany({
+    where: {
+      tabelaAfetada: "alertas_ativos",
+      acao: "INSERT",
+      registroIdAfetado: { in: ids },
+    },
+    orderBy: {
+      dataHora: "asc",
+    },
+    select: {
+      registroIdAfetado: true,
+      operador: {
+        select: {
+          id: true,
+          nomeCompleto: true,
+        },
+      },
+    },
+  });
+
+  const mapa = new Map<string, { id: string; nomeCompleto: string }>();
+  logs.forEach((log) => {
+    const chave = log.registroIdAfetado;
+    if (!chave || mapa.has(chave) || !log.operador) {
+      return;
+    }
+    mapa.set(chave, {
+      id: log.operador.id,
+      nomeCompleto: log.operador.nomeCompleto,
+    });
+  });
+  return mapa;
+};
 
 /**
  * GET /api/alertas
@@ -136,6 +184,14 @@ export async function GET(request: NextRequest) {
       prisma.alertaAtivo.count({ where }),
     ]);
 
+    const operadoresMap = await mapearOperadoresCriadores(
+      alertas.map((alerta) => alerta.id)
+    );
+    const alertasFormatados = alertas.map((alerta) => ({
+      ...alerta,
+      operadorResponsavel: operadoresMap.get(alerta.id) ?? null,
+    }));
+
     // Estatísticas
     const stats = await prisma.alertaAtivo.groupBy({
       by: ["nivelRisco"],
@@ -163,7 +219,7 @@ export async function GET(request: NextRequest) {
     };
 
     return NextResponse.json({
-      alertas,
+      alertas: alertasFormatados,
       total,
       estatisticas,
       filtros: {
@@ -201,6 +257,32 @@ export async function POST(request: NextRequest) {
       nivelRisco,
     } = body;
     const nivelRiscoNormalizado = normalizarNivelRisco(nivelRisco);
+    const session = await auth().catch(() => null);
+    const operadorId = session?.user?.id ?? null;
+
+    if (!operadorId) {
+      return NextResponse.json(
+        { erro: "Operador não autenticado" },
+        { status: 401 }
+      );
+    }
+
+    const operador = await prisma.operador.findUnique({
+      where: { id: operadorId },
+      select: {
+        id: true,
+        nomeCompleto: true,
+      },
+    });
+
+    if (!operador) {
+      return NextResponse.json(
+        { erro: "Operador não autorizado" },
+        { status: 403 }
+      );
+    }
+
+    const ipOrigem = obterIpOrigem(request);
 
     // Validações
     if (!adolescenteId) {
@@ -238,7 +320,10 @@ export async function POST(request: NextRequest) {
           descricao: descricaoAlerta,
           nivelRisco: nivelRiscoNormalizado ?? undefined,
         },
-      ]);
+      ], {
+        operadorId: operador.id,
+        ipOrigem,
+      });
 
       const alertaEspecial = await prisma.alertaAtivo.findFirst({
         where: {
@@ -254,7 +339,16 @@ export async function POST(request: NextRequest) {
         throw new Error("Falha ao sincronizar alerta especial");
       }
 
-      return NextResponse.json(alertaEspecial, { status: 201 });
+      return NextResponse.json(
+        {
+          ...alertaEspecial,
+          operadorResponsavel: {
+            id: operador.id,
+            nomeCompleto: operador.nomeCompleto,
+          },
+        },
+        { status: 201 }
+      );
     }
 
     const alerta = await prisma.alertaAtivo.create({
@@ -268,11 +362,34 @@ export async function POST(request: NextRequest) {
       include: ALERTA_INCLUDE,
     });
 
+    await prisma.logAuditoria.create({
+      data: {
+        operadorId: operador.id,
+        acao: "INSERT",
+        tabelaAfetada: "alertas_ativos",
+        registroIdAfetado: alerta.id,
+        detalhesAlteracao: {
+          tipoAlerta: alerta.tipoAlerta,
+          nivelRisco: alerta.nivelRisco,
+        },
+        ipOrigem,
+      },
+    });
+
     if (ehAlertaEspecial(alerta.tipoAlerta)) {
       await atualizarFlagsAlertasEspeciais(prisma, alerta.adolescenteId);
     }
 
-    return NextResponse.json(alerta, { status: 201 });
+    return NextResponse.json(
+      {
+        ...alerta,
+        operadorResponsavel: {
+          id: operador.id,
+          nomeCompleto: operador.nomeCompleto,
+        },
+      },
+      { status: 201 }
+    );
   } catch (error) {
     console.error("Erro ao criar alerta:", error);
     return NextResponse.json(

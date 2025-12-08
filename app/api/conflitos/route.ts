@@ -58,6 +58,45 @@ const normalizarPartes = (raw: unknown[]): ParteNormalizada[] => {
     .filter((parte) => parte.participantes.length > 0);
 };
 
+const mapearOperadoresConflitos = async (chaves: string[]) => {
+  if (chaves.length === 0) {
+    return new Map<string, { id: string; nomeCompleto: string }>();
+  }
+
+  const logs = await prisma.logAuditoria.findMany({
+    where: {
+      tabelaAfetada: "conflitos",
+      acao: "INSERT",
+      registroIdAfetado: { in: chaves },
+    },
+    orderBy: {
+      dataHora: "asc",
+    },
+    select: {
+      registroIdAfetado: true,
+      operador: {
+        select: {
+          id: true,
+          nomeCompleto: true,
+        },
+      },
+    },
+  });
+
+  const mapa = new Map<string, { id: string; nomeCompleto: string }>();
+  logs.forEach((log) => {
+    const chave = log.registroIdAfetado;
+    if (!chave || mapa.has(chave) || !log.operador) {
+      return;
+    }
+    mapa.set(chave, {
+      id: log.operador.id,
+      nomeCompleto: log.operador.nomeCompleto,
+    });
+  });
+  return mapa;
+};
+
 const montarCombosEntrePartes = (partes: ParteNormalizada[]) => {
   const pares: Array<{ aId: string; bId: string }> = [];
   const vistos = new Set<string>();
@@ -338,8 +377,19 @@ export async function GET(request: Request) {
       },
     });
 
+    const chavesOperadores = Array.from(
+      new Set(
+        conflitos
+          .map((conflito) => conflito.registroGrupoId ?? conflito.id)
+          .filter((valor): valor is string => Boolean(valor))
+      )
+    );
+    const operadoresMap = await mapearOperadoresConflitos(chavesOperadores);
+
     // Formatar resposta
-    const confilitosFormatados = conflitos.map((c) => ({
+    const confilitosFormatados = conflitos.map((c) => {
+      const chaveOperador = c.registroGrupoId ?? c.id;
+      return {
       id: c.id,
       registroGrupoId: c.registroGrupoId,
       adolescenteA: {
@@ -368,7 +418,9 @@ export async function GET(request: Request) {
       resolvidoEm: c.resolvidoEm,
       tentativasMediacao: c.tentativasMediacao.length,
       ultimaMediacao: c.tentativasMediacao[0]?.dataTentativa,
-    }));
+      operadorResponsavel: operadoresMap.get(chaveOperador) ?? null,
+    };
+    });
 
     return NextResponse.json(confilitosFormatados);
   } catch (error) {

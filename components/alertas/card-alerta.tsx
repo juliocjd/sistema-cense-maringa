@@ -155,6 +155,14 @@ export function CardAlerta({
             )}
           </div>
 
+          <div className="mt-2 flex items-center gap-2 text-xs text-gray-600">
+            <User size={14} className="text-gray-500" />
+            <span className="font-semibold text-gray-700">Operador:</span>
+            <span>
+              {alerta.operadorResponsavel?.nomeCompleto ?? "Não informado"}
+            </span>
+          </div>
+
           {/* Menu de Ações */}
           <div className="relative">
             <button

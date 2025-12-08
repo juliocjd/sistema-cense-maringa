@@ -7,6 +7,7 @@ import {
   Filter,
   Eye,
   UserPlus,
+  User,
   Swords,
   AlertTriangle,
   CheckCircle,
@@ -36,6 +37,10 @@ type Conflito = {
   resolvidoEm?: string;
   tentativasMediacao: number;
   ultimaMediacao?: string;
+  operadorResponsavel?: {
+    id: string;
+    nomeCompleto: string;
+  } | null;
 };
 
 interface ListagemConflitosProps {
@@ -456,6 +461,12 @@ export function ListagemConflitos({
                     <span>
                       <span className="font-semibold">Registrado:</span>{" "}
                       {new Date(conflito.criadoEm).toLocaleDateString("pt-BR")}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <User size={14} />
+                      <span className="font-semibold">Operador:</span>{" "}
+                      {conflito.operadorResponsavel?.nomeCompleto ??
+                        "Não informado"}
                     </span>
                     {conflito.tentativasMediacao > 0 && (
                       <span className="flex items-center gap-1">
