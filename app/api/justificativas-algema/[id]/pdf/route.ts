@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { TIPO_CI_MAP } from "@/lib/comunicados/tipos";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
@@ -27,6 +28,9 @@ export async function GET(
         { status: 400 }
       );
     }
+
+    const formatarDataHora = (valor?: Date | string | null) =>
+      valor ? new Date(valor).toLocaleString("pt-BR") : null;
 
     // Buscar justificativa com todos os relacionamentos
     const justificativa = await prisma.justificativaAlgema.findUnique({
@@ -77,6 +81,80 @@ export async function GET(
         { status: 404 }
       );
     }
+
+    const riscoFugaRegistro = await prisma.historicoMovimentacao.findFirst({
+      where: {
+        adolescenteId: justificativa.adolescenteId,
+        tipo: "RISCO_FUGA_ALERTA",
+      },
+      orderBy: [
+        { registradoEm: "desc" },
+        { criadoEm: "desc" },
+      ],
+      select: {
+        descricao: true,
+        registradoEm: true,
+        criadoEm: true,
+        referenciaTipo: true,
+        referenciaId: true,
+        operador: {
+          select: {
+            nomeCompleto: true,
+          },
+        },
+      },
+    });
+
+    let riscoFugaOrigemDescricao: string | undefined;
+
+    if (
+      riscoFugaRegistro?.referenciaTipo === "CI" &&
+      riscoFugaRegistro.referenciaId
+    ) {
+      const origemCI = await prisma.comunicadoInterno.findUnique({
+        where: { id: riscoFugaRegistro.referenciaId },
+        select: { numero: true, ano: true, tipoCI: true },
+      });
+      if (origemCI) {
+        const tipoLabel =
+          TIPO_CI_MAP.get(origemCI.tipoCI) ?? origemCI.tipoCI ?? "";
+        riscoFugaOrigemDescricao = `Origem: Comunicado Interno ${origemCI.numero}/${origemCI.ano} (${tipoLabel})`;
+      } else {
+        riscoFugaOrigemDescricao = "Origem: Comunicado Interno";
+      }
+    } else if (
+      riscoFugaRegistro?.referenciaTipo === "ALERTA" &&
+      riscoFugaRegistro.referenciaId
+    ) {
+      const alertaOrigem = await prisma.alertaAtivo.findUnique({
+        where: { id: riscoFugaRegistro.referenciaId },
+        select: { tipoAlerta: true, nivelRisco: true },
+      });
+      if (alertaOrigem) {
+        const tipo = alertaOrigem.tipoAlerta ?? "Alerta registrado";
+        const nivel = alertaOrigem.nivelRisco
+          ? ` - Nivel ${alertaOrigem.nivelRisco}`
+          : "";
+        riscoFugaOrigemDescricao = `Origem: ${tipo}${nivel}`;
+      } else {
+        riscoFugaOrigemDescricao = "Origem: Alerta registrado";
+      }
+    } else if (riscoFugaRegistro?.referenciaTipo) {
+      riscoFugaOrigemDescricao = `Origem: ${riscoFugaRegistro.referenciaTipo}`;
+    }
+
+    const riscoFugaDestaque = riscoFugaRegistro
+      ? {
+          descricao:
+            riscoFugaRegistro.descricao ??
+            "Risco de fuga elevado automaticamente apos CI/Alerta recente.",
+          data: formatarDataHora(
+            riscoFugaRegistro.registradoEm ?? riscoFugaRegistro.criadoEm
+          ),
+          origem: riscoFugaOrigemDescricao,
+          responsavel: riscoFugaRegistro.operador?.nomeCompleto ?? null,
+        }
+      : null;
 
     // Gerar PDF
     const doc = new jsPDF();
@@ -369,6 +447,66 @@ export async function GET(
         yPosition += 5;
       });
     });
+
+    if (riscoFugaDestaque) {
+      const boxWidth = pageWidth - 28;
+      const descricaoLinhas = doc.splitTextToSize(
+        `Motivo: ${riscoFugaDestaque.descricao}`,
+        boxWidth - 12
+      );
+      const metaLinhasOrigem: string[] = [];
+
+      if (riscoFugaDestaque.data) {
+        metaLinhasOrigem.push(
+          `Registrado em: ${riscoFugaDestaque.data as string}`
+        );
+      }
+      if (riscoFugaDestaque.origem) {
+        metaLinhasOrigem.push(riscoFugaDestaque.origem);
+      }
+      if (riscoFugaDestaque.responsavel) {
+        metaLinhasOrigem.push(
+          `Operador: ${riscoFugaDestaque.responsavel as string}`
+        );
+      }
+
+      const metaLinhas = metaLinhasOrigem.flatMap((linha) =>
+        doc.splitTextToSize(linha, boxWidth - 12)
+      );
+      const blocoAltura =
+        22 + (descricaoLinhas.length + metaLinhas.length) * 5 + 4;
+
+      checkPageBreak(blocoAltura + 6);
+      doc.setFillColor(254, 226, 226);
+      doc.setDrawColor(248, 113, 113);
+      doc.roundedRect(14, yPosition, boxWidth, blocoAltura, 3, 3, "FD");
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(190, 18, 60);
+      doc.text(
+        "ELEVACAO AUTOMATICA DO RISCO DE FUGA",
+        pageWidth / 2,
+        yPosition + 8,
+        { align: "center" }
+      );
+
+      let blocoY = yPosition + 16;
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(60, 60, 60);
+      descricaoLinhas.forEach((linha: string) => {
+        doc.text(linha, 20, blocoY);
+        blocoY += 5;
+      });
+      if (metaLinhas.length > 0) {
+        blocoY += 4;
+        metaLinhas.forEach((linha: string) => {
+          doc.text(linha, 20, blocoY);
+          blocoY += 5;
+        });
+      }
+
+      yPosition = yPosition + blocoAltura + 8;
+      doc.setTextColor(0, 0, 0);
+    }
 
     doc.setFontSize(10);
     yPosition += 6;

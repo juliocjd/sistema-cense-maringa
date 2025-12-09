@@ -200,6 +200,16 @@ export interface Adolescente {
   } | null;
 
   riscoFuga?: RiscoFuga | string | null;
+  riscoFugaOrigem?: {
+    descricao?: string | null;
+    registradoEm?: string | null;
+    referenciaTipo?: string | null;
+    referenciaId?: string | null;
+    operador?: {
+      id: string;
+      nomeCompleto: string;
+    } | null;
+  } | null;
 
   grupos: AdolescenteGrupoResumo[];
   tatuagens: AdolescenteTatuagemResumo[];

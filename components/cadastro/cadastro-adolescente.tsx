@@ -242,6 +242,9 @@ export function CadastroAdolescente({
     bairroId: "",
     riscoFuga: "BAIXO" as RiscoFuga,
   });
+  const [riscoFugaOrigemInfo, setRiscoFugaOrigemInfo] = useState<
+    Adolescente["riscoFugaOrigem"] | null
+  >(null);
   const temFaccaoSelecionada = Boolean(vinculacoes.faccaoId);
 
   const [tecnicoReferenciaId, setTecnicoReferenciaId] = useState("");
@@ -369,6 +372,7 @@ export function CadastroAdolescente({
       riscoFuga: (initialData.riscoFuga as RiscoFuga) ?? "BAIXO",
     });
     setTecnicoReferenciaId(initialData.tecnicoReferenciaId ?? "");
+    setRiscoFugaOrigemInfo(initialData.riscoFugaOrigem ?? null);
 
     const descricaoEspecial = (tipo: AlertaEspecialTipo) => {
       return (
@@ -2012,6 +2016,51 @@ export function CadastroAdolescente({
                     <option value="MEDIO">Medio</option>
                     <option value="ALTO">Alto</option>
                   </select>
+                  {ehEdicao && riscoFugaOrigemInfo && (
+                    <div className="mt-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
+                      <p className="font-semibold text-rose-800">
+                        Elevado automaticamente
+                      </p>
+                      <p className="mt-1">
+                        {riscoFugaOrigemInfo.descricao ??
+                          "Risco ajustado automaticamente devido a comunicados ou alertas de fuga."}
+                      </p>
+                      {riscoFugaOrigemInfo.registradoEm && (
+                        <p className="mt-1 text-[11px] text-rose-600">
+                          Registrado em{" "}
+                          {new Date(
+                            riscoFugaOrigemInfo.registradoEm
+                          ).toLocaleString("pt-BR")}
+                        </p>
+                      )}
+                      {riscoFugaOrigemInfo.referenciaTipo && (
+                        <p className="mt-1 text-[11px] text-rose-600">
+                          Origem:{" "}
+                          {riscoFugaOrigemInfo.referenciaTipo === "CI"
+                            ? "Comunicado Interno"
+                            : riscoFugaOrigemInfo.referenciaTipo === "ALERTA"
+                            ? "Alerta interno"
+                            : riscoFugaOrigemInfo.referenciaTipo}
+                        </p>
+                      )}
+                      {riscoFugaOrigemInfo.referenciaTipo === "CI" &&
+                        riscoFugaOrigemInfo.referenciaId && (
+                          <a
+                            href={`/comunicados/${riscoFugaOrigemInfo.referenciaId}`}
+                            className="mt-2 inline-flex text-[11px] font-semibold text-rose-800 underline"
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Abrir CI relacionado
+                          </a>
+                        )}
+                      {riscoFugaOrigemInfo.referenciaTipo === "ALERTA" && (
+                        <p className="mt-1 text-[11px] text-rose-600">
+                          Origem: alerta de fuga registrado na central.
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="md:col-span-2">

@@ -11,7 +11,7 @@ export const TIPO_CI_OPTIONS: TipoCIOption[] = [
   { value: "RISCO_SUICIDIO", label: "Risco de Suicidio" },
   { value: "PERFIL_MAPEADO", label: "Perfil Mapeado" },
   { value: "SAUDE_CONFIDENCIAL", label: "Saude Confidencial" },
-  { value: "FUGA", label: "Fuga / Plano de fuga" },
+  { value: "FUGA", label: "Fuga / Plano de Fuga / Evas\u00e3o" },
   { value: "AGRESSAO", label: "Agressao" },
   { value: "OUTROS", label: "Outros" },
 ];

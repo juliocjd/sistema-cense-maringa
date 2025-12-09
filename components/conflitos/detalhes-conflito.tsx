@@ -436,6 +436,7 @@ export function DetalhesConflito({
                   >
                     <option value="">Selecione...</option>
                     <option value="MEDIACAO">Mediacao</option>
+                    <option value="CIRCULO_RESTAURATIVO">Circulo restaurativo</option>
                     <option value="ATENDIMENTO_INDIVIDUAL">Atendimento individual</option>
                     <option value="GRUPO_TERAPEUTICO">Grupo terapeutico</option>
                     <option value="OUTROS">Outros</option>

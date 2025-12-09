@@ -81,6 +81,29 @@ export const INCLUDE_ADOLESCENTE_DEFAULT = {
       nivelRisco: true,
     },
   },
+  historicoMovimentacao: {
+    where: {
+      tipo: "RISCO_FUGA_ALERTA",
+    },
+    orderBy: {
+      registradoEm: "desc",
+    },
+    take: 1,
+    select: {
+      id: true,
+      descricao: true,
+      registradoEm: true,
+      criadoEm: true,
+      referenciaTipo: true,
+      referenciaId: true,
+      operador: {
+        select: {
+          id: true,
+          nomeCompleto: true,
+        },
+      },
+    },
+  },
 } satisfies Prisma.AdolescenteInclude;
 
 type PrismaAdolescente = Prisma.AdolescenteGetPayload<{
@@ -188,6 +211,7 @@ export function mapPrismaAdolescente(
         ): alerta is NonNullable<typeof alerta> => Boolean(alerta)
       ) ?? [];
   const alertaSuicidioNivel = extrairNivelRiscoSuicidio(alertasEspeciais);
+  const riscoFugaOrigemRegistro = adolescente.historicoMovimentacao?.[0];
 
   return {
     id: adolescente.id,
@@ -239,6 +263,23 @@ export function mapPrismaAdolescente(
         }
       : null,
     riscoFuga: adolescente.riscoFuga ?? null,
+    riscoFugaOrigem: riscoFugaOrigemRegistro
+      ? {
+          descricao: riscoFugaOrigemRegistro.descricao ?? null,
+          registradoEm: formatDate(
+            riscoFugaOrigemRegistro.registradoEm ??
+              riscoFugaOrigemRegistro?.criadoEm
+          ),
+          referenciaTipo: riscoFugaOrigemRegistro.referenciaTipo ?? null,
+          referenciaId: riscoFugaOrigemRegistro.referenciaId ?? null,
+          operador: riscoFugaOrigemRegistro.operador
+            ? {
+                id: riscoFugaOrigemRegistro.operador.id,
+                nomeCompleto: riscoFugaOrigemRegistro.operador.nomeCompleto,
+              }
+            : null,
+        }
+      : null,
     grupos,
     tatuagens,
     alertaRiscoSuicidio: adolescente.alertaRiscoSuicidio ?? false,

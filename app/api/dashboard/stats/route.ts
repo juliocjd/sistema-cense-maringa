@@ -106,12 +106,89 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Grupos ativos
-    const gruposAtivos = await prisma.grupo.count({
+    // Grupos ativos + membros
+    const gruposAtivosRegistros = await prisma.grupo.findMany({
       where: {
         status: "ATIVO",
       },
+      select: {
+        id: true,
+        membros: {
+          where: { dataSaida: null },
+          select: { adolescenteId: true },
+        },
+      },
     });
+    const gruposAtivos = gruposAtivosRegistros.length;
+
+    const grupoIds = gruposAtivosRegistros.map((grupo) => grupo.id);
+    const mapaMembrosGrupo = new Map<string, Set<string>>();
+    const membrosIdsSet = new Set<string>();
+
+    gruposAtivosRegistros.forEach((grupo) => {
+      const membros = new Set(
+        (grupo.membros ?? []).map((membro) => membro.adolescenteId)
+      );
+      mapaMembrosGrupo.set(grupo.id, membros);
+      membros.forEach((id) => membrosIdsSet.add(id));
+    });
+
+    const conflitosEmGrupos =
+      grupoIds.length === 0 || membrosIdsSet.size === 0
+        ? []
+        : await prisma.conflito.findMany({
+            where: {
+              status: "ATIVO",
+              OR: [
+                { registroGrupoId: { in: grupoIds } },
+                { adolescenteAId: { in: Array.from(membrosIdsSet) } },
+                { adolescenteBId: { in: Array.from(membrosIdsSet) } },
+              ],
+            },
+            select: {
+              id: true,
+              registroGrupoId: true,
+              adolescenteAId: true,
+              adolescenteBId: true,
+              tentativasMediacao: {
+                select: { id: true },
+              },
+            },
+          });
+
+    const gruposComConflito = new Set<string>();
+    const gruposConflitoSemMediacao = new Set<string>();
+
+    for (const conflito of conflitosEmGrupos) {
+      let grupoId = conflito.registroGrupoId;
+
+      if (!grupoId || !mapaMembrosGrupo.has(grupoId)) {
+        grupoId =
+          [...mapaMembrosGrupo.entries()].find(
+            ([, membros]) =>
+              membros.has(conflito.adolescenteAId) &&
+              membros.has(conflito.adolescenteBId)
+          )?.[0] ?? null;
+      }
+
+      if (!grupoId) {
+        continue;
+      }
+
+      const membrosGrupo = mapaMembrosGrupo.get(grupoId);
+      if (
+        !membrosGrupo ||
+        !membrosGrupo.has(conflito.adolescenteAId) ||
+        !membrosGrupo.has(conflito.adolescenteBId)
+      ) {
+        continue;
+      }
+
+      gruposComConflito.add(grupoId);
+      if ((conflito.tentativasMediacao?.length ?? 0) === 0) {
+        gruposConflitoSemMediacao.add(grupoId);
+      }
+    }
 
     // Conflitos por tipo
     const conflitosPorTipo = await prisma.conflito.groupBy({
@@ -137,6 +214,9 @@ export async function GET(request: NextRequest) {
       totalCasas,
       alojamentosInterditados,
       gruposAtivos,
+      gruposComConflito: gruposComConflito.size,
+      gruposConflitoSemMediacao: gruposConflitoSemMediacao.size,
+      conflitosEmGrupos: conflitosEmGrupos.length,
       gravidadeAlertas: {
         ...gravidadeAlertas,
         total:

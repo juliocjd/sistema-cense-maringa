@@ -8,6 +8,10 @@ import {
   mapearTipoEspecialPorCodigo,
 } from "@/lib/alertas/sincronizar-especiais";
 import { normalizarNivelRisco } from "@/lib/alertas/especiais";
+import {
+  registrarRiscoFugaAutomatico,
+  textoIndicaFuga,
+} from "@/lib/adolescentes/risco-fuga";
 
 const prisma = new PrismaClient();
 
@@ -378,6 +382,20 @@ export async function POST(request: NextRequest) {
 
     if (ehAlertaEspecial(alerta.tipoAlerta)) {
       await atualizarFlagsAlertasEspeciais(prisma, alerta.adolescenteId);
+    }
+
+    const alertaIndicaFuga =
+      textoIndicaFuga(tipoAlerta) || textoIndicaFuga(descricaoAlerta);
+
+    if (alertaIndicaFuga) {
+      await registrarRiscoFugaAutomatico(prisma, {
+        adolescenteId,
+        descricao: `Risco elevado apos alerta: ${descricaoAlerta.trim()}`,
+        referenciaTipo: "ALERTA",
+        referenciaId: alerta.id,
+        operadorId: operador.id,
+        registradoEm: alerta.criadoEm ?? null,
+      });
     }
 
     return NextResponse.json(

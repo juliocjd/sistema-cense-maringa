@@ -6,6 +6,7 @@ import {
   ALERTAS_ESPECIAIS,
   normalizarNivelRisco,
 } from "@/lib/alertas/especiais";
+import { registrarRiscoFugaAutomatico } from "@/lib/adolescentes/risco-fuga";
 
 const prisma = new PrismaClient();
 const CI_ALERTA_ESPECIAL_MAP: Record<string, keyof typeof ALERTAS_ESPECIAIS> =
@@ -631,6 +632,22 @@ export async function POST(request: NextRequest) {
             });
           }
         }
+      }
+
+      if (tipoCI === "FUGA") {
+        const descricaoRisco = `Risco de fuga elevado automaticamente apos CI ${numeroInt}/${anoInt}.`;
+        await Promise.all(
+          adolescentesIdsArray.map((adolescenteId) =>
+            registrarRiscoFugaAutomatico(tx, {
+              adolescenteId,
+              descricao: descricaoRisco,
+              referenciaTipo: "CI",
+              referenciaId: ci.id,
+              operadorId: operadorResponsavelId ?? null,
+              registradoEm: dataFato ?? null,
+            })
+          )
+        );
       }
 
       return {

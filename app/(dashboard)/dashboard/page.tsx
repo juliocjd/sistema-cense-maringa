@@ -29,6 +29,9 @@ type DashboardStats = {
   totalCasas: number;
   alojamentosInterditados: number;
   gruposAtivos: number;
+  gruposComConflito: number;
+  gruposConflitoSemMediacao: number;
+  conflitosEmGrupos: number;
   conflitosPorTipo: Record<string, number>;
   gravidadeAlertas: {
     critico: number;
@@ -122,9 +125,24 @@ export default function DashboardPage() {
     },
   ];
 
+  const gruposCor =
+    stats.gruposConflitoSemMediacao > 0
+      ? "red"
+      : stats.gruposComConflito > 0
+      ? "orange"
+      : "green";
+  const gruposSubtitulo =
+    stats.gruposComConflito > 0
+      ? `${stats.gruposComConflito} com conflitos${
+          stats.gruposConflitoSemMediacao > 0
+            ? ` (${stats.gruposConflitoSemMediacao} sem mediacao)`
+            : ""
+        }`
+      : "Sem conflitos ativos";
+
   const cardsSecundarios = [
     {
-      titulo: "Casas em Operação",
+      titulo: "Casas em Operacao",
       valor: `${stats.casasComOcupacao}/${stats.totalCasas}`,
       icone: Building2,
       link: "/estrutura",
@@ -134,6 +152,8 @@ export default function DashboardPage() {
       valor: stats.gruposAtivos,
       icone: UsersRound,
       link: "/grupos",
+      cor: gruposCor,
+      subtitulo: gruposSubtitulo,
     },
     {
       titulo: "Alojamentos Interditados",
@@ -221,6 +241,18 @@ export default function DashboardPage() {
     return cores[cor] || cores.blue;
   };
 
+  const getTextoValorClasses = (cor?: string) => {
+    const mapa: Record<string, string> = {
+      red: "text-red-700",
+      orange: "text-orange-700",
+      green: "text-green-700",
+      blue: "text-blue-700",
+      indigo: "text-indigo-700",
+      purple: "text-purple-700",
+    };
+    return cor && mapa[cor] ? mapa[cor] : "text-gray-800";
+  };
+
   return (
     <div className="space-y-6">
 
@@ -255,11 +287,11 @@ export default function DashboardPage() {
         })}
       </div>
 
-      {/* Card Gravidade dos Alertas */}
+      {/* Card Gravidade dos Conflitos */}
         <div className="bg-white rounded-2xl shadow-lg p-4 md:p-6 border border-gray-100">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h3 className="text-lg md:text-xl font-bold text-gray-800">Gravidade dos alertas</h3>
+              <h3 className="text-lg md:text-xl font-bold text-gray-800">Gravidade dos Conflitos</h3>
               <p className="text-xs text-gray-500">
                 Distribuição dos níveis de risco atuais
               </p>
@@ -346,21 +378,46 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
         {cardsSecundarios.map((card, index) => {
           const Icon = card.icone;
+          const cardBorderClass =
+            card.cor === "red"
+              ? "border-red-200"
+              : card.cor === "orange"
+              ? "border-orange-200"
+              : card.cor === "green"
+              ? "border-green-200"
+              : "border-gray-200";
           return (
             <Link
               key={index}
               href={card.link}
-              className="bg-white rounded-xl shadow hover:shadow-md transition-all p-3 md:p-4 border border-gray-200 hover:border-indigo-300 group"
+              className={`bg-white rounded-xl shadow hover:shadow-md transition-all p-3 md:p-4 border ${cardBorderClass} hover:border-indigo-300 group`}
             >
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 md:w-10 md:h-10 rounded-lg bg-gray-100 text-gray-600 flex items-center justify-center transition-transform group-hover:scale-110 flex-shrink-0">
+                <div
+                  className={`w-9 h-9 md:w-10 md:h-10 rounded-lg flex items-center justify-center transition-transform group-hover:scale-110 flex-shrink-0 ${
+                    card.cor
+                      ? getCorClasses(card.cor)
+                      : "bg-gray-100 text-gray-600 border border-transparent"
+                  }`}
+                >
                   <Icon className="w-5 h-5" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs text-gray-600 font-semibold uppercase tracking-wide truncate">
                     {card.titulo}
                   </p>
-                  <p className="text-xl md:text-2xl font-bold text-gray-800">{card.valor}</p>
+                  <p
+                    className={`text-xl md:text-2xl font-bold ${getTextoValorClasses(
+                      card.cor
+                    )}`}
+                  >
+                    {card.valor}
+                  </p>
+                  {card.subtitulo && (
+                    <p className="text-[11px] text-gray-600 font-medium">
+                      {card.subtitulo}
+                    </p>
+                  )}
                 </div>
               </div>
             </Link>
