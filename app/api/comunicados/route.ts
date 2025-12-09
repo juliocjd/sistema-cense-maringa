@@ -125,7 +125,17 @@ export async function GET(request: NextRequest) {
     const offset = parseInt(searchParams.get("offset") || "0");
 
     // Construir filtros
-    const where: any = {};
+    const where: any = {
+      suspensoPorStatus: false,
+      desativadoEm: null,
+      adolescentes: {
+        some: {
+          adolescente: {
+            statusUnidade: "ATIVO",
+          },
+        },
+      },
+    };
 
     if (tipo) {
       where.tipoCI = tipo;

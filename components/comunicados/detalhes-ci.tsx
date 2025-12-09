@@ -106,11 +106,35 @@ export function DetalhesCI({
       },
       AUTORIZACAO_ESPECIAL: {
         cor: "bg-blue-100 text-blue-800 border-blue-300",
-        texto: "Autorização",
+        texto: "Autorizacao",
       },
       SAUDE: {
         cor: "bg-purple-100 text-purple-800 border-purple-300",
-        texto: "Saúde",
+        texto: "Saude",
+      },
+      FUGA: {
+        cor: "bg-orange-100 text-orange-800 border-orange-300",
+        texto: "Fuga",
+      },
+      AGRESSAO: {
+        cor: "bg-rose-100 text-rose-800 border-rose-300",
+        texto: "Agressao",
+      },
+      AMEACA_SERVIDOR: {
+        cor: "bg-amber-100 text-amber-800 border-amber-300",
+        texto: "Ameaca a servidor",
+      },
+      RISCO_SUICIDIO: {
+        cor: "bg-red-100 text-red-800 border-red-300",
+        texto: "Risco de suicidio",
+      },
+      PERFIL_MAPEADO: {
+        cor: "bg-indigo-100 text-indigo-800 border-indigo-300",
+        texto: "Perfil mapeado",
+      },
+      SAUDE_CONFIDENCIAL: {
+        cor: "bg-blue-100 text-blue-800 border-blue-300",
+        texto: "Saude confidencial",
       },
       OUTROS: {
         cor: "bg-gray-100 text-gray-800 border-gray-300",

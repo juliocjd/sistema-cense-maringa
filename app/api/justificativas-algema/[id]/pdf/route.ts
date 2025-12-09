@@ -14,6 +14,8 @@ const RISCO_EXPLICACOES = {
     "considera protocolos de suicidio, alertas de saude confidenciais e registros psicossociais criticos",
 };
 
+const TIPOS_CRITICOS_DESTAQUE = ["FUGA", "AGRESSAO", "AMEACA_SERVIDOR"];
+
 // GET /api/justificativas-algema/[id]/pdf - Gerar PDF da justificativa
 export async function GET(
   request: NextRequest,
@@ -82,28 +84,67 @@ export async function GET(
       );
     }
 
-    const riscoFugaRegistro = await prisma.historicoMovimentacao.findFirst({
-      where: {
-        adolescenteId: justificativa.adolescenteId,
-        tipo: "RISCO_FUGA_ALERTA",
-      },
-      orderBy: [
-        { registradoEm: "desc" },
-        { criadoEm: "desc" },
-      ],
-      select: {
-        descricao: true,
-        registradoEm: true,
-        criadoEm: true,
-        referenciaTipo: true,
-        referenciaId: true,
-        operador: {
-          select: {
-            nomeCompleto: true,
+    const [riscoFugaRegistro, alertasCriticos, cisCriticos] =
+      await Promise.all([
+        prisma.historicoMovimentacao.findFirst({
+          where: {
+            adolescenteId: justificativa.adolescenteId,
+            tipo: "RISCO_FUGA_ALERTA",
           },
-        },
-      },
-    });
+          orderBy: [
+            { registradoEm: "desc" },
+            { criadoEm: "desc" },
+          ],
+          select: {
+            descricao: true,
+            registradoEm: true,
+            criadoEm: true,
+            referenciaTipo: true,
+            referenciaId: true,
+            operador: {
+              select: {
+                nomeCompleto: true,
+              },
+            },
+          },
+        }),
+        prisma.alertaAtivo.findMany({
+          where: {
+            adolescenteId: justificativa.adolescenteId,
+            desativadoEm: null,
+            tipoAlerta: { in: TIPOS_CRITICOS_DESTAQUE },
+          },
+          select: {
+            id: true,
+            tipoAlerta: true,
+            descricaoAlerta: true,
+            nivelRisco: true,
+            criadoEm: true,
+          },
+          orderBy: { criadoEm: "desc" },
+        }),
+        prisma.comunicadoInterno.findMany({
+          where: {
+            tipoCI: { in: TIPOS_CRITICOS_DESTAQUE },
+            adolescentes: {
+              some: {
+                adolescenteId: justificativa.adolescenteId,
+              },
+            },
+          },
+          select: {
+            id: true,
+            numero: true,
+            ano: true,
+            tipoCI: true,
+            resumoCI: true,
+            dataFato: true,
+            criadoEm: true,
+          },
+          orderBy: [{ ano: "desc" }, { numero: "desc" }],
+          take: 5,
+        }),
+      ]);
 
     let riscoFugaOrigemDescricao: string | undefined;
 
@@ -503,6 +544,73 @@ export async function GET(
           blocoY += 5;
         });
       }
+
+      yPosition = yPosition + blocoAltura + 8;
+      doc.setTextColor(0, 0, 0);
+    }
+
+    // Destaques de alertas/CI criticos (Fuga, Agressao, Ameaca contra servidor)
+    const registrosCriticos = [
+      ...alertasCriticos.map((alerta) => ({
+        origem: "ALERTA" as const,
+        tipo: alerta.tipoAlerta ?? "ALERTA",
+        descricao: alerta.descricaoAlerta ?? "Alerta registrado",
+        data: alerta.criadoEm,
+        nivel: alerta.nivelRisco ?? null,
+      })),
+      ...cisCriticos.map((ci) => ({
+        origem: "CI" as const,
+        tipo: ci.tipoCI,
+        descricao:
+          ci.resumoCI ??
+          `Comunicado Interno ${ci.numero}/${ci.ano} (${ci.tipoCI})`,
+        data: ci.dataFato ?? ci.criadoEm,
+        numero: `${ci.numero}/${ci.ano}`,
+      })),
+    ];
+
+    if (registrosCriticos.length > 0) {
+      const boxWidth = pageWidth - 28;
+      const titulo = "REGISTROS CRITICOS: FUGA / AGRESSAO / AMEACA A SERVIDOR";
+      const corpo: string[] = [];
+
+      registrosCriticos.forEach((registro) => {
+        const tipoLabel =
+          TIPO_CI_MAP.get(registro.tipo) ??
+          registro.tipo ??
+          (registro.origem === "CI" ? "CI" : "Alerta");
+        const data = formatarDataHora(registro.data);
+        const nivel =
+          registro.origem === "ALERTA" && registro.nivel
+            ? ` - Nivel ${registro.nivel}`
+            : "";
+        const origemLabel =
+          registro.origem === "CI"
+            ? `CI ${registro.numero ?? ""}`.trim()
+            : "Alerta";
+        const linha = `• ${origemLabel}: ${tipoLabel}${nivel}${
+          data ? ` (${data})` : ""
+        } - ${registro.descricao}`;
+        corpo.push(...doc.splitTextToSize(linha, boxWidth - 12));
+      });
+
+      const blocoAltura = 18 + corpo.length * 5;
+      checkPageBreak(blocoAltura + 8);
+
+      doc.setFillColor(255, 243, 224); // amarelo claro
+      doc.setDrawColor(249, 115, 22); // laranja
+      doc.roundedRect(14, yPosition, boxWidth, blocoAltura, 3, 3, "FD");
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(180, 83, 9);
+      doc.text(titulo, pageWidth / 2, yPosition + 8, { align: "center" });
+
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(60, 60, 60);
+      let blocoY = yPosition + 15;
+      corpo.forEach((linha) => {
+        doc.text(linha, 20, blocoY);
+        blocoY += 5;
+      });
 
       yPosition = yPosition + blocoAltura + 8;
       doc.setTextColor(0, 0, 0);

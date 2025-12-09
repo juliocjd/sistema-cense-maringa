@@ -30,7 +30,8 @@ interface MapaInterativoProps {
   onAlocar: (
     adolescenteId: string,
     alojamentoId: string,
-    justificativa?: string
+    justificativa?: string,
+    motivoTransferencia?: string
   ) => Promise<void>;
   onDesalocar: (
     alojamentoId: string,

@@ -126,6 +126,7 @@ interface ModalAlojamentoDetalhesProps {
     adolescenteId: string,
     motivo?: string
   ) => Promise<void>;
+  desinternandoId?: string | null;
   onDesinternar: (adolescenteId: string) => Promise<void>;
   onTransferir: (
     adolescente: Adolescente,
@@ -245,6 +246,7 @@ export default function ModalAlojamentoDetalhes({
   casas,
   conflitosExternos: _conflitosExternos,
   onDesalocar,
+  desinternandoId,
   onDesinternar,
   onTransferir,
   onSolicitarAlocacao,
@@ -290,6 +292,7 @@ export default function ModalAlojamentoDetalhes({
   const [carregandoSugestoes, setCarregandoSugestoes] = useState(false);
   const [erroSugestoes, setErroSugestoes] = useState<string | null>(null);
   const [mostrarBreakdownRisco, setMostrarBreakdownRisco] = useState(false);
+  const [desinternandoLocal, setDesinternandoLocal] = useState(false);
 
   const statusInterditado = alojamento?.statusManutencao === "INTERDITADO";
   const podeInterditar = !ocupante;
@@ -1596,23 +1599,46 @@ const motivosAmbientaisDetalhados = useMemo<MotivoAmbientalDetalhado[]>(() => {
                     </div>
                   )}
 
-                  <div className="flex flex-wrap gap-3">
+                  <div className="flex flex-wrap gap-3 items-center">
                     <button
                       type="button"
                       onClick={() =>
                         onDesalocar(alojamento.id, ocupante.id, "Remocao manual")
                       }
-                      className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100"
+                      disabled={desinternandoLocal || desinternandoId === ocupante.id}
+                      className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                       Remover do alojamento
                     </button>
                     <button
                       type="button"
-                      onClick={() => onDesinternar(ocupante.id)}
-                      className="rounded-lg border border-amber-300 px-4 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-50"
+                      onClick={async () => {
+                        setDesinternandoLocal(true);
+                        try {
+                          await onDesinternar(ocupante.id);
+                          onClose();
+                        } finally {
+                          setDesinternandoLocal(false);
+                        }
+                      }}
+                      disabled={desinternandoLocal || desinternandoId === ocupante.id}
+                      className="rounded-lg border border-amber-300 px-4 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-60 disabled:cursor-not-allowed"
                     >
-                      Desinternar
+                      <span className="inline-flex items-center gap-2">
+                        {(desinternandoLocal ||
+                          desinternandoId === ocupante.id) && (
+                          <Activity className="h-4 w-4 animate-spin" />
+                        )}
+                        {desinternandoLocal || desinternandoId === ocupante.id
+                          ? "Processando..."
+                          : "Desinternar"}
+                      </span>
                     </button>
+                    {(desinternandoLocal || desinternandoId === ocupante.id) && (
+                      <span className="text-xs text-amber-700">
+                        Aguarde, estamos registrando a desinternacao.
+                      </span>
+                    )}
                   </div>
                 </div>
               ) : (

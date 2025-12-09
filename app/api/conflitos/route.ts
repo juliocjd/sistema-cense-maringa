@@ -269,7 +269,8 @@ const parseStatusList = (value: string | null) => {
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const status = searchParams.get("status");
+    const statusParam = searchParams.get("status");
+    const status = statusParam || "ATIVO";
     const busca = searchParams.get("busca");
     const participanteStatusParam = searchParams.get("participanteStatus");
     const participanteStatus = parseStatusList(participanteStatusParam);

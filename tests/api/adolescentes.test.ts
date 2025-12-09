@@ -39,16 +39,18 @@ const prismaSetup = vi.hoisted(() => {
   const refs = {
     operador: { findUnique: vi.fn() },
     adolescente: { findUnique: vi.fn() },
-    logAuditoria: { create: vi.fn() },
+    logAuditoria: { create: vi.fn(), createMany: vi.fn() },
     adolescenteHistoricoGlobal: { createMany: vi.fn() },
     adolescenteTatuagemGlobal: { createMany: vi.fn() },
     txAdolescente: { update: vi.fn(), findUnique: vi.fn() },
     txHistorico: { findMany: vi.fn(), create: vi.fn() },
     txTatuagem: { createMany: vi.fn() },
     alertaAtivoGlobal: { count: vi.fn(), groupBy: vi.fn() },
-    txAlertas: { updateMany: vi.fn() },
+    txAlertas: { updateMany: vi.fn(), findMany: vi.fn() },
     historicoMovimentacaoGlobal: { create: vi.fn() },
     txHistoricoMovimentacao: { create: vi.fn() },
+    txConflito: { findMany: vi.fn(), updateMany: vi.fn() },
+    txComunicadoInterno: { findMany: vi.fn(), updateMany: vi.fn() },
   };
 
   const transaction = vi.fn().mockImplementation((callback: any) =>
@@ -58,6 +60,9 @@ const prismaSetup = vi.hoisted(() => {
       adolescenteTatuagem: refs.txTatuagem,
       alertaAtivo: refs.txAlertas,
       historicoMovimentacao: refs.txHistoricoMovimentacao,
+      logAuditoria: refs.logAuditoria,
+      conflito: refs.txConflito,
+      comunicadoInterno: refs.txComunicadoInterno,
     })
   );
 
@@ -70,6 +75,9 @@ const prismaSetup = vi.hoisted(() => {
       adolescenteTatuagem: refs.adolescenteTatuagemGlobal,
       alertaAtivo: refs.alertaAtivoGlobal,
       historicoMovimentacao: refs.historicoMovimentacaoGlobal,
+      logAuditoria: refs.logAuditoria,
+      conflito: refs.txConflito,
+      comunicadoInterno: refs.txComunicadoInterno,
       $transaction: transaction,
     },
   });
@@ -93,6 +101,8 @@ const {
     txAlertas: txAlertasMock,
     historicoMovimentacaoGlobal: historicoMovimentacaoGlobalMock,
     txHistoricoMovimentacao: txHistoricoMovimentacaoMock,
+    txConflito: txConflitoMock,
+    txComunicadoInterno: txComunicadoInternoMock,
   },
   transaction: transactionMock,
 } = prismaSetup;
@@ -126,6 +136,7 @@ beforeEach(() => {
     operadorMock.findUnique,
     adolescenteMock.findUnique,
     logAuditoriaMock.create,
+    logAuditoriaMock.createMany,
     adolescenteHistoricoGlobalMock.createMany,
     adolescenteTatuagemGlobalMock.createMany,
     txAdolescenteMock.update,
@@ -136,13 +147,24 @@ beforeEach(() => {
     alertaAtivoGlobalMock.count,
     alertaAtivoGlobalMock.groupBy,
     txAlertasMock.updateMany,
+    txAlertasMock.findMany,
     historicoMovimentacaoGlobalMock.create,
     txHistoricoMovimentacaoMock.create,
+    txConflitoMock.findMany,
+    txConflitoMock.updateMany,
+    txComunicadoInternoMock.findMany,
+    txComunicadoInternoMock.updateMany,
   ].forEach((fn) => fn.mockReset());
 
   alertaAtivoGlobalMock.count.mockResolvedValue(0);
   alertaAtivoGlobalMock.groupBy.mockResolvedValue([]);
   txAlertasMock.updateMany.mockResolvedValue({ count: 0 });
+  txAlertasMock.findMany.mockResolvedValue([]);
+  txConflitoMock.findMany.mockResolvedValue([]);
+  txConflitoMock.updateMany.mockResolvedValue({ count: 0 });
+  txComunicadoInternoMock.findMany.mockResolvedValue([]);
+  txComunicadoInternoMock.updateMany.mockResolvedValue({ count: 0 });
+  logAuditoriaMock.createMany.mockResolvedValue({ count: 0 });
 
   transactionMock.mockReset();
   transactionMock.mockImplementation((callback: any) =>
@@ -152,6 +174,9 @@ beforeEach(() => {
       adolescenteTatuagem: txTatuagemMock,
       alertaAtivo: txAlertasMock,
       historicoMovimentacao: txHistoricoMovimentacaoMock,
+      logAuditoria: logAuditoriaMock,
+      conflito: txConflitoMock,
+      comunicadoInterno: txComunicadoInternoMock,
     })
   );
 });

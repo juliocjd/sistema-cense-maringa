@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import Link from "next/link";
@@ -180,7 +180,7 @@ export function ListagemCIs({ comunicados }: ListagemCIsProps) {
     return matchBusca && matchTipo && matchAno;
   });
 
-  // Estatísticas
+  // EstatÃ­sticas
   const stats = {
     total: comunicados.length,
     ano2025: comunicados.filter((c) => c.ano === 2025).length,
@@ -188,7 +188,7 @@ export function ListagemCIs({ comunicados }: ListagemCIsProps) {
     alertas: comunicados.filter((c) => c.temAlerta).length,
   };
 
-  // Anos disponíveis
+  // Anos disponÃ­veis
   const anosDisponiveis = Array.from(
     new Set(comunicados.map((c) => c.ano))
   ).sort((a, b) => b - a);
@@ -205,11 +205,35 @@ export function ListagemCIs({ comunicados }: ListagemCIsProps) {
       },
       AUTORIZACAO_ESPECIAL: {
         cor: "bg-blue-100 text-blue-800 border-blue-300",
-        texto: "Autorização",
+        texto: "Autorizacao",
       },
       SAUDE: {
         cor: "bg-purple-100 text-purple-800 border-purple-300",
-        texto: "Saúde",
+        texto: "Saude",
+      },
+      FUGA: {
+        cor: "bg-orange-100 text-orange-800 border-orange-300",
+        texto: "Fuga",
+      },
+      AGRESSAO: {
+        cor: "bg-rose-100 text-rose-800 border-rose-300",
+        texto: "Agressao",
+      },
+      AMEACA_SERVIDOR: {
+        cor: "bg-amber-100 text-amber-800 border-amber-300",
+        texto: "Ameaca a servidor",
+      },
+      RISCO_SUICIDIO: {
+        cor: "bg-red-100 text-red-800 border-red-300",
+        texto: "Risco de suicidio",
+      },
+      PERFIL_MAPEADO: {
+        cor: "bg-indigo-100 text-indigo-800 border-indigo-300",
+        texto: "Perfil mapeado",
+      },
+      SAUDE_CONFIDENCIAL: {
+        cor: "bg-blue-100 text-blue-800 border-blue-300",
+        texto: "Saude confidencial",
       },
       OUTROS: {
         cor: "bg-gray-100 text-gray-800 border-gray-300",
@@ -249,7 +273,7 @@ export function ListagemCIs({ comunicados }: ListagemCIsProps) {
         </div>
       </div>
 
-      {/* Cards de Estatísticas */}
+      {/* Cards de EstatÃ­sticas */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white rounded-xl shadow-lg p-4 border-l-4 border-blue-500">
           <div className="flex items-center justify-between">
@@ -312,13 +336,13 @@ export function ListagemCIs({ comunicados }: ListagemCIsProps) {
                 type="text"
                 value={busca}
                 onChange={(e) => setBusca(e.target.value)}
-                placeholder="Buscar por número, resumo, adolescente..."
+                placeholder="Buscar por nÃºmero, resumo, adolescente..."
                 className="w-full pl-10 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
               />
             </div>
           </div>
 
-          {/* Botão Filtros */}
+          {/* BotÃ£o Filtros */}
           <button
             onClick={() => setMostrarFiltros(!mostrarFiltros)}
             className={`px-6 py-3 rounded-lg font-semibold transition-colors flex items-center gap-2 ${
@@ -355,9 +379,9 @@ export function ListagemCIs({ comunicados }: ListagemCIsProps) {
                   <option value="DISCIPLINAR">Disciplinar</option>
                   <option value="CONFLITO">Conflito</option>
                   <option value="AUTORIZACAO_ESPECIAL">
-                    Autorização Especial
+                    AutorizaÃ§Ã£o Especial
                   </option>
-                  <option value="SAUDE">Saúde</option>
+                  <option value="SAUDE">SaÃºde</option>
                   <option value="OUTROS">Outros</option>
                 </select>
               </div>
@@ -381,7 +405,7 @@ export function ListagemCIs({ comunicados }: ListagemCIsProps) {
                 </select>
               </div>
 
-              {/* Botão Limpar */}
+              {/* BotÃ£o Limpar */}
               <div className="flex items-end">
                 <button
                   onClick={limparFiltros}
@@ -483,7 +507,7 @@ export function ListagemCIs({ comunicados }: ListagemCIsProps) {
                     <User size={16} />
                     <span>
                       <span className="font-semibold">Operador:</span>{" "}
-                      {ci.operador?.nome || "Não informado"}
+                      {ci.operador?.nome || "NÃ£o informado"}
                     </span>
                   </div>
                   <div className="flex items-center gap-2 text-gray-600">

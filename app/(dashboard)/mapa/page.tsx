@@ -181,7 +181,8 @@ export default function MapaPage() {
   const handleAlocar = async (
     adolescenteId: string,
     alojamentoId: string,
-    justificativa?: string
+    justificativa?: string,
+    motivoTransferencia?: string
   ): Promise<void> => {
     try {
       // Chamar API com campos CORRETOS
@@ -194,6 +195,7 @@ export default function MapaPage() {
           adolescenteId,
           alojamentoId,
           justificativa,
+          motivoTransferencia,
           medidas_adicionais: [],
         }),
       });

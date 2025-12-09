@@ -107,6 +107,9 @@ const updateAdolescenteSchema = z.object({
   alertasEspeciais: z.array(alertaEspecialSchema).optional(),
 });
 
+const ACAO_DESATIVAR_ALERTA_STATUS = "DESATIVAR_ALERTA_STATUS";
+const ACAO_SUSPENDER_CONFLITO_STATUS = "SUSPENDER_CONFLITO_STATUS";
+
 const sanitizeNullableString = (value: string | null | undefined) => {
   if (typeof value !== "string") {
     return undefined;
@@ -347,6 +350,20 @@ export async function PUT(
         faccaoFuncao: true,
         faccaoInformacaoOrigem: true,
         faccaoInformacaoDetalhe: true,
+        conflitosA: {
+          select: {
+            id: true,
+            status: true,
+            adolescenteBId: true,
+          },
+        },
+        conflitosB: {
+          select: {
+            id: true,
+            status: true,
+            adolescenteAId: true,
+          },
+        },
       },
     });
 
@@ -827,12 +844,13 @@ export async function PUT(
       );
     }
 
-    const atualizado = await prisma.$transaction(async (tx) => {
-      if (
-        novoStatus === "ATIVO" &&
-        numeroInternoParaSalvar !== undefined &&
-        numeroInternoParaSalvar !== null &&
-        (deveValidarNumeroInterno || numeroAtual === null)
+    const atualizado = await prisma.$transaction(
+      async (tx) => {
+        if (
+          novoStatus === "ATIVO" &&
+          numeroInternoParaSalvar !== undefined &&
+          numeroInternoParaSalvar !== null &&
+          (deveValidarNumeroInterno || numeroAtual === null)
       ) {
         await garantirNumeroInternoDisponivel(
           tx,
@@ -917,14 +935,146 @@ export async function PUT(
       }
 
       if (saiuDeAtivo) {
-        await tx.alertaAtivo.updateMany({
+        const alertasAtivos = await tx.alertaAtivo.findMany({
           where: {
             adolescenteId: id,
             desativadoEm: null,
           },
-          data: { desativadoEm: new Date() },
+          select: { id: true, tipoAlerta: true },
         });
+
+        if (alertasAtivos.length > 0) {
+          const ids = alertasAtivos.map((a) => a.id);
+          await tx.alertaAtivo.updateMany({
+            where: { id: { in: ids } },
+            data: { desativadoEm: new Date() },
+          });
+
+          await tx.logAuditoria.createMany({
+            data: alertasAtivos.map((alerta) => ({
+              operadorId,
+              acao: ACAO_DESATIVAR_ALERTA_STATUS,
+              tabelaAfetada: "alertas_ativos",
+              registroIdAfetado: alerta.id,
+              detalhesAlteracao: {
+                tipoAlerta: alerta.tipoAlerta ?? null,
+                motivo: "Desativacao automatica por saida do status ATIVO",
+              },
+              ipOrigem: request.headers.get("x-forwarded-for") ?? "unknown",
+            })),
+          });
+        }
+
         await atualizarFlagsAlertasEspeciais(tx, id);
+
+        const conflitosEnvolvidos = [
+          ...(existente.conflitosA ?? []),
+          ...(existente.conflitosB ?? []),
+        ];
+        const conflitoIds = conflitosEnvolvidos.map((c) => c.id);
+
+        if (conflitoIds.length > 0) {
+          const conflitosParaSuspender = await tx.conflito.findMany({
+            where: {
+              id: { in: conflitoIds },
+              status: { not: "RESOLVIDO" },
+            },
+            include: {
+              adolescenteA: { select: { statusUnidade: true } },
+              adolescenteB: { select: { statusUnidade: true } },
+            },
+          });
+
+          const idsSuspender = conflitosParaSuspender
+            .filter((conflito) => {
+              const ativoA =
+                conflito.adolescenteA?.statusUnidade === "ATIVO";
+              const ativoB =
+                conflito.adolescenteB?.statusUnidade === "ATIVO";
+              return !(ativoA && ativoB);
+            })
+            .map((c) => c.id);
+
+          if (idsSuspender.length > 0) {
+            await tx.conflito.updateMany({
+              where: { id: { in: idsSuspender } },
+              data: {
+                status: "SUSPENSO_STATUS",
+                resolvidoEm: new Date(),
+              },
+            });
+
+            await tx.logAuditoria.createMany({
+              data: idsSuspender.map((cid) => ({
+                operadorId,
+                acao: ACAO_SUSPENDER_CONFLITO_STATUS,
+                tabelaAfetada: "conflitos",
+                registroIdAfetado: cid,
+                detalhesAlteracao: {
+                  motivo:
+                    "Suspensao automatica por saida do status ATIVO de participante",
+                },
+                ipOrigem: request.headers.get("x-forwarded-for") ?? "unknown",
+              })),
+            });
+          }
+        }
+
+        const comunicadosVinculados = await tx.comunicadoInterno.findMany({
+          where: {
+            suspensoPorStatus: false,
+            desativadoEm: null,
+            adolescentes: {
+              some: {
+                adolescenteId: id,
+              },
+            },
+          },
+          include: {
+            adolescentes: {
+              include: {
+                adolescente: {
+                  select: {
+                    statusUnidade: true,
+                  },
+                },
+              },
+            },
+          },
+        });
+
+        const comunicadosParaSuspender = comunicadosVinculados
+          .filter((ci) => {
+            const participantes = ci.adolescentes ?? [];
+            const ativos = participantes.filter(
+              (p) => p.adolescente?.statusUnidade === "ATIVO"
+            );
+            return ativos.length === 0;
+          })
+          .map((ci) => ci.id);
+
+        if (comunicadosParaSuspender.length > 0) {
+          await tx.comunicadoInterno.updateMany({
+            where: { id: { in: comunicadosParaSuspender } },
+            data: {
+              suspensoPorStatus: true,
+              desativadoEm: new Date(),
+            },
+          });
+
+          await tx.logAuditoria.createMany({
+            data: comunicadosParaSuspender.map((ciId) => ({
+              operadorId,
+              acao: "SUSPENDER_CI_STATUS",
+              tabelaAfetada: "comunicados_internos",
+              registroIdAfetado: ciId,
+              detalhesAlteracao: {
+                motivo: "Suspensao automatica por falta de participantes ativos",
+              },
+              ipOrigem: request.headers.get("x-forwarded-for") ?? "unknown",
+            })),
+          });
+        }
       }
 
       if (novoStatus !== "ATIVO") {
@@ -946,7 +1096,9 @@ export async function PUT(
         where: { id },
         include: INCLUDE_ADOLESCENTE_DEFAULT,
       });
-    });
+    },
+      { timeout: 20000 }
+    );
 
     if (!atualizado) {
       throw new Error("Falha ao carregar adolescente apos atualizacao");
@@ -1013,9 +1165,130 @@ export async function PUT(
     const adolescenteResposta = mapPrismaAdolescente(atualizado);
     adolescenteResposta.alertasPendentes = alertasPendentes;
 
+    let reativacaoPendentes: {
+      alertas?: Array<{
+        id: string;
+        tipoAlerta: string | null;
+        descricaoAlerta: string | null;
+        desativadoEm: string | null;
+      }>;
+      conflitos?: Array<{
+        id: string;
+        adversarioId: string | null;
+        adversarioNome: string | null;
+        status: string | null;
+      }>;
+      comunicados?: Array<{
+        id: string;
+        numero: number | null;
+        ano: number | null;
+        tipoCI: string | null;
+        resumoCI: string | null;
+      }>;
+    } | null = null;
+
+    if (retornandoParaAtivo) {
+      const alertasSuspensos = await prisma.alertaAtivo.findMany({
+        where: {
+          adolescenteId: atualizado.id,
+          desativadoEm: { not: null },
+        },
+        select: {
+          id: true,
+          tipoAlerta: true,
+          descricaoAlerta: true,
+          desativadoEm: true,
+        },
+      });
+
+      const conflitosSuspensos = await prisma.conflito.findMany({
+        where: {
+          status: "SUSPENSO_STATUS",
+          OR: [
+            { adolescenteAId: atualizado.id },
+            { adolescenteBId: atualizado.id },
+          ],
+        },
+        include: {
+          adolescenteA: { select: { id: true, nomeCompleto: true, statusUnidade: true } },
+          adolescenteB: { select: { id: true, nomeCompleto: true, statusUnidade: true } },
+        },
+      });
+
+      const conflitosReativaveis = conflitosSuspensos
+        .filter((conf) => {
+          const ativoA = conf.adolescenteA?.statusUnidade === "ATIVO";
+          const ativoB = conf.adolescenteB?.statusUnidade === "ATIVO";
+          return ativoA && ativoB;
+        })
+        .map((conf) => {
+          const adversario =
+            conf.adolescenteA?.id === atualizado.id
+              ? conf.adolescenteB
+              : conf.adolescenteA;
+          return {
+            id: conf.id,
+            adversarioId: adversario?.id ?? null,
+            adversarioNome: adversario?.nomeCompleto ?? null,
+            status: conf.status ?? null,
+          };
+        });
+
+      const comunicadosSuspensos = await prisma.comunicadoInterno.findMany({
+        where: {
+          suspensoPorStatus: true,
+          adolescentes: {
+            some: {
+              adolescenteId: atualizado.id,
+            },
+          },
+        },
+        include: {
+          adolescentes: {
+            include: {
+              adolescente: {
+                select: { statusUnidade: true },
+              },
+            },
+          },
+        },
+      });
+
+      const comunicadosReativaveis = comunicadosSuspensos
+        .filter((ci) => {
+          const ativos =
+            ci.adolescentes?.filter(
+              (p) => p.adolescente?.statusUnidade === "ATIVO"
+            ) ?? [];
+          return ativos.length > 0;
+        })
+        .map((ci) => ({
+          id: ci.id,
+          numero: ci.numero ?? null,
+          ano: ci.ano ?? null,
+          tipoCI: ci.tipoCI ?? null,
+          resumoCI: ci.resumoCI ?? null,
+        }));
+
+      reativacaoPendentes = {
+        alertas:
+          alertasSuspensos.length > 0
+            ? alertasSuspensos.map((a) => ({
+                id: a.id,
+                tipoAlerta: a.tipoAlerta ?? null,
+                descricaoAlerta: a.descricaoAlerta ?? null,
+                desativadoEm: a.desativadoEm?.toISOString() ?? null,
+              }))
+            : [],
+        conflitos: conflitosReativaveis,
+        comunicados: comunicadosReativaveis,
+      };
+    }
+
     return NextResponse.json({
       mensagem: "Adolescente atualizado com sucesso",
       adolescente: adolescenteResposta,
+      reativacaoPendentes,
     });
   } catch (error) {
     if (error instanceof z.ZodError) {

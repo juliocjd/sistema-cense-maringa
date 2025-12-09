@@ -33,7 +33,8 @@ interface ModalAlocacaoProps {
   onAlocar: (
     adolescenteId: string,
     alojamentoId: string,
-    justificativa?: string
+    justificativa?: string,
+    motivoTransferencia?: string
   ) => Promise<void>;
 }
 
@@ -51,6 +52,7 @@ export function ModalAlocacao({
     null
   );
   const [justificativa, setJustificativa] = useState("");
+  const [motivoTransferencia, setMotivoTransferencia] = useState("");
   const [loading, setLoading] = useState(false);
   const [mensagem, setMensagem] = useState<{
     tipo: "erro" | "info";
@@ -62,7 +64,31 @@ export function ModalAlocacao({
     setAdolescenteSelecionado(null);
     setVerificacao(null);
     setJustificativa("");
+    setMotivoTransferencia("");
     setMensagem(null);
+  };
+
+  const formatarLocalAtual = (aloj?: any): string | null => {
+    if (!aloj) return null;
+    const casa = aloj.casa?.nome ?? aloj.casaNome ?? null;
+    const numero =
+      aloj.numero ??
+      aloj.numeroAlojamento ??
+      aloj.descricao ??
+      aloj.nome ??
+      null;
+    const ala = aloj.ala ? `Ala ${aloj.ala}` : null;
+    const partes = [casa, numero ? `Alojamento ${numero}` : null, ala].filter(
+      Boolean
+    ) as string[];
+    if (partes.length === 0) return null;
+    return partes.join(" - ");
+  };
+
+  const riscoIndicaPerigo = (nivel?: string | null) => {
+    const texto = (nivel ?? "").toString().trim().toUpperCase();
+    if (!texto) return false;
+    return texto !== "SEGURO";
   };
 
   useEffect(() => {
@@ -78,10 +104,17 @@ export function ModalAlocacao({
 
   if (!isOpen || !alojamento) return null;
 
-  // Filtrar adolescentes disponiveis (sem alojamento atual)
-  const adolescentesDisponiveis = adolescentes.filter(
-    (a) => !a.alojamentoAtualId && a.statusUnidade === "ATIVO"
-  );
+  // Filtrar adolescentes ativos (mesmo que ja alocados em outro alojamento)
+  const adolescentesDisponiveis = adolescentes.filter((a) => {
+    const ativo = (a.statusUnidade ?? "").toUpperCase() === "ATIVO";
+    const ocupanteAtualId =
+      Array.isArray(alojamento.adolescentes) && alojamento.adolescentes[0]
+        ? alojamento.adolescentes[0].id
+        : null;
+    // Evita listar o mesmo ocupante do alojamento de destino
+    const naoEhOcupanteDestino = a.id !== ocupanteAtualId;
+    return ativo && naoEhOcupanteDestino;
+  });
 
   const adolescentesFiltrados = adolescentesDisponiveis.filter(
     (a) =>
@@ -140,12 +173,16 @@ export function ModalAlocacao({
     setAdolescenteSelecionado(adolescente);
     setVerificacao(null);
     setJustificativa("");
-     setMensagem(null);
+    setMotivoTransferencia("");
+    setMensagem(null);
     verificarConflitos(adolescente);
   };
 
   const handleConfirmarAlocacao = async () => {
     if (!adolescenteSelecionado) return;
+    const jaAlocado = Boolean(adolescenteSelecionado.alojamentoAtualId);
+    const riscoRelevante = riscoIndicaPerigo(verificacao?.nivel_risco);
+    const exigeMotivoTransferencia = Boolean(jaAlocado && riscoRelevante);
 
     if (verificacao?.requer_justificativa && !justificativa.trim()) {
       setMensagem({
@@ -155,14 +192,26 @@ export function ModalAlocacao({
       return;
     }
 
+    if (exigeMotivoTransferencia && !motivoTransferencia.trim()) {
+      setMensagem({
+        tipo: "erro",
+        texto: "Informe o motivo da transferencia do alojamento atual.",
+      });
+      return;
+    }
+
     setLoading(true);
     try {
       const justificativaLimpa = justificativa.trim();
+      const motivoTransferenciaLimpo = motivoTransferencia.trim();
       await onAlocar(
         adolescenteSelecionado.id,
         alojamento.id,
         verificacao?.requer_justificativa && justificativaLimpa
           ? justificativaLimpa
+          : undefined,
+        exigeMotivoTransferencia
+          ? motivoTransferenciaLimpo || "Transferencia interna via mapa"
           : undefined
       );
       handleFechar();
@@ -247,7 +296,7 @@ export function ModalAlocacao({
               <div className="space-y-2 max-h-96 overflow-y-auto">
                 {adolescentesFiltrados.length === 0 ? (
                   <div className="text-center py-8 text-gray-500">
-                    <p>Nenhum adolescente disponivel</p>
+                    <p>Nenhum adolescente ativo encontrado</p>
                   </div>
                 ) : (
                   adolescentesFiltrados.map((adolescente) => (
@@ -300,11 +349,11 @@ export function ModalAlocacao({
             <div>
               {/* Adolescente Selecionado */}
               <div className="mb-6 p-4 bg-gray-50 rounded-lg border-2 border-gray-200">
-                <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 bg-gray-300 rounded-full flex items-center justify-center text-gray-600 font-bold text-xl">
-                    {adolescenteSelecionado.fotoUrl ? (
-                      <img
-                        src={adolescenteSelecionado.fotoUrl}
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 bg-gray-300 rounded-full flex items-center justify-center text-gray-600 font-bold text-xl">
+                      {adolescenteSelecionado.fotoUrl ? (
+                        <img
+                          src={adolescenteSelecionado.fotoUrl}
                         alt={adolescenteSelecionado.nomeCompleto}
                         className="w-full h-full rounded-full object-cover"
                       />
@@ -319,6 +368,14 @@ export function ModalAlocacao({
                     <p className="text-sm text-gray-600">
                       SMS: {adolescenteSelecionado.numeroSms || "N/A"}
                     </p>
+                    {adolescenteSelecionado.alojamentoAtualId && (
+                      <p className="text-xs font-semibold text-amber-700 mt-1">
+                        {`Atualmente em: ${
+                          formatarLocalAtual(adolescenteSelecionado.alojamentoAtual) ??
+                          "Outro alojamento"
+                        }`}
+                      </p>
+                    )}
                   </div>
                   <button
                     onClick={() => {
@@ -438,6 +495,22 @@ export function ModalAlocacao({
                         A justificativa sera registrada permanentemente no
                         sistema.
                       </p>
+                    </div>
+                  )}
+
+                  {adolescenteSelecionado.alojamentoAtualId &&
+                    riscoIndicaPerigo(verificacao?.nivel_risco) && (
+                    <div className="mb-6">
+                      <label className="block text-sm font-semibold text-gray-800 mb-2">
+                        Motivo da transferencia *
+                      </label>
+                      <textarea
+                        value={motivoTransferencia}
+                        onChange={(e) => setMotivoTransferencia(e.target.value)}
+                        placeholder="Informe por que o adolescente sera movido do alojamento atual para este."
+                        rows={3}
+                        className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-rose-500 focus:ring-2 focus:ring-rose-200 outline-none transition-all resize-none"
+                      />
                     </div>
                   )}
                 </div>

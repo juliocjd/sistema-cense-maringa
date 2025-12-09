@@ -41,6 +41,8 @@ interface ModalDetalhesState {
   avaliacao: (ResultadoRisco & { corClass: string }) | null;
 }
 
+const VISIBILITY_REFRESH_COOLDOWN_MS = 60000;
+
 const riscoClasses = {
   livre: "bg-gray-50 border-gray-300 hover:bg-gray-100",
   nivel1: "bg-green-100 border-green-400 shadow-lg shadow-green-200",
@@ -136,6 +138,8 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
   const [alojamentoSelecionado, setAlojamentoSelecionado] = useState<
     (Alojamento & { casa?: Casa }) | null
   >(null);
+  const modalAlocacaoAbertoRef = useRef(false);
+  const modalDetalhesAbertoRef = useRef(false);
   const [modalDetalhes, setModalDetalhes] = useState<ModalDetalhesState>({
     aberto: false,
     alojamento: null,
@@ -155,10 +159,13 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
     adolescenteAlocado: false,
     conflitos: [],
   });
+  const modalAnaliseAbertoRef = useRef(false);
+  const [desinternandoId, setDesinternandoId] = useState<string | null>(null);
 
   const ultimoRefreshRef = useRef(0);
   const operacaoEmAndamentoRef = useRef(false);
   const refreshPendenteRef = useRef(false);
+  const debounceRefreshRef = useRef<number | null>(null);
 
   const totalCasas = casas.length;
 
@@ -315,13 +322,31 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
     carregarDados();
   }, [carregarDados]);
 
+  const devePausarAtualizacao = useCallback(() => {
+    return (
+      operacaoEmAndamentoRef.current ||
+      modalAlocacaoAbertoRef.current ||
+      modalDetalhesAbertoRef.current ||
+      modalAnaliseAbertoRef.current
+    );
+  }, []);
+
   const agendarAtualizacao = useCallback(() => {
-    if (operacaoEmAndamentoRef.current) {
-      refreshPendenteRef.current = true;
+    refreshPendenteRef.current = true;
+
+    if (debounceRefreshRef.current !== null) {
       return;
     }
-    solicitarAtualizacao();
-  }, [solicitarAtualizacao]);
+
+    debounceRefreshRef.current = window.setTimeout(() => {
+      debounceRefreshRef.current = null;
+      if (devePausarAtualizacao()) {
+        return;
+      }
+      refreshPendenteRef.current = false;
+      solicitarAtualizacao();
+    }, 800);
+  }, [devePausarAtualizacao, solicitarAtualizacao]);
 
   useEffect(() => {
     solicitarAtualizacao();
@@ -367,11 +392,11 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
 
   const finalizarOperacao = useCallback(() => {
     operacaoEmAndamentoRef.current = false;
-    if (refreshPendenteRef.current) {
+    if (refreshPendenteRef.current && !devePausarAtualizacao()) {
       refreshPendenteRef.current = false;
       solicitarAtualizacao();
     }
-  }, [solicitarAtualizacao]);
+  }, [devePausarAtualizacao, solicitarAtualizacao]);
 
   const executarOperacao = useCallback(
     async <T,>(acao: () => Promise<T>): Promise<T> => {
@@ -386,9 +411,19 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
   );
 
   useEffect(() => {
-    const handleFocus = () => agendarAtualizacao();
+    const handleFocus = () => {
+      const agora = Date.now();
+      if (agora - ultimoRefreshRef.current < VISIBILITY_REFRESH_COOLDOWN_MS) {
+        return;
+      }
+      agendarAtualizacao();
+    };
     const handleVisibility = () => {
       if (document.visibilityState === "visible") {
+        const agora = Date.now();
+        if (agora - ultimoRefreshRef.current < VISIBILITY_REFRESH_COOLDOWN_MS) {
+          return;
+        }
         agendarAtualizacao();
       }
     };
@@ -517,10 +552,24 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
   const abrirModalAlocacao = (alojamento: Alojamento & { casa?: Casa }) => {
     setAlojamentoSelecionado(alojamento);
     setModalAlocacaoAberto(true);
+    modalAlocacaoAbertoRef.current = true;
   };
 
-  const fecharModalDetalhes = () =>
+  const fecharModalAlocacao = () => {
+    setModalAlocacaoAberto(false);
+    setAlojamentoSelecionado(null);
+    modalAlocacaoAbertoRef.current = false;
+    refreshPendenteRef.current = false;
+  };
+
+  const fecharModalDetalhes = () => {
     setModalDetalhes({ aberto: false, alojamento: null, avaliacao: null });
+    modalDetalhesAbertoRef.current = false;
+    if (refreshPendenteRef.current && !devePausarAtualizacao()) {
+      refreshPendenteRef.current = false;
+      solicitarAtualizacao();
+    }
+  };
 
   const handleCliqueAlojamento = (casa: Casa, alojamento: Alojamento) => {
     const avaliacao = avaliarRiscoAlojamento(alojamento);
@@ -531,12 +580,14 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
       alojamento: { ...alojamento, casa },
       avaliacao,
     });
+    modalDetalhesAbertoRef.current = true;
   };
 
   const handleAlocar = async (
     adolescenteId: string,
     alojamentoId: string,
-    justificativa?: string
+    justificativa?: string,
+    motivoTransferencia?: string
   ) => {
     await executarOperacao(async () => {
       const response = await fetch("/api/alocar", {
@@ -548,6 +599,7 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
           adolescenteId,
           alojamentoId,
           justificativa,
+          motivoTransferencia,
           medidas_adicionais: [],
         }),
       });
@@ -558,8 +610,7 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
       }
 
       await response.json();
-      setModalAlocacaoAberto(false);
-      setAlojamentoSelecionado(null);
+      fecharModalAlocacao();
       await carregarDados();
     });
   };
@@ -595,24 +646,33 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
 
   const handleDesinternar = async (adolescenteId: string) => {
     await executarOperacao(async () => {
-      const response = await fetch(`/api/adolescentes/${adolescenteId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          statusUnidade: "LIBERADO",
-          alojamentoAtualId: null,
-        }),
-      });
+      setDesinternandoId(adolescenteId);
+      try {
+        const hojeISO = new Date().toISOString().split("T")[0];
+        const response = await fetch(`/api/adolescentes/${adolescenteId}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            statusUnidade: "LIBERADO",
+            alojamentoAtualId: null,
+            dataDesinternacao: hojeISO,
+          }),
+        });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        throw new Error(errorData?.erro || "Erro ao desinternar adolescente");
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => null);
+          throw new Error(errorData?.erro || "Erro ao desinternar adolescente");
+        }
+
+        await response.json();
+        fecharModalDetalhes();
+        await carregarDados();
+        alert("Adolescente desinternado com sucesso.");
+      } finally {
+        setDesinternandoId(null);
       }
-
-      await response.json();
-      await carregarDados();
     });
   };
 
@@ -1049,6 +1109,7 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
         onDesalocar={async (alojamentoId, adolescenteId, motivo) => {
           await handleDesalocar(alojamentoId, adolescenteId, motivo);
         }}
+        desinternandoId={desinternandoId}
         onDesinternar={handleDesinternar}
         onTransferir={handleTransferir}
         onSolicitarAlocacao={() => {
@@ -1079,10 +1140,7 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
 
       <ModalAlocacao
         isOpen={modalAlocacaoAberto}
-        onClose={() => {
-          setModalAlocacaoAberto(false);
-          setAlojamentoSelecionado(null);
-        }}
+        onClose={fecharModalAlocacao}
         alojamento={alojamentoSelecionado}
         adolescentes={adolescentes}
         onAlocar={handleAlocar}
@@ -1090,13 +1148,20 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
 
       <ModalAnaliseImpacto
         isOpen={modalAnaliseImpacto.aberto}
-        onClose={() => setModalAnaliseImpacto({
-          aberto: false,
-          adolescenteId: null,
-          adolescenteNome: null,
-          adolescenteAlocado: false,
-          conflitos: [],
-        })}
+        onClose={() => {
+          setModalAnaliseImpacto({
+            aberto: false,
+            adolescenteId: null,
+            adolescenteNome: null,
+            adolescenteAlocado: false,
+            conflitos: [],
+          });
+          modalAnaliseAbertoRef.current = false;
+          if (refreshPendenteRef.current && !devePausarAtualizacao()) {
+            refreshPendenteRef.current = false;
+            solicitarAtualizacao();
+          }
+        }}
         adolescenteId={modalAnaliseImpacto.adolescenteId || ""}
         adolescenteNome={modalAnaliseImpacto.adolescenteNome || ""}
         adolescenteAlocado={modalAnaliseImpacto.adolescenteAlocado}

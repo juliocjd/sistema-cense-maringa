@@ -12,6 +12,7 @@ export const TIPO_CI_OPTIONS: TipoCIOption[] = [
   { value: "PERFIL_MAPEADO", label: "Perfil Mapeado" },
   { value: "SAUDE_CONFIDENCIAL", label: "Saude Confidencial" },
   { value: "FUGA", label: "Fuga / Plano de Fuga / Evas\u00e3o" },
+  { value: "AMEACA_SERVIDOR", label: "Ameaca contra servidor" },
   { value: "AGRESSAO", label: "Agressao" },
   { value: "OUTROS", label: "Outros" },
 ];
@@ -26,6 +27,7 @@ export const TIPOS_ALERTA_AUTOMATICO = new Set([
   "SAUDE_CONFIDENCIAL",
   "FUGA",
   "AGRESSAO",
+  "AMEACA_SERVIDOR",
   "AUTORIZACAO_ESPECIAL",
 ]);
 

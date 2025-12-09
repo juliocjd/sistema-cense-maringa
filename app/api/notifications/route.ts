@@ -4,7 +4,13 @@ import { ALERTAS_ESPECIAIS } from "@/lib/alertas/especiais";
 
 const NOTIFICATION_LIMIT = 5;
 
-const TIPOS_CI_CRITICOS = ["RISCO_SUICIDIO", "FUGA", "DISCIPLINAR", "AGRESSAO"];
+const TIPOS_CI_CRITICOS = [
+  "RISCO_SUICIDIO",
+  "FUGA",
+  "DISCIPLINAR",
+  "AGRESSAO",
+  "AMEACA_SERVIDOR",
+];
 
 export async function GET(_request: NextRequest) {
   try {

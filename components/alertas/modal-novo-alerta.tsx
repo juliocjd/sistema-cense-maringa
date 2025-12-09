@@ -109,7 +109,14 @@ export function ModalNovoAlerta({ onClose, onSucesso }: ModalNovoAlertaProps) {
 
   const sugerirNivelPorTipo = (valor: string): NivelRisco => {
     if (valor === "RISCO_SUICIDIO") return "CRITICO";
-    if (valor === "FUGA" || valor === "SAUDE") return "ALTO";
+    if (
+      valor === "FUGA" ||
+      valor === "SAUDE" ||
+      valor === "AGRESSAO" ||
+      valor === "AMEACA_SERVIDOR"
+    ) {
+      return "ALTO";
+    }
     return "MEDIO";
   };
 
