@@ -11,27 +11,12 @@ import {
   Trash2,
   Clock,
   User,
-  Lock,
-  Activity,
   Pencil,
 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import type { AlertaAtivo } from "@/types";
-import {
-  ALERTAS_ESPECIAIS,
-  mapearTipoEspecialPorCodigo,
-  type AlertaEspecialTipo,
-} from "@/lib/alertas/especiais";
-
-const ICONES_ALERTA_ESPECIAL: Record<
-  AlertaEspecialTipo,
-  { Icone: typeof AlertTriangle; classe: string }
-> = {
-  RISCO_SUICIDIO: { Icone: AlertTriangle, classe: "text-orange-600" },
-  PERFIL_MAPEADO: { Icone: Lock, classe: "text-purple-600" },
-  SAUDE_CONFIDENCIAL: { Icone: Activity, classe: "text-blue-600" },
-};
+import { TIPO_CI_MAP } from "@/lib/comunicados/tipos";
 
 type CardAlertaProps = {
   alerta: AlertaAtivo;
@@ -50,13 +35,10 @@ export function CardAlerta({
 }: CardAlertaProps) {
   const [mostrarMenu, setMostrarMenu] = useState(false);
   const [processando, setProcessando] = useState(false);
-  const tipoEspecial = mapearTipoEspecialPorCodigo(alerta.tipoAlerta);
-  const especialConfig = tipoEspecial
-    ? ICONES_ALERTA_ESPECIAL[tipoEspecial]
-    : null;
-  const especialLabel = tipoEspecial
-    ? ALERTAS_ESPECIAIS[tipoEspecial].label
-    : null;
+  const tipoLabel =
+    (alerta.tipoAlerta ? TIPO_CI_MAP.get(alerta.tipoAlerta) : null) ||
+    alerta.tipoAlerta ||
+    "Alerta";
 
   const formatarData = (data: string) => {
     return new Date(data).toLocaleDateString("pt-BR", {
@@ -133,24 +115,8 @@ export function CardAlerta({
             </span>
 
             {alerta.tipoAlerta && (
-              <span
-                className={`px-2 py-1 rounded text-xs font-semibold flex items-center gap-1 ${
-                  tipoEspecial
-                    ? "bg-white/80 border border-gray-200 text-gray-900"
-                    : "bg-gray-100 text-gray-700"
-                }`}
-              >
-                {tipoEspecial && especialConfig ? (
-                  <>
-                    <especialConfig.Icone
-                      size={14}
-                      className={especialConfig.classe}
-                    />
-                    {especialLabel}
-                  </>
-                ) : (
-                  alerta.tipoAlerta
-                )}
+              <span className="px-2 py-1 rounded text-xs font-semibold flex items-center gap-1 bg-gray-100 text-gray-700">
+                {tipoLabel}
               </span>
             )}
           </div>

@@ -103,7 +103,7 @@ const updateAdolescenteSchema = z.object({
   alojamentoAtualId: z.string().uuid().optional().nullable(),
   faseInternacaoAtualId: z.string().uuid().optional().nullable(),
   historicoInfracional: historicoRegistroSchema,
-  tecnicoReferenciaId: z.string().uuid().optional().nullable(),
+  tecnicosReferenciaIds: z.array(z.string().uuid()).optional(),
   alertasEspeciais: z.array(alertaEspecialSchema).optional(),
 });
 
@@ -391,6 +391,9 @@ export async function PUT(
         : numeroInternoInput === null
         ? null
         : numeroInternoInput;
+    const tecnicosIds = validated.tecnicosReferenciaIds
+      ? Array.from(new Set(validated.tecnicosReferenciaIds))
+      : undefined;
 
     const origemInformacaoAtual =
       (existente.faccaoInformacaoOrigem as "CONFESSADA" | "OBSERVACAO" | null) ?? null;
@@ -812,11 +815,14 @@ export async function PUT(
       camposAlterados.push("faseInternacaoAtualId");
     }
 
-    if (validated.tecnicoReferenciaId !== undefined) {
-      data.tecnicoReferencia = validated.tecnicoReferenciaId
-        ? { connect: { id: validated.tecnicoReferenciaId } }
-        : { disconnect: true };
-      camposAlterados.push("tecnicoReferenciaId");
+    if (tecnicosIds !== undefined) {
+      data.tecnicosReferencia = {
+        deleteMany: {},
+        create: tecnicosIds.map((id) => ({
+          tecnicoReferencia: { connect: { id } },
+        })),
+      };
+      camposAlterados.push("tecnicosReferencia");
     }
 
     if (validated.dataNascimento !== undefined) {

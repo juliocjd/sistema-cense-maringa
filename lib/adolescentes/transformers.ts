@@ -15,7 +15,14 @@ export const INCLUDE_ADOLESCENTE_DEFAULT = {
   },
   faccao: true,
   bairroOrigem: true,
-  tecnicoReferencia: true,
+  tecnicosReferencia: {
+    include: {
+      tecnicoReferencia: true,
+    },
+    orderBy: {
+      criadoEm: "asc",
+    },
+  },
   gruposMembros: {
     where: { dataSaida: null },
     include: {
@@ -223,26 +230,24 @@ export function mapPrismaAdolescente(
     numeroProcesso: adolescente.numeroProcesso ?? null,
     fotoUrl: adolescente.fotoUrl ?? null,
     dataNascimento: formatDate(adolescente.dataNascimento),
-    dataEntrada: formatDate(adolescente.dataEntrada),
-    atoInfracionalAtual: adolescente.atoInfracionalAtual ?? null,
-    atoInfracionalAno: adolescente.atoInfracionalAno ?? null,
-    atoInfracionalProcesso: adolescente.atoInfracionalProcesso ?? null,
-    atoInfracionalGravidade: adolescente.atoInfracionalGravidade ?? false,
-    atoInfracionalGravidadeObs: adolescente.atoInfracionalGravidadeObs ?? null,
-    statusUnidade,
-    alojamentoAtualId: adolescente.alojamentoAtualId ?? null,
-    faseInternacaoAtualId: adolescente.faseInternacaoAtualId ?? null,
-    dataDesinternacao: formatDate(adolescente.dataDesinternacao),
-    tecnicoReferenciaId: adolescente.tecnicoReferenciaId ?? null,
-    tecnicoReferencia: adolescente.tecnicoReferencia
-      ? {
-          id: adolescente.tecnicoReferencia.id,
-          nome: adolescente.tecnicoReferencia.nome,
-          atividade: adolescente.tecnicoReferencia.atividade ?? null,
-          email: adolescente.tecnicoReferencia.email,
-          telefone: adolescente.tecnicoReferencia.telefone ?? null,
-        }
-      : null,
+  dataEntrada: formatDate(adolescente.dataEntrada),
+  atoInfracionalAtual: adolescente.atoInfracionalAtual ?? null,
+  atoInfracionalAno: adolescente.atoInfracionalAno ?? null,
+  atoInfracionalProcesso: adolescente.atoInfracionalProcesso ?? null,
+  atoInfracionalGravidade: adolescente.atoInfracionalGravidade ?? false,
+  atoInfracionalGravidadeObs: adolescente.atoInfracionalGravidadeObs ?? null,
+  statusUnidade,
+  alojamentoAtualId: adolescente.alojamentoAtualId ?? null,
+  faseInternacaoAtualId: adolescente.faseInternacaoAtualId ?? null,
+  dataDesinternacao: formatDate(adolescente.dataDesinternacao),
+  tecnicosReferencia:
+    adolescente.tecnicosReferencia?.map((vinculo) => ({
+      id: vinculo.tecnicoReferencia.id,
+      nome: vinculo.tecnicoReferencia.nome,
+      atividade: vinculo.tecnicoReferencia.atividade ?? null,
+      email: vinculo.tecnicoReferencia.email,
+      telefone: vinculo.tecnicoReferencia.telefone ?? null,
+    })) ?? [],
     alojamentoAtual,
     faccaoGrupoId: adolescente.faccaoGrupoId ?? null,
     faccaoFuncao: adolescente.faccaoFuncao ?? null,

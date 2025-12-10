@@ -37,6 +37,22 @@ const normalizeMedidas = (value: unknown): string[] => {
     .filter((item): item is string => item.length > 0);
 };
 
+const selecionarTecnico = (
+  lista?:
+    | Array<{
+        tecnicoReferencia?: { nome: string; email: string | null } | null;
+      }>
+    | null
+) => {
+  if (!lista) return null;
+  const contato = lista.find(
+    (item) => item?.tecnicoReferencia?.email
+  )?.tecnicoReferencia;
+  return contato?.email
+    ? { nome: contato.nome, email: contato.email }
+    : null;
+};
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -109,7 +125,10 @@ export async function POST(
                 },
                 bairroOrigem: true,
                 faccao: true,
-                tecnicoReferencia: true,
+                tecnicosReferencia: {
+                  include: { tecnicoReferencia: true },
+                  orderBy: { criadoEm: "asc" },
+                },
               },
             },
           },
@@ -135,7 +154,10 @@ export async function POST(
                 alojamentoAtual: true,
                 bairroOrigem: true,
                 faccao: true,
-                tecnicoReferencia: true,
+                tecnicosReferencia: {
+                  include: { tecnicoReferencia: true },
+                  orderBy: { criadoEm: "asc" },
+                },
               },
             },
           },
@@ -148,14 +170,20 @@ export async function POST(
                 alojamentoAtual: true,
                 bairroOrigem: true,
                 faccao: true,
-                tecnicoReferencia: true,
+                tecnicosReferencia: {
+                  include: { tecnicoReferencia: true },
+                  orderBy: { criadoEm: "asc" },
+                },
               },
             },
           },
         },
         bairroOrigem: true,
         faccao: true,
-        tecnicoReferencia: true,
+        tecnicosReferencia: {
+          include: { tecnicoReferencia: true },
+          orderBy: { criadoEm: "asc" },
+        },
         gruposMembros: {
           where: { dataSaida: null },
           include: {
@@ -274,22 +302,15 @@ export async function POST(
         adolescente: {
           id: adolescente.id,
           nomeCompleto: adolescente.nomeCompleto,
-          tecnico: adolescente.tecnicoReferencia
-            ? {
-                nome: adolescente.tecnicoReferencia.nome,
-                email: adolescente.tecnicoReferencia.email,
-              }
-            : undefined,
+          tecnico:
+            selecionarTecnico(adolescente.tecnicosReferencia ?? null) ?? undefined,
         },
         adversario: {
           id: ocupante.id,
           nomeCompleto: ocupante.nomeCompleto,
-          tecnico: ocupante.tecnicoReferencia
-            ? {
-                nome: ocupante.tecnicoReferencia.nome,
-                email: ocupante.tecnicoReferencia.email,
-              }
-            : undefined,
+          tecnico:
+            selecionarTecnico((ocupante as any).tecnicosReferencia ?? null) ??
+            undefined,
         },
         mensagem,
       });
@@ -342,7 +363,10 @@ export async function POST(
             alojamentoAtual: true,
             bairroOrigem: true,
             faccao: true,
-            tecnicoReferencia: true,
+            tecnicosReferencia: {
+              include: { tecnicoReferencia: true },
+              orderBy: { criadoEm: "asc" },
+            },
           },
         },
       },

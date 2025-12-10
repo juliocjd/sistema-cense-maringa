@@ -634,9 +634,18 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
           {/* ABA: Alertas */}
           {abaAtiva === "alertas" && (
             <div className="space-y-6">
-              <h2 className="text-2xl font-bold text-gray-800">
-                Alertas Especiais
-              </h2>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <h2 className="text-2xl font-bold text-gray-800">
+                  Alertas Especiais
+                </h2>
+                <Link
+                  href={`/alertas?adolescenteId=${adolescente.id}`}
+                  className="inline-flex items-center gap-2 text-sm font-semibold text-indigo-600 hover:text-indigo-800"
+                >
+                  <AlertTriangle size={16} />
+                  Ver alertas deste adolescente
+                </Link>
+              </div>
 
               {adolescente.statusUnidade === "ATIVO" &&
                 (adolescente.alertasPendentes ?? 0) > 0 && (
@@ -854,6 +863,12 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                             </p>
                           )}
                         </div>
+                        <Link
+                          href={`/conflitos/${conflito.id}`}
+                          className="text-sm font-semibold text-indigo-600 hover:text-indigo-800 underline underline-offset-4"
+                        >
+                          Abrir conflito
+                        </Link>
                       </div>
                     </div>
                   ))}

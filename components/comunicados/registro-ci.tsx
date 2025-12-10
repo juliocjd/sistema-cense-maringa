@@ -9,6 +9,37 @@ import {
   TIPOS_ALERTA_AUTOMATICO,
 } from "@/lib/comunicados/tipos";
 
+const NIVEIS_RISCO = ["CRITICO", "ALTO", "MEDIO", "BAIXO"] as const;
+type NivelRisco = (typeof NIVEIS_RISCO)[number];
+
+const DESCRICOES_TIPO: Record<string, string> = {
+  DISCIPLINAR: "Conduta que exige acompanhamento de comportamento.",
+  CONFLITO: "Conflito mapeado envolvendo adolescentes.",
+  AUTORIZACAO_ESPECIAL:
+    "Permissao controlada de item nao autorizado (ex.: caneta/material de estudo).",
+  SAUDE_CONFIDENCIAL:
+    "Informacao de saude sensivel que impacta cuidados e seguranca.",
+  RISKO_SUICIDIO: "Risco de suicidio identificado.",
+  PERFIL_MAPEADO: "Protecao por ato infracional que exige sigilo.",
+  FUGA: "Risco ou registro de fuga/plano de fuga/evasao.",
+  AGRESSAO: "Registro de agressao ou risco iminente.",
+  AMEACA_SERVIDOR: "Ameaca direta contra servidor.",
+  OUTROS: "Outros alertas relevantes para a operacao.",
+};
+
+const sugerirNivelPorTipo = (tipo: string): NivelRisco => {
+  if (tipo === "RISKO_SUICIDIO" || tipo === "RISCO_SUICIDIO") return "CRITICO";
+  if (
+    tipo === "FUGA" ||
+    tipo === "SAUDE_CONFIDENCIAL" ||
+    tipo === "AGRESSAO" ||
+    tipo === "AMEACA_SERVIDOR"
+  ) {
+    return "ALTO";
+  }
+  return "MEDIO";
+};
+
 type Adolescente = {
   id: string;
   nomeCompleto: string;
@@ -28,6 +59,7 @@ export function RegistroCI({ adolescentes, onSalvar }: RegistroCIProps) {
     new Date().toISOString().split("T")[0]
   );
   const [tipoCi, setTipoCi] = useState("");
+  const [nivelRisco, setNivelRisco] = useState<NivelRisco>("MEDIO");
   const [resumoCi, setResumoCi] = useState("");
   const [adolescentesSelecionados, setAdolescentesSelecionados] = useState<
     Adolescente[]
@@ -45,6 +77,9 @@ export function RegistroCI({ adolescentes, onSalvar }: RegistroCIProps) {
   useEffect(() => {
     setGerarConflito(TIPOS_CONFLITO_AUTOMATICO.has(tipoCi));
     setGerarAlerta(TIPOS_ALERTA_AUTOMATICO.has(tipoCi));
+    if (tipoCi) {
+      setNivelRisco(sugerirNivelPorTipo(tipoCi));
+    }
   }, [tipoCi]);
 
   const modoConflito = tipoCi === "CONFLITO";
@@ -181,6 +216,7 @@ export function RegistroCI({ adolescentes, onSalvar }: RegistroCIProps) {
       }
       formData.append("gerarConflito", gerarConflito ? "true" : "false");
       formData.append("gerarAlerta", gerarAlerta ? "true" : "false");
+      formData.append("nivelRiscoAlerta", nivelRisco);
 
       await onSalvar(formData);
 
@@ -287,6 +323,29 @@ export function RegistroCI({ adolescentes, onSalvar }: RegistroCIProps) {
                 </option>
               ))}
             </select>
+            {tipoCi && (
+              <div className="mt-2 text-xs text-gray-600 space-y-1">
+                {DESCRICOES_TIPO[tipoCi] && <p>{DESCRICOES_TIPO[tipoCi]}</p>}
+                {!modoConflito && gerarAlerta && (
+                  <div className="flex items-center gap-2">
+                    <label className="font-semibold text-gray-700">
+                      Nivel sugerido:
+                    </label>
+                    <select
+                      value={nivelRisco}
+                      onChange={(e) => setNivelRisco(e.target.value as NivelRisco)}
+                      className="rounded-md border border-gray-300 px-2 py-1 text-xs"
+                    >
+                      {NIVEIS_RISCO.map((nivel) => (
+                        <option key={nivel} value={nivel}>
+                          {nivel}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
           {/* Acoes automaticas */}
           {(TIPOS_CONFLITO_AUTOMATICO.has(tipoCi) || TIPOS_ALERTA_AUTOMATICO.has(tipoCi)) && (

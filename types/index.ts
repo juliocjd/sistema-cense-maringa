@@ -174,14 +174,13 @@ export interface Adolescente {
   faseInternacaoAtualId?: string | null;
   alojamentoAtual?: AdolescenteAlojamentoResumo | null;
   dataDesinternacao?: string | null;
-  tecnicoReferenciaId?: string | null;
-  tecnicoReferencia?: {
+  tecnicosReferencia: {
     id: string;
     nome: string;
     atividade?: string | null;
     email: string;
     telefone?: string | null;
-  } | null;
+  }[];
 
   faccaoGrupoId?: string | null;
   faccaoFuncao?: string | null;
@@ -242,7 +241,7 @@ export type AdolescenteCadastroPayload = Partial<
   Omit<
     Adolescente,
     | "alojamentoAtual"
-    | "tecnicoReferencia"
+    | "tecnicosReferencia"
     | "grupos"
     | "tatuagens"
     | "conflitosA"
@@ -261,6 +260,7 @@ export type AdolescenteCadastroPayload = Partial<
     observacoes?: string;
     significadoPessoal?: string;
   }>;
+  tecnicosReferenciaIds?: string[];
 };
 
 export interface ListaAdolescentesMeta {

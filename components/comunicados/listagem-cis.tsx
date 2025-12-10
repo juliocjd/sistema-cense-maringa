@@ -205,11 +205,11 @@ export function ListagemCIs({ comunicados }: ListagemCIsProps) {
       },
       AUTORIZACAO_ESPECIAL: {
         cor: "bg-blue-100 text-blue-800 border-blue-300",
-        texto: "Autorizacao",
+        texto: "Autorizacao item excepcional",
       },
-      SAUDE: {
-        cor: "bg-purple-100 text-purple-800 border-purple-300",
-        texto: "Saude",
+      SAUDE_CONFIDENCIAL: {
+        cor: "bg-blue-100 text-blue-800 border-blue-300",
+        texto: "Saude confidencial",
       },
       FUGA: {
         cor: "bg-orange-100 text-orange-800 border-orange-300",
@@ -230,10 +230,6 @@ export function ListagemCIs({ comunicados }: ListagemCIsProps) {
       PERFIL_MAPEADO: {
         cor: "bg-indigo-100 text-indigo-800 border-indigo-300",
         texto: "Perfil mapeado",
-      },
-      SAUDE_CONFIDENCIAL: {
-        cor: "bg-blue-100 text-blue-800 border-blue-300",
-        texto: "Saude confidencial",
       },
       OUTROS: {
         cor: "bg-gray-100 text-gray-800 border-gray-300",

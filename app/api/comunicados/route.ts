@@ -16,7 +16,6 @@ const CI_ALERTA_ESPECIAL_MAP: Record<string, keyof typeof ALERTAS_ESPECIAIS> =
     SAUDE_CONFIDENCIAL: "SAUDE_CONFIDENCIAL",
   };
 const tiposQueGeramAlerta = [
-  "SAUDE",
   "DISCIPLINAR",
   "RISCO_SUICIDIO",
   "PERFIL_MAPEADO",
@@ -603,17 +602,23 @@ export async function POST(request: NextRequest) {
               ? "CRITICO"
               : tipoCI === "FUGA"
               ? "ALTO"
-              : tipoCI === "SAUDE"
+              : tipoCI === "SAUDE_CONFIDENCIAL"
               ? "ALTO"
               : "MEDIO");
 
           const tipoAlerta =
-            tipoCI === "SAUDE"
-              ? "SAUDE"
+            tipoCI === "SAUDE_CONFIDENCIAL"
+              ? "SAUDE_CONFIDENCIAL"
               : tipoCI === "DISCIPLINAR"
-              ? "COMPORTAMENTAL"
+              ? "DISCIPLINAR"
               : tipoCI === "RISCO_SUICIDIO"
               ? "RISCO_SUICIDIO"
+              : tipoCI === "FUGA"
+              ? "FUGA"
+              : tipoCI === "AGRESSAO"
+              ? "AGRESSAO"
+              : tipoCI === "AMEACA_SERVIDOR"
+              ? "AMEACA_SERVIDOR"
               : "GERAL";
 
           const alerta = await tx.alertaAtivo.create({

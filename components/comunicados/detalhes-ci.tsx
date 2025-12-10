@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
@@ -13,6 +13,7 @@ import {
   Plus,
   CheckCircle,
 } from "lucide-react";
+import { TIPO_CI_OPTIONS } from "@/lib/comunicados/tipos";
 
 type ComunicadoInterno = {
   id: string;
@@ -106,11 +107,11 @@ export function DetalhesCI({
       },
       AUTORIZACAO_ESPECIAL: {
         cor: "bg-blue-100 text-blue-800 border-blue-300",
-        texto: "Autorizacao",
+        texto: "Autorizacao item excepcional",
       },
-      SAUDE: {
-        cor: "bg-purple-100 text-purple-800 border-purple-300",
-        texto: "Saude",
+      SAUDE_CONFIDENCIAL: {
+        cor: "bg-blue-100 text-blue-800 border-blue-300",
+        texto: "Saude confidencial",
       },
       FUGA: {
         cor: "bg-orange-100 text-orange-800 border-orange-300",
@@ -131,10 +132,6 @@ export function DetalhesCI({
       PERFIL_MAPEADO: {
         cor: "bg-indigo-100 text-indigo-800 border-indigo-300",
         texto: "Perfil mapeado",
-      },
-      SAUDE_CONFIDENCIAL: {
-        cor: "bg-blue-100 text-blue-800 border-blue-300",
-        texto: "Saude confidencial",
       },
       OUTROS: {
         cor: "bg-gray-100 text-gray-800 border-gray-300",
@@ -407,7 +404,7 @@ export function DetalhesCI({
   const handleExcluirConflitoGerado = async (id: string) => {
     if (!onExcluirConflito) return;
     const confirmado = window.confirm(
-      "Confirma a exclusão deste conflito vinculado ao CI?"
+      "Confirma a excluso deste conflito vinculado ao CI?"
     );
     if (!confirmado) return;
     setExcluindoConflitoId(id);
@@ -428,7 +425,7 @@ export function DetalhesCI({
   const handleExcluirAlertaGerado = async (id: string) => {
     if (!onExcluirAlerta) return;
     const confirmado = window.confirm(
-      "Confirma a exclusão deste alerta gerado pelo CI?"
+      "Confirma a excluso deste alerta gerado pelo CI?"
     );
     if (!confirmado) return;
     setExcluindoAlertaId(id);
@@ -572,15 +569,15 @@ export function DetalhesCI({
         </div>
       </div>
 
-      {/* Informações Principais */}
+      {/* Informaes Principais */}
       <div className="bg-white rounded-2xl shadow-lg p-6">
         <h2 className="text-xl font-bold text-gray-800 mb-4">
-          Informações do CI
+          Informaes do CI
         </h2>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div className="bg-gray-50 rounded-lg p-4">
-            <p className="text-sm text-gray-600 mb-1">Número</p>
+            <p className="text-sm text-gray-600 mb-1">Nmero</p>
             <p className="text-2xl font-bold text-gray-800">
               {ci.numero}/{ci.ano}
             </p>
@@ -599,10 +596,10 @@ export function DetalhesCI({
           <div className="bg-gray-50 rounded-lg p-4">
             <p className="text-sm text-gray-600 mb-1 flex items-center gap-1">
               <User size={14} />
-              Operador Responsável
+              Operador Responsvel
             </p>
             <p className="font-bold text-gray-800">
-              {ci.operador?.nome ?? "Operador não identificado"}
+              {ci.operador?.nome ?? "Operador no identificado"}
             </p>
           </div>
         </div>
@@ -659,7 +656,7 @@ export function DetalhesCI({
                             {participante.nome}
                           </p>
                           <p className="text-xs text-gray-500">
-                            SMS: {participante.numeroSms ?? "Não informado"}
+                            SMS: {participante.numeroSms ?? "No informado"}
                             {participante.alojamento ? (
                               <span className="ml-1">
                                 | {participante.alojamento}
@@ -697,10 +694,10 @@ export function DetalhesCI({
         )}
       </div>
 
-      {/* Gatilhos Automáticos */}
+      {/* Gatilhos Automticos */}
       <div className="bg-white rounded-2xl shadow-lg p-6">
         <h2 className="text-xl font-bold text-gray-800 mb-4">
-          Gatilhos Automáticos
+          Gatilhos Automticos
         </h2>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -729,7 +726,7 @@ export function DetalhesCI({
                     className="flex items-center justify-between gap-3 text-sm text-gray-600"
                   >
                     <span>
-                      - {conflito.adolescenteA?.nome ?? "Lado 1"} ×{" "}
+                      - {conflito.adolescenteA?.nome ?? "Lado 1"} {" "}
                       {conflito.adolescenteB?.nome ?? "Lado 2"}
                     </span>
                     {onExcluirConflito && conflito.id && (
@@ -813,7 +810,7 @@ export function DetalhesCI({
         </div>
       </div>
 
-      {/* Visualização do PDF */}
+      {/* Visualizao do PDF */}
       {ci.caminhoPdf && (
         <div className="bg-white rounded-2xl shadow-lg p-6">
           <h2 className="text-xl font-bold text-gray-800 mb-4">
@@ -1049,7 +1046,7 @@ export function DetalhesCI({
 
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Tipo de Alerta *
+                                        Tipo de Alerta *
                   </label>
                   <select
                     value={tipoAlerta}
@@ -1057,15 +1054,17 @@ export function DetalhesCI({
                     className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-purple-500 outline-none"
                   >
                     <option value="">Selecione...</option>
-                    <option value="MANUSEIO">Alerta de Manuseio</option>
-                    <option value="SAUDE">Alerta de Saúde</option>
-                    <option value="COMPORTAMENTAL">Comportamental</option>
+                    {TIPO_CI_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Descrição *
+                    Descrio *
                   </label>
                   <textarea
                     value={descricaoAlerta}
@@ -1099,4 +1098,5 @@ export function DetalhesCI({
     </div>
   );
 }
+
 

@@ -1,20 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import {
-  X,
-  Search,
-  AlertTriangle,
-  Bell,
-  Lock,
-  Activity,
-} from "lucide-react";
-import {
-  ALERTAS_ESPECIAIS,
-  ALERTA_ESPECIAL_TIPOS,
-  type AlertaEspecialTipo,
-} from "@/lib/alertas/especiais";
-import { TIPO_CI_OPTIONS } from "@/lib/comunicados/tipos";
+import { X, Search, AlertTriangle, Bell } from "lucide-react";
+import { TIPO_CI_OPTIONS, TIPO_CI_MAP } from "@/lib/comunicados/tipos";
 
 type Adolescente = {
   id: string;
@@ -34,32 +22,20 @@ type NivelRisco = "CRITICO" | "ALTO" | "MEDIO" | "BAIXO";
 
 const NIVEIS_RISCO: NivelRisco[] = ["CRITICO", "ALTO", "MEDIO", "BAIXO"];
 
-const ALERTAS_ESPECIAIS_INFO: Record<
-  AlertaEspecialTipo,
-  {
-    Icone: typeof AlertTriangle;
-    cor: string;
-    destaque: string;
-  }
-> = {
-  RISCO_SUICIDIO: {
-    Icone: AlertTriangle,
-    cor: "text-orange-600",
-    destaque: "Priorize alojamentos monitorados (1, 6, 7 ou 10) e acompanhamento constante.",
-  },
-  PERFIL_MAPEADO: {
-    Icone: Lock,
-    cor: "text-purple-600",
-    destaque: "Sinaliza necessidade de sigilo e protecao especial no acompanhamento.",
-  },
-  SAUDE_CONFIDENCIAL: {
-    Icone: Activity,
-    cor: "text-blue-600",
-    destaque: "Orienta equipes sobre condicoes de saude que exigem tratamento confidencial.",
-  },
+const DESCRICOES_TIPO: Record<string, string> = {
+  DISCIPLINAR: "Conduta que exige acompanhamento de comportamento.",
+  CONFLITO: "Conflito mapeado envolvendo o adolescente.",
+  AUTORIZACAO_ESPECIAL:
+    "Permissao controlada de item nao autorizado (ex.: caneta, material de estudo), com justificativa e validade.",
+  SAUDE_CONFIDENCIAL:
+    "Informacao de saude sensivel que impacta cuidados e seguranca.",
+  RISCO_SUICIDIO: "Risco de suicidio identificado.",
+  PERFIL_MAPEADO: "Protecao por ato infracional que exige sigilo.",
+  FUGA: "Risco ou registro de fuga/plano de fuga/evasao.",
+  AGRESSAO: "Registro de agressao ou risco iminente.",
+  AMEACA_SERVIDOR: "Ameaca direta contra servidor.",
+  OUTROS: "Outros alertas relevantes para a operacao.",
 };
-
-const ALERTAS_ESPECIAIS_SET = new Set(ALERTA_ESPECIAL_TIPOS);
 
 export function ModalNovoAlerta({ onClose, onSucesso }: ModalNovoAlertaProps) {
   const [etapa, setEtapa] = useState<"selecionar" | "dados">("selecionar");
@@ -71,10 +47,7 @@ export function ModalNovoAlerta({ onClose, onSucesso }: ModalNovoAlertaProps) {
   const [carregandoAdolescentes, setCarregandoAdolescentes] = useState(true);
 
   // Dados do alerta
-  const [tipoAlertaPersonalizado, setTipoAlertaPersonalizado] = useState("");
-  const [tipoEspecialSelecionado, setTipoEspecialSelecionado] =
-    useState<AlertaEspecialTipo | null>(null);
-  const [tipoPadrao, setTipoPadrao] = useState("");
+  const [tipoSelecionado, setTipoSelecionado] = useState("");
   const [descricaoAlerta, setDescricaoAlerta] = useState("");
   const [nivelRisco, setNivelRisco] = useState<NivelRisco>("MEDIO");
   const [erros, setErros] = useState<Record<string, string>>({});
@@ -86,32 +59,11 @@ export function ModalNovoAlerta({ onClose, onSucesso }: ModalNovoAlertaProps) {
     return "MEDIO";
   };
 
-  const limparTipoEspecial = () => {
-    setTipoEspecialSelecionado(null);
-    setTipoPadrao("");
-  };
-
-  const aplicarTipoEspecial = (tipo: AlertaEspecialTipo) => {
-    const meta = ALERTAS_ESPECIAIS[tipo];
-    setTipoEspecialSelecionado(tipo);
-    setTipoPadrao(tipo);
-    setTipoAlertaPersonalizado("");
-    setNivelRisco(normalizarNivel(meta.nivelPadrao));
-  };
-
-  const handleToggleEspecial = (tipo: AlertaEspecialTipo) => {
-    if (tipoEspecialSelecionado === tipo) {
-      limparTipoEspecial();
-      return;
-    }
-    aplicarTipoEspecial(tipo);
-  };
-
   const sugerirNivelPorTipo = (valor: string): NivelRisco => {
     if (valor === "RISCO_SUICIDIO") return "CRITICO";
     if (
       valor === "FUGA" ||
-      valor === "SAUDE" ||
+      valor === "SAUDE_CONFIDENCIAL" ||
       valor === "AGRESSAO" ||
       valor === "AMEACA_SERVIDOR"
     ) {
@@ -120,18 +72,8 @@ export function ModalNovoAlerta({ onClose, onSucesso }: ModalNovoAlertaProps) {
     return "MEDIO";
   };
 
-  const handleSelecionarTipoPadrao = (valor: string) => {
-    if (!valor) {
-      limparTipoEspecial();
-      return;
-    }
-    if (ALERTAS_ESPECIAIS_SET.has(valor as AlertaEspecialTipo)) {
-      aplicarTipoEspecial(valor as AlertaEspecialTipo);
-      return;
-    }
-    setTipoEspecialSelecionado(null);
-    setTipoPadrao(valor);
-    setTipoAlertaPersonalizado("");
+  const handleSelecionarTipo = (valor: string) => {
+    setTipoSelecionado(valor);
     setNivelRisco(sugerirNivelPorTipo(valor));
   };
 
@@ -161,10 +103,14 @@ export function ModalNovoAlerta({ onClose, onSucesso }: ModalNovoAlertaProps) {
   const validarFormulario = (): boolean => {
     const novosErros: Record<string, string> = {};
 
+    if (!tipoSelecionado) {
+      novosErros.tipoAlerta = "Selecione o tipo do alerta";
+    }
+
     if (!descricaoAlerta.trim()) {
-      novosErros.descricaoAlerta = "Descrição é obrigatória";
+      novosErros.descricaoAlerta = "Descricao e obrigatoria";
     } else if (descricaoAlerta.trim().length < 10) {
-      novosErros.descricaoAlerta = "Descrição deve ter no mínimo 10 caracteres";
+      novosErros.descricaoAlerta = "Descricao deve ter no minimo 10 caracteres";
     }
 
     setErros(novosErros);
@@ -180,12 +126,7 @@ export function ModalNovoAlerta({ onClose, onSucesso }: ModalNovoAlertaProps) {
 
     try {
       setLoading(true);
-      const especialMeta = tipoEspecialSelecionado
-        ? ALERTAS_ESPECIAIS[tipoEspecialSelecionado]
-        : null;
-      const tipoParaEnvio = especialMeta
-        ? especialMeta.tipoAlerta
-        : tipoPadrao || tipoAlertaPersonalizado.trim() || null;
+      const tipoParaEnvio = tipoSelecionado || null;
 
       const response = await fetch("/api/alertas", {
         method: "POST",
@@ -232,16 +173,14 @@ export function ModalNovoAlerta({ onClose, onSucesso }: ModalNovoAlertaProps) {
     MEDIO: "bg-yellow-100 text-yellow-800 border-yellow-300",
     BAIXO: "bg-blue-100 text-blue-800 border-blue-300",
   };
-  const tipoEspecialMeta = tipoEspecialSelecionado
-    ? ALERTAS_ESPECIAIS[tipoEspecialSelecionado]
+  const tipoSelecionadoOpcao = tipoSelecionado
+    ? TIPO_CI_OPTIONS.find((option) => option.value === tipoSelecionado)
     : null;
-  const tipoPadraoOpcao = tipoPadrao
-    ? TIPO_CI_OPTIONS.find((option) => option.value === tipoPadrao)
+  const tipoAlertaEmUso =
+    tipoSelecionadoOpcao?.label || TIPO_CI_MAP.get(tipoSelecionado) || tipoSelecionado;
+  const tipoSelecionadoNivel = tipoSelecionado
+    ? sugerirNivelPorTipo(tipoSelecionado)
     : null;
-  const tipoAlertaEmUso = tipoEspecialMeta
-    ? tipoEspecialMeta.label
-    : tipoPadraoOpcao?.label ?? tipoAlertaPersonalizado;
-  const tipoPadraoNivel = tipoPadrao ? sugerirNivelPorTipo(tipoPadrao) : null;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 sm:p-6">
@@ -342,95 +281,20 @@ export function ModalNovoAlerta({ onClose, onSucesso }: ModalNovoAlertaProps) {
 
           {etapa === "dados" && adolescenteSelecionado && (
             <>
-              {/* Alertas especiais */}
-              <div className="mb-6">
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <h3 className="text-base font-bold text-gray-800">
-                      Alertas especiais
-                    </h3>
-                    <p className="text-sm text-gray-600">
-                      Utilize os casos mapeados ou selecione um tipo personalizado abaixo.
-                    </p>
-                  </div>
-                  {tipoEspecialSelecionado && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setTipoEspecialSelecionado(null);
-                      }}
-                      className="text-sm font-semibold text-red-600 hover:text-red-800"
-                    >
-                      Limpar selecao
-                    </button>
-                  )}
-                </div>
-                <div className="grid gap-3 md:grid-cols-3">
-                  {ALERTA_ESPECIAL_TIPOS.map((tipo) => {
-                    const meta = ALERTAS_ESPECIAIS[tipo];
-                    const info = ALERTAS_ESPECIAIS_INFO[tipo];
-                    const ativo = tipoEspecialSelecionado === tipo;
-                    return (
-                      <button
-                        type="button"
-                        key={tipo}
-                        onClick={() => handleToggleEspecial(tipo)}
-                        className={`text-left p-4 rounded-2xl border-2 transition-all ${
-                          ativo
-                            ? "border-red-500 bg-red-50 shadow-md"
-                            : "border-gray-200 bg-white hover:border-red-200"
-                        }`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <info.Icone className={`h-5 w-5 ${info.cor}`} />
-                          <span className="font-semibold text-gray-900">
-                            {meta.label}
-                          </span>
-                        </div>
-                        <p className="text-xs text-gray-600 mt-2">
-                          {meta.descricaoPadrao}
-                        </p>
-                        <p className="text-[11px] text-gray-500 mt-2">
-                          {info.destaque}
-                        </p>
-                        <span className="mt-3 inline-flex text-[11px] font-semibold text-gray-700 border border-gray-200 rounded-full px-2 py-0.5">
-                          Nivel sugerido: {meta.nivelPadrao || "MEDIO"}
-                        </span>
-                        {ativo && (
-                          <span className="mt-2 inline-flex text-[10px] font-bold text-red-700 px-2 py-0.5 rounded-full bg-red-100 border border-red-300">
-                            Selecionado
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Tipos de alerta padrao */}
               <div className="mb-6">
                 <div className="flex items-center justify-between mb-2">
                   <div>
                     <label className="block text-sm font-bold text-gray-700 mb-1">
-                      Tipos de alerta (lista oficial)
+                      Tipo de Alerta *
                     </label>
                     <p className="text-xs text-gray-500">
-                      Mesmas categorias do cadastro de CI. Selecionar uma delas preenche o tipo automaticamente.
+                      Categorias oficiais (as mesmas de CI). O nivel sugerido e ajustado automaticamente.
                     </p>
                   </div>
-                  {tipoPadrao && (
-                    <button
-                      type="button"
-                      onClick={() => limparTipoEspecial()}
-                      className="text-xs font-semibold text-gray-600 hover:text-gray-800"
-                    >
-                      Limpar
-                    </button>
-                  )}
                 </div>
                 <select
-                  value={tipoPadrao}
-                  onChange={(event) => handleSelecionarTipoPadrao(event.target.value)}
+                  value={tipoSelecionado}
+                  onChange={(event) => handleSelecionarTipo(event.target.value)}
                   className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none bg-white"
                 >
                   <option value="">Selecione o tipo...</option>
@@ -440,51 +304,28 @@ export function ModalNovoAlerta({ onClose, onSucesso }: ModalNovoAlertaProps) {
                     </option>
                   ))}
                 </select>
-                {tipoPadrao && (
-                  <p className="mt-2 text-xs text-gray-600 flex items-center gap-2">
-                    Nivel sugerido:{" "}
-                    <span
-                      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
-                        tipoPadraoNivel
-                          ? corNivel[tipoPadraoNivel]
-                          : "border-gray-200 text-gray-600"
-                      }`}
-                    >
-                      {tipoPadraoNivel || "MEDIO"}
-                    </span>
+                {erros.tipoAlerta && (
+                  <p className="text-red-600 text-sm mt-1 font-semibold">
+                    {erros.tipoAlerta}
                   </p>
                 )}
-              </div>
-
-              {/* Tipo de Alerta */}
-              <div className="mb-6">
-                <label className="block text-sm font-bold text-gray-700 mb-2">
-                  Tipo de Alerta (Opcional)
-                </label>
-                <input
-                  type="text"
-                  value={tipoAlertaEmUso}
-                  onChange={(e) => {
-                    setTipoEspecialSelecionado(null);
-                    if (tipoPadrao) setTipoPadrao("");
-                    setTipoAlertaPersonalizado(e.target.value);
-                  }}
-                  disabled={Boolean(tipoEspecialMeta || tipoPadrao)}
-                  placeholder="Ex: Saude, Comportamento, Seguranca..."
-                  maxLength={50}
-                  className={`w-full px-4 py-3 border-2 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none ${
-                    tipoEspecialMeta || tipoPadrao
-                      ? "bg-gray-100 text-gray-500"
-                      : "border-gray-300"
-                  }`}
-                />
-                {tipoEspecialMeta ? (
-                  <p className="text-xs text-gray-600 mt-1">
-                    Tipo definido automaticamente pelo alerta especial selecionado.
+                {tipoAlertaEmUso && (
+                  <p className="mt-2 text-xs text-gray-600 flex items-center gap-2">
+                    Tipo selecionado: {tipoAlertaEmUso}
+                    {tipoSelecionadoNivel && (
+                      <span
+                        className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
+                          corNivel[tipoSelecionadoNivel]
+                        }`}
+                      >
+                        Nivel sugerido: {tipoSelecionadoNivel}
+                      </span>
+                    )}
                   </p>
-                ) : (
-                  <p className="text-xs text-gray-500 mt-1">
-                    Opcional. Utilize para outros cenarios.
+                )}
+                {tipoSelecionado && DESCRICOES_TIPO[tipoSelecionado] && (
+                  <p className="text-xs text-gray-600 mt-2">
+                    {DESCRICOES_TIPO[tipoSelecionado]}
                   </p>
                 )}
               </div>
@@ -492,7 +333,7 @@ export function ModalNovoAlerta({ onClose, onSucesso }: ModalNovoAlertaProps) {
               {/* Nível de Risco */}
               <div className="mb-6">
                 <label className="block text-sm font-bold text-gray-700 mb-2">
-                  Nível de Risco *
+                  Nivel de Risco *
                 </label>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   {NIVEIS_RISCO.map((nivel) => (
@@ -515,7 +356,7 @@ export function ModalNovoAlerta({ onClose, onSucesso }: ModalNovoAlertaProps) {
               {/* Descrição */}
               <div className="mb-6">
                 <label className="block text-sm font-bold text-gray-700 mb-2">
-                  Descrição do Alerta *
+                  Descricao do Alerta *
                 </label>
                 <textarea
                   value={descricaoAlerta}
@@ -533,15 +374,11 @@ export function ModalNovoAlerta({ onClose, onSucesso }: ModalNovoAlertaProps) {
                     {erros.descricaoAlerta}
                   </p>
                 )}
-                <p className="text-xs text-gray-600 mt-1">
-                  Mínimo de 10 caracteres
-                </p>
+                <p className="text-xs text-gray-600 mt-1">Minimo de 10 caracteres</p>
               </div>
 
               {/* Preview */}
-              <div
-                className={`p-4 rounded-lg border-2 ${corNivel[nivelRisco]}`}
-              >
+              <div className={`p-4 rounded-lg border-2 ${corNivel[nivelRisco]}`}>
                 <div className="flex items-start gap-3">
                   <AlertTriangle size={24} className="flex-shrink-0 mt-1" />
                   <div>
@@ -557,13 +394,8 @@ export function ModalNovoAlerta({ onClose, onSucesso }: ModalNovoAlertaProps) {
                         <strong>Tipo:</strong> {tipoAlertaEmUso}
                       </p>
                     )}
-                    {tipoEspecialMeta && (
-                      <p className="text-xs text-red-600 mb-2">
-                        Alerta especial sincronizado com o cadastro do adolescente.
-                      </p>
-                    )}
                     <p className="text-sm">
-                      {descricaoAlerta || "(Descrição não informada)"}
+                      {descricaoAlerta || "(Descricao nao informada)"}
                     </p>
                   </div>
                 </div>
@@ -579,9 +411,7 @@ export function ModalNovoAlerta({ onClose, onSucesso }: ModalNovoAlertaProps) {
               onClick={() => {
                 setEtapa("selecionar");
                 setAdolescenteSelecionado(null);
-                setTipoEspecialSelecionado(null);
-                setTipoPadrao("");
-                setTipoAlertaPersonalizado("");
+                setTipoSelecionado("");
                 setDescricaoAlerta("");
                 setNivelRisco("MEDIO");
                 setErros({});
@@ -592,7 +422,7 @@ export function ModalNovoAlerta({ onClose, onSucesso }: ModalNovoAlertaProps) {
             </button>
             <button
               onClick={handleCriarAlerta}
-              disabled={loading || !descricaoAlerta.trim()}
+              disabled={loading || !descricaoAlerta.trim() || !tipoSelecionado}
               className="flex-1 flex items-center justify-center gap-2 bg-red-600 text-white py-3 px-6 rounded-lg hover:bg-red-700 transition-colors font-bold disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Bell size={20} />

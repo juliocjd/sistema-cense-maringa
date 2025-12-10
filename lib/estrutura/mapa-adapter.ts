@@ -38,8 +38,11 @@ const mapearOcupanteParaAdolescente = (
     | undefined;
   const historico =
     (ocupante as Record<string, any>).historicoInfracional ?? [];
-  const tecnicoReferencia = (ocupante as Record<string, any>)
-    .tecnicoReferencia;
+  const tecnicosReferencia =
+    (ocupante as Record<string, any>).tecnicosReferencia ??
+    ((ocupante as Record<string, any>).tecnicoReferencia
+      ? [(ocupante as Record<string, any>).tecnicoReferencia]
+      : []);
 
   return {
     id: ocupante.id,
@@ -79,16 +82,15 @@ const mapearOcupanteParaAdolescente = (
     historicoInfracional: historico,
     grupos: [],
     riscoFuga: null,
-    tecnicoReferenciaId: (ocupante as Record<string, any>).tecnico_referencia_id ?? null,
-    tecnicoReferencia: tecnicoReferencia
-      ? {
-          id: tecnicoReferencia.id,
-          nome: tecnicoReferencia.nome,
-          atividade: tecnicoReferencia.atividade ?? null,
-          email: tecnicoReferencia.email,
-          telefone: tecnicoReferencia.telefone ?? null,
-        }
-      : null,
+    tecnicosReferencia: Array.isArray(tecnicosReferencia)
+      ? tecnicosReferencia.map((tec: any) => ({
+          id: tec.id,
+          nome: tec.nome,
+          atividade: tec.atividade ?? null,
+          email: tec.email,
+          telefone: tec.telefone ?? null,
+        }))
+      : [],
     faccaoFuncao: null,
     faccaoInformacaoOrigem: null,
     faccaoInformacaoDetalhe: null,

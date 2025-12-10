@@ -99,7 +99,7 @@ const createAdolescenteSchema = z.object({
     significadoPessoal: z.string().optional(),
   })).optional().default([]),
   historicoInfracional: historicoRegistroSchema,
-  tecnicoReferenciaId: z.string().uuid().optional().nullable(),
+  tecnicosReferenciaIds: z.array(z.string().uuid()).optional().default([]),
   alertasEspeciais: z.array(alertaEspecialSchema).optional().default([]),
 });
 
@@ -412,11 +412,14 @@ export async function POST(request: NextRequest) {
     const faccaoFuncaoSanitizada = sanitizeNullableString(
       validated.faccaoFuncao ?? undefined
     );
-    const faccaoOrigemInfo = validated.faccaoInformacaoOrigem ?? undefined;
-    const faccaoOrigemDetalheSanitizado =
-      faccaoOrigemInfo === "OBSERVACAO"
-        ? sanitizeNullableString(validated.faccaoInformacaoDetalhe ?? undefined)
-        : undefined;
+  const faccaoOrigemInfo = validated.faccaoInformacaoOrigem ?? undefined;
+  const faccaoOrigemDetalheSanitizado =
+    faccaoOrigemInfo === "OBSERVACAO"
+      ? sanitizeNullableString(validated.faccaoInformacaoDetalhe ?? undefined)
+      : undefined;
+  const tecnicosIds = Array.from(
+    new Set(validated.tecnicosReferenciaIds ?? [])
+  );
 
     if (faccaoOrigemInfo === "OBSERVACAO" && !faccaoOrigemDetalheSanitizado) {
       return NextResponse.json(
@@ -459,9 +462,14 @@ export async function POST(request: NextRequest) {
       faseInternacaoAtual: validated.faseInternacaoAtualId
         ? { connect: { id: validated.faseInternacaoAtualId } }
         : undefined,
-      tecnicoReferencia: validated.tecnicoReferenciaId
-        ? { connect: { id: validated.tecnicoReferenciaId } }
-        : undefined,
+      tecnicosReferencia:
+        tecnicosIds.length > 0
+          ? {
+              create: tecnicosIds.map((id) => ({
+                tecnicoReferencia: { connect: { id } },
+              })),
+            }
+          : undefined,
       numeroInterno:
         statusCriado === "ATIVO" && numeroInternoInformado !== undefined
           ? numeroInternoInformado ?? undefined

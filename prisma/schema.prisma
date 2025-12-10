@@ -81,7 +81,7 @@ model TecnicoReferencia {
   telefone               String?
   criadoEm               DateTime      @default(now()) @map("criado_em")
   atualizadoEm           DateTime      @updatedAt @map("atualizado_em")
-  adolescentesReferencia Adolescente[] @relation("TecnicoReferencia")
+  adolescentesReferencia AdolescenteTecnicoReferencia[]
 
   @@map("agentes_profissionais")
 }
@@ -255,14 +255,13 @@ model Adolescente {
   atoInfracionalProcesso     String?                           @map("ato_infracional_processo")
   atoInfracionalGravidade    Boolean                           @default(false) @map("ato_infracional_gravidade")
   atoInfracionalGravidadeObs String?                           @map("ato_infracional_gravidade_obs")
-  tecnicoReferenciaId        String?                           @map("agente_referencia_id")
   dataDesinternacao          DateTime?                         @map("data_desinternacao")
   numeroInterno              Int?                              @map("numero_interno")
   vulgo                      String?                           @map("vulgo")
   faccaoFuncao               String?                           @map("faccao_funcao")
   faccaoInformacaoOrigem     String?                           @map("faccao_informacao_origem")
   faccaoInformacaoDetalhe    String?                           @map("faccao_informacao_detalhe")
-  tecnicoReferencia          TecnicoReferencia?                @relation("TecnicoReferencia", fields: [tecnicoReferenciaId], references: [id])
+  tecnicosReferencia         AdolescenteTecnicoReferencia[]
   alojamentoAtual            Alojamento?                       @relation(fields: [alojamentoAtualId], references: [id])
   bairroOrigem               Bairro?                           @relation(fields: [bairroOrigemId], references: [id])
   faccao                     Faccao?                           @relation(fields: [faccaoGrupoId], references: [id])
@@ -285,6 +284,18 @@ model Adolescente {
   visitasRegistro            VisitaRegistro[]
 
   @@map("adolescentes")
+}
+
+model AdolescenteTecnicoReferencia {
+  id                   String              @id @default(uuid())
+  adolescenteId        String              @map("adolescente_id")
+  tecnicoReferenciaId  String              @map("tecnico_referencia_id")
+  criadoEm             DateTime            @default(now()) @map("criado_em")
+  adolescente          Adolescente         @relation(fields: [adolescenteId], references: [id], onDelete: Cascade)
+  tecnicoReferencia    TecnicoReferencia   @relation(fields: [tecnicoReferenciaId], references: [id], onDelete: Cascade)
+
+  @@unique([adolescenteId, tecnicoReferenciaId])
+  @@map("adolescentes_tecnicos_referencia")
 }
 
 model AdolescenteTatuagem {

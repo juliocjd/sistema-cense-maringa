@@ -19,6 +19,7 @@ import Link from "next/link";
 import { CardAlerta } from "@/components/alertas/card-alerta";
 import { ModalNovoAlerta } from "@/components/alertas/modal-novo-alerta";
 import { ModalEditarAlerta } from "@/components/alertas/modal-editar-alerta";
+import { TIPO_CI_OPTIONS, TIPO_CI_MAP } from "@/lib/comunicados/tipos";
 import type { AlertaAtivo } from "@/types";
 
 type Casa = {
@@ -45,8 +46,6 @@ function AlertasPageContent() {
   };
   const initialStatus = normalizarStatus(searchParams.get("status"));
   const initialTipo = searchParams.get("tipoAlerta") ?? "";
-  const initialNumeroAdolescente =
-    searchParams.get("numeroAdolescente") ?? "";
   const initialAdolescenteId = searchParams.get("adolescenteId") ?? "";
   const initialBusca = searchParams.get("busca") ?? "";
 
@@ -64,7 +63,6 @@ function AlertasPageContent() {
   const [filtroTipo, setFiltroTipo] = useState(initialTipo);
   const [filtroNivel, setFiltroNivel] = useState("");
   const [filtroCasa, setFiltroCasa] = useState("");
-  const [filtroNumeroAdolescente, setFiltroNumeroAdolescente] = useState(initialNumeroAdolescente);
   const [filtroAdolescenteId] = useState(initialAdolescenteId);
   const [busca, setBusca] = useState(initialBusca);
   const [alertaEdicao, setAlertaEdicao] = useState<AlertaAtivo | null>(null);
@@ -84,7 +82,6 @@ function AlertasPageContent() {
     filtroTipo,
     filtroNivel,
     filtroCasa,
-    filtroNumeroAdolescente,
     filtroAdolescenteId,
   ]);
 
@@ -108,9 +105,8 @@ function AlertasPageContent() {
       if (filtroTipo) params.append("tipoAlerta", filtroTipo);
       if (filtroNivel) params.append("nivelRisco", filtroNivel);
       if (filtroCasa) params.append("casaId", filtroCasa);
-      if (filtroNumeroAdolescente)
-        params.append("numeroAdolescente", filtroNumeroAdolescente);
       if (filtroAdolescenteId) params.append("adolescenteId", filtroAdolescenteId);
+      if (busca) params.append("busca", busca);
 
       const query = params.toString();
       const response = await fetch(query ? `/api/alertas?${query}` : "/api/alertas");
@@ -186,17 +182,29 @@ function AlertasPageContent() {
     const nomeSocial = alerta.adolescente?.nomeSocial?.toLowerCase() || "";
     const numeroSms = alerta.adolescente?.numeroSms || "";
     const descricao = alerta.descricaoAlerta?.toLowerCase() || "";
+    const numeroInternoRaw =
+      alerta.adolescente && "numeroInterno" in alerta.adolescente
+        ? (alerta.adolescente as any).numeroInterno
+        : undefined;
+    const numeroInterno =
+      numeroInternoRaw !== undefined && numeroInternoRaw !== null
+        ? String(numeroInternoRaw).padStart(2, "0")
+        : "";
 
     return (
       nomeCompleto.includes(termoBusca) ||
       nomeSocial.includes(termoBusca) ||
       numeroSms.includes(termoBusca) ||
+      numeroInterno.includes(termoBusca) ||
       descricao.includes(termoBusca)
     );
   });
 
   const tiposUnicos = Array.from(
-    new Set(alertas.map((a) => a.tipoAlerta).filter(Boolean))
+    new Set([
+      ...TIPO_CI_OPTIONS.map((t) => t.value),
+      ...alertas.map((a) => a.tipoAlerta).filter(Boolean),
+    ])
   ) as string[];
 
   return (
@@ -211,7 +219,7 @@ function AlertasPageContent() {
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Alertas Ativos</h1>
               <p className="text-gray-600">
-                Gerenciamento de alertas e notificações do sistema
+                Gerenciamento de alertas e notificacoes do sistema
               </p>
             </div>
           </div>
@@ -234,7 +242,7 @@ function AlertasPageContent() {
           </div>
         </div>
 
-        {/* Estatísticas */}
+        {/* Estatisticas */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
             <div className="flex items-center gap-3">
@@ -256,7 +264,7 @@ function AlertasPageContent() {
                 <AlertTriangle className="text-red-600" size={20} />
               </div>
               <div>
-                <p className="text-sm text-gray-600 font-semibold">Críticos</p>
+                <p className="text-sm text-gray-600 font-semibold">Criticos</p>
                 <p className="text-2xl font-bold text-red-600">
                   {estatisticas.porNivel?.CRITICO || 0}
                 </p>
@@ -284,7 +292,7 @@ function AlertasPageContent() {
                 <Clock className="text-yellow-600" size={20} />
               </div>
               <div>
-                <p className="text-sm text-gray-600 font-semibold">Médios</p>
+                <p className="text-sm text-gray-600 font-semibold">Medios</p>
                 <p className="text-2xl font-bold text-yellow-600">
                   {estatisticas.porNivel?.MEDIO || 0}
                 </p>
@@ -319,7 +327,6 @@ function AlertasPageContent() {
               Boolean(filtroTipo),
               Boolean(filtroNivel),
               Boolean(filtroCasa),
-              Boolean(filtroNumeroAdolescente),
               Boolean(busca),
             ].filter(Boolean).length > 0 && (
               <span className="text-xs font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">
@@ -329,10 +336,9 @@ function AlertasPageContent() {
                     Boolean(filtroTipo),
                     Boolean(filtroNivel),
                     Boolean(filtroCasa),
-                    Boolean(filtroNumeroAdolescente),
                     Boolean(busca),
                   ].filter(Boolean).length
-                }{' '}
+                }{" "}
                 ativo(s)
               </span>
             )}
@@ -352,7 +358,7 @@ function AlertasPageContent() {
             <div className="rounded-2xl border border-gray-200 p-4 space-y-4">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-semibold uppercase text-gray-500">
-                  Situa???o, risco e tipo
+                  Situacao, risco e tipo
                 </p>
                 <span className="text-[11px] text-gray-400">
                   Atualiza automaticamente
@@ -388,7 +394,7 @@ function AlertasPageContent() {
                       <option value="">Todos os tipos</option>
                       {tiposUnicos.map((tipo) => (
                         <option key={tipo} value={tipo}>
-                          {tipo}
+                          {TIPO_CI_MAP.get(tipo) ?? tipo}
                         </option>
                       ))}
                     </select>
@@ -397,7 +403,7 @@ function AlertasPageContent() {
                 <div className="space-y-3">
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      N??vel de risco
+                      Nivel de risco
                     </label>
                     <select
                       value={filtroNivel}
@@ -405,9 +411,9 @@ function AlertasPageContent() {
                       className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none"
                     >
                       <option value="">Todos</option>
-                      <option value="CRITICO">Cr??tico</option>
+                      <option value="CRITICO">Critico</option>
                       <option value="ALTO">Alto</option>
-                      <option value="MEDIO">M?dio</option>
+                      <option value="MEDIO">Medio</option>
                       <option value="BAIXO">Baixo</option>
                     </select>
                   </div>
@@ -434,25 +440,12 @@ function AlertasPageContent() {
 
             <div className="rounded-2xl border border-gray-200 p-4 space-y-3">
               <p className="text-xs font-semibold uppercase text-gray-500">
-                Identifica???o r?pida
+                Identificacao rapida
               </p>
               <div className="space-y-3">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    N?mero do adolescente
-                  </label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={filtroNumeroAdolescente}
-                    onChange={(e) => setFiltroNumeroAdolescente(e.target.value.trim())}
-                    placeholder="Informe o SMS"
-                    className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Buscar por nome ou descri???o
+                    Buscar por nome ou descricao
                   </label>
                   <div className="relative">
                     <Search
@@ -463,12 +456,12 @@ function AlertasPageContent() {
                       type="text"
                       value={busca}
                       onChange={(e) => setBusca(e.target.value)}
-                      placeholder="Nome, SMS ou palavras-chave..."
+                      placeholder="Nome, numero interno, SMS ou palavras-chave..."
                       className="w-full pl-10 pr-3 py-3 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none"
                     />
                   </div>
                   <p className="text-[11px] text-gray-500 mt-1">
-                    Pesquisa simult?nea em nome, n?mero e descri???o do alerta.
+                    Pesquisa simultanea em nome, numero interno/SMS e descricao do alerta.
                   </p>
                 </div>
               </div>
@@ -490,8 +483,8 @@ function AlertasPageContent() {
           </h3>
           <p className="text-gray-600 mb-6">
             {busca
-              ? "Nenhum alerta corresponde aos critérios de busca"
-              : "Não há alertas com os filtros selecionados"}
+              ? "Nenhum alerta corresponde aos criterios de busca"
+              : "Nao ha alertas com os filtros selecionados"}
           </p>
           {filtroStatus === "ATIVO" && !busca && (
             <button
@@ -561,3 +554,7 @@ export default function AlertasPage() {
     </Suspense>
   );
 }
+
+
+
+

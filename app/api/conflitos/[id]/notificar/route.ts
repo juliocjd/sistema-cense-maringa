@@ -14,6 +14,20 @@ const ensureTipo = (valor: unknown): TipoConflito => {
 const montarContatoTecnico = (tecnico?: { nome: string; email: string } | null) =>
   tecnico?.email ? { nome: tecnico.nome, email: tecnico.email } : null;
 
+const selecionarTecnico = (
+  lista?:
+    | Array<{
+        tecnicoReferencia?: { nome: string; email: string | null } | null;
+      }>
+    | null
+) => {
+  if (!lista) return null;
+  const contato = lista.find(
+    (item) => item?.tecnicoReferencia?.email
+  )?.tecnicoReferencia;
+  return contato?.email ? { nome: contato.nome, email: contato.email } : null;
+};
+
 const formatarAlojamentoAtual = (
   alojamento?: {
     numeroAlojamento?: string | number | null;
@@ -33,11 +47,13 @@ const buscarAdolescenteComTecnico = (where: object) => {
   return prisma.adolescente.findFirst({
     where,
     include: {
-      tecnicoReferencia: {
-        select: {
-          nome: true,
-          email: true,
+      tecnicosReferencia: {
+        include: {
+          tecnicoReferencia: {
+            select: { nome: true, email: true },
+          },
         },
+        orderBy: { criadoEm: "asc" },
       },
       alojamentoAtual: {
         select: {
@@ -68,8 +84,11 @@ export async function POST(
             select: {
               id: true,
               nomeCompleto: true,
-              tecnicoReferencia: {
-                select: { nome: true, email: true },
+              tecnicosReferencia: {
+                include: {
+                  tecnicoReferencia: { select: { nome: true, email: true } },
+                },
+                orderBy: { criadoEm: "asc" },
               },
               alojamentoAtual: {
                 select: {
@@ -84,8 +103,11 @@ export async function POST(
             select: {
               id: true,
               nomeCompleto: true,
-              tecnicoReferencia: {
-                select: { nome: true, email: true },
+              tecnicosReferencia: {
+                include: {
+                  tecnicoReferencia: { select: { nome: true, email: true } },
+                },
+                orderBy: { criadoEm: "asc" },
               },
               alojamentoAtual: {
                 select: {
@@ -127,8 +149,11 @@ export async function POST(
             select: {
               id: true,
               nomeCompleto: true,
-              tecnicoReferencia: {
-                select: { nome: true, email: true },
+              tecnicosReferencia: {
+                include: {
+                  tecnicoReferencia: { select: { nome: true, email: true } },
+                },
+                orderBy: { criadoEm: "asc" },
               },
               alojamentoAtual: {
                 select: {
@@ -143,8 +168,11 @@ export async function POST(
             select: {
               id: true,
               nomeCompleto: true,
-              tecnicoReferencia: {
-                select: { nome: true, email: true },
+              tecnicosReferencia: {
+                include: {
+                  tecnicoReferencia: { select: { nome: true, email: true } },
+                },
+                orderBy: { criadoEm: "asc" },
               },
               alojamentoAtual: {
                 select: {
@@ -171,7 +199,11 @@ export async function POST(
       const adicionarParticipante = (dados?: {
         id: string;
         nomeCompleto: string;
-        tecnicoReferencia: { nome: string; email: string } | null;
+        tecnicosReferencia?:
+          | Array<{
+              tecnicoReferencia?: { nome: string; email: string | null } | null;
+            }>
+          | null;
         alojamentoAtual?: {
           numeroAlojamento?: string | number | null;
           ala?: string | null;
@@ -183,7 +215,7 @@ export async function POST(
           participantes.set(dados.id, {
             id: dados.id,
             nomeCompleto: dados.nomeCompleto,
-            tecnico: montarContatoTecnico(dados.tecnicoReferencia),
+            tecnico: selecionarTecnico(dados.tecnicosReferencia ?? null),
             alojamento: formatarAlojamentoAtual(dados.alojamentoAtual),
           });
         }
@@ -321,13 +353,13 @@ export async function POST(
       adolescente: {
         id: adolescenteA.id,
         nomeCompleto: adolescenteA.nomeCompleto,
-        tecnico: montarContatoTecnico(adolescenteA.tecnicoReferencia),
+        tecnico: selecionarTecnico(adolescenteA.tecnicosReferencia ?? null),
         alojamento: formatarAlojamentoAtual(adolescenteA.alojamentoAtual),
       },
       adversario: {
         id: adolescenteB.id,
         nomeCompleto: adolescenteB.nomeCompleto,
-        tecnico: montarContatoTecnico(adolescenteB.tecnicoReferencia),
+        tecnico: selecionarTecnico(adolescenteB.tecnicosReferencia ?? null),
         alojamento: formatarAlojamentoAtual(adolescenteB.alojamentoAtual),
       },
       mensagem: `Conflito preventivo registrado entre ${origemNome} e ${destinoNome}.`,

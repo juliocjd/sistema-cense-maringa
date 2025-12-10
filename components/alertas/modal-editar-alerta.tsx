@@ -3,12 +3,7 @@
 import { useMemo, useState } from "react";
 import { X, AlertTriangle, Save, Loader2 } from "lucide-react";
 import type { AlertaAtivo } from "@/types";
-import {
-  ALERTAS_ESPECIAIS,
-  ALERTA_ESPECIAL_TIPOS,
-  mapearTipoEspecialPorCodigo,
-  type AlertaEspecialTipo,
-} from "@/lib/alertas/especiais";
+import { TIPO_CI_OPTIONS, TIPO_CI_MAP } from "@/lib/comunicados/tipos";
 
 type ModalEditarAlertaProps = {
   alerta: AlertaAtivo;
@@ -16,8 +11,8 @@ type ModalEditarAlertaProps = {
   onSucesso: () => void;
 };
 
-const NIVEIS_RISCO = ["CRITICO", "ALTO", "MEDIO", "BAIXO"] as const;
-type NivelRisco = (typeof NIVEIS_RISCO)[number];
+type NivelRisco = "CRITICO" | "ALTO" | "MEDIO" | "BAIXO";
+const NIVEIS_RISCO: NivelRisco[] = ["CRITICO", "ALTO", "MEDIO", "BAIXO"];
 
 const NIVEL_CLASSES: Record<NivelRisco, string> = {
   CRITICO: "bg-red-100 text-red-800 border-red-300",
@@ -26,42 +21,59 @@ const NIVEL_CLASSES: Record<NivelRisco, string> = {
   BAIXO: "bg-blue-100 text-blue-800 border-blue-300",
 };
 
+const DESCRICOES_TIPO: Record<string, string> = {
+  DISCIPLINAR: "Conduta que exige acompanhamento de comportamento.",
+  CONFLITO: "Conflito mapeado envolvendo o adolescente.",
+  AUTORIZACAO_ESPECIAL:
+    "Permissao controlada de item nao autorizado (ex.: caneta, material de estudo), com justificativa e validade.",
+  SAUDE_CONFIDENCIAL:
+    "Informacao de saude sensivel que impacta cuidados e seguranca.",
+  RISCO_SUICIDIO: "Risco de suicidio identificado.",
+  PERFIL_MAPEADO: "Protecao por ato infracional que exige sigilo.",
+  FUGA: "Risco ou registro de fuga/plano de fuga/evasao.",
+  AGRESSAO: "Registro de agressao ou risco iminente.",
+  AMEACA_SERVIDOR: "Ameaca direta contra servidor.",
+  OUTROS: "Outros alertas relevantes para a operacao.",
+};
+
 export function ModalEditarAlerta({
   alerta,
   onClose,
   onSucesso,
 }: ModalEditarAlertaProps) {
-  const tipoEspecialInicial = mapearTipoEspecialPorCodigo(alerta.tipoAlerta);
-  const [tipoEspecialSelecionado, setTipoEspecialSelecionado] =
-    useState<AlertaEspecialTipo | null>(tipoEspecialInicial);
-  const [tipoPersonalizado, setTipoPersonalizado] = useState(
-    tipoEspecialInicial ? "" : alerta.tipoAlerta ?? ""
-  );
   const normalizarNivel = (valor?: string | null): NivelRisco => {
     if (valor && NIVEIS_RISCO.includes(valor as NivelRisco)) {
       return valor as NivelRisco;
     }
     return "MEDIO";
   };
+  const sugerirNivelPorTipo = (valor: string): NivelRisco => {
+    if (valor === "RISCO_SUICIDIO") return "CRITICO";
+    if (
+      valor === "FUGA" ||
+      valor === "SAUDE_CONFIDENCIAL" ||
+      valor === "AGRESSAO" ||
+      valor === "AMEACA_SERVIDOR"
+    ) {
+      return "ALTO";
+    }
+    return "MEDIO";
+  };
+
+  const [tipoSelecionado, setTipoSelecionado] = useState<string>(alerta.tipoAlerta ?? "");
   const [nivelRisco, setNivelRisco] = useState<NivelRisco>(
-    normalizarNivel(alerta.nivelRisco)
+    normalizarNivel(alerta.nivelRisco) || sugerirNivelPorTipo(alerta.tipoAlerta ?? "MEDIO")
   );
   const [descricao, setDescricao] = useState(alerta.descricaoAlerta ?? "");
   const [erros, setErros] = useState<Record<string, string>>({});
   const [salvando, setSalvando] = useState(false);
 
-  const tipoEspecialMeta = useMemo(
-    () => (tipoEspecialSelecionado ? ALERTAS_ESPECIAIS[tipoEspecialSelecionado] : null),
-    [tipoEspecialSelecionado]
-  );
-
-  const tipoAlertaEmUso = tipoEspecialMeta
-    ? tipoEspecialMeta.label
-    : tipoPersonalizado;
-
-  const tipoParaEnvio = tipoEspecialMeta
-    ? tipoEspecialMeta.tipoAlerta
-    : tipoPersonalizado.trim() || null;
+  const tipoSelecionadoOpcao = tipoSelecionado
+    ? TIPO_CI_OPTIONS.find((option) => option.value === tipoSelecionado)
+    : null;
+  const tipoAlertaEmUso =
+    tipoSelecionadoOpcao?.label || TIPO_CI_MAP.get(tipoSelecionado) || tipoSelecionado;
+  const tipoSelecionadoNivel = tipoSelecionado ? sugerirNivelPorTipo(tipoSelecionado) : null;
 
   const validar = () => {
     const novosErros: Record<string, string> = {};
@@ -70,24 +82,11 @@ export function ModalEditarAlerta({
     } else if (descricao.trim().length < 10) {
       novosErros.descricao = "Utilize ao menos 10 caracteres";
     }
-    if (!tipoParaEnvio) {
-      novosErros.tipo = "Informe um tipo ou selecione um alerta especial";
+    if (!tipoSelecionado) {
+      novosErros.tipo = "Selecione o tipo do alerta";
     }
     setErros(novosErros);
     return Object.keys(novosErros).length === 0;
-  };
-
-  const handleToggleEspecial = (tipo: AlertaEspecialTipo) => {
-    setTipoEspecialSelecionado((atual) => {
-      if (atual === tipo) {
-        return null;
-      }
-      const meta = ALERTAS_ESPECIAIS[tipo];
-      setNivelRisco(normalizarNivel(meta.nivelPadrao));
-      return tipo;
-    });
-    setTipoPersonalizado("");
-    setErros((prev) => ({ ...prev, tipo: "" }));
   };
 
   const handleSalvar = async () => {
@@ -100,7 +99,7 @@ export function ModalEditarAlerta({
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          tipoAlerta: tipoParaEnvio,
+          tipoAlerta: tipoSelecionado,
           descricaoAlerta: descricao.trim(),
           nivelRisco,
         }),
@@ -141,68 +140,42 @@ export function ModalEditarAlerta({
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
-          <section>
-            <p className="text-xs font-semibold uppercase text-slate-500 mb-2">
-              Alertas especiais
-            </p>
-            <div className="grid gap-3 md:grid-cols-3">
-              {ALERTA_ESPECIAL_TIPOS.map((tipo) => {
-                const meta = ALERTAS_ESPECIAIS[tipo];
-                const ativo = tipoEspecialSelecionado === tipo;
-                return (
-                  <button
-                    key={tipo}
-                    type="button"
-                    onClick={() => handleToggleEspecial(tipo)}
-                    className={`rounded-xl border-2 p-3 text-left transition ${
-                      ativo
-                        ? "border-red-500 bg-red-50 shadow-sm"
-                        : "border-slate-200 hover:border-red-200"
-                    }`}
-                  >
-                    <p className="text-sm font-semibold text-slate-900">
-                      {meta.label}
-                    </p>
-                    <p className="text-[11px] text-slate-600 mt-1">
-                      {meta.descricaoPadrao}
-                    </p>
-                    <span className="mt-2 inline-flex rounded-full border border-slate-200 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
-                      Nivel sugerido: {meta.nivelPadrao ?? "MEDIO"}
-                    </span>
-                    {ativo && (
-                      <span className="mt-2 block text-[10px] font-bold text-red-600">
-                        Selecionado
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-
           <section className="space-y-2">
             <label className="text-xs font-semibold uppercase text-slate-500">
-              Tipo personalizado
+              Tipo de alerta *
             </label>
-            <input
-              type="text"
-              value={tipoAlertaEmUso}
+            <select
+              value={tipoSelecionado}
               onChange={(event) => {
-                setTipoEspecialSelecionado(null);
-                setTipoPersonalizado(event.target.value);
+                const valor = event.target.value;
+                setTipoSelecionado(valor);
+                setNivelRisco(sugerirNivelPorTipo(valor));
                 setErros((prev) => ({ ...prev, tipo: "" }));
               }}
-              placeholder="Ex.: Risco de fuga, Conduta agressiva..."
-              disabled={Boolean(tipoEspecialMeta)}
-              className={`w-full rounded-lg border-2 px-3 py-2 text-sm focus:outline-none ${
-                tipoEspecialMeta
-                  ? "bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed"
-                  : "border-slate-300 focus:border-red-500"
-              }`}
-            />
-            {!tipoEspecialMeta && (
+              className="w-full rounded-lg border-2 px-3 py-2 text-sm focus:outline-none border-slate-300 focus:border-red-500"
+            >
+              <option value="">Selecione o tipo...</option>
+              {TIPO_CI_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            {tipoAlertaEmUso && (
+              <p className="text-xs text-slate-600 flex items-center gap-2">
+                Tipo selecionado: {tipoAlertaEmUso}
+                {tipoSelecionadoNivel && (
+                  <span
+                    className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${NIVEL_CLASSES[tipoSelecionadoNivel]}`}
+                  >
+                    Nivel sugerido: {tipoSelecionadoNivel}
+                  </span>
+                )}
+              </p>
+            )}
+            {tipoSelecionado && DESCRICOES_TIPO[tipoSelecionado] && (
               <p className="text-[11px] text-slate-500">
-                Campo opcional para cenarios que nao sejam alertas especiais
+                {DESCRICOES_TIPO[tipoSelecionado]}
               </p>
             )}
             {erros.tipo && (

@@ -247,12 +247,22 @@ export function CadastroAdolescente({
   >(null);
   const temFaccaoSelecionada = Boolean(vinculacoes.faccaoId);
 
-  const [tecnicoReferenciaId, setTecnicoReferenciaId] = useState("");
+  const [tecnicosReferenciaIds, setTecnicosReferenciaIds] = useState<string[]>([]);
   const [tecnicosDisponiveis, setTecnicosDisponiveis] = useState<
     Array<{ id: string; nome: string; atividade?: string | null; email: string }>
   >([]);
   const [carregandoTecnicos, setCarregandoTecnicos] = useState(false);
   const [erroTecnicos, setErroTecnicos] = useState<string | null>(null);
+  const [buscaTecnico, setBuscaTecnico] = useState("");
+  const tecnicosFiltrados = useMemo(() => {
+    const termo = buscaTecnico.toLowerCase();
+    return tecnicosDisponiveis.filter(
+      (tec) =>
+        tec.nome.toLowerCase().includes(termo) ||
+        (tec.email ?? "").toLowerCase().includes(termo) ||
+        (tec.atividade ?? "").toLowerCase().includes(termo)
+    );
+  }, [buscaTecnico, tecnicosDisponiveis]);
 
   const [tatuagens, setTatuagens] = useState<
     { catalogoId: string; localCorpo: string; observacoes: string; significadoPessoal: string }[]
@@ -371,7 +381,11 @@ export function CadastroAdolescente({
       bairroId: initialData.bairroOrigemId ?? "",
       riscoFuga: (initialData.riscoFuga as RiscoFuga) ?? "BAIXO",
     });
-    setTecnicoReferenciaId(initialData.tecnicoReferenciaId ?? "");
+    setTecnicosReferenciaIds(
+      Array.isArray(initialData.tecnicosReferencia)
+        ? initialData.tecnicosReferencia.map((tec) => tec.id)
+        : []
+    );
     setRiscoFugaOrigemInfo(initialData.riscoFugaOrigem ?? null);
 
     const descricaoEspecial = (tipo: AlertaEspecialTipo) => {
@@ -1209,7 +1223,7 @@ export function CadastroAdolescente({
             : undefined,
         bairroOrigemId: sanitize(vinculacoes.bairroId),
         riscoFuga: vinculacoes.riscoFuga,
-        tecnicoReferenciaId: tecnicoReferenciaId || undefined,
+        tecnicosReferenciaIds: tecnicosReferenciaIds,
       };
 
       if (historicoPayload.length > 0) {
@@ -2063,30 +2077,100 @@ export function CadastroAdolescente({
                   )}
                 </div>
 
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Tecnico de referencia
+                <div className="md:col-span-2 space-y-2">
+                  <label className="block text-sm font-semibold text-gray-700">
+                    Tecnicos de referencia
                   </label>
-                  <select
-                    value={tecnicoReferenciaId}
-                    onChange={(event) =>
-                      setTecnicoReferenciaId(event.target.value)
-                    }
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
-                    disabled={carregandoTecnicos}
-                  >
-                    <option value="">Sem tecnico definido</option>
-                    {tecnicosDisponiveis.map((tecnico) => (
-                      <option key={tecnico.id} value={tecnico.id}>
-                        {tecnico.nome}
-                        {tecnico.atividade ? ` - ${tecnico.atividade}` : ""} (
-                        {tecnico.email})
-                      </option>
-                    ))}
-                  </select>
-                  {erroTecnicos && (
-                    <p className="text-xs text-red-600 mt-1">{erroTecnicos}</p>
-                  )}
+                  <div className="space-y-3 rounded-xl border-2 border-gray-200 p-3 bg-white">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <input
+                        type="text"
+                        value={buscaTecnico}
+                        onChange={(e) => setBuscaTecnico(e.target.value)}
+                        placeholder="Buscar por nome, email ou atividade..."
+                        className="w-full sm:w-2/3 px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none"
+                        disabled={carregandoTecnicos}
+                      />
+                      <p className="text-xs text-gray-500">
+                        Clique para adicionar; clique no chip para remover.
+                      </p>
+                    </div>
+
+                    <div className="max-h-52 overflow-y-auto space-y-2">
+                      {carregandoTecnicos ? (
+                        <p className="text-sm text-gray-500">Carregando tecnicos...</p>
+                      ) : tecnicosFiltrados.length === 0 ? (
+                        <p className="text-sm text-gray-500">
+                          Nenhum tecnico encontrado para a busca.
+                        </p>
+                      ) : (
+                        tecnicosFiltrados.map((tecnico) => {
+                          const selecionado = tecnicosReferenciaIds.includes(tecnico.id);
+                          return (
+                            <button
+                              type="button"
+                              key={tecnico.id}
+                              onClick={() => {
+                                setTecnicosReferenciaIds((prev) =>
+                                  selecionado
+                                    ? prev.filter((id) => id !== tecnico.id)
+                                    : [...prev, tecnico.id]
+                                );
+                              }}
+                              className={`w-full text-left rounded-lg border-2 px-3 py-2 transition ${
+                                selecionado
+                                  ? "border-indigo-500 bg-indigo-50 text-indigo-800"
+                                  : "border-gray-200 hover:border-indigo-200"
+                              }`}
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <div>
+                                  <p className="font-semibold">{tecnico.nome}</p>
+                                  <p className="text-xs text-gray-600">
+                                    {tecnico.atividade || "Atividade n/d"}
+                                  </p>
+                                  <p className="text-[11px] text-gray-500 font-mono">
+                                    {tecnico.email}
+                                  </p>
+                                </div>
+                                {selecionado && (
+                                  <span className="text-[11px] font-semibold text-indigo-700">
+                                    Selecionado
+                                  </span>
+                                )}
+                              </div>
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+
+                    {tecnicosReferenciaIds.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {tecnicosReferenciaIds
+                          .map((id) => tecnicosDisponiveis.find((t) => t.id === id))
+                          .filter(Boolean)
+                          .map((tec) => (
+                            <button
+                              key={tec!.id}
+                              type="button"
+                              onClick={() =>
+                                setTecnicosReferenciaIds((prev) =>
+                                  prev.filter((id) => id !== tec!.id)
+                                )
+                              }
+                              className="inline-flex items-center gap-2 bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full text-xs font-semibold border border-indigo-200 hover:bg-indigo-200"
+                            >
+                              {tec!.nome}
+                              <span className="text-indigo-500">×</span>
+                            </button>
+                          ))}
+                      </div>
+                    )}
+                    {erroTecnicos && (
+                      <p className="text-xs text-red-600 mt-1">{erroTecnicos}</p>
+                    )}
+                  </div>
                 </div>
 
                 {podeSelecionarAlojamento && (

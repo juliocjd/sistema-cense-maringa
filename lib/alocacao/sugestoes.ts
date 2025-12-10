@@ -259,8 +259,9 @@ const preencherAdolescenteBasico = (
     vulgo: base.vulgo ?? null,
     alojamentoAtualId: base.alojamentoAtualId ?? null,
     faseInternacaoAtualId: base.faseInternacaoAtualId ?? null,
-    tecnicoReferenciaId: base.tecnicoReferenciaId ?? null,
-    tecnicoReferencia: base.tecnicoReferencia ?? null,
+    tecnicosReferencia:
+      (base as any).tecnicosReferencia ??
+      [],
     dataDesinternacao: toNullableString(base.dataDesinternacao),
     faccaoGrupoId: base.faccaoGrupoId ?? faccaoInfo?.id ?? null,
     faccaoFuncao: base.faccaoFuncao ?? null,
@@ -325,6 +326,7 @@ const criarCandidatoFallback = (
     alertaPerfilMapeado: false,
     alertaSaudeConfidencial: false,
     alertaSaudeDetalhes: null,
+    tecnicosReferencia: [],
     conflitosA: [],
     conflitosB: [],
     conflitosResolvidos: [],
