@@ -9,6 +9,7 @@ import {
   ClipboardList,
   FileText,
   LucideIcon,
+  Shield,
   Users,
 } from "lucide-react";
 
@@ -17,6 +18,7 @@ import RelatorioAfiliacoesModalTrigger from "@/components/conflitos/relatorio-af
 import { RelatorioHistoricoModalTrigger } from "@/components/relatorios/relatorio-historico-modal";
 import { RelatorioTransferenciaModalTrigger } from "@/components/relatorios/relatorio-transferencia-modal";
 import { RelatorioVisitasModalTrigger } from "@/components/relatorios/relatorio-visitas-modal";
+import { RelatorioFase3ModalTrigger } from "@/components/relatorios/relatorio-fase3-modal";
 import { calcularImpactosExternos } from "@/lib/inteligencia/conflitos";
 
 export default async function RelatoriosPage() {
@@ -79,6 +81,16 @@ export default async function RelatoriosPage() {
       description:
         "Justificativa detalhada quando não ha possibilidade de permanência do adolescente na Unidade.",
       action: <RelatorioTransferenciaModalTrigger />,
+    },
+    {
+      id: "fase3",
+      tone: "slate",
+      label: "Planejamento",
+      icon: Shield,
+      title: "Analise para Casa 08 (Fase 3)",
+      description:
+        "Cruza conflitos, alertas e risco de fuga para avaliar se o adolescente pode ingressar na Casa 08 e gera um PDF com os achados.",
+      action: <RelatorioFase3ModalTrigger />,
     },
   ];
 

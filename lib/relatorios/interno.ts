@@ -1,4 +1,8 @@
 import { prisma } from "@/lib/prisma";
+import {
+  TIPO_PROTOCOLO_ALTA,
+  TIPO_PROTOCOLO_ATIVADO,
+} from "@/lib/alertas/protocolo-risco-suicidio";
 
 const selecionarAlojamento = {
   numeroAlojamento: true,
@@ -126,6 +130,52 @@ export async function carregarRelatorioInternoBase(adolescenteId: string) {
     },
   });
 
+  const historicoSuicidio = await prisma.historicoMovimentacao.findMany({
+    where: {
+      adolescenteId,
+      tipo: {
+        in: [TIPO_PROTOCOLO_ATIVADO, TIPO_PROTOCOLO_ALTA],
+      },
+    },
+    orderBy: [
+      { registradoEm: "desc" },
+      { criadoEm: "desc" },
+    ],
+    take: 10,
+  });
+
+  const alertaSuicidioAtivo = alertas.find(
+    (alerta) =>
+      alerta.tipoAlerta === "RISCO_SUICIDIO" && alerta.desativadoEm === null
+  );
+  const ultimaEntrada = historicoSuicidio.find(
+    (item) => item.tipo === TIPO_PROTOCOLO_ATIVADO
+  );
+  const ultimaAlta = historicoSuicidio.find(
+    (item) => item.tipo === TIPO_PROTOCOLO_ALTA
+  );
+
+  const protocoloRiscoSuicidio = {
+    ativo: Boolean(alertaSuicidioAtivo),
+    nivelAtual: alertaSuicidioAtivo?.nivelRisco ?? null,
+    ultimaEntrada: ultimaEntrada
+      ? {
+          data: (
+            ultimaEntrada.registradoEm ?? ultimaEntrada.criadoEm
+          ).toISOString(),
+          descricao: ultimaEntrada.descricao ?? null,
+        }
+      : null,
+    ultimaAlta: ultimaAlta
+      ? {
+          data: (
+            ultimaAlta.registradoEm ?? ultimaAlta.criadoEm
+          ).toISOString(),
+          descricao: ultimaAlta.descricao ?? null,
+        }
+      : null,
+  };
+
   return {
     adolescente: {
       id: adolescente.id,
@@ -185,5 +235,6 @@ export async function carregarRelatorioInternoBase(adolescenteId: string) {
           }
         : null,
     })),
+    protocoloRiscoSuicidio,
   };
 }

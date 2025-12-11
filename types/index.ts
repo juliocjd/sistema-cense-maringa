@@ -48,6 +48,10 @@ export interface Conflito {
     id: string;
     nomeCompleto: string;
   } | null;
+  protocoloRiscoSuicidio?: {
+    ultimaEntrada?: { data: string; descricao: string | null } | null;
+    ultimaAlta?: { data: string; descricao: string | null } | null;
+  } | null;
 }
 
 export interface ConflitoResumo {
@@ -401,5 +405,9 @@ export interface AlertaAtivo {
   operadorResponsavel?: {
     id: string;
     nomeCompleto: string;
+  } | null;
+  protocoloRiscoSuicidio?: {
+    ultimaEntrada?: { data: string; descricao: string | null } | null;
+    ultimaAlta?: { data: string; descricao: string | null } | null;
   } | null;
 }

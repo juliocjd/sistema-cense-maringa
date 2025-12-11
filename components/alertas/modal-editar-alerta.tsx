@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { X, AlertTriangle, Save, Loader2 } from "lucide-react";
 import type { AlertaAtivo } from "@/types";
 import { TIPO_CI_OPTIONS, TIPO_CI_MAP } from "@/lib/comunicados/tipos";
@@ -36,6 +36,16 @@ const DESCRICOES_TIPO: Record<string, string> = {
   OUTROS: "Outros alertas relevantes para a operacao.",
 };
 
+const formatarDataCurta = (valor?: string | null) => {
+  if (!valor) return "Nao informado";
+  const data = new Date(valor);
+  if (Number.isNaN(data.getTime())) return "Nao informado";
+  return data.toLocaleString("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short",
+  });
+};
+
 export function ModalEditarAlerta({
   alerta,
   onClose,
@@ -67,6 +77,15 @@ export function ModalEditarAlerta({
   const [descricao, setDescricao] = useState(alerta.descricaoAlerta ?? "");
   const [erros, setErros] = useState<Record<string, string>>({});
   const [salvando, setSalvando] = useState(false);
+  const [registrarAltaMedica, setRegistrarAltaMedica] = useState(false);
+  const [descricaoAltaMedica, setDescricaoAltaMedica] = useState("");
+  const [nivelAnteriorAlta, setNivelAnteriorAlta] = useState<NivelRisco | null>(
+    null
+  );
+  const [protocoloInfo, setProtocoloInfo] = useState<
+    AlertaAtivo["protocoloRiscoSuicidio"] | null
+  >(alerta.protocoloRiscoSuicidio ?? null);
+  const [carregandoProtocolo, setCarregandoProtocolo] = useState(false);
 
   const tipoSelecionadoOpcao = tipoSelecionado
     ? TIPO_CI_OPTIONS.find((option) => option.value === tipoSelecionado)
@@ -74,6 +93,36 @@ export function ModalEditarAlerta({
   const tipoAlertaEmUso =
     tipoSelecionadoOpcao?.label || TIPO_CI_MAP.get(tipoSelecionado) || tipoSelecionado;
   const tipoSelecionadoNivel = tipoSelecionado ? sugerirNivelPorTipo(tipoSelecionado) : null;
+
+  useEffect(() => {
+    if (alerta.tipoAlerta !== "RISCO_SUICIDIO") {
+      setProtocoloInfo(null);
+      return;
+    }
+    let ativo = true;
+    const carregarProtocolo = async () => {
+      setCarregandoProtocolo(true);
+      try {
+        const response = await fetch(`/api/alertas/${alerta.id}`);
+        if (!response.ok) {
+          return;
+        }
+        const detalhes = (await response.json()) as AlertaAtivo;
+        if (!ativo) return;
+        setProtocoloInfo(detalhes.protocoloRiscoSuicidio ?? null);
+      } catch (error) {
+        console.error("Erro ao carregar historico do protocolo:", error);
+      } finally {
+        if (ativo) {
+          setCarregandoProtocolo(false);
+        }
+      }
+    };
+    carregarProtocolo();
+    return () => {
+      ativo = false;
+    };
+  }, [alerta.id, alerta.tipoAlerta]);
 
   const validar = () => {
     const novosErros: Record<string, string> = {};
@@ -95,14 +144,21 @@ export function ModalEditarAlerta({
     }
     try {
       setSalvando(true);
+      const payload: Record<string, unknown> = {
+        tipoAlerta: tipoSelecionado,
+        descricaoAlerta: descricao.trim(),
+        nivelRisco,
+      };
+      if (registrarAltaMedica) {
+        payload.altaMedica = true;
+        if (descricaoAltaMedica.trim().length > 0) {
+          payload.altaMedicaDescricao = descricaoAltaMedica.trim();
+        }
+      }
       const response = await fetch(`/api/alertas/${alerta.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          tipoAlerta: tipoSelecionado,
-          descricaoAlerta: descricao.trim(),
-          nivelRisco,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
@@ -192,7 +248,8 @@ export function ModalEditarAlerta({
                 <button
                   key={nivel}
                   type="button"
-                  onClick={() => setNivelRisco(nivel)}
+                  onClick={() => !registrarAltaMedica && setNivelRisco(nivel)}
+                  disabled={registrarAltaMedica}
                   className={`rounded-xl border-2 px-3 py-2 text-sm font-semibold transition ${
                     nivelRisco === nivel
                       ? `${NIVEL_CLASSES[nivel]} border-current`
@@ -203,7 +260,92 @@ export function ModalEditarAlerta({
                 </button>
               ))}
             </div>
+            {registrarAltaMedica && (
+              <p className="text-[11px] text-rose-600 mt-1">
+                Alta médica registrada força o nível para BAIXO.
+              </p>
+            )}
           </section>
+
+          {tipoSelecionado === "RISCO_SUICIDIO" && (
+            <section className="space-y-3 rounded-xl border border-blue-100 p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">
+                    Alta médica do protocolo
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    Use quando houver laudo médico permitindo downgrade do protocolo.
+                  </p>
+                </div>
+                <label className="flex items-center gap-2 text-sm font-semibold text-blue-700">
+                  <input
+                    type="checkbox"
+                    checked={registrarAltaMedica}
+                    onChange={(event) => {
+                      const marcado = event.target.checked;
+                      setRegistrarAltaMedica(marcado);
+                      if (marcado) {
+                        setNivelAnteriorAlta(nivelRisco);
+                        setNivelRisco("BAIXO");
+                      } else if (nivelAnteriorAlta) {
+                        setNivelRisco(nivelAnteriorAlta);
+                        setNivelAnteriorAlta(null);
+                      }
+                    }}
+                    className="h-4 w-4 rounded border-blue-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  Registrar alta
+                </label>
+              </div>
+              {registrarAltaMedica && (
+                <div className="space-y-2">
+                  <textarea
+                    value={descricaoAltaMedica}
+                    onChange={(event) => setDescricaoAltaMedica(event.target.value)}
+                    rows={3}
+                    className="w-full rounded-lg border-2 border-blue-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                    placeholder="Observações da alta médica (opcional)"
+                  />
+                  <p className="text-[11px] text-slate-500">
+                    A alta será registrada em auditoria e exibida nos relatórios.
+                  </p>
+                </div>
+              )}
+              <div className="space-y-2 text-[11px]">
+                {carregandoProtocolo && (
+                  <p className="text-slate-400">Carregando histórico do protocolo...</p>
+                )}
+                {protocoloInfo?.ultimaEntrada && (
+                  <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-blue-900">
+                    <p className="font-semibold text-blue-800">
+                      Protocolo ativado em {formatarDataCurta(protocoloInfo.ultimaEntrada.data)}
+                    </p>
+                    {protocoloInfo.ultimaEntrada.descricao && (
+                      <p className="text-blue-700">{protocoloInfo.ultimaEntrada.descricao}</p>
+                    )}
+                  </div>
+                )}
+                {protocoloInfo?.ultimaAlta && (
+                  <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-emerald-900">
+                    <p className="font-semibold text-emerald-800">
+                      Última alta médica em {formatarDataCurta(protocoloInfo.ultimaAlta.data)}
+                    </p>
+                    {protocoloInfo.ultimaAlta.descricao && (
+                      <p className="text-emerald-700">{protocoloInfo.ultimaAlta.descricao}</p>
+                    )}
+                  </div>
+                )}
+                {!carregandoProtocolo &&
+                  !protocoloInfo?.ultimaEntrada &&
+                  !protocoloInfo?.ultimaAlta && (
+                    <p className="text-slate-500">
+                      Nenhuma alta médica registrada para este protocolo até o momento.
+                    </p>
+                  )}
+              </div>
+            </section>
+          )}
 
           <section className="space-y-2">
             <label className="text-xs font-semibold uppercase text-slate-500">
@@ -248,6 +390,11 @@ export function ModalEditarAlerta({
                 {tipoAlertaEmUso && (
                   <p>
                     <strong>Tipo:</strong> {tipoAlertaEmUso}
+                  </p>
+                )}
+                {registrarAltaMedica && (
+                  <p className="text-xs text-blue-900">
+                    Alta médica será registrada e o nível reduzirá para BAIXO.
                   </p>
                 )}
                 <p>{descricao || "Descreva o alerta acima"}</p>

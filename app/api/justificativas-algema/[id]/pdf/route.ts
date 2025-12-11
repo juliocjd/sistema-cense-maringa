@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { TIPO_CI_MAP } from "@/lib/comunicados/tipos";
+import {
+  TIPO_PROTOCOLO_ALTA,
+  TIPO_PROTOCOLO_ATIVADO,
+} from "@/lib/alertas/protocolo-risco-suicidio";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
@@ -84,67 +88,99 @@ export async function GET(
       );
     }
 
-    const [riscoFugaRegistro, alertasCriticos, cisCriticos] =
-      await Promise.all([
-        prisma.historicoMovimentacao.findFirst({
-          where: {
-            adolescenteId: justificativa.adolescenteId,
-            tipo: "RISCO_FUGA_ALERTA",
-          },
-          orderBy: [
-            { registradoEm: "desc" },
-            { criadoEm: "desc" },
-          ],
-          select: {
-            descricao: true,
-            registradoEm: true,
-            criadoEm: true,
-            referenciaTipo: true,
-            referenciaId: true,
-            operador: {
-              select: {
-                nomeCompleto: true,
-              },
+    const [
+      riscoFugaRegistro,
+      alertasCriticos,
+      cisCriticos,
+      suicidioEventos,
+      alertaSuicidioAtivo,
+    ] = await Promise.all([
+      prisma.historicoMovimentacao.findFirst({
+        where: {
+          adolescenteId: justificativa.adolescenteId,
+          tipo: "RISCO_FUGA_ALERTA",
+        },
+        orderBy: [
+          { registradoEm: "desc" },
+          { criadoEm: "desc" },
+        ],
+        select: {
+          descricao: true,
+          registradoEm: true,
+          criadoEm: true,
+          referenciaTipo: true,
+          referenciaId: true,
+          operador: {
+            select: {
+              nomeCompleto: true,
             },
           },
-        }),
-        prisma.alertaAtivo.findMany({
-          where: {
-            adolescenteId: justificativa.adolescenteId,
-            desativadoEm: null,
-            tipoAlerta: { in: TIPOS_CRITICOS_DESTAQUE },
-          },
-          select: {
-            id: true,
-            tipoAlerta: true,
-            descricaoAlerta: true,
-            nivelRisco: true,
-            criadoEm: true,
-          },
-          orderBy: { criadoEm: "desc" },
-        }),
-        prisma.comunicadoInterno.findMany({
-          where: {
-            tipoCI: { in: TIPOS_CRITICOS_DESTAQUE },
-            adolescentes: {
-              some: {
-                adolescenteId: justificativa.adolescenteId,
-              },
+        },
+      }),
+      prisma.alertaAtivo.findMany({
+        where: {
+          adolescenteId: justificativa.adolescenteId,
+          desativadoEm: null,
+          tipoAlerta: { in: TIPOS_CRITICOS_DESTAQUE },
+        },
+        select: {
+          id: true,
+          tipoAlerta: true,
+          descricaoAlerta: true,
+          nivelRisco: true,
+          criadoEm: true,
+        },
+        orderBy: { criadoEm: "desc" },
+      }),
+      prisma.comunicadoInterno.findMany({
+        where: {
+          tipoCI: { in: TIPOS_CRITICOS_DESTAQUE },
+          adolescentes: {
+            some: {
+              adolescenteId: justificativa.adolescenteId,
             },
           },
-          select: {
-            id: true,
-            numero: true,
-            ano: true,
-            tipoCI: true,
-            resumoCI: true,
-            dataFato: true,
-            criadoEm: true,
+        },
+        select: {
+          id: true,
+          numero: true,
+          ano: true,
+          tipoCI: true,
+          resumoCI: true,
+          dataFato: true,
+          criadoEm: true,
+        },
+        orderBy: [{ ano: "desc" }, { numero: "desc" }],
+        take: 5,
+      }),
+      prisma.historicoMovimentacao.findMany({
+        where: {
+          adolescenteId: justificativa.adolescenteId,
+          tipo: {
+            in: [TIPO_PROTOCOLO_ATIVADO, TIPO_PROTOCOLO_ALTA],
           },
-          orderBy: [{ ano: "desc" }, { numero: "desc" }],
-          take: 5,
-        }),
-      ]);
+        },
+        orderBy: [
+          { registradoEm: "desc" },
+          { criadoEm: "desc" },
+        ],
+        take: 10,
+      }),
+      prisma.alertaAtivo.findFirst({
+        where: {
+          adolescenteId: justificativa.adolescenteId,
+          tipoAlerta: "RISCO_SUICIDIO",
+          desativadoEm: null,
+        },
+        orderBy: { criadoEm: "desc" },
+        select: {
+          id: true,
+          descricaoAlerta: true,
+          nivelRisco: true,
+          criadoEm: true,
+        },
+      }),
+    ]);
 
     let riscoFugaOrigemDescricao: string | undefined;
 
@@ -196,6 +232,35 @@ export async function GET(
           responsavel: riscoFugaRegistro.operador?.nomeCompleto ?? null,
         }
       : null;
+    const eventoProtocolo = suicidioEventos.find(
+      (evento) => evento.tipo === TIPO_PROTOCOLO_ATIVADO
+    );
+    const eventoAltaProtocolo = suicidioEventos.find(
+      (evento) => evento.tipo === TIPO_PROTOCOLO_ALTA
+    );
+    const protocoloSuicidioResumo =
+      alertaSuicidioAtivo || eventoProtocolo || eventoAltaProtocolo
+        ? {
+            ativo: Boolean(alertaSuicidioAtivo),
+            nivel: alertaSuicidioAtivo?.nivelRisco ?? null,
+            alertaDescricao: alertaSuicidioAtivo?.descricaoAlerta ?? null,
+            alertaCriadoEm: alertaSuicidioAtivo?.criadoEm ?? null,
+            ingresso: eventoProtocolo
+              ? {
+                  data: eventoProtocolo.registradoEm ?? eventoProtocolo.criadoEm,
+                  descricao: eventoProtocolo.descricao ?? null,
+                }
+              : null,
+            alta: eventoAltaProtocolo
+              ? {
+                  data:
+                    eventoAltaProtocolo.registradoEm ??
+                    eventoAltaProtocolo.criadoEm,
+                  descricao: eventoAltaProtocolo.descricao ?? null,
+                }
+              : null,
+          }
+        : null;
 
     // Gerar PDF
     const doc = new jsPDF();
@@ -488,6 +553,79 @@ export async function GET(
         yPosition += 5;
       });
     });
+
+    if (protocoloSuicidioResumo) {
+      const boxWidth = pageWidth - 28;
+      const linhasResumo: string[] = [
+        protocoloSuicidioResumo.ativo
+          ? `Protocolo ativo (nivel ${
+              protocoloSuicidioResumo.nivel ?? "N/I"
+            })`
+          : "Protocolo registrado sem alerta ativo no momento",
+      ];
+      if (protocoloSuicidioResumo.ingresso) {
+        linhasResumo.push(
+          `Ingresso em ${formatarDataHora(
+            protocoloSuicidioResumo.ingresso.data
+          )}${
+            protocoloSuicidioResumo.ingresso.descricao
+              ? ` — ${protocoloSuicidioResumo.ingresso.descricao}`
+              : ""
+          }`
+        );
+      } else if (protocoloSuicidioResumo.alertaCriadoEm) {
+        linhasResumo.push(
+          `Ultimo alerta registrado em ${formatarDataHora(
+            protocoloSuicidioResumo.alertaCriadoEm
+          )}${
+            protocoloSuicidioResumo.alertaDescricao
+              ? ` — ${protocoloSuicidioResumo.alertaDescricao}`
+              : ""
+          }`
+        );
+      }
+      if (protocoloSuicidioResumo.alta) {
+        linhasResumo.push(
+          `Alta medica em ${formatarDataHora(
+            protocoloSuicidioResumo.alta.data
+          )}${
+            protocoloSuicidioResumo.alta.descricao
+              ? ` — ${protocoloSuicidioResumo.alta.descricao}`
+              : ""
+          }`
+        );
+      }
+
+      const blocoAltura = 20 + linhasResumo.length * 5;
+      checkPageBreak(blocoAltura + 6);
+      doc.setFillColor(253, 242, 248);
+      doc.setDrawColor(219, 39, 119);
+      doc.roundedRect(14, yPosition, boxWidth, blocoAltura, 3, 3, "FD");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.setTextColor(157, 23, 77);
+      doc.text(
+        "PROTOCOLO DE RISCO DE SUICIDIO / ALTA MEDICA",
+        pageWidth / 2,
+        yPosition + 8,
+        { align: "center" }
+      );
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(74, 74, 74);
+      let blocoY = yPosition + 15;
+      linhasResumo.forEach((linha) => {
+        const partes = doc.splitTextToSize(linha, boxWidth - 12);
+        partes.forEach((parte: string) => {
+          doc.text(parte, 20, blocoY);
+          blocoY += 5;
+        });
+      });
+      yPosition = yPosition + blocoAltura + 8;
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(10);
+    }
 
     if (riscoFugaDestaque) {
       const boxWidth = pageWidth - 28;

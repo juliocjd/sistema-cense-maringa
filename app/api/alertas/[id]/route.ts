@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
+import { auth } from "@/auth";
 import {
   atualizarFlagsAlertasEspeciais,
   ehAlertaEspecial,
 } from "@/lib/alertas/sincronizar-especiais";
+import { normalizarNivelRisco } from "@/lib/alertas/especiais";
+import {
+  registrarAltaProtocoloSuicidio,
+  TIPO_PROTOCOLO_ALTA,
+  TIPO_PROTOCOLO_ATIVADO,
+} from "@/lib/alertas/protocolo-risco-suicidio";
 
 const prisma = new PrismaClient();
 
@@ -78,7 +85,51 @@ export async function GET(
       );
     }
 
-    return NextResponse.json(alerta);
+    const movimentosProtocolo = await prisma.historicoMovimentacao.findMany({
+        where: {
+          adolescenteId: alerta.adolescenteId,
+          tipo: {
+            in: [TIPO_PROTOCOLO_ATIVADO, TIPO_PROTOCOLO_ALTA],
+          },
+        },
+        orderBy: [
+          { registradoEm: "desc" },
+          { criadoEm: "desc" },
+        ],
+        take: 10,
+      });
+
+      const eventoEntrada = movimentosProtocolo.find(
+        (movimento) => movimento.tipo === TIPO_PROTOCOLO_ATIVADO
+      );
+      const eventoAlta = movimentosProtocolo.find(
+        (movimento) => movimento.tipo === TIPO_PROTOCOLO_ALTA
+      );
+
+      const protocoloRiscoSuicidio =
+        eventoEntrada || eventoAlta
+          ? {
+              ultimaEntrada: eventoEntrada
+                ? {
+                    data: (
+                      eventoEntrada.registradoEm ?? eventoEntrada.criadoEm
+                    ).toISOString(),
+                    descricao: eventoEntrada.descricao ?? null,
+                  }
+                : null,
+              ultimaAlta: eventoAlta
+                ? {
+                    data: (eventoAlta.registradoEm ?? eventoAlta.criadoEm).toISOString(),
+                    descricao: eventoAlta.descricao ?? null,
+                  }
+                : null,
+            }
+          : null;
+
+      return NextResponse.json({
+        ...alerta,
+        protocoloRiscoSuicidio,
+      });
   } catch (error) {
     console.error("Erro ao buscar alerta:", error);
     return NextResponse.json(
@@ -99,6 +150,15 @@ export async function PATCH(
   try {
     const { id } = await params;
     const body = await request.json();
+    const session = await auth().catch(() => null);
+    const operadorId = session?.user?.id ?? null;
+
+    if (!operadorId) {
+      return NextResponse.json(
+        { erro: "Operador não autenticado" },
+        { status: 401 }
+      );
+    }
 
     // Verificar se alerta existe
     const alertaExistente = await prisma.alertaAtivo.findUnique({
@@ -112,6 +172,18 @@ export async function PATCH(
       );
     }
 
+    const tipoDestino =
+      body.tipoAlerta ?? alertaExistente.tipoAlerta ?? undefined;
+    const aplicarAltaMedica =
+      body.altaMedica === true && tipoDestino === "RISCO_SUICIDIO";
+    const nivelRecebido = aplicarAltaMedica
+      ? "BAIXO"
+      : body.nivelRisco ?? undefined;
+    const nivelFinal =
+      nivelRecebido !== undefined
+        ? normalizarNivelRisco(nivelRecebido) ?? nivelRecebido
+        : undefined;
+
     // Atualizar alerta
     const alerta = await prisma.alertaAtivo.update({
       where: { id },
@@ -120,7 +192,7 @@ export async function PATCH(
         ...(body.descricaoAlerta !== undefined && {
           descricaoAlerta: body.descricaoAlerta,
         }),
-        ...(body.nivelRisco !== undefined && { nivelRisco: body.nivelRisco }),
+        ...(nivelFinal !== undefined && { nivelRisco: nivelFinal }),
         ...(body.desativar === true && { desativadoEm: new Date() }),
         ...(body.reativar === true && { desativadoEm: null }),
       },
@@ -135,6 +207,19 @@ export async function PATCH(
         },
       },
     });
+
+    if (aplicarAltaMedica) {
+      const descricaoAlta =
+        typeof body.altaMedicaDescricao === "string"
+          ? body.altaMedicaDescricao.trim()
+          : null;
+      await registrarAltaProtocoloSuicidio(prisma, {
+        adolescenteId: alerta.adolescenteId,
+        alertaId: alerta.id,
+        descricao: descricaoAlta,
+        operadorId,
+      });
+    }
 
     if (
       ehAlertaEspecial(alertaExistente.tipoAlerta) ||

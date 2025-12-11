@@ -75,7 +75,6 @@ const prismaSetup = vi.hoisted(() => {
       adolescenteTatuagem: refs.adolescenteTatuagemGlobal,
       alertaAtivo: refs.alertaAtivoGlobal,
       historicoMovimentacao: refs.historicoMovimentacaoGlobal,
-      logAuditoria: refs.logAuditoria,
       conflito: refs.txConflito,
       comunicadoInterno: refs.txComunicadoInterno,
       $transaction: transaction,

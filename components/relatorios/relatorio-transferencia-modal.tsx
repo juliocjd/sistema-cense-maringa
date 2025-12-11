@@ -66,6 +66,12 @@ type RelatorioTransferencia = {
   conflitos: RelatorioConflito[];
   alertas: RelatorioAlerta[];
   metricas: TransferenciaMetricas;
+  protocoloRiscoSuicidio?: {
+    ativo: boolean;
+    nivelAtual: string | null;
+    ultimaEntrada: { data: string; descricao: string | null } | null;
+    ultimaAlta: { data: string; descricao: string | null } | null;
+  };
 };
 
 type AdversarioResumo = {
@@ -393,6 +399,28 @@ export function RelatorioTransferenciaModalTrigger() {
         label: "Emitido em",
         value: formatDate(new Date().toISOString()),
       },
+      relatorio.protocoloRiscoSuicidio
+        ? {
+            label: "Protocolo suicidio",
+            value: relatorio.protocoloRiscoSuicidio.ativo
+              ? `Ativo (nivel ${
+                  relatorio.protocoloRiscoSuicidio.nivelAtual ?? "N/I"
+                })`
+              : "Sem protocolo ativo",
+          }
+        : null,
+      relatorio.protocoloRiscoSuicidio?.ultimaAlta
+        ? {
+            label: "Alta medica protocolo",
+            value: `${formatDate(
+              relatorio.protocoloRiscoSuicidio.ultimaAlta.data
+            )}${
+              relatorio.protocoloRiscoSuicidio.ultimaAlta.descricao
+                ? ` - ${relatorio.protocoloRiscoSuicidio.ultimaAlta.descricao}`
+                : ""
+            }`,
+          }
+        : null,
     ].filter(Boolean) as Array<{ label: string; value: string }>;
     let cursorY = 24;
 
@@ -711,6 +739,37 @@ export function RelatorioTransferenciaModalTrigger() {
                         </div>
                       </div>
                     </div>
+
+                    {relatorio.protocoloRiscoSuicidio && (
+                      <div className="rounded-2xl border border-rose-100 bg-rose-50/80 p-4 text-sm text-rose-900">
+                        <p className="text-sm font-semibold text-rose-800">
+                          Protocolo de risco de suicidio
+                        </p>
+                        <p className="text-xs">
+                          {relatorio.protocoloRiscoSuicidio.ativo
+                            ? `Ativo (nivel ${relatorio.protocoloRiscoSuicidio.nivelAtual ?? "N/I"})`
+                            : "Sem protocolo ativo"}
+                        </p>
+                        {relatorio.protocoloRiscoSuicidio.ultimaEntrada && (
+                          <p className="text-xs">
+                            Inserido em{" "}
+                            {formatDate(relatorio.protocoloRiscoSuicidio.ultimaEntrada.data)}
+                            {relatorio.protocoloRiscoSuicidio.ultimaEntrada.descricao
+                              ? ` — ${relatorio.protocoloRiscoSuicidio.ultimaEntrada.descricao}`
+                              : ""}
+                          </p>
+                        )}
+                        {relatorio.protocoloRiscoSuicidio.ultimaAlta && (
+                          <p className="text-xs">
+                            Alta medica em{" "}
+                            {formatDate(relatorio.protocoloRiscoSuicidio.ultimaAlta.data)}
+                            {relatorio.protocoloRiscoSuicidio.ultimaAlta.descricao
+                              ? ` — ${relatorio.protocoloRiscoSuicidio.ultimaAlta.descricao}`
+                              : ""}
+                          </p>
+                        )}
+                      </div>
+                    )}
 
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="rounded-2xl border border-slate-200 p-4">

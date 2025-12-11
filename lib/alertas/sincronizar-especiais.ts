@@ -10,6 +10,9 @@ import {
   normalizarNivelRisco,
   obterDescricaoPadrao,
 } from "./especiais";
+import {
+  registrarEntradaProtocoloSuicidio,
+} from "@/lib/alertas/protocolo-risco-suicidio";
 export {
   mapearTipoEspecialPorCodigo,
   ALERTAS_ESPECIAIS,
@@ -140,6 +143,16 @@ export async function aplicarAlertasEspeciais(
             nivelRisco: nivelRiscoFinal,
           },
         });
+
+        if (tipo === "RISCO_SUICIDIO") {
+          await registrarEntradaProtocoloSuicidio(executor, {
+            adolescenteId,
+            alertaId: alertaCriado.id,
+            descricao,
+            operadorId: contexto?.operadorId ?? null,
+            registradoEm: alertaCriado.criadoEm ?? undefined,
+          });
+        }
 
         if (contexto?.operadorId) {
           await executor.logAuditoria.create({

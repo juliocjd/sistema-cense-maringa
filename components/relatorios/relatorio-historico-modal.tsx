@@ -61,6 +61,12 @@ type RelatorioInterno = {
   };
   conflitos: RelatorioConflito[];
   alertas: RelatorioAlerta[];
+  protocoloRiscoSuicidio?: {
+    ativo: boolean;
+    nivelAtual: string | null;
+    ultimaEntrada: { data: string; descricao: string | null } | null;
+    ultimaAlta: { data: string; descricao: string | null } | null;
+  };
 };
 
 const formatDate = (value?: string | null) => {
@@ -91,6 +97,28 @@ const gerarTextoHistorico = (relatorio: RelatorioInterno) => {
       relatorio.adolescente.bairro ?? "Nao informado"
     }`
   );
+  if (relatorio.protocoloRiscoSuicidio) {
+    const bloco = relatorio.protocoloRiscoSuicidio;
+    const status = bloco.ativo
+      ? `Protocolo ativo (nivel ${bloco.nivelAtual ?? "N/I"})`
+      : "Protocolo encerrado";
+    linhas.push("");
+    linhas.push(`Risco de suicidio: ${status}`);
+    if (bloco.ultimaEntrada) {
+      linhas.push(
+        `- Inserido em ${formatDate(
+          bloco.ultimaEntrada.data
+        )}${bloco.ultimaEntrada.descricao ? ` (${bloco.ultimaEntrada.descricao})` : ""}`
+      );
+    }
+    if (bloco.ultimaAlta) {
+      linhas.push(
+        `- Alta medica em ${formatDate(
+          bloco.ultimaAlta.data
+        )}${bloco.ultimaAlta.descricao ? ` (${bloco.ultimaAlta.descricao})` : ""}`
+      );
+    }
+  }
   linhas.push("");
   linhas.push(`Conflitos registrados (${relatorio.conflitos.length}):`);
   relatorio.conflitos.forEach((conflito, index) => {
@@ -208,9 +236,36 @@ export function RelatorioHistoricoModalTrigger() {
       14,
       36
     );
+    let blocoResumoY = 42;
+    if (relatorio.protocoloRiscoSuicidio) {
+      const status = relatorio.protocoloRiscoSuicidio.ativo
+        ? `Protocolo ativo (nivel ${
+            relatorio.protocoloRiscoSuicidio.nivelAtual ?? "N/I"
+          })`
+        : "Protocolo encerrado";
+      doc.text(status, 14, blocoResumoY);
+      blocoResumoY += 6;
+      if (relatorio.protocoloRiscoSuicidio.ultimaEntrada) {
+        doc.text(
+          `Ingresso: ${formatDate(relatorio.protocoloRiscoSuicidio.ultimaEntrada.data)}`,
+          14,
+          blocoResumoY
+        );
+        blocoResumoY += 6;
+      }
+      if (relatorio.protocoloRiscoSuicidio.ultimaAlta) {
+        doc.text(
+          `Alta medica: ${formatDate(relatorio.protocoloRiscoSuicidio.ultimaAlta.data)}`,
+          14,
+          blocoResumoY
+        );
+        blocoResumoY += 6;
+      }
+      blocoResumoY += 2;
+    }
 
     autoTable(doc, {
-      startY: 42,
+      startY: blocoResumoY,
       head: [["Data", "Tipo", "Status", "Adversario", "Resumo"]],
       body: relatorio.conflitos.map((conflito) => [
         formatDate(conflito.criadoEm),
@@ -391,6 +446,37 @@ export function RelatorioHistoricoModalTrigger() {
                         </div>
                       </div>
                     </div>
+
+                    {relatorio.protocoloRiscoSuicidio && (
+                      <div className="rounded-2xl border border-rose-100 bg-rose-50 p-4 text-sm text-rose-900">
+                        <p className="text-sm font-semibold text-rose-800">
+                          Protocolo de risco de suicidio
+                        </p>
+                        <p className="text-xs text-rose-700">
+                          {relatorio.protocoloRiscoSuicidio.ativo
+                            ? `Ativo (nivel ${relatorio.protocoloRiscoSuicidio.nivelAtual ?? "N/I"})`
+                            : "Sem protocolo ativo"}
+                        </p>
+                        {relatorio.protocoloRiscoSuicidio.ultimaEntrada && (
+                          <p className="text-xs text-rose-700">
+                            Inserido em{" "}
+                            {formatDate(relatorio.protocoloRiscoSuicidio.ultimaEntrada.data)}
+                            {relatorio.protocoloRiscoSuicidio.ultimaEntrada.descricao
+                              ? ` — ${relatorio.protocoloRiscoSuicidio.ultimaEntrada.descricao}`
+                              : ""}
+                          </p>
+                        )}
+                        {relatorio.protocoloRiscoSuicidio.ultimaAlta && (
+                          <p className="text-xs text-rose-700">
+                            Alta medica em{" "}
+                            {formatDate(relatorio.protocoloRiscoSuicidio.ultimaAlta.data)}
+                            {relatorio.protocoloRiscoSuicidio.ultimaAlta.descricao
+                              ? ` — ${relatorio.protocoloRiscoSuicidio.ultimaAlta.descricao}`
+                              : ""}
+                          </p>
+                        )}
+                      </div>
+                    )}
 
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="rounded-2xl border border-slate-200 p-4">
