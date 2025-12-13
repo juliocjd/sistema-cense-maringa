@@ -53,6 +53,10 @@ type RiscoDetalhadoResumo = {
   tagLabel?: string;
   frontalSuicidioLabel?: string;
   semVigilanciaFrontalLabel?: string;
+  altaMedicaInfo?: {
+    data: string;
+    descricao: string | null;
+  } | null;
   conflitoId?: string;
 };
 
@@ -74,7 +78,17 @@ const resumirDescricaoAlerta = (
 type VerificacaoConflito = {
   permite_alocacao: boolean;
   requer_justificativa: boolean;
-  nivel_risco: "CRITICO" | "ALTO" | "MEDIO" | "BAIXO" | null;
+  nivel_risco:
+    | "CRITICO"
+    | "ALTO"
+    | "MEDIO"
+    | "BAIXO"
+    | "ATENCAO"
+    | "MONITORAR"
+    | "SEGURO"
+    | "LIVRE"
+    | null;
+  nivel_numerico: number | null;
   alertas: {
     tipo: string;
     nivel: number;
@@ -132,7 +146,8 @@ interface ModalAlojamentoDetalhesProps {
     adolescente: Adolescente,
     destinoAlojamentoId: string,
     justificativa?: string,
-    motivoOperador?: string
+    motivoOperador?: string,
+    motivoObrigatorio?: boolean
   ) => Promise<void>;
   onSolicitarAlocacao: () => void;
   onInterditar: (
@@ -224,6 +239,20 @@ const normalizarNivelTexto = (
   return null;
 };
 
+const riscoExigeMotivoTransferencia = (
+  nivel?: string | null,
+  nivelNumerico?: number | null
+) => {
+  if (typeof nivelNumerico === "number") {
+    return nivelNumerico >= 3;
+  }
+  const texto = (nivel ?? "").toString().trim().toUpperCase();
+  if (!texto) {
+    return false;
+  }
+  return texto === "ATENCAO" || texto === "ALTO" || texto === "CRITICO";
+};
+
 const formatarNivelBadgeLabel = (nivel: NivelBadge) => {
   switch (nivel) {
     case "CRITICO":
@@ -265,6 +294,69 @@ export default function ModalAlojamentoDetalhes({
       return acc;
     }, {});
   }, [ocupante?.alertasEspeciais]);
+
+  const suicidioAlertaId =
+    alertasEspeciaisPorTipo.RISCO_SUICIDIO?.id ?? null;
+  const [protocoloSuicidioInfo, setProtocoloSuicidioInfo] = useState<{
+    ultimaEntrada?: { data: string; descricao: string | null } | null;
+    ultimaAlta?: { data: string; descricao: string | null } | null;
+  } | null>(null);
+
+  useEffect(() => {
+    let ativo = true;
+    if (!suicidioAlertaId) {
+      setProtocoloSuicidioInfo(null);
+      return;
+    }
+    const carregar = async () => {
+      try {
+        const response = await fetch(`/api/alertas/${suicidioAlertaId}`);
+        if (!response.ok) {
+          if (ativo) {
+            setProtocoloSuicidioInfo(null);
+          }
+          return;
+        }
+        const dados = await response.json();
+        if (!ativo) {
+          return;
+        }
+        setProtocoloSuicidioInfo(
+          dados?.protocoloRiscoSuicidio ?? null
+        );
+      } catch {
+        if (ativo) {
+          setProtocoloSuicidioInfo(null);
+        }
+      }
+    };
+    carregar();
+    return () => {
+      ativo = false;
+    };
+  }, [suicidioAlertaId]);
+
+  const altaMedicaValida = useMemo(() => {
+    const registro = protocoloSuicidioInfo?.ultimaAlta;
+    if (!registro?.data) {
+      return null;
+    }
+    const dataAlta = new Date(registro.data);
+    if (Number.isNaN(dataAlta.getTime())) {
+      return registro;
+    }
+    const entrada = protocoloSuicidioInfo?.ultimaEntrada?.data
+      ? new Date(protocoloSuicidioInfo.ultimaEntrada.data)
+      : null;
+    if (
+      entrada &&
+      !Number.isNaN(entrada.getTime()) &&
+      entrada.getTime() > dataAlta.getTime()
+    ) {
+      return null;
+    }
+    return registro;
+  }, [protocoloSuicidioInfo]);
 
   const [transferenciaCasaId, setTransferenciaCasaId] = useState("");
   const [transferenciaAlojamentoId, setTransferenciaAlojamentoId] =
@@ -753,6 +845,7 @@ const riscosDetalhados = useMemo(() => {
         tagLabel: formatarNivelBadgeLabel(suicidioNivel),
         frontalSuicidioLabel: frontalFlagLabel,
         semVigilanciaFrontalLabel: semVigilanciaLabel,
+        altaMedicaInfo: altaMedicaValida,
       });
     }
 
@@ -798,6 +891,7 @@ const riscosDetalhados = useMemo(() => {
     conflitosAvaliacaoDetalhados,
     frontalSuicidioInfo,
     semVigilanciaFrontal,
+    altaMedicaValida,
   ]);
 
 const motivosAmbientaisDetalhados = useMemo<MotivoAmbientalDetalhado[]>(() => {
@@ -870,6 +964,10 @@ const motivosAmbientaisDetalhados = useMemo<MotivoAmbientalDetalhado[]>(() => {
         permite_alocacao: payload.permite_alocacao,
         requer_justificativa: Boolean(payload.requer_justificativa),
         nivel_risco: payload.nivel_risco ?? null,
+        nivel_numerico:
+          typeof payload.nivel_numerico === "number"
+            ? payload.nivel_numerico
+            : null,
         alertas: Array.isArray(payload.alertas) ? payload.alertas : [],
       });
     } catch (error) {
@@ -880,6 +978,13 @@ const motivosAmbientaisDetalhados = useMemo<MotivoAmbientalDetalhado[]>(() => {
       setTransferindo(false);
     }
   };
+
+  const transferenciaMotivoObrigatorio = transferenciaVerificacao
+    ? riscoExigeMotivoTransferencia(
+        transferenciaVerificacao.nivel_risco,
+        transferenciaVerificacao.nivel_numerico
+      )
+    : false;
 
   const confirmarTransferencia = async () => {
     if (!ocupante || !transferenciaAlojamentoId) {
@@ -902,7 +1007,10 @@ const motivosAmbientaisDetalhados = useMemo<MotivoAmbientalDetalhado[]>(() => {
       return;
     }
 
-    if (transferenciaMotivo.trim().length === 0) {
+    if (
+      transferenciaMotivoObrigatorio &&
+      transferenciaMotivo.trim().length === 0
+    ) {
       setTransferenciaErro("Informe o motivo da transferencia.");
       return;
     }
@@ -916,7 +1024,10 @@ const motivosAmbientaisDetalhados = useMemo<MotivoAmbientalDetalhado[]>(() => {
         transferenciaVerificacao.requer_justificativa
           ? transferenciaJustificativa
           : undefined,
-        transferenciaMotivo.trim()
+        transferenciaMotivoObrigatorio
+          ? transferenciaMotivo.trim()
+          : undefined,
+        transferenciaMotivoObrigatorio
       );
       setTransferenciaCasaId("");
       setTransferenciaAlojamentoId("");
@@ -1495,6 +1606,19 @@ const motivosAmbientaisDetalhados = useMemo<MotivoAmbientalDetalhado[]>(() => {
                                         {risco.semVigilanciaFrontalLabel}
                                       </span>
                                     )}
+                                    {risco.altaMedicaInfo && (
+                                      <span
+                                        className="inline-flex items-center gap-1 text-[10px] font-semibold rounded-full border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-emerald-800"
+                                        title={
+                                          risco.altaMedicaInfo.descricao ?? undefined
+                                        }
+                                      >
+                                        <CheckCircle size={10} />
+                                        {`Alta medica ${formatarDataCurta(
+                                          risco.altaMedicaInfo.data
+                                        ) ?? ""}`}
+                                      </span>
+                                    )}
                                   </div>
 
                                   {risco.envolvidos && risco.envolvidos.length > 0 && (
@@ -1828,7 +1952,7 @@ const motivosAmbientaisDetalhados = useMemo<MotivoAmbientalDetalhado[]>(() => {
                     </div>
                   )}
 
-                  {transferenciaAlojamentoId && (
+                  {transferenciaAlojamentoId && transferenciaMotivoObrigatorio && (
                     <div className="mt-3">
                       <label className="text-xs font-semibold uppercase text-slate-500">
                         Motivo da transferencia (obrigatorio)

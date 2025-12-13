@@ -9,7 +9,16 @@ type Alojamento = any;
 type VerificacaoConflito = {
   permite_alocacao: boolean;
   requer_justificativa: boolean;
-  nivel_risco: "CRÃTICO" | "ALTO" | "MEDIO" | "BAIXO" | null;
+  nivel_risco:
+    | "CRITICO"
+    | "ALTO"
+    | "MEDIO"
+    | "BAIXO"
+    | "MONITORAR"
+    | "SEGURO"
+    | "LIVRE"
+    | null;
+  nivel_numerico: number | null;
   alertas: {
     tipo: string;
     nivel: number;
@@ -34,7 +43,8 @@ interface ModalAlocacaoProps {
     adolescenteId: string,
     alojamentoId: string,
     justificativa?: string,
-    motivoTransferencia?: string
+    motivoTransferencia?: string,
+    motivoTransferenciaObrigatorio?: boolean
   ) => Promise<void>;
 }
 
@@ -85,11 +95,17 @@ export function ModalAlocacao({
     return partes.join(" - ");
   };
 
-  const riscoIndicaPerigo = (nivel?: string | null) => {
-    const texto = (nivel ?? "").toString().trim().toUpperCase();
-    if (!texto) return false;
-    return texto !== "SEGURO";
-  };
+const riscoIndicaPerigo = (
+  nivel?: string | null,
+  nivelNumerico?: number | null
+) => {
+  if (typeof nivelNumerico === "number") {
+    return nivelNumerico >= 3;
+  }
+  const texto = (nivel ?? "").toString().trim().toUpperCase();
+  if (!texto) return false;
+  return !["LIVRE", "SEGURO", "MONITORAR"].includes(texto);
+};
 
   useEffect(() => {
     if (!isOpen) {
@@ -141,6 +157,8 @@ export function ModalAlocacao({
         permite_alocacao: data.permite_alocacao,
         requer_justificativa: data.requer_justificativa,
         nivel_risco: data.nivel_risco,
+        nivel_numerico:
+          typeof data.nivel_numerico === "number" ? data.nivel_numerico : null,
         alertas: data.alertas || [],
       };
 
@@ -155,6 +173,7 @@ export function ModalAlocacao({
         permite_alocacao: true,
         requer_justificativa: false,
         nivel_risco: null,
+        nivel_numerico: null,
         alertas: [
           {
             tipo: "ERRO_VERIFICACAO",
@@ -181,7 +200,10 @@ export function ModalAlocacao({
   const handleConfirmarAlocacao = async () => {
     if (!adolescenteSelecionado) return;
     const jaAlocado = Boolean(adolescenteSelecionado.alojamentoAtualId);
-    const riscoRelevante = riscoIndicaPerigo(verificacao?.nivel_risco);
+    const riscoRelevante = riscoIndicaPerigo(
+      verificacao?.nivel_risco,
+      verificacao?.nivel_numerico
+    );
     const exigeMotivoTransferencia = Boolean(jaAlocado && riscoRelevante);
 
     if (verificacao?.requer_justificativa && !justificativa.trim()) {
@@ -212,7 +234,8 @@ export function ModalAlocacao({
           : undefined,
         exigeMotivoTransferencia
           ? motivoTransferenciaLimpo || "Transferencia interna via mapa"
-          : undefined
+          : undefined,
+        exigeMotivoTransferencia
       );
       handleFechar();
     } catch (error) {
@@ -499,7 +522,10 @@ export function ModalAlocacao({
                   )}
 
                   {adolescenteSelecionado.alojamentoAtualId &&
-                    riscoIndicaPerigo(verificacao?.nivel_risco) && (
+                    riscoIndicaPerigo(
+                      verificacao?.nivel_risco,
+                      verificacao?.nivel_numerico
+                    ) && (
                     <div className="mb-6">
                       <label className="block text-sm font-semibold text-gray-800 mb-2">
                         Motivo da transferencia *

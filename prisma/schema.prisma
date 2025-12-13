@@ -89,7 +89,7 @@ model TecnicoReferencia {
 model Casa {
   id                           String                  @id @default(uuid())
   nome                         String
-  numero                       Int
+  numero                       Int                     @unique
   isolada                      Boolean                 @default(false)
   observacoes                  String?
   alojamentos                  Alojamento[]
@@ -128,7 +128,7 @@ model Alojamento {
 
 model ZonaRisco {
   id              String                @id @default(uuid())
-  nomeZona        String                @map("nome_zona")
+  nomeZona        String                @map("nome_zona") @unique
   descricao       String?
   alojamentos     Alojamento[]
   alojamentosLink ZonaRiscoAlojamento[]

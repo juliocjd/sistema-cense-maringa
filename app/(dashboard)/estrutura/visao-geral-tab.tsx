@@ -587,7 +587,8 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
     adolescenteId: string,
     alojamentoId: string,
     justificativa?: string,
-    motivoTransferencia?: string
+    motivoTransferencia?: string,
+    motivoTransferenciaObrigatorio?: boolean
   ) => {
     await executarOperacao(async () => {
       const response = await fetch("/api/alocar", {
@@ -600,6 +601,9 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
           alojamentoId,
           justificativa,
           motivoTransferencia,
+          motivoTransferenciaObrigatorio: Boolean(
+            motivoTransferenciaObrigatorio
+          ),
           medidas_adicionais: [],
         }),
       });
@@ -680,25 +684,30 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
     adolescente: AdolescenteTipo,
     destinoAlojamentoId: string,
     justificativa?: string,
-    motivoTransferencia?: string
+    motivoTransferencia?: string,
+    motivoTransferenciaObrigatorio?: boolean
   ) => {
-    if (!motivoTransferencia || motivoTransferencia.trim().length === 0) {
+    const motivoLimpo = motivoTransferencia?.trim() ?? "";
+    if (motivoTransferenciaObrigatorio && motivoLimpo.length === 0) {
       throw new Error("Informe o motivo da transferencia.");
     }
 
     await executarOperacao(async () => {
+      const payload: Record<string, unknown> = {
+        adolescenteId: adolescente.id,
+        alojamentoId: destinoAlojamentoId,
+        justificativa,
+        motivoTransferencia: motivoLimpo.length > 0 ? motivoLimpo : undefined,
+        motivoTransferenciaObrigatorio: Boolean(motivoTransferenciaObrigatorio),
+        medidas_adicionais: [],
+      };
+
       const response = await fetch("/api/alocar", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          adolescenteId: adolescente.id,
-          alojamentoId: destinoAlojamentoId,
-          justificativa,
-          motivoTransferencia,
-          medidas_adicionais: [],
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {

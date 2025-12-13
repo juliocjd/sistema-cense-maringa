@@ -677,6 +677,21 @@ export function calcularRiscoAlojamento({
     }
   }
 
+  const suicidioNivelTexto = (ocupante.alertaRiscoSuicidioNivel ?? "")
+    .toString()
+    .trim()
+    .toUpperCase();
+  if (
+    ocupante.alertaRiscoSuicidio &&
+    (suicidioNivelTexto === "ALTO" || suicidioNivelTexto === "CRITICO")
+  ) {
+    registrarMotivo(
+      2,
+      `Protocolo de risco de suicidio ativo (nivel ${suicidioNivelTexto}).`,
+      "AMBIENTAL"
+    );
+  }
+
   const niveisOrdenados: Array<5 | 4 | 3 | 2> = [5, 4, 3, 2];
   const nivelDetectado = niveisOrdenados.find(
     (nivel) => motivosPorNivel[nivel].length > 0

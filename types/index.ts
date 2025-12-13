@@ -309,7 +309,17 @@ export interface Casa {
 export interface VerificacaoConflito {
   permite_alocacao: boolean;
   requer_justificativa: boolean;
-  nivel_risco: "CRITICO" | "ALTO" | "MEDIO" | "BAIXO" | null;
+  nivel_risco:
+    | "CRITICO"
+    | "ALTO"
+    | "MEDIO"
+    | "BAIXO"
+    | "ATENCAO"
+    | "MONITORAR"
+    | "SEGURO"
+    | "LIVRE"
+    | null;
+  nivel_numerico: number | null;
   alertas: AlertaConflito[];
 }
 

@@ -31,7 +31,8 @@ interface MapaInterativoProps {
     adolescenteId: string,
     alojamentoId: string,
     justificativa?: string,
-    motivoTransferencia?: string
+    motivoTransferencia?: string,
+    motivoTransferenciaObrigatorio?: boolean
   ) => Promise<void>;
   onDesalocar: (
     alojamentoId: string,
@@ -43,7 +44,8 @@ interface MapaInterativoProps {
     adolescente: Adolescente,
     destinoAlojamentoId: string,
     justificativa?: string,
-    motivoOperador?: string
+    motivoOperador?: string,
+    motivoObrigatorio?: boolean
   ) => Promise<void>;
   onAlterarStatusAlojamento: (
     alojamentoId: string,
@@ -234,14 +236,16 @@ export function MapaInterativo({
     adolescente: Adolescente,
     destinoAlojamentoId: string,
     justificativa?: string,
-    motivoOperador?: string
+    motivoOperador?: string,
+    motivoObrigatorio?: boolean
   ) => {
     try {
       await onTransferir(
         adolescente,
         destinoAlojamentoId,
         justificativa,
-        motivoOperador
+        motivoOperador,
+        motivoObrigatorio
       );
       fecharModalDetalhes();
     } catch (error) {
@@ -607,4 +611,3 @@ export function MapaInterativo({
     </div>
   );
 }
-

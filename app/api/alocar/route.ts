@@ -67,6 +67,10 @@ export async function POST(request: NextRequest) {
     const justificativa = ensureString(body.justificativa);
     const medidasAdicionais = normalizeArrayOfStrings(body.medidas_adicionais);
     const motivoTransferencia = ensureString(body.motivoTransferencia);
+    const motivoTransferenciaObrigatorio =
+      typeof body.motivoTransferenciaObrigatorio === "boolean"
+        ? body.motivoTransferenciaObrigatorio
+        : false;
 
     if (!adolescenteId || !alojamentoId) {
       return NextResponse.json(
@@ -178,8 +182,10 @@ export async function POST(request: NextRequest) {
 
     const origemAlojamentoAtualId = adolescente.alojamentoAtualId ?? null;
     const ehTransferenciaInterna = Boolean(origemAlojamentoAtualId);
+    const motivoTransferenciaExigido =
+      ehTransferenciaInterna && motivoTransferenciaObrigatorio;
 
-    if (ehTransferenciaInterna && motivoTransferencia.length === 0) {
+    if (motivoTransferenciaExigido && motivoTransferencia.length === 0) {
       return NextResponse.json(
         { erro: "Informe o motivo da transferencia de alojamento." },
         { status: 400 }

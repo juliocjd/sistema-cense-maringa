@@ -234,6 +234,7 @@ describe("POST /api/alocar", () => {
     const request = createRequest("POST", {
       adolescenteId: "ado-2",
       alojamentoId: "aloj-1",
+      motivoTransferenciaObrigatorio: true,
     });
 
     const response = await POST(request);
@@ -241,6 +242,47 @@ describe("POST /api/alocar", () => {
 
     expect(response.status).toBe(400);
     expect(json.erro).toContain("motivo");
+  });
+
+  it("permite transferencia sem motivo quando nao obrigatorio", async () => {
+    mockedAuth.mockResolvedValueOnce({ user: { id: "oper-1" } } as any);
+    mockedPrisma.operador.findUnique.mockResolvedValueOnce({ id: "oper-1" });
+
+    mockedPrisma.adolescente.findUnique.mockResolvedValueOnce({
+      id: "ado-3",
+      alojamentoAtualId: "aloj-origem",
+      statusUnidade: "ATIVO",
+      alojamentoAtual: {
+        id: "aloj-origem",
+        numeroAlojamento: "02",
+        casa: { id: "casa-1", nome: "Casa 01" },
+      },
+    });
+
+    mockedPrisma.adolescente.update.mockResolvedValueOnce({
+      id: "ado-3",
+      nomeCompleto: "Transferido Sem Risco",
+      alojamentoAtual: {
+        id: "aloj-1",
+        numeroAlojamento: "01",
+        ala: "B",
+        casa: { id: "casa-1", nome: "Casa 01" },
+      },
+    } as any);
+
+    const request = createRequest("POST", {
+      adolescenteId: "ado-3",
+      alojamentoId: "aloj-1",
+      motivoTransferenciaObrigatorio: false,
+      medidas_adicionais: [],
+    });
+
+    const response = await POST(request);
+    const json = await response.json();
+
+    expect(response.status).toBe(201);
+    expect(json.sucesso).toBe(true);
+    expect(mockedPrisma.adolescente.update).toHaveBeenCalledTimes(1);
   });
 
   it("retorna 400 quando verificacao exige justificativa sem fornecer", async () => {

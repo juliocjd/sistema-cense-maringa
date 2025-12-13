@@ -60,7 +60,7 @@ export function ModalNovoAlerta({ onClose, onSucesso }: ModalNovoAlertaProps) {
   };
 
   const sugerirNivelPorTipo = (valor: string): NivelRisco => {
-    if (valor === "RISCO_SUICIDIO") return "CRITICO";
+    if (valor === "RISCO_SUICIDIO") return "ALTO";
     if (
       valor === "FUGA" ||
       valor === "SAUDE_CONFIDENCIAL" ||
