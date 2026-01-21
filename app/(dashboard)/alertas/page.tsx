@@ -48,6 +48,7 @@ function AlertasPageContent() {
   const initialTipo = searchParams.get("tipoAlerta") ?? "";
   const initialAdolescenteId = searchParams.get("adolescenteId") ?? "";
   const initialBusca = searchParams.get("busca") ?? "";
+  const alertaIdParam = searchParams.get("alertaId") ?? "";
 
   const [alertas, setAlertas] = useState<AlertaAtivo[]>([]);
   const [casas, setCasas] = useState<Casa[]>([]);
@@ -74,6 +75,37 @@ function AlertasPageContent() {
   useEffect(() => {
     carregarCasas();
   }, []);
+
+  useEffect(() => {
+    if (!alertaIdParam) {
+      return;
+    }
+    let ativo = true;
+    const carregarAlerta = async () => {
+      try {
+        const response = await fetch(`/api/alertas/${alertaIdParam}`);
+        if (!response.ok) {
+          const payload = await response.json().catch(() => null);
+          throw new Error(payload?.erro ?? "Erro ao carregar alerta");
+        }
+        const alerta = (await response.json()) as AlertaAtivo;
+        if (!ativo) return;
+        setAlertaEdicao(alerta);
+      } catch (error) {
+        if (!ativo) return;
+        console.error("Erro ao carregar alerta:", error);
+        alert(
+          error instanceof Error
+            ? error.message
+            : "Erro ao carregar alerta"
+        );
+      }
+    };
+    carregarAlerta();
+    return () => {
+      ativo = false;
+    };
+  }, [alertaIdParam]);
 
   useEffect(() => {
     carregarAlertas();

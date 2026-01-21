@@ -18,6 +18,7 @@ const prismaSetup = vi.hoisted(() => {
       create: vi.fn(),
       findUnique: vi.fn(),
       deleteMany: vi.fn(),
+      updateMany: vi.fn(),
     },
     logAuditoria: { create: vi.fn() },
   };
@@ -25,6 +26,7 @@ const prismaSetup = vi.hoisted(() => {
     if (typeof arg === "function") {
       return arg({
         conflito: refs.conflito,
+        logAuditoria: refs.logAuditoria,
         tentativaMediacao: {
           deleteMany: vi.fn(),
         },
@@ -75,12 +77,14 @@ beforeEach(() => {
   conflitoMock.create.mockReset();
   conflitoMock.findUnique.mockReset();
   conflitoMock.deleteMany.mockReset();
+  conflitoMock.updateMany.mockReset();
   logAuditoriaMock.create.mockReset();
   transactionMock.mockReset();
   transactionMock.mockImplementation((arg: any) => {
     if (typeof arg === "function") {
       return arg({
         conflito: conflitoMock,
+        logAuditoria: logAuditoriaMock,
         tentativaMediacao: {
           deleteMany: vi.fn(),
         },
@@ -131,12 +135,19 @@ describe("POST /api/conflitos com lados/partes", () => {
     expect(logAuditoriaMock.create).toHaveBeenCalledTimes(1);
   });
 
-  it("retorna mensagem quando todas as combinacoes ja existirem", async () => {
+  it("reabre conflitos quando todas as combinacoes ja existirem", async () => {
     mockedAuth.mockResolvedValue({ user: { id: "operador-11" } });
     operadorMock.findUnique.mockResolvedValue({ id: "operador-11" });
     conflitoMock.findMany.mockResolvedValue([
       { id: "c1", adolescenteAId: "adol-1", adolescenteBId: "adol-3" },
     ]);
+    conflitoMock.create.mockImplementation(({ data }) =>
+      Promise.resolve({
+        id: `${data.adolescenteAId}-${data.adolescenteBId}`,
+        adolescenteAId: data.adolescenteAId,
+        adolescenteBId: data.adolescenteBId,
+      })
+    );
 
     const request = buildRequest({
       tipoConflito: "FACCAO",
@@ -150,9 +161,10 @@ describe("POST /api/conflitos com lados/partes", () => {
     const response = await POST(request);
     const json = await response.json();
 
-    expect(response.status).toBe(200);
-    expect(json.mensagem).toContain("Nenhum novo conflito");
-    expect(conflitoMock.create).not.toHaveBeenCalled();
+    expect(response.status).toBe(201);
+    expect(json.mensagem).toContain("Conflitos reabertos");
+    expect(json.conflitosReativados).toBe(1);
+    expect(conflitoMock.create).toHaveBeenCalledTimes(1);
   });
 });
 

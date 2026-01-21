@@ -729,18 +729,26 @@ export function DetalhesCI({
                       - {conflito.adolescenteA?.nome ?? "Lado 1"} {" "}
                       {conflito.adolescenteB?.nome ?? "Lado 2"}
                     </span>
-                    {onExcluirConflito && conflito.id && (
-                      <button
-                        type="button"
-                        onClick={() => handleExcluirConflitoGerado(conflito.id)}
-                        disabled={excluindoConflitoId === conflito.id}
-                        className="text-red-600 text-xs font-semibold hover:underline disabled:text-gray-400"
+                    <div className="flex items-center gap-2">
+                      <Link
+                        href={`/conflitos/${conflito.id}`}
+                        className="text-blue-600 text-xs font-semibold hover:underline"
                       >
-                        {excluindoConflitoId === conflito.id
-                          ? "Excluindo..."
-                          : "Excluir"}
-                      </button>
-                    )}
+                        Ver conflito
+                      </Link>
+                      {onExcluirConflito && conflito.id && (
+                        <button
+                          type="button"
+                          onClick={() => handleExcluirConflitoGerado(conflito.id)}
+                          disabled={excluindoConflitoId === conflito.id}
+                          className="text-red-600 text-xs font-semibold hover:underline disabled:text-gray-400"
+                        >
+                          {excluindoConflitoId === conflito.id
+                            ? "Excluindo..."
+                            : "Excluir"}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -782,18 +790,29 @@ export function DetalhesCI({
                     <span>
                       - {alerta.adolescente} - {alerta.tipo}
                     </span>
-                    {onExcluirAlerta && alerta.id && (
-                      <button
-                        type="button"
-                        onClick={() => handleExcluirAlertaGerado(alerta.id)}
-                        disabled={excluindoAlertaId === alerta.id}
-                        className="text-red-600 text-xs font-semibold hover:underline disabled:text-gray-400"
+                    <div className="flex items-center gap-2">
+                      <Link
+                        href={{
+                          pathname: "/alertas",
+                          query: { alertaId: alerta.id, status: "TODOS" },
+                        }}
+                        className="text-blue-600 text-xs font-semibold hover:underline"
                       >
-                        {excluindoAlertaId === alerta.id
-                          ? "Excluindo..."
-                          : "Excluir"}
-                      </button>
-                    )}
+                        Ver alerta
+                      </Link>
+                      {onExcluirAlerta && alerta.id && (
+                        <button
+                          type="button"
+                          onClick={() => handleExcluirAlertaGerado(alerta.id)}
+                          disabled={excluindoAlertaId === alerta.id}
+                          className="text-red-600 text-xs font-semibold hover:underline disabled:text-gray-400"
+                        >
+                          {excluindoAlertaId === alerta.id
+                            ? "Excluindo..."
+                            : "Excluir"}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>

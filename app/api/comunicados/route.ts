@@ -7,6 +7,11 @@ import {
   normalizarNivelRisco,
 } from "@/lib/alertas/especiais";
 import { registrarRiscoFugaAutomatico } from "@/lib/adolescentes/risco-fuga";
+import {
+  ConflitoPair,
+  dedupePairs,
+  resolveExistingConflictPairs,
+} from "@/lib/conflitos/pairs";
 
 const prisma = new PrismaClient();
 const CI_ALERTA_ESPECIAL_MAP: Record<string, keyof typeof ALERTAS_ESPECIAIS> =
@@ -444,100 +449,57 @@ export async function POST(request: NextRequest) {
       const conflitosGerados: string[] = [];
 
       if (deveGerarConflito && adolescentesIdsArray.length >= 2) {
-        const lado1 =
+        const lado1Base =
           lado1Ids.length > 0
             ? lado1Ids
             : adolescentesIdsArray.length > 0
             ? [adolescentesIdsArray[0]]
             : [];
-        const lado2 =
+        const lado2Base =
           lado2Ids.length > 0
             ? lado2Ids
             : adolescentesIdsArray.slice(1);
 
-        const pares: Array<{ aId: string; bId: string }> = [];
-        lado1.forEach((aId) => {
-          lado2.forEach((bId) => {
-            if (!aId || !bId || aId === bId) return;
-            pares.push({ aId, bId });
-          });
-        });
-
-        const condicoesExistentes =
-          pares.length > 0
-            ? pares.map(({ aId, bId }) => ({
-                OR: [
-                  { AND: [{ adolescenteAId: aId }, { adolescenteBId: bId }] },
-                  { AND: [{ adolescenteAId: bId }, { adolescenteBId: aId }] },
-                ],
-              }))
-            : [];
-
-        const existentesSet =
-          condicoesExistentes.length > 0
-            ? new Set(
-                (
-                  await tx.conflito.findMany({
-                    where: {
-                      status: "ATIVO",
-                      OR: condicoesExistentes,
-                    },
-                    select: {
-                      adolescenteAId: true,
-                      adolescenteBId: true,
-                    },
-                  })
-                ).map((item) =>
-                  [item.adolescenteAId, item.adolescenteBId].sort().join("|")
+        const paresLados =
+          lado1Base.length > 0 && lado2Base.length > 0
+            ? dedupePairs(
+                lado1Base.flatMap((aId) =>
+                  lado2Base.map(
+                    (bId): ConflitoPair => ({
+                      aId,
+                      bId,
+                    })
+                  )
                 )
               )
-            : new Set<string>();
+            : [];
 
-        const paresNovos =
-          pares.length > 0
-            ? pares.filter(
-                ({ aId, bId }) =>
-                  !existentesSet.has([aId, bId].sort().join("|"))
+        const paresFallback =
+          paresLados.length === 0
+            ? dedupePairs(
+                adolescentesIdsArray.slice(1).map(
+                  (bId): ConflitoPair => ({
+                    aId: adolescentesIdsArray[0],
+                    bId,
+                  })
+                )
               )
             : [];
 
-        const gerarDescricao = (texto: string) =>
-          `Conflito registrado via CI ${numeroInt}/${anoInt}: ${texto.substring(
-            0,
-            100
-          )}`;
+        const paresParaCriar =
+          paresLados.length > 0 ? paresLados : paresFallback;
 
-        if (paresNovos.length === 0 && pares.length === 0) {
-          for (let i = 1; i < adolescentesIdsArray.length; i++) {
-            const conflito = await tx.conflito.create({
-              data: {
-                adolescenteAId: adolescentesIdsArray[0],
-                adolescenteBId: adolescentesIdsArray[i],
-                tipoConflito: "CI_" + tipoCI,
-                status: "ATIVO",
-                ciOrigemId: ci.id,
-                descricao: gerarDescricao(resumoCI),
-              },
-            });
-            conflitosGerados.push(conflito.id);
-            if (operadorResponsavelId) {
-              await tx.logAuditoria.create({
-                data: {
-                  operadorId: operadorResponsavelId,
-                  acao: "INSERT",
-                  tabelaAfetada: "conflitos",
-                  registroIdAfetado: conflito.registroGrupoId ?? conflito.id,
-                  detalhesAlteracao: {
-                    tipoConflito: conflito.tipoConflito,
-                    origem: `CI ${numeroInt}/${anoInt}`,
-                  },
-                  ipOrigem,
-                },
-              });
-            }
+        const gerarDescricao = (texto: string) => {
+          const resumo = texto.trim();
+          if (!resumo) {
+            return `Conflito registrado via CI ${numeroInt}/${anoInt}.`;
           }
-        } else {
-          for (const { aId, bId } of paresNovos) {
+          return `Conflito registrado via CI ${numeroInt}/${anoInt}: ${resumo}`;
+        };
+
+        if (paresParaCriar.length > 0) {
+          await resolveExistingConflictPairs(tx, paresParaCriar);
+          for (const { aId, bId } of paresParaCriar) {
             const conflito = await tx.conflito.create({
               data: {
                 adolescenteAId: aId,
@@ -590,6 +552,8 @@ export async function POST(request: NextRequest) {
               {
                 operadorId: operadorResponsavelId,
                 ipOrigem,
+                ciOrigemId: ci.id,
+                registrarEntradaProtocolo: tipoEspecialCI === "RISCO_SUICIDIO",
               }
             );
             alertasGerados.push(`${tipoEspecialCI}-${adolescenteId}`);

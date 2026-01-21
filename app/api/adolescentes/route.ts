@@ -118,7 +118,10 @@ const toDateOrUndefined = (value?: string | null) => {
   }
 
   const parsed = new Date(sanitized);
-  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+  if (Number.isNaN(parsed.getTime()) || parsed.getUTCFullYear() < 1900) {
+    return undefined;
+  }
+  return parsed;
 };
 
 type HistoricoEntrada = {
@@ -412,14 +415,17 @@ export async function POST(request: NextRequest) {
     const faccaoFuncaoSanitizada = sanitizeNullableString(
       validated.faccaoFuncao ?? undefined
     );
-  const faccaoOrigemInfo = validated.faccaoInformacaoOrigem ?? undefined;
-  const faccaoOrigemDetalheSanitizado =
-    faccaoOrigemInfo === "OBSERVACAO"
-      ? sanitizeNullableString(validated.faccaoInformacaoDetalhe ?? undefined)
-      : undefined;
-  const tecnicosIds = Array.from(
-    new Set(validated.tecnicosReferenciaIds ?? [])
-  );
+    const faccaoOrigemInfo = validated.faccaoInformacaoOrigem ?? undefined;
+    const faccaoOrigemDetalheSanitizado =
+      faccaoOrigemInfo === "OBSERVACAO"
+        ? sanitizeNullableString(validated.faccaoInformacaoDetalhe ?? undefined)
+        : undefined;
+    const tecnicosIds = Array.from(
+      new Set(validated.tecnicosReferenciaIds ?? [])
+    );
+    const numeroSmsSanitizado = sanitizeNullableString(
+      validated.numeroSms ?? undefined
+    );
 
     if (faccaoOrigemInfo === "OBSERVACAO" && !faccaoOrigemDetalheSanitizado) {
       return NextResponse.json(
@@ -431,11 +437,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (numeroSmsSanitizado) {
+      const existenteSms = await prisma.adolescente.findFirst({
+        where: { numeroSms: numeroSmsSanitizado },
+        select: {
+          id: true,
+          nomeCompleto: true,
+          numeroSms: true,
+        },
+      });
+
+      if (existenteSms) {
+        return NextResponse.json(
+          {
+            erro: `Numero SMS ja cadastrado para ${existenteSms.nomeCompleto}.`,
+            adolescenteExistente: existenteSms,
+          },
+          { status: 409 }
+        );
+      }
+    }
+
     const data: Prisma.AdolescenteCreateInput = {
       nomeCompleto: validated.nomeCompleto,
       nomeSocial: validated.nomeSocial ?? undefined,
       fotoUrl: validated.fotoUrl ?? undefined,
-      numeroSms: validated.numeroSms ?? undefined,
+      numeroSms: numeroSmsSanitizado ?? undefined,
       vulgo: vulgoSanitizado,
       dataNascimento: toDateOrUndefined(validated.dataNascimento),
       dataEntrada: toDateOrUndefined(validated.dataEntrada) ?? new Date(),

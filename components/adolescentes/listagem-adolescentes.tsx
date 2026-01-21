@@ -239,6 +239,8 @@ export function ListagemAdolescentes() {
 
   const filtrados = useMemo(() => {
     const termo = normalizaTexto(busca);
+    const buscaAtiva = termo.length > 0;
+    const statusEfetivo = buscaAtiva ? "TODOS" : filtroStatus;
     const numeroBusca = Number.parseInt(busca.trim(), 10);
 
     return adolescentes.filter((adolescente) => {
@@ -252,8 +254,8 @@ export function ListagemAdolescentes() {
           adolescente.numeroInterno === numeroBusca);
 
       const matchStatus =
-        filtroStatus === "TODOS" ||
-        adolescente.statusUnidade === filtroStatus;
+        statusEfetivo === "TODOS" ||
+        adolescente.statusUnidade === statusEfetivo;
 
       const matchAlertas = aplicaFiltroAlertas(
         adolescente,
@@ -405,7 +407,9 @@ export function ListagemAdolescentes() {
             </label>
             {!mostrarTodosStatus && (
               <span className="text-xs text-gray-500">
-                Exibindo apenas adolescentes ativos por padrao.
+                {busca.trim()
+                  ? "Busca considera todos os status."
+                  : "Exibindo apenas adolescentes ativos por padrao."}
               </span>
             )}
           </div>

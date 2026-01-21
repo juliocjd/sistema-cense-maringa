@@ -1,6 +1,7 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   User,
   MapPin,
@@ -108,6 +109,12 @@ type ResultadoFiltroSugestoes = {
   aviso: string | null;
 };
 
+type SmsDuplicadoInfo = {
+  id: string;
+  nomeCompleto: string;
+  numeroSms: string | null;
+};
+
 const aplicarFiltroSugestoes = (
   sugestoes: SugestaoAlojamentoCadastro[],
   tipo: TipoInternacao | null
@@ -205,6 +212,18 @@ export function CadastroAdolescente({
   const [statusUnidade, setStatusUnidade] =
     useState<StatusUnidade>("ATIVO");
   const [dataStatus, setDataStatus] = useState("");
+  const router = useRouter();
+  const [smsDuplicado, setSmsDuplicado] = useState<SmsDuplicadoInfo | null>(
+    null
+  );
+  const [smsVerificando, setSmsVerificando] = useState(false);
+  const [smsUltimoVerificado, setSmsUltimoVerificado] = useState<string | null>(
+    null
+  );
+  const [smsErroVerificacao, setSmsErroVerificacao] = useState<string | null>(
+    null
+  );
+  const smsValidacaoRef = useRef(0);
 
   // Estados do formulario
   const [dadosPessoais, setDadosPessoais] = useState({
@@ -328,8 +347,71 @@ export function CadastroAdolescente({
   const formatarDataInput = (valor?: string | null) => {
     if (!valor) return "";
     const data = new Date(valor);
-    if (Number.isNaN(data.getTime())) return "";
+    if (Number.isNaN(data.getTime()) || data.getUTCFullYear() < 1900) {
+      return "";
+    }
     return data.toISOString().split("T")[0];
+  };
+
+  const limparValidacaoSms = () => {
+    setSmsDuplicado(null);
+    setSmsErroVerificacao(null);
+    setSmsUltimoVerificado(null);
+  };
+
+  const verificarNumeroSms = async () => {
+    const smsSanitizado = dadosPessoais.numeroSms.trim();
+    if (!smsSanitizado) {
+      limparValidacaoSms();
+      return;
+    }
+
+    if (smsSanitizado === smsUltimoVerificado) {
+      return;
+    }
+
+    const requestId = ++smsValidacaoRef.current;
+    setSmsVerificando(true);
+    setSmsErroVerificacao(null);
+
+    try {
+      const params = new URLSearchParams({ numeroSms: smsSanitizado });
+      if (ehEdicao && initialData?.id) {
+        params.set("ignorarId", initialData.id);
+      }
+      const response = await fetch(
+        `/api/adolescentes/validar-sms?${params.toString()}`
+      );
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(payload?.erro ?? "Erro ao validar numero SMS");
+      }
+
+      if (smsValidacaoRef.current !== requestId) {
+        return;
+      }
+
+      if (payload?.existe) {
+        setSmsDuplicado(payload.adolescente ?? null);
+      } else {
+        setSmsDuplicado(null);
+      }
+      setSmsUltimoVerificado(smsSanitizado);
+    } catch (error) {
+      if (smsValidacaoRef.current !== requestId) {
+        return;
+      }
+      setSmsErroVerificacao(
+        error instanceof Error ? error.message : "Erro ao validar numero SMS"
+      );
+      setSmsDuplicado(null);
+      setSmsUltimoVerificado(null);
+    } finally {
+      if (smsValidacaoRef.current === requestId) {
+        setSmsVerificando(false);
+      }
+    }
   };
 
   useEffect(() => {
@@ -344,9 +426,7 @@ export function CadastroAdolescente({
       numeroInterno: initialData.numeroInterno
         ? String(initialData.numeroInterno)
         : "",
-      dataEntrada:
-        formatarDataInput(initialData.dataEntrada) ||
-        new Date().toISOString().split("T")[0],
+      dataEntrada: formatarDataInput(initialData.dataEntrada) || "",
     });
 
     setStatusUnidade(initialData.statusUnidade ?? "ATIVO");
@@ -998,6 +1078,18 @@ export function CadastroAdolescente({
       }
     }
 
+    if (smsVerificando) {
+      mensagens.push("Aguarde a validacao do numero SMS.");
+      etapaErro = Math.max(etapaErro, 1);
+    }
+
+    if (smsDuplicado) {
+      mensagens.push(
+        `Numero SMS ja cadastrado para ${smsDuplicado.nomeCompleto}.`
+      );
+      etapaErro = Math.max(etapaErro, 1);
+    }
+
     if (statusUnidade !== "ATIVO") {
       const dataStatusLimpa = dataStatus.trim();
       if (!dataStatusLimpa) {
@@ -1479,15 +1571,56 @@ export function CadastroAdolescente({
                   <input
                     type="text"
                     value={dadosPessoais.numeroSms}
-                    onChange={(e) =>
-                      setDadosPessoais({
-                        ...dadosPessoais,
-                        numeroSms: e.target.value,
-                      })
-                    }
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
+                    onChange={(e) => {
+                      const novoValor = e.target.value;
+                      setDadosPessoais((prev) => ({
+                        ...prev,
+                        numeroSms: novoValor,
+                      }));
+                      if (
+                        smsDuplicado ||
+                        smsErroVerificacao ||
+                        smsUltimoVerificado
+                      ) {
+                        limparValidacaoSms();
+                      }
+                    }}
+                    onBlur={verificarNumeroSms}
+                    className={`w-full px-4 py-3 border-2 rounded-lg outline-none transition-all ${
+                      smsDuplicado
+                        ? "border-rose-400 focus:border-rose-500 focus:ring-2 focus:ring-rose-200"
+                        : "border-gray-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+                    }`}
                     placeholder="Ex: 12345"
                   />
+                  {smsVerificando && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Verificando numero SMS...
+                    </p>
+                  )}
+                  {!smsVerificando && smsErroVerificacao && (
+                    <p className="text-xs text-amber-600 mt-1">
+                      {smsErroVerificacao}
+                    </p>
+                  )}
+                  {!smsVerificando && smsDuplicado && (
+                    <div className="mt-2 rounded-lg border border-rose-200 bg-rose-50 p-2 text-xs text-rose-700 flex flex-wrap items-center justify-between gap-2">
+                      <span>
+                        Numero SMS ja cadastrado para{" "}
+                        {smsDuplicado.nomeCompleto}. Deseja abrir a ficha
+                        existente?
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          router.push(`/adolescentes/${smsDuplicado.id}`)
+                        }
+                        className="font-semibold underline text-rose-700 hover:text-rose-800"
+                      >
+                        Abrir ficha existente
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div>

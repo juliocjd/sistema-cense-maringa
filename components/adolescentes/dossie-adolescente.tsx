@@ -37,6 +37,7 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
   >([]);
   const [historicoLoading, setHistoricoLoading] = useState(false);
   const [historicoErro, setHistoricoErro] = useState<string | null>(null);
+  const podeVerAlocacao = adolescente.statusUnidade === "ATIVO";
 
   useEffect(() => {
     let ativo = true;
@@ -82,7 +83,7 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
 
   const abas = [
     { id: "geral", label: "Informações Gerais", icone: User },
-    { id: "alocacao", label: "Alocação Atual", icone: MapPin },
+    { id: "alocacao", label: "Alocação Atual", icone: MapPin, habilitada: podeVerAlocacao },
     { id: "infracional", label: "Histórico Infracional", icone: FileText },
     { id: "alertas", label: "Alertas", icone: AlertTriangle },
     { id: "tatuagens", label: "Tatuagens", icone: Camera },
@@ -90,6 +91,12 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
     { id: "grupos", label: "Grupos", icone: Users },
     { id: "historico", label: "Histórico", icone: History },
   ];
+
+  useEffect(() => {
+    if (!podeVerAlocacao && abaAtiva === "alocacao") {
+      setAbaAtiva("geral");
+    }
+  }, [abaAtiva, podeVerAlocacao]);
 
   const getStatusBadge = (status: string) => {
     const badges: Record<string, { cor: string; texto: string }> = {
@@ -378,15 +385,20 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
           <div className="flex">
             {abas.map((aba) => {
               const Icon = aba.icone;
+              const habilitada = aba.habilitada !== false;
               return (
                 <button
                   key={aba.id}
-                  onClick={() => setAbaAtiva(aba.id)}
+                  onClick={() => {
+                    if (!habilitada) return;
+                    setAbaAtiva(aba.id);
+                  }}
+                  disabled={!habilitada}
                   className={`flex items-center gap-2 px-6 py-4 font-semibold transition-all whitespace-nowrap ${
                     abaAtiva === aba.id
                       ? "bg-indigo-50 text-indigo-600 border-b-4 border-indigo-600"
                       : "text-gray-600 hover:bg-gray-50 hover:text-gray-800"
-                  }`}
+                  } ${!habilitada ? "cursor-not-allowed opacity-60" : ""}`}
                 >
                   <Icon size={18} />
                   {aba.label}
@@ -535,7 +547,7 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
           )}
 
           {/* ABA: Alocação Atual */}
-          {abaAtiva === "alocacao" && (
+          {abaAtiva === "alocacao" && podeVerAlocacao && (
             <div className="space-y-6">
               <h2 className="text-2xl font-bold text-gray-800">
                 Alocação Atual
@@ -564,10 +576,10 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                   </div>
                   <div className="mt-4">
                     <Link
-                      href="/mapa"
+                      href="/estrutura"
                       className="inline-flex items-center gap-2 text-indigo-600 hover:text-indigo-700 font-semibold"
                     >
-                      Ver no Mapa Operacional →
+                      Ver na Estrutura
                     </Link>
                   </div>
                 </div>
@@ -578,10 +590,10 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                     Adolescente não alocado em alojamento
                   </p>
                   <Link
-                    href="/mapa"
+                    href="/estrutura"
                     className="inline-block mt-4 px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-semibold"
                   >
-                    Alocar Agora
+                    Alocar na Estrutura
                   </Link>
                 </div>
               )}

@@ -123,7 +123,7 @@ const formatDate = (valor: Date | string | null | undefined) => {
   }
 
   const data = valor instanceof Date ? valor : new Date(valor);
-  if (Number.isNaN(data.getTime())) {
+  if (Number.isNaN(data.getTime()) || data.getUTCFullYear() < 1900) {
     return undefined;
   }
 

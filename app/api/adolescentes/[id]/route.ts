@@ -135,7 +135,10 @@ const toDateOrNull = (value?: string | null) => {
     return null;
   }
   const parsed = new Date(sanitized);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
+  if (Number.isNaN(parsed.getTime()) || parsed.getUTCFullYear() < 1900) {
+    return null;
+  }
+  return parsed;
 };
 
 type HistoricoEntrada = {
@@ -373,6 +376,36 @@ export async function PUT(
         { status: 404 }
       );
     }
+
+    const numeroSmsSanitizado =
+      validated.numeroSms !== undefined && validated.numeroSms !== null
+        ? sanitizeNullableString(validated.numeroSms) ?? undefined
+        : undefined;
+
+    if (numeroSmsSanitizado) {
+      const existenteSms = await prisma.adolescente.findFirst({
+        where: {
+          numeroSms: numeroSmsSanitizado,
+          NOT: { id },
+        },
+        select: {
+          id: true,
+          nomeCompleto: true,
+          numeroSms: true,
+        },
+      });
+
+      if (existenteSms) {
+        return NextResponse.json(
+          {
+            erro: `Numero SMS ja cadastrado para ${existenteSms.nomeCompleto}.`,
+            adolescenteExistente: existenteSms,
+          },
+          { status: 409 }
+        );
+      }
+    }
+
     const alojamentoAnterior = existente.alojamentoAtualId ?? null;
 
     const data: Prisma.AdolescenteUpdateInput = {};

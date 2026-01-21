@@ -94,6 +94,8 @@ export async function atualizarFlagsAlertasEspeciais(
 type OperadorContexto = {
   operadorId?: string | null;
   ipOrigem?: string | null;
+  ciOrigemId?: string | null;
+  registrarEntradaProtocolo?: boolean;
 };
 
 export async function aplicarAlertasEspeciais(
@@ -124,6 +126,10 @@ export async function aplicarAlertasEspeciais(
         meta.nivelPadrao ??
         existente?.nivelRisco ??
         null;
+      const ciOrigemId =
+        typeof contexto?.ciOrigemId === "string"
+          ? contexto.ciOrigemId
+          : undefined;
 
       if (existente) {
         await executor.alertaAtivo.update({
@@ -132,8 +138,18 @@ export async function aplicarAlertasEspeciais(
             descricaoAlerta: descricao,
             nivelRisco: nivelRiscoFinal,
             desativadoEm: null,
+            ...(ciOrigemId ? { ciOrigemId } : {}),
           },
         });
+
+        if (tipo === "RISCO_SUICIDIO" && contexto?.registrarEntradaProtocolo) {
+          await registrarEntradaProtocoloSuicidio(executor, {
+            adolescenteId,
+            alertaId: existente.id,
+            descricao,
+            operadorId: contexto?.operadorId ?? null,
+          });
+        }
       } else {
         const alertaCriado = await executor.alertaAtivo.create({
           data: {
@@ -141,6 +157,7 @@ export async function aplicarAlertasEspeciais(
             tipoAlerta: meta.tipoAlerta,
             descricaoAlerta: descricao,
             nivelRisco: nivelRiscoFinal,
+            ...(ciOrigemId ? { ciOrigemId } : {}),
           },
         });
 

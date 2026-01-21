@@ -2,6 +2,10 @@ import { NextResponse } from "next/server"
 import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma"
 import { auth } from "@/auth";
+import {
+  dedupePairs,
+  resolveExistingConflictPairs,
+} from "@/lib/conflitos/pairs";
 
 type PartePayloadRaw = {
   nome?: string;
@@ -156,101 +160,67 @@ const criarConflitosPorPartes = async ({
     );
   }
 
-  const condicoesExistentes = combos.map(({ aId, bId }) => ({
-    OR: [
-      {
-        AND: [
-          { adolescenteAId: aId },
-          { adolescenteBId: bId },
-        ],
-      },
-      {
-        AND: [
-          { adolescenteAId: bId },
-          { adolescenteBId: aId },
-        ],
-      },
-    ],
-  }));
-
-  const existentes = await prisma.conflito.findMany({
-    where: {
-      status: "ATIVO",
-      OR: condicoesExistentes,
-    },
-    select: {
-      id: true,
-      adolescenteAId: true,
-      adolescenteBId: true,
-    },
-  });
-
-  const jaExistentes = new Set(
-    existentes.map((item) =>
-      gerarChavePar(item.adolescenteAId, item.adolescenteBId)
-    )
-  );
-
-  const novosPares = combos.filter(
-    ({ aId, bId }) => !jaExistentes.has(gerarChavePar(aId, bId))
-  );
-
-  if (novosPares.length === 0) {
-    return {
-      status: 200,
-      payload: {
-        mensagem:
-          "Nenhum novo conflito criado. Todos os pares já possuíam registros ativos.",
-        conflitosCriados: [],
-        conflitosIgnorados: combos.length,
-      },
-    };
+  const paresValidos = dedupePairs(combos);
+  if (!paresValidos.length) {
+    throw new Error(
+      "Nao foi possivel montar pares validos com os lados informados."
+    );
   }
 
   const tipoNormalizado = tipoConflito.trim().toUpperCase();
 
-  const criados = await prisma.$transaction(
-    novosPares.map(({ aId, bId }) =>
-      prisma.conflito.create({
-        data: {
-          adolescenteAId: aId,
-          adolescenteBId: bId,
-          tipoConflito: tipoNormalizado,
-          ciOrigemId: ciOrigemId ?? undefined,
-          descricao: descricao ?? undefined,
-          registroGrupoId,
-          status: "ATIVO",
-        },
-        select: {
-          id: true,
-          adolescenteAId: true,
-          adolescenteBId: true,
-        },
-      })
-    )
-  );
+  const resultado = await prisma.$transaction(async (tx) => {
+    const reativados = await resolveExistingConflictPairs(tx, paresValidos);
+    const criados = await Promise.all(
+      paresValidos.map(({ aId, bId }) =>
+        tx.conflito.create({
+          data: {
+            adolescenteAId: aId,
+            adolescenteBId: bId,
+            tipoConflito: tipoNormalizado,
+            ciOrigemId: ciOrigemId ?? undefined,
+            descricao: descricao ?? undefined,
+            registroGrupoId,
+            status: "ATIVO",
+          },
+          select: {
+            id: true,
+            adolescenteAId: true,
+            adolescenteBId: true,
+          },
+        })
+      )
+    );
 
-  await prisma.logAuditoria.create({
-    data: {
-      operadorId,
-      acao: "INSERT",
-      tabelaAfetada: "conflitos",
-      registroIdAfetado: registroGrupoId,
-      detalhesAlteracao: {
-        tipoConflito: tipoNormalizado,
-        totalPares: combos.length,
-        criados: criados.length,
+    await tx.logAuditoria.create({
+      data: {
+        operadorId,
+        acao: "INSERT",
+        tabelaAfetada: "conflitos",
+        registroIdAfetado: registroGrupoId,
+        detalhesAlteracao: {
+          tipoConflito: tipoNormalizado,
+          totalPares: paresValidos.length,
+          criados: criados.length,
+          reativados,
+        },
+        ipOrigem: request.headers.get("x-forwarded-for") || "unknown",
       },
-      ipOrigem: request.headers.get("x-forwarded-for") || "unknown",
-    },
+    });
+
+    return { criados, reativados };
   });
 
   return {
     status: 201,
     payload: {
-      mensagem: "Conflitos registrados a partir dos lados informados.",
-      conflitosCriados: criados,
-      conflitosIgnorados: combos.length - criados.length,
+      mensagem:
+        resultado.reativados > 0
+          ? "Conflitos reabertos a partir dos lados informados."
+          : "Conflitos registrados a partir dos lados informados.",
+      conflitosCriados: resultado.criados,
+      conflitosIgnorados: 0,
+      conflitosReativados: resultado.reativados,
     },
   };
 };
