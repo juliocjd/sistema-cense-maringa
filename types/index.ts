@@ -73,6 +73,8 @@ export interface ConflitoResumo {
   id: string;
   tipo: string | null;
   status: string;
+  ciNumero?: number | string | null;
+  ciAno?: number | string | null;
   adversario?: {
     id: string;
     nome: string;

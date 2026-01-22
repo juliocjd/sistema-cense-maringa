@@ -58,6 +58,7 @@ type RiscoDetalhadoResumo = {
     descricao: string | null;
   } | null;
   conflitoId?: string;
+  labelOrigem?: string | null;
 };
 
 const ALERTA_DESCRICAO_LIMITE = 220;
@@ -691,13 +692,59 @@ const labelProximidade: Record<string, string> = {
     };
   };
 
-  const conflitosInternos = useMemo<Conflito[]>(() => {
-    if (!ocupante) return [];
-    return [
-      ...(ocupante.conflitosA ?? []),
-      ...(ocupante.conflitosB ?? []),
-    ];
-  }, [ocupante]);
+const conflitosInternos = useMemo<Conflito[]>(() => {
+  if (!ocupante) return [];
+  return [
+    ...(ocupante.conflitosA ?? []),
+    ...(ocupante.conflitosB ?? []),
+  ];
+}, [ocupante]);
+
+// Somente conflitos ativos contam para risco e listagem principal de risco
+const conflitosInternosAtivos = useMemo(
+  () => conflitosInternos.filter((c) => c.status === "ATIVO"),
+  [conflitosInternos]
+);
+
+// Mapa de origem do conflito para rotular ações
+const origemConflitoLabel = useMemo(() => {
+  const map = new Map<string, string>();
+  conflitosInternos.forEach((c) => {
+    let origem = (c as any).origem ?? "Registro direto";
+    const ciOrigem = (c as any).ciOrigem as
+      | { numero?: string | number; ano?: string | number }
+      | undefined;
+    const ciOrigemId = (c as any).ciOrigemId as string | undefined;
+    let numero =
+      ciOrigem?.numero ??
+      (c as any).ciOrigemNumero ??
+      (c as any).ciNumero ??
+      (c as any).ci?.numero;
+    let ano =
+      ciOrigem?.ano ??
+      (c as any).ciOrigemAno ??
+      (c as any).ciAno ??
+      (c as any).ci?.ano;
+
+    if (!numero && c.ocorrencias?.length) {
+      const ci = c.ocorrencias.find((oc) => (oc as any).ci)?.ci as
+        | { numero?: string | number; ano?: string | number }
+        | undefined;
+      if (ci?.numero) {
+        numero = ci.numero;
+        ano = ci.ano ?? ano;
+      }
+    }
+
+    if (numero) {
+      origem = `CI ${numero}/${ano ?? ""}`.trim();
+    } else if (ciOrigemId || (c as any).origem === "CI") {
+      origem = "CI";
+    }
+    map.set(c.id, origem);
+  });
+  return map;
+}, [conflitosInternos]);
 
 const conflitosResolvidosLista = useMemo(() => {
   if (!ocupante) return [];
@@ -779,22 +826,38 @@ const conflitosAvaliacaoDetalhados = useMemo<RiscoDetalhadoResumo[]>(() => {
         ];
       }
 
-      lista.push({
+      const item: RiscoDetalhadoResumo = {
         titulo,
         descricao,
         nivel: numeroParaNivelBadge(detalhe.nivel),
         envolvidos,
         conflitoId: detalhe.referenciaConflitoId ?? undefined,
-      });
+        labelOrigem: detalhe.referenciaConflitoId
+          ? origemConflitoLabel.get(detalhe.referenciaConflitoId) ?? null
+          : null,
+      };
+
+      // Ignorar conflitos resolvidos nas justificativas de risco
+      if (item.conflitoId) {
+        const conflitoReferenciado = conflitosInternos.find(
+          (c) => c.id === item.conflitoId
+        );
+        // Ignorar apenas se explicitamente resolvido; manter pendente/ativo mesmo que nao esteja no array "ativos"
+        if (conflitoReferenciado?.status === "RESOLVIDO") {
+          return lista;
+        }
+      }
+
+      lista.push(item);
 
       return lista;
     },
     []
   );
-}, [avaliacaoRisco?.detalhes]);
+}, [avaliacaoRisco?.detalhes, conflitosInternosAtivos]);
 
   
-const riscosDetalhados = useMemo(() => {
+  const riscosDetalhados = useMemo(() => {
     if (!ocupante) return [];
 
     const riscos: RiscoDetalhadoResumo[] = [];
@@ -882,17 +945,70 @@ const riscosDetalhados = useMemo(() => {
       });
     }
 
-    riscos.push(...conflitosAvaliacaoDetalhados);
+    // Adiciona riscos de conflitos que nao foram resolvidos
+    conflitosAvaliacaoDetalhados.forEach((risco) => {
+      if (risco.conflitoId) {
+        const conflitoReferenciado = conflitosInternos.find(
+          (c) => c.id === risco.conflitoId
+        );
+        if (conflitoReferenciado?.status === "RESOLVIDO") {
+          return;
+        }
+      }
+      riscos.push(risco);
+    });
 
     return riscos;
   }, [
     ocupante,
     alertasEspeciaisPorTipo,
     conflitosAvaliacaoDetalhados,
+    conflitosInternosAtivos,
+    conflitosInternos,
     frontalSuicidioInfo,
     semVigilanciaFrontal,
     altaMedicaValida,
   ]);
+
+  // Agrupa riscos com mesma mensagem/proximidade/tipo e acumula links de conflitos distintos
+  const riscosAgrupados = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        base: RiscoDetalhadoResumo;
+        conflitos: Array<{ id: string; label: string }>;
+      }
+    >();
+
+    riscosDetalhados.forEach((r) => {
+      const key = `${r.titulo}|${r.descricao ?? ""}`;
+      const origemLabel =
+        r.labelOrigem && r.labelOrigem !== "Registro direto"
+          ? r.labelOrigem
+          : r.conflitoId && origemConflitoLabel.get(r.conflitoId)
+          ? origemConflitoLabel.get(r.conflitoId)!
+          : r.conflitoId
+          ? "Registro direto"
+          : "";
+
+      if (!map.has(key)) {
+        map.set(key, {
+          base: r,
+          conflitos: r.conflitoId
+            ? [{ id: r.conflitoId, label: origemLabel }]
+            : [],
+        });
+      } else if (r.conflitoId) {
+        const entry = map.get(key)!;
+        const jaExiste = entry.conflitos.some((c) => c.id === r.conflitoId);
+        if (!jaExiste) {
+          entry.conflitos.push({ id: r.conflitoId, label: origemLabel });
+        }
+      }
+    });
+
+    return Array.from(map.values());
+  }, [riscosDetalhados, origemConflitoLabel]);
 
 const motivosAmbientaisDetalhados = useMemo<MotivoAmbientalDetalhado[]>(() => {
     const motivos = avaliacaoRisco?.ambiental?.motivos;
@@ -1535,7 +1651,7 @@ const motivosAmbientaisDetalhados = useMemo<MotivoAmbientalDetalhado[]>(() => {
                 )}
                   </div>
 
-                  {riscosDetalhados.length > 0 ? (
+                  {riscosAgrupados.length > 0 ? (
                     <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-3">
                       <div className="flex items-center gap-2">
                         <Shield size={16} className="text-slate-600" />
@@ -1544,7 +1660,7 @@ const motivosAmbientaisDetalhados = useMemo<MotivoAmbientalDetalhado[]>(() => {
                         </p>
                       </div>
                       <div className="space-y-2">
-                        {riscosDetalhados.map((risco, index) => {
+                        {riscosAgrupados.map(({ base: risco, conflitos }, index) => {
                           const classe =
                             nivelClasses[risco.nivel ?? "DEFAULT"] ??
                             nivelClasses.DEFAULT;
@@ -1566,15 +1682,15 @@ const motivosAmbientaisDetalhados = useMemo<MotivoAmbientalDetalhado[]>(() => {
                               params.has("adolescenteId"))
                               ? `/alertas?${params.toString()}`
                               : null;
-                          const conflitoLink = risco.conflitoId
-                            ? `/conflitos/${risco.conflitoId}`
-                            : null;
-                          const actionLink = alertaLink ?? conflitoLink;
-                          const actionLabel = alertaLink
-                            ? "Ver alerta"
-                            : conflitoLink
-                            ? "Ver conflito"
-                            : null;
+                          const linkClass =
+                            "inline-flex items-center rounded-full border border-white/70 bg-white/60 px-2.5 py-0.5 text-[10px] font-semibold text-slate-700 hover:bg-white whitespace-nowrap";
+                          const conflitoLinks =
+                            conflitos.length > 0
+                              ? conflitos.map((c) => ({
+                                  href: `/conflitos/${c.id}`,
+                                  label: `Ver conflito (${c.label})`,
+                                }))
+                              : [];
                           return (
                             <div
                               key={`${risco.titulo}-${index}`}
@@ -1640,14 +1756,17 @@ const motivosAmbientaisDetalhados = useMemo<MotivoAmbientalDetalhado[]>(() => {
                                         <p className="italic flex-1 min-w-[60%]">
                                           ℹ️ {risco.descricao}
                                         </p>
-                                        {actionLink && actionLabel && (
-                                          <Link
-                                            href={actionLink}
-                                            className="inline-flex items-center rounded-full border border-white/70 bg-white/60 px-2.5 py-0.5 text-[10px] font-semibold text-slate-700 hover:bg-white whitespace-nowrap"
-                                          >
-                                            {actionLabel}
+                                        {alertaLink && (
+                                          <Link href={alertaLink} className={linkClass}>
+                                            Ver alerta
                                           </Link>
                                         )}
+                                        {!alertaLink &&
+                                          conflitoLinks.map((link) => (
+                                            <Link key={link.href} href={link.href} className={linkClass}>
+                                              {link.label}
+                                            </Link>
+                                          ))}
                                       </div>
                                     </div>
                                   )}
@@ -1702,11 +1821,19 @@ const motivosAmbientaisDetalhados = useMemo<MotivoAmbientalDetalhado[]>(() => {
                                     </p>
                                   )}
                                 </div>
-                                {conflito.resolvidoEm && (
-                                  <span className="text-xs text-emerald-700">
-                                    Resolvido em {formatarDataCurta(conflito.resolvidoEm)}
-                                  </span>
-                                )}
+                                <div className="flex flex-col items-end gap-1">
+                                  {conflito.resolvidoEm && (
+                                    <span className="text-[11px] font-semibold text-emerald-700 px-2 py-1 bg-white border border-emerald-200 rounded-full shadow-sm">
+                                      Resolvido em {formatarDataCurta(conflito.resolvidoEm)}
+                                    </span>
+                                  )}
+                                  <Link
+                                    href={`/conflitos/${conflito.id}`}
+                                    className="inline-flex items-center rounded-full border border-white/70 bg-white/60 px-2.5 py-0.5 text-[10px] font-semibold text-slate-700 hover:bg-white whitespace-nowrap"
+                                  >
+                                    Ver conflito
+                                  </Link>
+                                </div>
                               </div>
                               {adversarioNome && (
                                 <div className="mt-1 text-xs text-emerald-700">

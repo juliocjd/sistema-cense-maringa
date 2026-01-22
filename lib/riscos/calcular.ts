@@ -378,12 +378,21 @@ export function calcularRiscoAlojamento({
     const bucket = motivosPorNivel[nivel];
     if (!bucket.includes(mensagem)) {
       bucket.push(mensagem);
+    }
+    const keyConflito = referencia?.conflitoId ?? null;
+    const existeDetalhe = motivosDetalhados.some(
+      (m) =>
+        m.mensagem === mensagem &&
+        m.proximidade === proximidade &&
+        m.referenciaConflitoId === keyConflito
+    );
+    if (!existeDetalhe) {
       motivosDetalhados.push({
         nivel: nivel as NivelRiscoBasico,
         tipo,
         mensagem,
         proximidade,
-        referenciaConflitoId: referencia?.conflitoId ?? undefined,
+        referenciaConflitoId: keyConflito ?? undefined,
       });
     }
   };
@@ -485,7 +494,12 @@ export function calcularRiscoAlojamento({
     ...(ocupante.conflitosB ?? []),
   ];
 
-  conflitosInternos.forEach((conflito) => {
+  // Considerar apenas conflitos internos ainda ativos para cálculo de risco
+  const conflitosInternosAtivos = conflitosInternos.filter(
+    (c) => (c.status ?? "").toUpperCase() === "ATIVO"
+  );
+
+  conflitosInternosAtivos.forEach((conflito) => {
     const adversarioId =
       conflito.adversario?.id ??
       (conflito.adolescenteAId === ocupante.id

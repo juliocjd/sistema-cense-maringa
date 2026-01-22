@@ -105,6 +105,7 @@ export async function PUT(
       );
     }
 
+    const escopo = (body?.escopo ?? "GRUPO").toUpperCase();
     const filtroGrupo = montarFiltroGrupo(
       conflito.registroGrupoId ?? null,
       conflitoId
@@ -122,7 +123,10 @@ export async function PUT(
       );
     }
 
-    const idsParaAtualizar = conflitosDoGrupo.map((registro) => registro.id);
+    const idsParaAtualizar =
+      escopo === "PAR"
+        ? [conflitoId]
+        : conflitosDoGrupo.map((registro) => registro.id);
     const resolvidoEm = new Date();
 
     const resultado = await prisma.$transaction(async (tx) => {
@@ -253,7 +257,8 @@ export async function DELETE(
       );
     }
 
-    if (conflito.status !== "RESOLVIDO") {
+    const escopo = (body?.escopo ?? "GRUPO").toUpperCase();
+    if (conflito.status !== "RESOLVIDO" && escopo !== "GRUPO") {
       return NextResponse.json(
         { erro: "Este conflito nao esta marcado como resolvido" },
         { status: 400 }
@@ -277,7 +282,8 @@ export async function DELETE(
       );
     }
 
-    const idsParaAtualizar = conflitosDoGrupo.map((registro) => registro.id);
+    const idsParaAtualizar =
+      escopo === "PAR" ? [conflitoId] : conflitosDoGrupo.map((r) => r.id);
 
     const resultado = await prisma.$transaction(async (tx) => {
       const updateResult = await tx.conflito.updateMany({

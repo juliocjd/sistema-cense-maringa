@@ -320,6 +320,20 @@ export async function GET(
       },
     });
 
+    const totalAtivos = conflitosAgrupados.filter(
+      (c) => (c.status ?? "").toUpperCase() === "ATIVO"
+    ).length;
+    const totalResolvidos = conflitosAgrupados.filter(
+      (c) => (c.status ?? "").toUpperCase() === "RESOLVIDO"
+    ).length;
+
+    const statusGrupo =
+      totalAtivos > 0 && totalResolvidos > 0
+        ? "PARCIAL"
+        : totalAtivos > 0
+        ? "ATIVO"
+        : "RESOLVIDO";
+
     // Conflitos com ocorrencias para exibir histórico consolidado
     // Ocorrencias do grupo com CI ativo
     const idsGrupo = conflitosAgrupados.map((c) => c.id);
@@ -428,6 +442,17 @@ export async function GET(
     const ladosMap = mapearLadosDoGrupo(conflitosAgrupados);
     const participantes = coletarParticipantes(conflitosAgrupados, ladosMap);
     const conflitoFormatado = mapearConflito(conflito, ladosMap);
+    const paresDoGrupo = conflitosAgrupados.map((c) => ({
+      id: c.id,
+      status: c.status,
+      registroGrupoId: c.registroGrupoId ?? c.id,
+      adolescenteAId: c.adolescenteAId,
+      adolescenteBId: c.adolescenteBId,
+      adolescenteANome: c.adolescenteA?.nomeCompleto ?? c.adolescenteA?.nomeSocial ?? null,
+      adolescenteBNome: c.adolescenteB?.nomeCompleto ?? c.adolescenteB?.nomeSocial ?? null,
+      ciOrigemNumero: (c as any).ciOrigem?.numero ?? (c as any).ciOrigemNumero ?? null,
+      ciOrigemAno: (c as any).ciOrigem?.ano ?? (c as any).ciOrigemAno ?? null,
+    }));
 
     return NextResponse.json({
       ...conflitoFormatado,
@@ -435,6 +460,8 @@ export async function GET(
       totalOcorrencias: totalOcorrenciasVisiveis,
       ultimaOcorrenciaEm,
       participantes,
+      statusGrupo,
+      paresDoGrupo,
     });
   } catch (error) {
     console.error("Erro ao buscar conflito:", error);

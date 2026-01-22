@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { DetalhesConflito } from "@/components/conflitos/detalhes-conflito";
 
@@ -16,6 +16,15 @@ type Conflito = {
   id: string;
   tipoConflito: string;
   status: "ATIVO" | "RESOLVIDO";
+  statusGrupo?: "ATIVO" | "RESOLVIDO" | "PARCIAL" | null;
+  paresDoGrupo?: Array<{
+    id: string;
+    status: string;
+    registroGrupoId: string;
+    ciLabel?: string | null;
+    adolescenteAId: string;
+    adolescenteBId: string;
+  }>;
   origem: string;
   descricao?: string;
   criadoEm: string;
@@ -61,7 +70,19 @@ type ApiConflito = {
   id: string;
   tipo?: string;
   tipoConflito?: string;
-  status: "ATIVO" | "RESOLVIDO";
+  status: "ATIVO" | "RESOLVIDO" | "PARCIAL" | string;
+  statusGrupo?: "ATIVO" | "RESOLVIDO" | "PARCIAL" | string | null;
+  paresDoGrupo?: Array<{
+    id: string;
+    status: string;
+    registroGrupoId: string;
+    adolescenteAId: string;
+    adolescenteBId: string;
+    adolescenteANome?: string | null;
+    adolescenteBNome?: string | null;
+    ciOrigemNumero?: number | string | null;
+    ciOrigemAno?: number | string | null;
+  }>;
   descricao?: string;
   dataRegistro: string;
   dataResolucao?: string | null;
@@ -142,7 +163,25 @@ const mapearParticipante = (dados: ApiParticipante): Participante => ({
 const normalizarConflito = (dados: ApiConflito): Conflito => ({
   id: dados.id,
   tipoConflito: dados.tipo ?? dados.tipoConflito ?? "N/A",
-  status: dados.status,
+  status: ((dados.statusGrupo ?? dados.status) as string).toUpperCase() === "RESOLVIDO" ? "RESOLVIDO" : "ATIVO",
+  statusGrupo: (dados.statusGrupo ?? dados.status ?? null) as
+    | "ATIVO"
+    | "RESOLVIDO"
+    | "PARCIAL"
+    | null,
+  paresDoGrupo: dados.paresDoGrupo?.map((p) => ({
+    id: p.id,
+    status: p.status,
+    registroGrupoId: p.registroGrupoId,
+    ciLabel:
+      p.ciOrigemNumero !== null && p.ciOrigemNumero !== undefined
+        ? `CI ${p.ciOrigemNumero}/${p.ciOrigemAno ?? ""}`
+        : null,
+    adolescenteAId: p.adolescenteAId,
+    adolescenteBId: p.adolescenteBId,
+    adolescenteANome: p.adolescenteANome ?? null,
+    adolescenteBNome: p.adolescenteBNome ?? null,
+  })),
   origem: dados.ciOrigem
     ? `CI ${dados.ciOrigem.numero}/${dados.ciOrigem.ano}`
     : "Registro direto",
@@ -208,6 +247,30 @@ export default function ConflitoPorIdPage() {
     descricao: "",
   });
 
+  const participantesMap = useMemo(() => {
+    const map = new Map<string, string>();
+    if (conflito) {
+      [
+        conflito.adolescenteA,
+        conflito.adolescenteB,
+        ...(conflito.participantes ?? []),
+      ].forEach((p) => map.set(p.id, p.nome));
+      conflito.paresDoGrupo?.forEach((par) => {
+        const pa = par as typeof par & {
+          adolescenteANome?: string | null;
+          adolescenteBNome?: string | null;
+        };
+        if (pa.adolescenteAId && pa.adolescenteANome) {
+          map.set(pa.adolescenteAId, pa.adolescenteANome);
+        }
+        if (pa.adolescenteBId && pa.adolescenteBNome) {
+          map.set(pa.adolescenteBId, pa.adolescenteBNome);
+        }
+      });
+    }
+    return map;
+  }, [conflito]);
+
   const carregarDados = useCallback(async () => {
     try {
       // Chamar API
@@ -223,7 +286,8 @@ export default function ConflitoPorIdPage() {
       const conflitoData: ApiConflito = await conflitoRes.json();
       const mediacoesData = await mediacoesRes.json();
 
-      setConflito(normalizarConflito(conflitoData));
+      const conflitoNormalizado = normalizarConflito(conflitoData);
+      setConflito(conflitoNormalizado);
       setMediacoes(mediacoesData);
     } catch (error) {
       console.error("Erro:", error);
@@ -294,15 +358,38 @@ export default function ConflitoPorIdPage() {
     carregarDados();
   }, [carregarDados]);
 
+  const statusDerivado: "ATIVO" | "RESOLVIDO" | "PARCIAL" = useMemo(() => {
+    if (!conflito?.paresDoGrupo?.length) return (conflito?.status as "ATIVO" | "RESOLVIDO") ?? "ATIVO";
+    const ativos = conflito.paresDoGrupo.filter(
+      (p) => (p.status ?? "").toUpperCase() !== "RESOLVIDO"
+    ).length;
+    const resolvidos = conflito.paresDoGrupo.length - ativos;
+    if (ativos > 0 && resolvidos > 0) return "PARCIAL";
+    if (ativos > 0) return "ATIVO";
+    return "RESOLVIDO";
+  }, [conflito]);
+
+  const conflitoParaDetalhe: Conflito | null = useMemo(() => {
+    if (!conflito) return null;
+    return {
+      ...conflito,
+      status: statusDerivado === "RESOLVIDO" ? "RESOLVIDO" : "ATIVO",
+      statusGrupo: statusDerivado,
+    } as Conflito;
+  }, [conflito, statusDerivado]);
+
   useEffect(() => {
     if (conflito) {
       setEdicaoConflito({
         tipoConflito: conflito.tipoConflito,
-        status: conflito.status,
+        status:
+          (statusDerivado as string) === "PARCIAL"
+            ? "ATIVO"
+            : (statusDerivado as "ATIVO" | "RESOLVIDO"),
         descricao: conflito.descricao ?? "",
       });
     }
-  }, [conflito]);
+  }, [conflito, statusDerivado]);
 
   const handleSalvarEdicao = async () => {
     if (!conflito) return;
@@ -385,6 +472,46 @@ export default function ConflitoPorIdPage() {
     }
   };
 
+  const handleReabrirPar = async (parId: string) => {
+    try {
+      const response = await fetch(`/api/conflitos/${parId}/resolver`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ escopo: "PAR" }),
+      });
+      if (!response.ok) {
+        throw new Error("Erro ao reabrir par");
+      }
+      await carregarDados();
+    } catch (error) {
+      console.error("Erro:", error);
+      setMensagemEdicao({
+        tipo: "erro",
+        texto: "Falha ao reabrir par. Tente novamente.",
+      });
+    }
+  };
+
+  const handleResolverPar = async (parId: string) => {
+    try {
+      const response = await fetch(`/api/conflitos/${parId}/resolver`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ escopo: "PAR" }),
+      });
+      if (!response.ok) {
+        throw new Error("Erro ao resolver par");
+      }
+      await carregarDados();
+    } catch (error) {
+      console.error("Erro:", error);
+      setMensagemEdicao({
+        tipo: "erro",
+        texto: "Falha ao resolver par. Tente novamente.",
+      });
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -432,10 +559,11 @@ export default function ConflitoPorIdPage() {
   const statusOptions: Array<"ATIVO" | "RESOLVIDO"> = ["ATIVO", "RESOLVIDO"];
 
   const quickEditSlot = (
-    <section className="bg-white rounded-2xl shadow-lg p-6 border-l-4 border-red-500">
-      <div className="flex flex-col gap-2 mb-6">
-        <p className="text-xs font-semibold uppercase tracking-wide text-red-500">
-          Edicao rapida
+    <>
+      <section className="bg-white rounded-2xl shadow-lg p-6 border-l-4 border-red-500 space-y-6">
+        <div className="flex flex-col gap-2 mb-6">
+          <p className="text-xs font-semibold uppercase tracking-wide text-red-500">
+            Edicao rapida
           </p>
           <h2 className="text-2xl font-bold text-gray-900">
             Atualizar dados do conflito
@@ -541,7 +669,10 @@ export default function ConflitoPorIdPage() {
               setMensagemEdicao(null);
               setEdicaoConflito({
                 tipoConflito: conflito.tipoConflito,
-                status: conflito.status,
+                status:
+                  (statusDerivado as string) === "RESOLVIDO"
+                    ? "RESOLVIDO"
+                    : "ATIVO",
                 descricao: conflito.descricao ?? "",
               });
             }}
@@ -551,15 +682,82 @@ export default function ConflitoPorIdPage() {
           </button>
         </div>
       </section>
+
+      {conflito && conflito.paresDoGrupo && conflito.paresDoGrupo.length > 1 ? (
+        <div className="rounded-xl border border-slate-200 bg-white">
+          <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200">
+            <div>
+              <p className="text-sm font-semibold text-slate-800">
+                CONFLITOS INDIVIDUAIS ({conflito.paresDoGrupo.length})
+              </p>
+              <p className="text-xs text-slate-500">
+                Resolva pares individualmente sem encerrar todo o grupo.
+              </p>
+            </div>
+            <span className="px-3 py-1 text-xs font-semibold rounded-full bg-slate-100 text-slate-700">
+              Status do grupo: {statusDerivado}
+            </span>
+          </div>
+          <div className="divide-y divide-slate-200">
+            {conflito.paresDoGrupo.map((par) => (
+              <div
+                key={par.id}
+                className="flex items-center justify-between px-3 py-3 text-sm"
+              >
+                <div className="flex flex-col gap-0.5">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`px-2 py-0.5 text-[11px] font-semibold rounded-full ${
+                        (par.status ?? "").toUpperCase() === "RESOLVIDO"
+                          ? "bg-emerald-100 text-emerald-700 border border-emerald-200"
+                          : "bg-amber-100 text-amber-700 border border-amber-200"
+                      }`}
+                    >
+                      {par.status}
+                    </span>
+                    {par.ciLabel && (
+                      <span className="text-xs text-slate-500">({par.ciLabel})</span>
+                    )}
+                  </div>
+                  <div className="text-slate-800 font-semibold">
+                    {participantesMap.get(par.adolescenteAId) ?? par.adolescenteAId} x{" "}
+                    {participantesMap.get(par.adolescenteBId) ?? par.adolescenteBId}
+                  </div>
+                </div>
+                {(par.status ?? "").toUpperCase() !== "RESOLVIDO" ? (
+                  <button
+                    type="button"
+                    onClick={() => handleResolverPar(par.id)}
+                    className="inline-flex items-center rounded-full border border-slate-300 bg-white px-2.5 py-0.5 text-[10px] font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap"
+                  >
+                    Marcar como Resolvido
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleReabrirPar(par.id)}
+                    className="inline-flex items-center rounded-full border border-slate-300 bg-white px-2.5 py-0.5 text-[10px] font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap"
+                  >
+                    Reabrir conflito
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </>
   );
 
   return (
-    <DetalhesConflito
-      conflito={conflito}
-      mediacoes={mediacoes}
-      onAdicionarMediacao={handleAdicionarMediacao}
-      onResolverConflito={handleResolverConflito}
-      quickEditSlot={quickEditSlot}
-    />
+    <>
+      <DetalhesConflito
+        conflito={conflitoParaDetalhe ?? conflito}
+        mediacoes={mediacoes}
+        onAdicionarMediacao={handleAdicionarMediacao}
+        onResolverConflito={handleResolverConflito}
+        quickEditSlot={quickEditSlot}
+      />
+    </>
   );
 }

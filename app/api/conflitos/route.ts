@@ -508,6 +508,35 @@ export async function POST(request: Request) {
     }
 
 
+    const origemPayload =
+      typeof body?.origem === "string" ? body.origem.toUpperCase() : null;
+
+    // Se origem declarada como CI, exigir ciOrigemId e CI ativa
+    if (origemPayload === "CI") {
+      if (!body.ciOrigemId) {
+        return NextResponse.json(
+          { error: "Origem CI exige vincular uma CI existente." },
+          { status: 400 }
+        );
+      }
+      const ciExiste = await prisma.comunicadoInterno.findUnique({
+        where: { id: body.ciOrigemId },
+        select: { id: true, desativadoEm: true },
+      });
+      if (!ciExiste) {
+        return NextResponse.json(
+          { error: "CI de origem não encontrada." },
+          { status: 400 }
+        );
+      }
+      if (ciExiste.desativadoEm) {
+        return NextResponse.json(
+          { error: "CI de origem está desativada/cancelada." },
+          { status: 400 }
+        );
+      }
+    }
+
     const possuiPartes =
       Array.isArray(body.partes) && body.partes.length > 0;
 
@@ -639,11 +668,4 @@ export async function POST(request: Request) {
     );
   }
 }
-
-
-
-
-
-
-
 

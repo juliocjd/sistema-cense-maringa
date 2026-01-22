@@ -74,8 +74,10 @@ const mapearOcupanteParaAdolescente = (
           nome: faccaoFonte.nome ?? faccaoFonte.nomeFaccao ?? "",
         }
       : null,
-    conflitosA: (ocupante.conflitosA ?? []) as unknown as Adolescente["conflitosA"],
-    conflitosB: (ocupante.conflitosB ?? []) as unknown as Adolescente["conflitosB"],
+    conflitosA: (ocupante.conflitosA ?? [])
+      .filter((c: any) => (c?.status ?? "").toUpperCase() === "ATIVO") as unknown as Adolescente["conflitosA"],
+    conflitosB: (ocupante.conflitosB ?? [])
+      .filter((c: any) => (c?.status ?? "").toUpperCase() === "ATIVO") as unknown as Adolescente["conflitosB"],
     conflitosResolvidos: (ocupante.conflitosResolvidos ?? []) as unknown as Adolescente["conflitosResolvidos"],
     atoInfracionalGravidade: false,
     tatuagens: [],
@@ -125,10 +127,22 @@ export function construirPayloadMapa({
       const avaliacao = aloj.avaliacao_risco;
       avaliacoes[aloj.id] = avaliacao;
 
-      const ocupanteDetalhado =
+      const ocupanteDetalhadoRaw =
         aloj.ocupante &&
         (lookup.get(aloj.ocupante.id) ||
           mapearOcupanteParaAdolescente(aloj.ocupante, aloj.id));
+
+      const ocupanteDetalhado = ocupanteDetalhadoRaw
+        ? ({
+            ...ocupanteDetalhadoRaw,
+            conflitosA: (ocupanteDetalhadoRaw.conflitosA ?? []).filter(
+              (c) => (c.status ?? "").toUpperCase() === "ATIVO"
+            ),
+            conflitosB: (ocupanteDetalhadoRaw.conflitosB ?? []).filter(
+              (c) => (c.status ?? "").toUpperCase() === "ATIVO"
+            ),
+          } as Adolescente)
+        : null;
 
       return {
         id: aloj.id,

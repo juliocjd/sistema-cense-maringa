@@ -215,6 +215,7 @@ export default function ConflitosPage() {
       setLoading(true);
       const params = new URLSearchParams({
         participanteStatus: participanteStatusParam,
+        status: "TODOS",
       });
       const response = await fetch(`/api/conflitos?${params.toString()}`);
 

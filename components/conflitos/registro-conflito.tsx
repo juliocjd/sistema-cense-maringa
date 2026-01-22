@@ -47,6 +47,8 @@ export function RegistroConflito({
   const [mostrarListaLadoA, setMostrarListaLadoA] = useState(false);
   const [mostrarListaLadoB, setMostrarListaLadoB] = useState(false);
 
+  const conflitoViaCI = origem === "CI";
+
   const participantesIds = useMemo(() => {
     const ids = new Set<string>();
     ladoA.forEach((item) => ids.add(item.id));
@@ -107,6 +109,13 @@ export function RegistroConflito({
 
     if (!origem) {
       alert("Informe a origem do conflito.");
+      return;
+    }
+
+    if (conflitoViaCI) {
+      alert(
+        "Para conflitos com origem em CI, crie o Comunicado em /comunicados e marque 'Gerar conflito'."
+      );
       return;
     }
 
@@ -367,17 +376,12 @@ export function RegistroConflito({
               </select>
             </div>
             {origem === "CI" && (
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-gray-700">
-                  Numero do CI
-                </label>
-                <input
-                  type="text"
-                  value={ciOrigem}
-                  onChange={(event) => setCiOrigem(event.target.value)}
-                  placeholder="Ex: 145/2025"
-                  className="w-full rounded-lg border-2 border-gray-300 px-4 py-3 focus:border-red-500 focus:ring-2 focus:ring-red-200"
-                />
+              <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                Para conflitos com origem em CI, cadastre o Comunicado em{" "}
+                <Link href="/comunicados/novo" className="font-semibold underline">
+                  /comunicados
+                </Link>{" "}
+                e marque “Gerar conflito”. Este formulário não cria CI.
               </div>
             )}
           </div>
@@ -410,7 +414,8 @@ export function RegistroConflito({
               ladoA.length === 0 ||
               ladoB.length === 0 ||
               !tipoConflito ||
-              !origem
+              !origem ||
+              conflitoViaCI
             }
             className="flex items-center gap-2 rounded-lg bg-red-600 px-6 py-3 font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-gray-400"
           >

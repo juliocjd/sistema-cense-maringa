@@ -109,13 +109,38 @@ const construirConflitoResumo = (
     } | null;
   } | null
 ): ConflitoResumo => {
+  const ciOcorrencia = conflito.ocorrencias?.find(
+    (o: any) => o?.ci
+  )?.ci as { numero?: number | string; ano?: number | string } | undefined;
+
+  const ciNumero =
+    conflito.ciOrigem?.numero ??
+    ciOcorrencia?.numero ??
+    (conflito as any).ciNumero ??
+    null;
+  const ciAno =
+    conflito.ciOrigem?.ano ??
+    ciOcorrencia?.ano ??
+    (conflito as any).ciAno ??
+    null;
+
+  const origemLabel =
+    ciNumero !== undefined && ciNumero !== null
+      ? `CI ${ciNumero}/${ciAno ?? ""}`
+      : conflito.ciOrigem
+      ? `CI ${conflito.ciOrigem.numero}/${conflito.ciOrigem.ano}`
+      : ciOcorrencia?.numero
+      ? `CI ${ciOcorrencia.numero}/${ciOcorrencia.ano ?? ""}`
+      : conflito.ciOrigemId ?? null;
+
   return {
     id: conflito.id,
     tipo: conflito.tipoConflito,
     status: conflito.status,
-    origem: conflito.ciOrigem
-      ? `CI ${conflito.ciOrigem.numero}/${conflito.ciOrigem.ano}`
-      : conflito.ciOrigemId ?? null,
+    origem: origemLabel,
+    // exponha numero/ano para o front usar como fallback na label
+    ciNumero,
+    ciAno,
     criadoEm: conflito.criadoEm,
     resolvidoEm: conflito.resolvidoEm,
     adversario: adversario
@@ -202,6 +227,11 @@ const calcularSnapshot = async (): Promise<{
                         ano: true,
                       },
                     },
+                    ocorrencias: {
+                      select: {
+                        ci: { select: { numero: true, ano: true } },
+                      },
+                    },
                     adolescenteB: {
                       select: {
                         id: true,
@@ -242,6 +272,11 @@ const calcularSnapshot = async (): Promise<{
                       select: {
                         numero: true,
                         ano: true,
+                      },
+                    },
+                    ocorrencias: {
+                      select: {
+                        ci: { select: { numero: true, ano: true } },
                       },
                     },
                     adolescenteA: {
