@@ -366,23 +366,23 @@ export async function GET(
       origemAtiva &&
       ocorrenciasLista.some((oc) => oc.ci?.id === conflito.ciOrigem?.id);
 
-    if (origemAtiva && !origemJaListada) {
+    if (origemAtiva && conflito.ciOrigem && !origemJaListada) {
       ocorrenciasLista = [
         {
-          id: `ci-${conflito.ciOrigem.id}`,
+          id: `ci-${conflito.ciOrigem!.id}`,
           conflitoId: conflito.id,
-          ciId: conflito.ciOrigem.id,
+          ciId: conflito.ciOrigem!.id,
           descricao: conflito.descricao ?? null,
-          criadoEm: conflito.ciOrigem.dataFato ?? conflito.criadoEm,
+          criadoEm: conflito.ciOrigem!.dataFato ?? conflito.criadoEm,
           ci: {
-            id: conflito.ciOrigem.id,
-            numero: conflito.ciOrigem.numero,
-            ano: conflito.ciOrigem.ano,
-            tipoCI: conflito.ciOrigem.tipoCI,
-            resumoCI: conflito.ciOrigem.resumoCI,
-            dataFato: conflito.ciOrigem.dataFato,
-            suspensoPorStatus: conflito.ciOrigem.suspensoPorStatus,
-            desativadoEm: conflito.ciOrigem.desativadoEm,
+            id: conflito.ciOrigem!.id,
+            numero: conflito.ciOrigem!.numero,
+            ano: conflito.ciOrigem!.ano,
+            tipoCI: conflito.ciOrigem!.tipoCI,
+            resumoCI: conflito.ciOrigem!.resumoCI,
+            dataFato: conflito.ciOrigem!.dataFato,
+            suspensoPorStatus: conflito.ciOrigem!.suspensoPorStatus,
+            desativadoEm: conflito.ciOrigem!.desativadoEm,
           },
         },
         ...ocorrenciasLista,
@@ -392,26 +392,29 @@ export async function GET(
     }
 
     // Se não houver ocorrências gravadas, mas existir CI de origem ainda ativa, cria entrada sintética
+    const ciOrigem = conflito.ciOrigem;
     if (
       ocorrenciasLista.length === 0 &&
-      conflito.ciOrigem &&
-      conflito.ciOrigem.desativadoEm === null &&
-      conflito.ciOrigem.suspensoPorStatus !== true
+      ciOrigem &&
+      ciOrigem.desativadoEm === null &&
+      ciOrigem.suspensoPorStatus !== true
     ) {
       ocorrenciasLista = [
         {
-          id: `ci-${conflito.ciOrigem.id}`,
+          id: `ci-${ciOrigem.id}`,
           conflitoId: conflito.id,
-          ciId: conflito.ciOrigem.id,
+          ciId: ciOrigem.id,
           descricao: conflito.descricao ?? null,
-          criadoEm: conflito.criadoEm,
+          criadoEm: ciOrigem.dataFato ?? conflito.criadoEm,
           ci: {
-            id: conflito.ciOrigem.id,
-            numero: conflito.ciOrigem.numero,
-            ano: conflito.ciOrigem.ano,
-            tipoCI: conflito.ciOrigem.tipoCI,
-            resumoCI: conflito.ciOrigem.resumoCI,
-            dataFato: conflito.ciOrigem.dataFato,
+            id: ciOrigem.id,
+            numero: ciOrigem.numero,
+            ano: ciOrigem.ano,
+            tipoCI: ciOrigem.tipoCI,
+            resumoCI: ciOrigem.resumoCI,
+            dataFato: ciOrigem.dataFato,
+            desativadoEm: ciOrigem.desativadoEm,
+            suspensoPorStatus: ciOrigem.suspensoPorStatus,
           },
         },
       ];

@@ -148,6 +148,13 @@ export async function GET(
     });
 
     // Também localizar conflitos ativos existentes entre os mesmos lados do CI (mesmo que a ocorrência não tenha sido registrada)
+    if (!ci) {
+      return NextResponse.json(
+        { erro: "Comunicado n\u00e3o encontrado" },
+        { status: 404 }
+      );
+    }
+
     const lado1Ids = ci.adolescentes
       .filter((a) => a.ladoConflito === "LADO_1")
       .map((a) => a.adolescenteId);

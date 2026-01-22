@@ -392,7 +392,7 @@ export function mapPrismaAdolescente(
         ocorrencias: ocorrencias.map((oc) => ({
           id: oc.id,
           descricao: oc.descricao ?? null,
-          criadoEm: formatDate(oc.criadoEm),
+          criadoEm: formatDate(oc.criadoEm) ?? null,
           ci: oc.ci
             ? {
                 id: oc.ci.id,
@@ -400,7 +400,7 @@ export function mapPrismaAdolescente(
                 ano: oc.ci.ano,
                 tipo: (oc.ci as any).tipo ?? oc.ci.tipoCI ?? null,
                 resumo: (oc.ci as any).resumo ?? oc.ci.resumoCI ?? null,
-                dataFato: formatDate(oc.ci.dataFato),
+                dataFato: formatDate(oc.ci.dataFato) ?? null,
               }
             : null,
         })),
@@ -445,7 +445,7 @@ export function mapPrismaAdolescente(
         ocorrencias: ocorrencias.map((oc) => ({
           id: oc.id,
           descricao: oc.descricao ?? null,
-          criadoEm: formatDate(oc.criadoEm),
+          criadoEm: formatDate(oc.criadoEm) ?? null,
           ci: oc.ci
             ? {
                 id: oc.ci.id,
@@ -453,7 +453,7 @@ export function mapPrismaAdolescente(
                 ano: oc.ci.ano,
                 tipo: (oc.ci as any).tipo ?? oc.ci.tipoCI ?? null,
                 resumo: (oc.ci as any).resumo ?? oc.ci.resumoCI ?? null,
-                dataFato: formatDate(oc.ci.dataFato),
+                dataFato: formatDate(oc.ci.dataFato) ?? null,
               }
             : null,
         })),
