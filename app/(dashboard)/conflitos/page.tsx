@@ -24,6 +24,8 @@ type ApiConflito = {
   resolvidoEm?: string;
   tentativasMediacao: number;
   ultimaMediacao?: string;
+  totalOcorrencias?: number;
+  ultimaOcorrenciaEm?: string;
   operadorResponsavel?: {
     id: string;
     nomeCompleto: string;
@@ -77,6 +79,8 @@ const normalizarConflito = (conflito: ApiConflito): Conflito => {
     resolvidoEm: conflito.resolvidoEm,
     tentativasMediacao: conflito.tentativasMediacao,
     ultimaMediacao: conflito.ultimaMediacao,
+    totalOcorrencias: conflito.totalOcorrencias ?? 0,
+    ultimaOcorrenciaEm: conflito.ultimaOcorrenciaEm,
     operadorResponsavel: conflito.operadorResponsavel ?? null,
     participantes,
   };
@@ -103,6 +107,8 @@ const agruparConflitosPorGrupo = (lista: Conflito[]): Conflito[] => {
         ...conflito,
         registroGrupoId: grupoId,
         resolvidoEm: conflito.status === "ATIVO" ? undefined : conflito.resolvidoEm,
+        totalOcorrencias: conflito.totalOcorrencias ?? 0,
+        ultimaOcorrenciaEm: conflito.ultimaOcorrenciaEm ?? undefined,
         participantesMap,
       };
       grupos.set(grupoId, grupo);
@@ -145,6 +151,8 @@ const agruparConflitosPorGrupo = (lista: Conflito[]): Conflito[] => {
 
     if (jaExistia) {
       alvo.tentativasMediacao += conflito.tentativasMediacao ?? 0;
+      alvo.totalOcorrencias =
+        (alvo.totalOcorrencias ?? 0) + (conflito.totalOcorrencias ?? 0);
     }
 
     if (conflito.ultimaMediacao) {
@@ -154,6 +162,16 @@ const agruparConflitosPorGrupo = (lista: Conflito[]): Conflito[] => {
       const novo = new Date(conflito.ultimaMediacao).getTime();
       if (!atual || novo > atual) {
         alvo.ultimaMediacao = conflito.ultimaMediacao;
+      }
+    }
+
+    if (conflito.ultimaOcorrenciaEm) {
+      const atual = alvo.ultimaOcorrenciaEm
+        ? new Date(alvo.ultimaOcorrenciaEm).getTime()
+        : null;
+      const novo = new Date(conflito.ultimaOcorrenciaEm).getTime();
+      if (!atual || novo > atual) {
+        alvo.ultimaOcorrenciaEm = conflito.ultimaOcorrenciaEm;
       }
     }
 
@@ -405,3 +423,6 @@ export default function ConflitosPage() {
     </div>
   );
 }
+
+
+

@@ -117,6 +117,104 @@ export async function GET(
       },
     });
 
+    const conflitosPorOcorrencia = await prisma.conflitoOcorrencia.findMany({
+      where: { ciId: id },
+      include: {
+        conflito: {
+          select: {
+            id: true,
+            adolescenteA: {
+              select: {
+                id: true,
+                nomeCompleto: true,
+                numeroSms: true,
+              },
+            },
+            adolescenteB: {
+              select: {
+                id: true,
+                nomeCompleto: true,
+                numeroSms: true,
+              },
+            },
+            tipoConflito: true,
+            status: true,
+            descricao: true,
+            criadoEm: true,
+            resolvidoEm: true,
+          },
+        },
+      },
+    });
+
+    // Também localizar conflitos ativos existentes entre os mesmos lados do CI (mesmo que a ocorrência não tenha sido registrada)
+    const lado1Ids = ci.adolescentes
+      .filter((a) => a.ladoConflito === "LADO_1")
+      .map((a) => a.adolescenteId);
+    const lado2Ids = ci.adolescentes
+      .filter((a) => a.ladoConflito === "LADO_2")
+      .map((a) => a.adolescenteId);
+    const paresLados =
+      lado1Ids.length && lado2Ids.length
+        ? lado1Ids.flatMap((aId) =>
+            lado2Ids.map((bId) => ({
+              aId,
+              bId,
+            }))
+          )
+        : [];
+    const paresFallback =
+      paresLados.length === 0 && ci.adolescentes.length >= 2
+        ? [
+            {
+              aId: ci.adolescentes[0].adolescenteId,
+              bId: ci.adolescentes[1].adolescenteId,
+            },
+          ]
+        : [];
+    const paresParaBuscar = paresLados.length ? paresLados : paresFallback;
+
+    let conflitosPorPar: {
+      id: string;
+      adolescenteA: { id: string; nomeCompleto: string; numeroSms: string | null } | null;
+      adolescenteB: { id: string; nomeCompleto: string; numeroSms: string | null } | null;
+      tipoConflito: string | null;
+      status: string;
+      descricao: string | null;
+      criadoEm: Date;
+      resolvidoEm: Date | null;
+    }[] = [];
+
+    if (paresParaBuscar.length) {
+      const conditions = paresParaBuscar.map(({ aId, bId }) => ({
+        OR: [
+          { AND: [{ adolescenteAId: aId }, { adolescenteBId: bId }] },
+          { AND: [{ adolescenteAId: bId }, { adolescenteBId: aId }] },
+        ],
+      }));
+
+      conflitosPorPar = await prisma.conflito.findMany({
+        where: {
+          status: "ATIVO",
+          OR: conditions,
+        },
+        select: {
+          id: true,
+          adolescenteA: {
+            select: { id: true, nomeCompleto: true, numeroSms: true },
+          },
+          adolescenteB: {
+            select: { id: true, nomeCompleto: true, numeroSms: true },
+          },
+          tipoConflito: true,
+          status: true,
+          descricao: true,
+          criadoEm: true,
+          resolvidoEm: true,
+        },
+      });
+    }
+
     if (!ci) {
       return NextResponse.json(
         { erro: "Comunicado não encontrado" },
@@ -132,6 +230,37 @@ export async function GET(
             select: { id: true, nomeCompleto: true },
           })
         : null;
+
+    // Conflitos gerados ou já existentes que receberam ocorrência deste CI
+    const conflitosGeradosMap = new Map<string, any>();
+    ci.conflitos.forEach((conflito) => {
+      conflitosGeradosMap.set(conflito.id, conflito);
+    });
+    conflitosPorOcorrencia.forEach((oc) => {
+      if (oc.conflito) {
+        conflitosGeradosMap.set(oc.conflito.id, oc.conflito);
+      }
+    });
+    conflitosPorPar.forEach((conf) => {
+      conflitosGeradosMap.set(conf.id, conf);
+    });
+
+    const conflitosCompletos = Array.from(conflitosGeradosMap.values()).map(
+      (conflito) => ({
+        id: conflito.id,
+        adolescenteA: conflito.adolescenteA,
+        adolescenteB: conflito.adolescenteB,
+        tipoConflito: conflito.tipoConflito,
+        status: conflito.status,
+        descricao: conflito.descricao,
+        criadoEm: conflito.criadoEm
+          ? new Date(conflito.criadoEm).toISOString()
+          : null,
+        resolvidoEm: conflito.resolvidoEm
+          ? new Date(conflito.resolvidoEm).toISOString()
+          : null,
+      })
+    );
 
     const ciFormatado = {
       id: ci.id,
@@ -149,16 +278,8 @@ export async function GET(
         ...link.adolescente,
         ladoConflito: link.ladoConflito,
       })),
-      conflitos: ci.conflitos.map((conflito) => ({
-        id: conflito.id,
-        adolescenteA: conflito.adolescenteA,
-        adolescenteB: conflito.adolescenteB,
-        tipoConflito: conflito.tipoConflito,
-        status: conflito.status,
-        descricao: conflito.descricao,
-        criadoEm: conflito.criadoEm.toISOString(),
-        resolvidoEm: conflito.resolvidoEm?.toISOString() || null,
-      })),
+      conflitos: conflitosCompletos,
+      conflitosGerados: conflitosCompletos,
       alertas: ci.alertasAtivos.map((alerta) => ({
         id: alerta.id,
         adolescente: alerta.adolescente,

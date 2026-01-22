@@ -37,6 +37,8 @@ type Conflito = {
   resolvidoEm?: string;
   tentativasMediacao: number;
   ultimaMediacao?: string;
+  totalOcorrencias?: number;
+  ultimaOcorrenciaEm?: string;
   operadorResponsavel?: {
     id: string;
     nomeCompleto: string;
@@ -462,6 +464,24 @@ export function ListagemConflitos({
                       <span className="font-semibold">Registrado:</span>{" "}
                       {new Date(conflito.criadoEm).toLocaleDateString("pt-BR")}
                     </span>
+                    {typeof conflito.totalOcorrencias === "number" && (
+                      <span className="flex items-center gap-1">
+                        <FileText size={14} />
+                        {conflito.totalOcorrencias}{" "}
+                        {conflito.totalOcorrencias === 1
+                          ? "ocorrencia"
+                          : "ocorrencias"}
+                        {conflito.ultimaOcorrenciaEm && (
+                          <>
+                            {" "}
+                            · ultima em{" "}
+                            {new Date(
+                              conflito.ultimaOcorrenciaEm
+                            ).toLocaleDateString("pt-BR")}
+                          </>
+                        )}
+                      </span>
+                    )}
                     <span className="flex items-center gap-1">
                       <User size={14} />
                       <span className="font-semibold">Operador:</span>{" "}

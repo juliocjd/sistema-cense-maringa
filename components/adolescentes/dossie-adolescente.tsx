@@ -865,20 +865,59 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                                   : "bg-green-200 text-green-800"
                               }`}
                             >
-                              {conflito.status}
-                            </span>
-                          </div>
-                          {conflito.tipoConflito && (
-                            <p className="text-sm text-gray-600 mb-1">
-                              <span className="font-semibold">Tipo:</span>{" "}
-                              {conflito.tipoConflito}
-                            </p>
+                          {conflito.status}
+                        </span>
+                      </div>
+                      {conflito.tipoConflito && (
+                        <p className="text-sm text-gray-600 mb-1">
+                          <span className="font-semibold">Tipo:</span>{" "}
+                          {conflito.tipoConflito}
+                        </p>
+                      )}
+                      <p className="text-sm text-gray-600 mb-1">
+                        <span className="font-semibold">Ocorrências:</span>{" "}
+                        {conflito.totalOcorrencias ?? 0}
+                        {conflito.ultimaOcorrenciaEm && (
+                          <>
+                            {" "}
+                            · última em{" "}
+                            {new Date(conflito.ultimaOcorrenciaEm).toLocaleDateString("pt-BR")}
+                          </>
+                        )}
+                      </p>
+                      {conflito.ocorrencias && conflito.ocorrencias.length > 0 && (
+                        <div className="mt-2 space-y-1">
+                          {conflito.ocorrencias.slice(0, 3).map((oc) => (
+                            <div key={oc.id} className="text-xs text-gray-700">
+                              <span className="font-semibold">
+                                {new Date(oc.criadoEm ?? "").toLocaleDateString("pt-BR")}:
+                              </span>{" "}
+                              {oc.ci
+                                ? `CI ${oc.ci.numero}/${oc.ci.ano}${
+                                    oc.ci.tipo ? ` (${oc.ci.tipo})` : ""
+                                  }`
+                                : "Ocorrência"}
+                              {oc.ci?.resumo && ` — ${oc.ci.resumo}`}
+                            </div>
+                          ))}
+                          {conflito.ocorrencias.length > 3 && (
+                            <div className="text-xs text-indigo-600">
+                              +{conflito.ocorrencias.length - 3} ocorrências —{" "}
+                              <Link
+                                href={`/conflitos/${conflito.id}`}
+                                className="underline font-semibold"
+                              >
+                                ver todas
+                              </Link>
+                            </div>
                           )}
                         </div>
-                        <Link
-                          href={`/conflitos/${conflito.id}`}
-                          className="text-sm font-semibold text-indigo-600 hover:text-indigo-800 underline underline-offset-4"
-                        >
+                      )}
+                    </div>
+                    <Link
+                      href={`/conflitos/${conflito.id}`}
+                      className="text-sm font-semibold text-indigo-600 hover:text-indigo-800 underline underline-offset-4"
+                    >
                           Abrir conflito
                         </Link>
                       </div>

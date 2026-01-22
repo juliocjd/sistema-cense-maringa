@@ -5,6 +5,57 @@ export type ConflitoPair = { aId: string; bId: string };
 export const buildPairKey = (aId: string, bId: string): string =>
   [aId, bId].sort().join("|");
 
+/**
+ * Retorna um mapa par->conflito ativo sem modificar status.
+ */
+export const findActiveConflictPairs = async (
+  tx: Prisma.TransactionClient,
+  pairs: ConflitoPair[]
+): Promise<Map<string, string>> => {
+  if (!pairs.length) {
+    return new Map();
+  }
+
+  const conditions = pairs.map(({ aId, bId }) => ({
+    OR: [
+      {
+        AND: [
+          { adolescenteAId: aId },
+          { adolescenteBId: bId },
+        ],
+      },
+      {
+        AND: [
+          { adolescenteAId: bId },
+          { adolescenteBId: aId },
+        ],
+      },
+    ],
+  }));
+
+  const encontrados = await tx.conflito.findMany({
+    where: {
+      status: "ATIVO",
+      OR: conditions,
+    },
+    select: {
+      id: true,
+      adolescenteAId: true,
+      adolescenteBId: true,
+    },
+  });
+
+  const mapa = new Map<string, string>();
+  for (const item of encontrados) {
+    const chave = buildPairKey(item.adolescenteAId, item.adolescenteBId);
+    if (!mapa.has(chave)) {
+      mapa.set(chave, item.id);
+    }
+  }
+
+  return mapa;
+};
+
 export const dedupePairs = (pairs: ConflitoPair[]): ConflitoPair[] => {
   const mapa = new Map<string, ConflitoPair>();
   for (const pair of pairs) {
@@ -70,4 +121,3 @@ export const resolveExistingConflictPairs = async (
 
   return existentes.length;
 };
-

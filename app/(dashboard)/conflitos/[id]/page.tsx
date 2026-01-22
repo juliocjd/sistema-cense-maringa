@@ -21,6 +21,21 @@ type Conflito = {
   criadoEm: string;
   resolvidoEm?: string;
   participantes?: Participante[];
+  totalOcorrencias?: number;
+  ultimaOcorrenciaEm?: string;
+  ocorrencias?: Array<{
+    id: string;
+    descricao?: string | null;
+    criadoEm: string;
+    ci?: {
+      id: string;
+      numero: string;
+      ano: string;
+      tipo?: string | null;
+      resumo?: string | null;
+      dataFato?: string | null;
+    } | null;
+  }>;
   adolescenteA: Participante;
   adolescenteB: Participante;
 };
@@ -54,6 +69,19 @@ type ApiConflito = {
       alojamentoAtual?: { descricao?: string | null } | null;
     }
   >;
+  ocorrencias?: Array<{
+    id: string;
+    descricao?: string | null;
+    criadoEm: string;
+    ci?: {
+      id: string;
+      numero: string;
+      ano: string;
+      tipo?: string | null;
+      resumo?: string | null;
+      dataFato?: string | null;
+    } | null;
+  }>;
   ciOrigem?: {
     numero: string;
     ano: string;
@@ -117,6 +145,23 @@ const normalizarConflito = (dados: ApiConflito): Conflito => ({
   descricao: dados.descricao,
   criadoEm: dados.dataRegistro,
   resolvidoEm: dados.dataResolucao ?? undefined,
+  totalOcorrencias: dados.totalOcorrencias ?? 0,
+  ultimaOcorrenciaEm: dados.ultimaOcorrenciaEm ?? undefined,
+  ocorrencias: dados.ocorrencias?.map((oc) => ({
+    id: oc.id,
+    descricao: oc.descricao ?? undefined,
+    criadoEm: oc.criadoEm,
+    ci: oc.ci
+      ? {
+          id: oc.ci.id,
+          numero: oc.ci.numero,
+          ano: oc.ci.ano,
+          tipo: oc.ci.tipo ?? oc.ci.tipoCI ?? null,
+          resumo: oc.ci.resumo ?? oc.ci.resumoCI ?? null,
+          dataFato: oc.ci.dataFato ?? null,
+        }
+      : null,
+  })),
   participantes: dados.participantes?.map((p) =>
     mapearParticipante({
       ...p,

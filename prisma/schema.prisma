@@ -409,10 +409,13 @@ model Conflito {
   criadoEm           DateTime            @default(now()) @map("criado_em")
   resolvidoEm        DateTime?           @map("resolvido_em")
   registroGrupoId    String?             @map("registro_grupo_id")
+  totalOcorrencias   Int                 @default(0) @map("total_ocorrencias")
+  ultimaOcorrenciaEm DateTime            @default(now()) @map("ultima_ocorrencia_em")
   adolescenteA       Adolescente         @relation("AdolescenteA", fields: [adolescenteAId], references: [id])
   adolescenteB       Adolescente         @relation("AdolescenteB", fields: [adolescenteBId], references: [id])
   ciOrigem           ComunicadoInterno?  @relation(fields: [ciOrigemId], references: [id])
   tentativasMediacao TentativaMediacao[]
+  ocorrencias        ConflitoOcorrencia[]
 
   @@map("conflitos")
 }
@@ -432,6 +435,7 @@ model ComunicadoInterno {
   alertasAtivos AlertaAtivo[]
   adolescentes  ComunicadoInternoAdolescente[]
   conflitos     Conflito[]
+  ocorrencias   ConflitoOcorrencia[]           @relation("ConflitoOcorrenciaCi")
 
   @@unique([numero, ano])
   @@map("comunicados_internos")
@@ -446,6 +450,18 @@ model ComunicadoInternoAdolescente {
   ladoConflito  String? @map("lado_conflito")
 
   @@map("comunicados_internos_adolescentes_link")
+}
+
+model ConflitoOcorrencia {
+  id         String             @id @default(uuid())
+  conflitoId String             @map("conflito_id")
+  ciId       String?            @map("ci_id")
+  descricao  String?
+  criadoEm   DateTime           @default(now()) @map("criado_em")
+  conflito   Conflito           @relation(fields: [conflitoId], references: [id], onDelete: Cascade)
+  ci         ComunicadoInterno? @relation("ConflitoOcorrenciaCi", fields: [ciId], references: [id])
+
+  @@map("conflitos_ocorrencias")
 }
 
 model AlertaAtivo {

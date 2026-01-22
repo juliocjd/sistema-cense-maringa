@@ -38,6 +38,21 @@ export interface Conflito {
   descricao?: string | null;
   criadoEm?: string;
   resolvidoEm?: string | null;
+  totalOcorrencias?: number;
+  ultimaOcorrenciaEm?: string | null;
+  ocorrencias?: Array<{
+    id: string;
+    descricao?: string | null;
+    criadoEm: string | null;
+    ci?: {
+      id: string;
+      numero: string | number | null;
+      ano: string | number | null;
+      tipo?: string | null;
+      resumo?: string | null;
+      dataFato?: string | null;
+    } | null;
+  }>;
   adversario?: {
     id: string;
     nomeCompleto: string;

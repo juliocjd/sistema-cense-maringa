@@ -144,6 +144,23 @@ const mapearConflito = (
     tipo: conflito.tipoConflito,
     status: conflito.status,
     descricao: conflito.descricao,
+    totalOcorrencias: conflito.totalOcorrencias ?? 0,
+    ultimaOcorrenciaEm: conflito.ultimaOcorrenciaEm,
+    ocorrencias: conflito.ocorrencias?.map((oc: any) => ({
+      id: oc.id,
+      descricao: oc.descricao,
+      criadoEm: oc.criadoEm,
+      ci: oc.ci
+        ? {
+            id: oc.ci.id,
+            numero: oc.ci.numero,
+            ano: oc.ci.ano,
+            tipo: oc.ci.tipoCI,
+            resumo: oc.ci.resumoCI,
+            dataFato: oc.ci.dataFato,
+          }
+        : null,
+    })),
     dataRegistro: conflito.criadoEm,
     dataResolucao: conflito.resolvidoEm,
     ciOrigem: conflito.ciOrigem
@@ -204,6 +221,23 @@ export async function GET(
     const conflito = await prisma.conflito.findUnique({
       where: { id },
       include: {
+        ocorrencias: {
+          include: {
+            ci: {
+              select: {
+                id: true,
+                numero: true,
+                ano: true,
+                tipoCI: true,
+                resumoCI: true,
+                dataFato: true,
+                suspensoPorStatus: true,
+                desativadoEm: true,
+              },
+            },
+          },
+          orderBy: { criadoEm: "desc" },
+        },
         adolescenteA: {
           select: {
             id: true,
@@ -251,15 +285,15 @@ export async function GET(
     }
 
     const grupoId = conflito.registroGrupoId ?? conflito.id;
+    const filtroGrupo = grupoId
+      ? {
+          OR: [{ registroGrupoId: grupoId }, { id: grupoId }],
+        }
+      : { id: conflito.id };
+
+    // Conflitos do grupo para mapear lados/participantes
     const conflitosAgrupados = await prisma.conflito.findMany({
-      where: grupoId
-        ? {
-            OR: [
-              { registroGrupoId: grupoId },
-              { id: grupoId },
-            ],
-          }
-        : { id: conflito.id },
+      where: filtroGrupo,
       include: {
         adolescenteA: {
           select: {
@@ -268,9 +302,7 @@ export async function GET(
             nomeSocial: true,
             numeroSms: true,
             alojamentoAtual: {
-              include: {
-                casa: true,
-              },
+              include: { casa: true },
             },
           },
         },
@@ -281,14 +313,114 @@ export async function GET(
             nomeSocial: true,
             numeroSms: true,
             alojamentoAtual: {
-              include: {
-                casa: true,
-              },
+              include: { casa: true },
             },
           },
         },
       },
     });
+
+    // Conflitos com ocorrencias para exibir histórico consolidado
+    // Ocorrencias do grupo com CI ativo
+    const idsGrupo = conflitosAgrupados.map((c) => c.id);
+
+    const ocorrenciasSelecionadas = await prisma.conflitoOcorrencia.findMany({
+      where: {
+        conflitoId: { in: idsGrupo },
+        OR: [
+          { ciId: null },
+          {
+            ci: {
+              desativadoEm: null,
+              suspensoPorStatus: false,
+            },
+          },
+        ],
+      },
+      include: {
+        ci: {
+          select: {
+            id: true,
+            numero: true,
+            ano: true,
+            tipoCI: true,
+            resumoCI: true,
+            dataFato: true,
+            suspensoPorStatus: true,
+            desativadoEm: true,
+          },
+        },
+      },
+      orderBy: { criadoEm: "desc" },
+    });
+
+    let ocorrenciasLista = ocorrenciasSelecionadas.filter((oc) => oc.ci);
+
+    // Garantir que a CI de origem apareça como ocorrência base se estiver ativa e ainda não listada
+    const origemAtiva =
+      conflito.ciOrigem &&
+      conflito.ciOrigem.desativadoEm === null &&
+      conflito.ciOrigem.suspensoPorStatus === false;
+
+    const origemJaListada =
+      origemAtiva &&
+      ocorrenciasLista.some((oc) => oc.ci?.id === conflito.ciOrigem?.id);
+
+    if (origemAtiva && !origemJaListada) {
+      ocorrenciasLista = [
+        {
+          id: `ci-${conflito.ciOrigem.id}`,
+          conflitoId: conflito.id,
+          ciId: conflito.ciOrigem.id,
+          descricao: conflito.descricao ?? null,
+          criadoEm: conflito.ciOrigem.dataFato ?? conflito.criadoEm,
+          ci: {
+            id: conflito.ciOrigem.id,
+            numero: conflito.ciOrigem.numero,
+            ano: conflito.ciOrigem.ano,
+            tipoCI: conflito.ciOrigem.tipoCI,
+            resumoCI: conflito.ciOrigem.resumoCI,
+            dataFato: conflito.ciOrigem.dataFato,
+            suspensoPorStatus: conflito.ciOrigem.suspensoPorStatus,
+            desativadoEm: conflito.ciOrigem.desativadoEm,
+          },
+        },
+        ...ocorrenciasLista,
+      ].sort(
+        (a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime()
+      );
+    }
+
+    // Se não houver ocorrências gravadas, mas existir CI de origem ainda ativa, cria entrada sintética
+    if (
+      ocorrenciasLista.length === 0 &&
+      conflito.ciOrigem &&
+      conflito.ciOrigem.desativadoEm === null &&
+      conflito.ciOrigem.suspensoPorStatus !== true
+    ) {
+      ocorrenciasLista = [
+        {
+          id: `ci-${conflito.ciOrigem.id}`,
+          conflitoId: conflito.id,
+          ciId: conflito.ciOrigem.id,
+          descricao: conflito.descricao ?? null,
+          criadoEm: conflito.criadoEm,
+          ci: {
+            id: conflito.ciOrigem.id,
+            numero: conflito.ciOrigem.numero,
+            ano: conflito.ciOrigem.ano,
+            tipoCI: conflito.ciOrigem.tipoCI,
+            resumoCI: conflito.ciOrigem.resumoCI,
+            dataFato: conflito.ciOrigem.dataFato,
+          },
+        },
+      ];
+    }
+
+    const totalOcorrenciasVisiveis = ocorrenciasLista.length;
+
+    const ultimaOcorrenciaEm =
+      ocorrenciasLista.length > 0 ? ocorrenciasLista[0].criadoEm : null;
 
     const ladosMap = mapearLadosDoGrupo(conflitosAgrupados);
     const participantes = coletarParticipantes(conflitosAgrupados, ladosMap);
@@ -296,6 +428,9 @@ export async function GET(
 
     return NextResponse.json({
       ...conflitoFormatado,
+      ocorrencias: ocorrenciasLista,
+      totalOcorrencias: totalOcorrenciasVisiveis,
+      ultimaOcorrenciaEm,
       participantes,
     });
   } catch (error) {
@@ -635,3 +770,5 @@ export async function DELETE(
     );
   }
 }
+
+

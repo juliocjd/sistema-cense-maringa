@@ -334,6 +334,9 @@ export async function GET(request: Request) {
             id: true,
             numero: true,
             ano: true,
+            dataFato: true,
+            desativadoEm: true,
+            suspensoPorStatus: true,
           },
         },
         tentativasMediacao: {
@@ -348,6 +351,53 @@ export async function GET(request: Request) {
       },
     });
 
+    // Buscar ocorrências ativas (CI não desativado/suspenso) dos conflitos retornados
+    const conflitoIds = conflitos.map((c) => c.id);
+    const ocorrenciasAtivas = await prisma.conflitoOcorrencia.findMany({
+      where: {
+        conflitoId: { in: conflitoIds },
+        OR: [
+          { ciId: null },
+          {
+            ci: {
+              desativadoEm: null,
+              suspensoPorStatus: false,
+            },
+          },
+        ],
+      },
+      select: {
+        conflitoId: true,
+        criadoEm: true,
+        ciId: true,
+      },
+      orderBy: { criadoEm: "desc" },
+    });
+
+    const ocorrenciasVisiveis = ocorrenciasAtivas.filter(
+      (oc) => oc.ciId !== null
+    );
+    const ocorrenciaSet = new Set<string>();
+    ocorrenciasVisiveis.forEach((oc) => {
+      if (oc.ciId) {
+        ocorrenciaSet.add(`${oc.conflitoId}|${oc.ciId}`);
+      }
+    });
+
+    const mapaOcorrencias = new Map<
+      string,
+      { total: number; ultima?: Date }
+    >();
+    ocorrenciasVisiveis.forEach((oc) => {
+      const entry =
+        mapaOcorrencias.get(oc.conflitoId) ?? { total: 0, ultima: undefined };
+      entry.total += 1;
+      if (!entry.ultima || entry.ultima < oc.criadoEm) {
+        entry.ultima = oc.criadoEm;
+      }
+      mapaOcorrencias.set(oc.conflitoId, entry);
+    });
+
     const chavesOperadores = Array.from(
       new Set(
         conflitos
@@ -360,6 +410,30 @@ export async function GET(request: Request) {
     // Formatar resposta
     const confilitosFormatados = conflitos.map((c) => {
       const chaveOperador = c.registroGrupoId ?? c.id;
+      const occ = mapaOcorrencias.get(c.id);
+      let totalOcorrencias = occ?.total ?? 0;
+      let ultimaOcorrenciaEm = occ?.ultima ?? c.ultimaOcorrenciaEm ?? null;
+
+      // Fallback: se CI de origem ativa ainda não contada como ocorrência, soma +1 e atualiza data
+      const ciAtiva =
+        c.ciOrigem &&
+        c.ciOrigem.desativadoEm === null &&
+        c.ciOrigem.suspensoPorStatus === false;
+      const origemJaContada =
+        ciAtiva &&
+        c.ciOrigem?.id &&
+        ocorrenciaSet.has(`${c.id}|${c.ciOrigem.id}`);
+      if (ciAtiva && !origemJaContada) {
+        totalOcorrencias += 1;
+        const dataCi = (c as any).ciOrigem?.dataFato ?? c.criadoEm ?? null;
+        if (dataCi) {
+          const data = new Date(dataCi as any);
+          if (!ultimaOcorrenciaEm || new Date(ultimaOcorrenciaEm) < data) {
+            ultimaOcorrenciaEm = data as any;
+          }
+        }
+      }
+
       return {
       id: c.id,
       registroGrupoId: c.registroGrupoId,
@@ -389,6 +463,8 @@ export async function GET(request: Request) {
       resolvidoEm: c.resolvidoEm,
       tentativasMediacao: c.tentativasMediacao.length,
       ultimaMediacao: c.tentativasMediacao[0]?.dataTentativa,
+      totalOcorrencias,
+      ultimaOcorrenciaEm,
       operadorResponsavel: operadoresMap.get(chaveOperador) ?? null,
     };
     });

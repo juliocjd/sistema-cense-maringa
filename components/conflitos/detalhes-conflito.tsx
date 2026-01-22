@@ -46,6 +46,21 @@ type Conflito = {
   criadoEm: string;
   resolvidoEm?: string;
   participantes?: Participante[];
+  totalOcorrencias?: number;
+  ultimaOcorrenciaEm?: string;
+  ocorrencias?: Array<{
+    id: string;
+    descricao?: string | null;
+    criadoEm: string;
+    ci?: {
+      id: string;
+      numero: string;
+      ano: string;
+      tipo?: string | null;
+      resumo?: string | null;
+      dataFato?: string | null;
+    } | null;
+  }>;
 };
 
 type Mediacao = {
@@ -74,6 +89,13 @@ export function DetalhesConflito({
   onResolverConflito,
   quickEditSlot,
 }: DetalhesConflitoProps) {
+  const totalOcorrencias =
+    conflito.ocorrencias?.length ?? conflito.totalOcorrencias ?? 0;
+  const ultimaOcorrenciaEm =
+    conflito.ocorrencias && conflito.ocorrencias.length > 0
+      ? conflito.ocorrencias[0].criadoEm
+      : conflito.ultimaOcorrenciaEm;
+
   const listaMediacoes = Array.isArray(mediacoes) ? mediacoes : [];
   const participantes = conflito.participantes?.length
     ? conflito.participantes
@@ -214,6 +236,8 @@ export function DetalhesConflito({
     }
   };
 
+  const ocorrencias = conflito.ocorrencias ?? [];
+
   return (
     <div className="space-y-6">
       <div className="rounded-2xl border-b-4 border-red-600 bg-white p-6 shadow-lg">
@@ -285,6 +309,50 @@ export function DetalhesConflito({
           </p>
         )}
       </div>
+
+      {ocorrencias.length > 0 && (
+        <div className="rounded-2xl border border-indigo-100 bg-white p-6 shadow-lg">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-indigo-600 font-semibold">
+                Ocorrências / CIs vinculados
+              </p>
+              <h3 className="text-lg font-bold text-gray-800">
+                {ocorrencias.length} registro(s)
+                {totalOcorrencias > 0
+                  ? ` · ${totalOcorrencias} ocorrencia(s) total`
+                  : ""}
+              </h3>
+            </div>
+            {ultimaOcorrenciaEm && (
+              <span className="text-sm text-gray-600">
+                Última em {new Date(ultimaOcorrenciaEm).toLocaleDateString("pt-BR")}
+              </span>
+            )}
+          </div>
+          <div className="divide-y divide-gray-200">
+            {ocorrencias.map((oc) => (
+              <div key={oc.id} className="py-3 flex flex-col gap-1">
+                <div className="text-sm text-gray-700 flex items-center gap-2">
+                  <Calendar size={14} className="text-indigo-500" />
+                  {new Date(oc.criadoEm).toLocaleString("pt-BR")}
+                  {oc.ci && (
+                    <span className="px-2 py-0.5 text-xs rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                      CI {oc.ci.numero}/{oc.ci.ano} {oc.ci.tipo ? `(${oc.ci.tipo})` : ""}
+                    </span>
+                  )}
+                </div>
+                {oc.ci?.resumo && (
+                  <p className="text-sm text-gray-800 font-medium">{oc.ci.resumo}</p>
+                )}
+                {oc.descricao && (
+                  <p className="text-sm text-gray-600 whitespace-pre-line">{oc.descricao}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {quickEditSlot}
 

@@ -10,7 +10,8 @@ import { registrarRiscoFugaAutomatico } from "@/lib/adolescentes/risco-fuga";
 import {
   ConflitoPair,
   dedupePairs,
-  resolveExistingConflictPairs,
+  findActiveConflictPairs,
+  buildPairKey,
 } from "@/lib/conflitos/pairs";
 
 const prisma = new PrismaClient();
@@ -44,6 +45,7 @@ type ComunicadosPayload = {
   gerarConflito?: boolean | string | null;
   gerarAlerta?: boolean | string | null;
   nivelRiscoAlerta?: string | null;
+  tipoConflitoGerado?: string | null;
 };
 
 const parseAdolescentesIds = (valor: unknown): string[] => {
@@ -96,6 +98,7 @@ const parsePayload = async (request: NextRequest): Promise<ComunicadosPayload> =
       gerarConflito: parseBoolean(getString("gerarConflito")),
       gerarAlerta: parseBoolean(getString("gerarAlerta")),
       nivelRiscoAlerta: getString("nivelRiscoAlerta"),
+      tipoConflitoGerado: getString("tipoConflitoGerado"),
     };
   }
 
@@ -106,6 +109,7 @@ const parsePayload = async (request: NextRequest): Promise<ComunicadosPayload> =
     resumoCI: json.resumoCI ?? (json as any)?.resumoCi ?? null,
     ladoAIds: json.ladoAIds ?? (json as any)?.lado1Ids ?? null,
     ladoBIds: json.ladoBIds ?? (json as any)?.lado2Ids ?? null,
+    tipoConflitoGerado: json.tipoConflitoGerado ?? null,
   };
 };
 
@@ -199,6 +203,19 @@ export async function GET(request: NextRequest) {
       prisma.comunicadoInterno.count({ where }),
     ]);
 
+    // Conflitos vinculados via ocorrência (reaproveitamento)
+    const idsCi = comunicados.map((ci) => ci.id);
+    const ocorrenciasPorCi =
+      idsCi.length > 0
+        ? await prisma.conflitoOcorrencia.findMany({
+            where: { ciId: { in: idsCi } },
+            select: { ciId: true },
+          })
+        : [];
+    const ciComOcorrencia = new Set(
+      ocorrenciasPorCi.map((oc) => oc.ciId).filter(Boolean) as string[]
+    );
+
     const operadorIds = [
       ...new Set(
         comunicados
@@ -268,7 +285,7 @@ export async function GET(request: NextRequest) {
           : null,
       })),
       criadoEm: ci.criadoEm.toISOString(),
-      temConflito: ci.conflitos.length > 0,
+      temConflito: ci.conflitos.length > 0 || ciComOcorrencia.has(ci.id),
       temAlerta:
         ci.alertasAtivos.filter((a) => a.desativadoEm === null).length > 0,
     }));
@@ -322,6 +339,7 @@ export async function POST(request: NextRequest) {
       gerarConflito,
       gerarAlerta,
       nivelRiscoAlerta,
+      tipoConflitoGerado,
     } = payload;
     const tipoCI = tipoCIEntrada ?? undefined;
     const nivelRiscoNormalizado = normalizarNivelRisco(nivelRiscoAlerta);
@@ -339,6 +357,8 @@ export async function POST(request: NextRequest) {
       gerarConflito === undefined
         ? tipoCI === "CONFLITO"
         : gerarConflitoBool;
+    const tipoConflitoGeradoNorm =
+      (tipoConflitoGerado ?? "PESSOAL").toString().trim().toUpperCase();
     const gerarAlertaEntrada =
       gerarAlerta === undefined ? undefined : parseBoolean(gerarAlerta);
     const deveGerarAlerta =
@@ -445,10 +465,13 @@ export async function POST(request: NextRequest) {
         })),
       });
 
-      // 3. Gerar conflitos automaticamente
+      // 3. Gerar conflitos automaticamente (com ocorrencias)
       const conflitosGerados: string[] = [];
+      let ocorrenciasGeradas = 0;
 
       if (deveGerarConflito && adolescentesIdsArray.length >= 2) {
+        const tipoConflitoRegistro =
+          tipoCI === "CONFLITO" ? tipoConflitoGeradoNorm : `CI_${tipoCI}`;
         const lado1Base =
           lado1Ids.length > 0
             ? lado1Ids
@@ -498,33 +521,126 @@ export async function POST(request: NextRequest) {
         };
 
         if (paresParaCriar.length > 0) {
-          await resolveExistingConflictPairs(tx, paresParaCriar);
+          const ativosMap = await findActiveConflictPairs(tx, paresParaCriar);
+
+          // Mapear grupo existente (mesmo par) mesmo que conflito esteja resolvido,
+          // para reaproveitar o registroGrupoId e agrupar histórico
+          const conditions = paresParaCriar.map(({ aId, bId }) => ({
+            OR: [
+              { AND: [{ adolescenteAId: aId }, { adolescenteBId: bId }] },
+              { AND: [{ adolescenteAId: bId }, { adolescenteBId: aId }] },
+            ],
+          }));
+
+          const conflitosAnteriores = await tx.conflito.findMany({
+            where: { OR: conditions },
+            orderBy: { criadoEm: "desc" },
+            select: {
+              id: true,
+              registroGrupoId: true,
+              adolescenteAId: true,
+              adolescenteBId: true,
+            },
+          });
+
+          const grupoMap = new Map<string, string>();
+          conflitosAnteriores.forEach((c) => {
+            const chave = buildPairKey(c.adolescenteAId, c.adolescenteBId);
+            if (!grupoMap.has(chave)) {
+              grupoMap.set(chave, c.registroGrupoId ?? c.id);
+            }
+          });
+
+          const agora = new Date();
+
           for (const { aId, bId } of paresParaCriar) {
-            const conflito = await tx.conflito.create({
+            const chave = buildPairKey(aId, bId);
+            const descricaoOcorrencia = gerarDescricao(resumoCI);
+
+            if (ativosMap.has(chave)) {
+              const conflitoId = ativosMap.get(chave)!;
+            const ocorrencia = await tx.conflitoOcorrencia.create({
               data: {
-                adolescenteAId: aId,
-                adolescenteBId: bId,
-                tipoConflito: "CI_" + tipoCI,
-                status: "ATIVO",
-                ciOrigemId: ci.id,
-                descricao: gerarDescricao(resumoCI),
-              },
-            });
-            conflitosGerados.push(conflito.id);
-            if (operadorResponsavelId) {
-              await tx.logAuditoria.create({
-                data: {
-                  operadorId: operadorResponsavelId,
-                  acao: "INSERT",
-                  tabelaAfetada: "conflitos",
-                  registroIdAfetado: conflito.registroGrupoId ?? conflito.id,
-                  detalhesAlteracao: {
-                    tipoConflito: conflito.tipoConflito,
-                    origem: `CI ${numeroInt}/${anoInt}`,
-                  },
-                  ipOrigem,
+                conflitoId,
+                ciId: ci.id,
+                descricao: descricaoOcorrencia,
                 },
               });
+              await tx.conflito.update({
+                where: { id: conflitoId },
+                data: {
+                  totalOcorrencias: { increment: 1 },
+                  ultimaOcorrenciaEm: agora,
+                },
+              });
+              ocorrenciasGeradas += 1;
+              if (operadorResponsavelId) {
+                await tx.logAuditoria.create({
+                  data: {
+                    operadorId: operadorResponsavelId,
+                    acao: "INSERT",
+                    tabelaAfetada: "conflitos_ocorrencias",
+                    registroIdAfetado: ocorrencia.id,
+                    detalhesAlteracao: {
+                      conflitoId,
+                      origem: `CI ${numeroInt}/${anoInt}`,
+                    },
+                    ipOrigem,
+                  },
+                });
+              }
+            } else {
+              const registroGrupoId = grupoMap.get(chave) ?? undefined;
+              const conflito = await tx.conflito.create({
+                data: {
+                  adolescenteAId: aId,
+                  adolescenteBId: bId,
+                  tipoConflito: tipoConflitoRegistro,
+                  status: "ATIVO",
+                  ciOrigemId: ci.id,
+                  descricao: null,
+                  registroGrupoId,
+                  totalOcorrencias: 1,
+                  ultimaOcorrenciaEm: agora,
+                },
+              });
+              const ocorrencia = await tx.conflitoOcorrencia.create({
+                data: {
+                  conflitoId: conflito.id,
+                  ciId: ci.id,
+                  descricao: descricaoOcorrencia,
+                },
+              });
+              ocorrenciasGeradas += 1;
+              conflitosGerados.push(conflito.id);
+              if (operadorResponsavelId) {
+                await tx.logAuditoria.create({
+                  data: {
+                    operadorId: operadorResponsavelId,
+                    acao: "INSERT",
+                    tabelaAfetada: "conflitos",
+                    registroIdAfetado: conflito.registroGrupoId ?? conflito.id,
+                    detalhesAlteracao: {
+                      tipoConflito: conflito.tipoConflito,
+                      origem: `CI ${numeroInt}/${anoInt}`,
+                    },
+                    ipOrigem,
+                  },
+                });
+                await tx.logAuditoria.create({
+                  data: {
+                    operadorId: operadorResponsavelId,
+                    acao: "INSERT",
+                    tabelaAfetada: "conflitos_ocorrencias",
+                    registroIdAfetado: ocorrencia.id,
+                    detalhesAlteracao: {
+                      conflitoId: conflito.id,
+                      origem: `CI ${numeroInt}/${anoInt}`,
+                    },
+                    ipOrigem,
+                  },
+                });
+              }
             }
           }
         }
@@ -633,6 +749,7 @@ export async function POST(request: NextRequest) {
         ci,
         conflitosGerados,
         alertasGerados,
+        ocorrenciasGeradas,
       };
     });
 
@@ -641,7 +758,8 @@ export async function POST(request: NextRequest) {
         comunicado: resultado.ci,
         conflitosGerados: resultado.conflitosGerados.length,
         alertasGerados: resultado.alertasGerados.length,
-        mensagem: `CI criado com sucesso! ${resultado.conflitosGerados.length} conflito(s) e ${resultado.alertasGerados.length} alerta(s) gerado(s) automaticamente.`,
+        ocorrenciasRegistradas: resultado.ocorrenciasGeradas,
+        mensagem: `CI criado com sucesso! ${resultado.conflitosGerados.length} novo(s) conflito(s), ${resultado.ocorrenciasGeradas} ocorrencia(s) registradas e ${resultado.alertasGerados.length} alerta(s) gerado(s) automaticamente.`,
       },
       { status: 201 }
     );

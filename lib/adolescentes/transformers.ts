@@ -52,6 +52,33 @@ export const INCLUDE_ADOLESCENTE_DEFAULT = {
           },
         },
       },
+      ciOrigem: {
+        select: {
+          id: true,
+          numero: true,
+          ano: true,
+          tipoCI: true,
+          resumoCI: true,
+          dataFato: true,
+          desativadoEm: true,
+          suspensoPorStatus: true,
+        },
+      },
+      ocorrencias: {
+        include: {
+          ci: {
+            select: {
+              id: true,
+              numero: true,
+              ano: true,
+              tipoCI: true,
+              resumoCI: true,
+              dataFato: true,
+            },
+          },
+        },
+        orderBy: { criadoEm: "desc" },
+      },
     },
   },
   conflitosB: {
@@ -71,6 +98,32 @@ export const INCLUDE_ADOLESCENTE_DEFAULT = {
             },
           },
         },
+      },
+      ciOrigem: {
+        select: {
+          id: true,
+          numero: true,
+          ano: true,
+          tipoCI: true,
+          resumoCI: true,
+          dataFato: true,
+          desativadoEm: true,
+        },
+      },
+      ocorrencias: {
+        include: {
+          ci: {
+            select: {
+              id: true,
+              numero: true,
+              ano: true,
+              tipoCI: true,
+              resumoCI: true,
+              dataFato: true,
+            },
+          },
+        },
+        orderBy: { criadoEm: "desc" },
       },
     },
   },
@@ -297,7 +350,34 @@ export function mapPrismaAdolescente(
         ?.filter(
           (conflito) => conflito.adolescenteB?.statusUnidade === "ATIVO"
         )
-        .map((conflito) => ({
+        .map((conflito) => {
+        let ocorrencias = (conflito.ocorrencias ?? []).filter((oc) => {
+          const ci = oc.ci as any;
+          if (!ci) return false;
+          if (ci.desativadoEm !== null) return false;
+          return ci.suspensoPorStatus === false;
+        });
+        if (
+          ocorrencias.length === 0 &&
+          conflito.ciOrigem &&
+          (conflito.ciOrigem as any).desativadoEm === null &&
+          (conflito.ciOrigem as any).suspensoPorStatus !== true
+        ) {
+          ocorrencias = [
+            {
+              id: `ci-${conflito.ciOrigem.id}`,
+              descricao: conflito.descricao ?? null,
+              criadoEm: conflito.criadoEm,
+              ci: conflito.ciOrigem,
+            } as any,
+          ];
+        }
+        ocorrencias.sort((a, b) =>
+          new Date(b.criadoEm as any).getTime() -
+          new Date(a.criadoEm as any).getTime()
+        );
+
+        return {
         id: conflito.id,
         adolescenteAId: conflito.adolescenteAId,
         adolescenteBId: conflito.adolescenteBId,
@@ -305,6 +385,25 @@ export function mapPrismaAdolescente(
         status: conflito.status,
         descricao: conflito.descricao,
         criadoEm: formatDate(conflito.criadoEm),
+        totalOcorrencias: ocorrencias.length,
+        ultimaOcorrenciaEm:
+          formatDate(conflito.ultimaOcorrenciaEm) ??
+          (ocorrencias[0]?.criadoEm ? formatDate(ocorrencias[0].criadoEm) : undefined),
+        ocorrencias: ocorrencias.map((oc) => ({
+          id: oc.id,
+          descricao: oc.descricao ?? null,
+          criadoEm: formatDate(oc.criadoEm),
+          ci: oc.ci
+            ? {
+                id: oc.ci.id,
+                numero: oc.ci.numero,
+                ano: oc.ci.ano,
+                tipo: (oc.ci as any).tipo ?? oc.ci.tipoCI ?? null,
+                resumo: (oc.ci as any).resumo ?? oc.ci.resumoCI ?? null,
+                dataFato: formatDate(oc.ci.dataFato),
+              }
+            : null,
+        })),
         adversario: conflito.adolescenteB
           ? {
               id: conflito.adolescenteB.id,
@@ -312,13 +411,26 @@ export function mapPrismaAdolescente(
               numeroSms: conflito.adolescenteB.numeroSms ?? null,
             }
           : null,
-        })) ?? [],
+        };
+        }) ?? [],
     conflitosB:
       adolescente.conflitosB
         ?.filter(
           (conflito) => conflito.adolescenteA?.statusUnidade === "ATIVO"
         )
-        .map((conflito) => ({
+        .map((conflito) => {
+        const ocorrencias = (conflito.ocorrencias ?? []).filter((oc) => {
+          const ci = oc.ci as any;
+          if (!ci) return false;
+          if (ci.desativadoEm !== null) return false;
+          return ci.suspensoPorStatus === false;
+        });
+        ocorrencias.sort((a, b) =>
+          new Date(b.criadoEm as any).getTime() -
+          new Date(a.criadoEm as any).getTime()
+        );
+
+        return {
         id: conflito.id,
         adolescenteAId: conflito.adolescenteAId,
         adolescenteBId: conflito.adolescenteBId,
@@ -326,6 +438,25 @@ export function mapPrismaAdolescente(
         status: conflito.status,
         descricao: conflito.descricao,
         criadoEm: formatDate(conflito.criadoEm),
+        totalOcorrencias: ocorrencias.length,
+        ultimaOcorrenciaEm:
+          formatDate(conflito.ultimaOcorrenciaEm) ??
+          (ocorrencias[0]?.criadoEm ? formatDate(ocorrencias[0].criadoEm) : undefined),
+        ocorrencias: ocorrencias.map((oc) => ({
+          id: oc.id,
+          descricao: oc.descricao ?? null,
+          criadoEm: formatDate(oc.criadoEm),
+          ci: oc.ci
+            ? {
+                id: oc.ci.id,
+                numero: oc.ci.numero,
+                ano: oc.ci.ano,
+                tipo: (oc.ci as any).tipo ?? oc.ci.tipoCI ?? null,
+                resumo: (oc.ci as any).resumo ?? oc.ci.resumoCI ?? null,
+                dataFato: formatDate(oc.ci.dataFato),
+              }
+            : null,
+        })),
         adversario: conflito.adolescenteA
           ? {
               id: conflito.adolescenteA.id,
@@ -333,7 +464,8 @@ export function mapPrismaAdolescente(
               numeroSms: conflito.adolescenteA.numeroSms ?? null,
             }
           : null,
-        })) ?? [],
+        };
+        }) ?? [],
     historicoInfracional,
     alertasEspeciais,
     alertasPendentes: 0,
