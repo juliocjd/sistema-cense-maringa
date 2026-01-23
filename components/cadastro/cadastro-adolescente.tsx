@@ -16,6 +16,7 @@ import {
   Loader2,
   Lock,
   Activity,
+  Bed,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type {
@@ -696,14 +697,15 @@ export function CadastroAdolescente({
 
   useEffect(() => {
     if (statusUnidade !== "ATIVO") {
-      setDadosPessoais((prev) =>
-        prev.numeroInterno
-          ? {
-              ...prev,
-              numeroInterno: "",
-            }
-          : prev
-      );
+      setDadosPessoais((prev) => ({
+        ...prev,
+        numeroInterno: "",
+        alojamentoAtualId: null,
+        alojamentoPreferencialId: null,
+      }));
+      setAlojamentoSelecionado(null);
+      setSugestoesAlojamento([]);
+      setTipoInternacao(null);
     }
   }, [statusUnidade]);
   const [modalNovoBairro, setModalNovoBairro] = useState<{
@@ -1039,12 +1041,13 @@ export function CadastroAdolescente({
     { numero: 1, titulo: "Dados Pessoais", icone: User },
     { numero: 2, titulo: "Ato Infracional", icone: FileText },
     { numero: 3, titulo: "Vinculacoes", icone: Users },
-    { numero: 4, titulo: "Tatuagens", icone: Camera },
-    { numero: 5, titulo: "Alertas", icone: AlertTriangle },
+    { numero: 4, titulo: "Alojamento", icone: Bed },
+    { numero: 5, titulo: "Tatuagens", icone: Camera },
+    { numero: 6, titulo: "Alertas", icone: AlertTriangle },
   ];
 
   const proximaEtapa = () => {
-    if (etapaAtual < 5) setEtapaAtual(etapaAtual + 1);
+    if (etapaAtual < etapas.length) setEtapaAtual(etapaAtual + 1);
   };
 
   const etapaAnterior = () => {
@@ -1395,46 +1398,50 @@ export function CadastroAdolescente({
           <div className="overflow-x-auto pb-3">
             <div className="flex items-center gap-4 min-w-[520px] sm:min-w-0 sm:gap-0">
               {etapas.map((etapa, index) => (
-                <div
+                <button
                   key={etapa.numero}
-                  className="flex items-center min-w-[130px] sm:flex-1"
+                  type="button"
+                  onClick={() => setEtapaAtual(etapa.numero)}
+                  className="flex items-center min-w-[130px] sm:flex-1 focus:outline-none"
                 >
-                  <div className="flex flex-col items-center flex-1">
-                    <div
-                      className={`w-12 h-12 rounded-full flex items-center justify-center font-bold transition-all ${
-                        etapa.numero === etapaAtual
-                          ? "bg-indigo-600 text-white scale-110"
-                          : etapa.numero < etapaAtual
-                          ? "bg-green-500 text-white"
-                          : "bg-gray-200 text-gray-500"
-                      }`}
-                    >
-                      {etapa.numero < etapaAtual ? (
-                        <CheckCircle size={24} />
-                      ) : (
-                        <etapa.icone size={24} />
-                      )}
+                  <div className="flex items-center w-full">
+                    <div className="flex flex-col items-center flex-1">
+                      <div
+                        className={`w-12 h-12 rounded-full flex items-center justify-center font-bold transition-all ${
+                          etapa.numero === etapaAtual
+                            ? "bg-indigo-600 text-white scale-110"
+                            : etapa.numero < etapaAtual
+                            ? "bg-green-500 text-white"
+                            : "bg-gray-200 text-gray-500"
+                        }`}
+                      >
+                        {etapa.numero < etapaAtual ? (
+                          <CheckCircle size={24} />
+                        ) : (
+                          <etapa.icone size={24} />
+                        )}
+                      </div>
+                      <span
+                        className={`text-xs mt-2 font-semibold text-center ${
+                          etapa.numero === etapaAtual
+                            ? "text-indigo-600"
+                            : etapa.numero < etapaAtual
+                            ? "text-green-500"
+                            : "text-gray-500"
+                        }`}
+                      >
+                        {etapa.titulo}
+                      </span>
                     </div>
-                    <span
-                      className={`text-xs mt-2 font-semibold text-center ${
-                        etapa.numero === etapaAtual
-                          ? "text-indigo-600"
-                          : etapa.numero < etapaAtual
-                          ? "text-green-500"
-                          : "text-gray-500"
-                      }`}
-                    >
-                      {etapa.titulo}
-                    </span>
+                    {index < etapas.length - 1 && (
+                      <div
+                        className={`h-1 hidden sm:flex flex-1 mx-2 rounded transition-all ${
+                          etapa.numero < etapaAtual ? "bg-green-500" : "bg-gray-200"
+                        }`}
+                      />
+                    )}
                   </div>
-                  {index < etapas.length - 1 && (
-                    <div
-                      className={`h-1 hidden sm:flex flex-1 mx-2 rounded transition-all ${
-                        etapa.numero < etapaAtual ? "bg-green-500" : "bg-gray-200"
-                      }`}
-                    />
-                  )}
-                </div>
+                </button>
               ))}
             </div>
           </div>
@@ -2306,170 +2313,175 @@ export function CadastroAdolescente({
                   </div>
                 </div>
 
-                {podeSelecionarAlojamento && (
-                <div>
-                  <div className="mb-4">
-                    <p className="text-sm font-semibold text-gray-700 mb-2">
-                      Tipo de internacao
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {[
-                        {
-                          label: "Provisoria",
-                          value: "PROVISORIA" as TipoInternacao,
-                          dica: "Prioriza Casa 01",
-                        },
-                        {
-                          label: "Definitiva",
-                          value: "DEFINITIVA" as TipoInternacao,
-                          dica: "Casas 02-07 (Casa 08 apenas segura)",
-                        },
-                      ].map((opcao) => {
-                        const ativo = tipoInternacao === opcao.value;
-                        return (
-                          <button
-                            key={opcao.value}
-                            type="button"
-                            onClick={() => setTipoInternacao(opcao.value)}
-                            className={`flex-1 min-w-[140px] rounded-xl border px-4 py-2 text-left text-sm transition ${
-                              ativo
-                                ? "border-indigo-500 bg-indigo-50 text-indigo-700 shadow-sm"
-                                : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
-                            }`}
-                          >
-                            <span className="block font-semibold">
-                              {opcao.label}
-                            </span>
-                            <span className="text-xs text-slate-500">
-                              {opcao.dica}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                    {!tipoInternacao && (
-                      <p className="mt-1 text-xs text-slate-500">
-                        Escolha o tipo de internacao para aplicar as regras de
-                        sugestao automaticamente.
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap items-center gap-3 mb-2">
-                    <label className="text-sm font-semibold text-gray-700">
-                      Alojamento preferencial
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (!vinculacoes.bairroId && !vinculacoes.faccaoId) {
-                          setErroSugestoes("Informe bairro ou faccao antes de gerar sugestoes.");
-                          return;
-                        }
-                        buscarSugestoesAlojamento();
-                      }}
-                      className="rounded-full border border-indigo-300 bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 disabled:opacity-60"
-                      disabled={carregandoSugestoes || !tipoInternacao}
-                    >
-                      {carregandoSugestoes
-                        ? "Sugerindo..."
-                        : "Sugerir com base no risco"}
-                    </button>
-                    {!vinculacoes.bairroId && !vinculacoes.faccaoId && (
-                      <span className="text-[11px] text-slate-500">
-                        Informe bairro ou faccao para liberar as sugestoes.
-                      </span>
-                    )}
-                  </div>
-                  <select
-                    value={alojamentoSelecionado ?? ""}
-                    onChange={(e) => {
-                      setAlojamentoSelecionado(
-                        e.target.value ? e.target.value : null
-                      );
-                    }}
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
+          </div>
+        </div>
+      )}
+
+      {/* ETAPA 4: Alojamento */}
+      {etapaAtual === 4 && (
+        <div className="space-y-6">
+          <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+            <Bed className="text-indigo-600" />
+            Alojamento
+          </h2>
+
+          <div className="mb-4">
+            <p className="text-sm font-semibold text-gray-700 mb-2">
+              Tipo de internacao
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {[
+                {
+                  label: "Provisoria",
+                  value: "PROVISORIA" as TipoInternacao,
+                  dica: "Prioriza Casa 01",
+                },
+                {
+                  label: "Definitiva",
+                  value: "DEFINITIVA" as TipoInternacao,
+                  dica: "Casas 02-07 (Casa 08 apenas segura)",
+                },
+              ].map((opcao) => {
+                const ativo = tipoInternacao === opcao.value;
+                return (
+                  <button
+                    key={opcao.value}
+                    type="button"
+                    onClick={() => setTipoInternacao(opcao.value)}
+                    className={`flex-1 min-w-[140px] rounded-xl border px-4 py-2 text-left text-sm transition ${
+                      ativo
+                        ? "border-indigo-500 bg-indigo-50 text-indigo-700 shadow-sm"
+                        : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                    } ${
+                      statusUnidade !== "ATIVO"
+                        ? "opacity-50 cursor-not-allowed"
+                        : ""
+                    }`}
+                    disabled={statusUnidade !== "ATIVO"}
                   >
-                    <option value="">Nenhum (sem alocacao automatica)</option>
-                    {alojamentosLivres.map((aloj) => (
-                      <option key={aloj.id} value={aloj.id}>
-                        {aloj.casa} - Aloj. {aloj.numero}
-                        {aloj.ala ? ` (Ala ${aloj.ala})` : ""}
-                      </option>
-                    ))}
-                  </select>
-                  {erroSugestoes && (
-                    <p className="mt-1 text-xs text-rose-600">{erroSugestoes}</p>
-                  )}
-                  {avisoSugestoes && (
-                    <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                      {avisoSugestoes}
-                    </div>
-                  )}
-                  {sugestoesAlojamento.length > 0 && (
-                    <div className="mt-3 space-y-2">
-                      {sugestoesAlojamento.map((sugestao) => (
-                        <div
-                          key={sugestao.alojamentoId}
-                          className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700"
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <div>
-                              <p className="font-semibold text-slate-900">
-                                {sugestao.casaNome} - Aloj. {sugestao.numero}
-                                {sugestao.ala ? ` (Ala ${sugestao.ala})` : ""}
-                              </p>
-                              <p className="text-[11px] text-slate-500">
-                                {sugestao.rotulo}
-                              </p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setAlojamentoSelecionado(sugestao.alojamentoId)
-                              }
-                              className="rounded-full border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100"
-                            >
-                              Usar
-                            </button>
-                          </div>
-                          <p className="mt-1">{sugestao.descricao}</p>
-                          {sugestao.alertas.length > 0 && (
-                            <ul className="mt-1 list-disc pl-4 text-rose-600 space-y-0.5">
-                              {sugestao.alertas.map((alerta, index) => (
-                                <li
-                                  key={`alerta-${sugestao.alojamentoId}-${index}`}
-                                >
-                                  {alerta}
-                                </li>
-                              ))}
-                            </ul>
-                          )}
-                          {sugestao.ambientais.length > 0 && (
-                            <ul className="mt-1 list-disc pl-4 text-amber-600 space-y-0.5">
-                              {sugestao.ambientais.map((motivo, index) => (
-                                <li
-                                  key={`ambiental-${sugestao.alojamentoId}-${index}`}
-                                >
-                                  {motivo}
-                                </li>
-                              ))}
-                            </ul>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  <p className="text-xs text-gray-500 mt-2">
-                    A selecao sera usada para acionar /api/alocar automaticamente apos salvar.
-                  </p>
-                </div>
-                )}
-              </div>
+                    <span className="block font-semibold">{opcao.label}</span>
+                    <span className="text-xs text-slate-500">{opcao.dica}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {!tipoInternacao && (
+              <p className="mt-1 text-xs text-slate-500">
+                Escolha o tipo de internacao para aplicar as regras de sugestao
+                automaticamente.
+              </p>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 mb-2">
+            <label className="text-sm font-semibold text-gray-700">
+              Alojamento preferencial
+            </label>
+            <button
+              type="button"
+              onClick={() => {
+                if (!vinculacoes.bairroId && !vinculacoes.faccaoId) {
+                  setErroSugestoes(
+                    "Informe bairro ou faccao antes de gerar sugestoes."
+                  );
+                  return;
+                }
+                buscarSugestoesAlojamento();
+              }}
+              className="rounded-full border border-indigo-300 bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 disabled:opacity-60"
+              disabled={carregandoSugestoes || !tipoInternacao}
+            >
+              {carregandoSugestoes ? "Sugerindo..." : "Sugerir com base no risco"}
+            </button>
+            {!vinculacoes.bairroId && !vinculacoes.faccaoId && (
+              <span className="text-[11px] text-slate-500">
+                Informe bairro ou faccao para liberar as sugestoes.
+              </span>
+            )}
+          </div>
+
+          <select
+            value={alojamentoSelecionado ?? ""}
+            onChange={(e) => {
+              if (statusUnidade !== "ATIVO") return;
+              setAlojamentoSelecionado(e.target.value ? e.target.value : null);
+            }}
+            disabled={statusUnidade !== "ATIVO"}
+            className={`w-full px-4 py-3 border-2 rounded-lg outline-none transition-all ${
+              statusUnidade === "ATIVO"
+                ? "border-gray-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+                : "border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed"
+            }`}
+          >
+            <option value="">Nenhum (sem alocacao automatica)</option>
+            {alojamentosLivres.map((aloj) => (
+              <option key={aloj.id} value={aloj.id}>
+                {aloj.casa} - Aloj. {aloj.numero}
+                {aloj.ala ? ` (Ala ${aloj.ala})` : ""}
+              </option>
+            ))}
+          </select>
+
+          {erroSugestoes && (
+            <p className="mt-1 text-xs text-rose-600">{erroSugestoes}</p>
+          )}
+          {avisoSugestoes && (
+            <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              {avisoSugestoes}
             </div>
           )}
 
-          {/* ETAPA 4: Tatuagens */}
-          {etapaAtual === 4 && (
+          {sugestoesAlojamento.length > 0 && (
+            <div className="mt-3 space-y-2">
+              {sugestoesAlojamento.map((sugestao) => (
+                <div
+                  key={sugestao.alojamentoId}
+                  className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <p className="font-semibold text-slate-900">
+                        {sugestao.casaNome} - Aloj. {sugestao.numero}
+                        {sugestao.ala ? ` (Ala ${sugestao.ala})` : ""}
+                      </p>
+                      <p className="text-[11px] text-slate-500">{sugestao.rotulo}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setAlojamentoSelecionado(sugestao.alojamentoId)}
+                      className="rounded-full border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100"
+                    >
+                      Usar
+                    </button>
+                  </div>
+                  <p className="mt-1">{sugestao.descricao}</p>
+                  {sugestao.alertas.length > 0 && (
+                    <ul className="mt-1 list-disc pl-4 text-rose-600 space-y-0.5">
+                      {sugestao.alertas.map((alerta, index) => (
+                        <li key={`alerta-${sugestao.alojamentoId}-${index}`}>{alerta}</li>
+                      ))}
+                    </ul>
+                  )}
+                  {sugestao.ambientais.length > 0 && (
+                    <ul className="mt-1 list-disc pl-4 text-amber-600 space-y-0.5">
+                      {sugestao.ambientais.map((motivo, index) => (
+                        <li key={`ambiental-${sugestao.alojamentoId}-${index}`}>{motivo}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <p className="text-xs text-gray-500 mt-2">
+            A selecao sera usada para acionar /api/alocar automaticamente apos salvar.
+          </p>
+        </div>
+      )}
+
+      {/* ETAPA 5: Tatuagens */}
+      {etapaAtual === 5 && (
             <div className="space-y-6">
               <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
                 <Camera className="text-indigo-600" />
@@ -2483,8 +2495,8 @@ export function CadastroAdolescente({
             </div>
           )}
 
-          {/* ETAPA 5: Alertas */}
-          {etapaAtual === 5 && (
+          {/* ETAPA 6: Alertas */}
+          {etapaAtual === 6 && (
             <div className="space-y-6">
               <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
                 <AlertTriangle className="text-indigo-600" />

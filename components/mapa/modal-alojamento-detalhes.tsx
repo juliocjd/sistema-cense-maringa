@@ -423,6 +423,19 @@ export default function ModalAlojamentoDetalhes({
     setAbaAtiva("ocupacao");
   }, [isOpen, alojamento?.id]);
 
+  // Fecha modal com ESC
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
+
   useEffect(() => {
     if (!isOpen || !alojamento) {
       return;
@@ -1232,9 +1245,21 @@ const motivosAmbientaisDetalhados = useMemo<MotivoAmbientalDetalhado[]>(() => {
         throw new Error(payload?.erro ?? "Falha ao buscar sugestoes");
       }
       const payload = await response.json();
-      setSugestoes(
-        Array.isArray(payload?.sugestoes) ? payload.sugestoes : []
-      );
+      const sugestoesBrutas: SugestaoApi[] = Array.isArray(payload?.sugestoes)
+        ? payload.sugestoes
+        : [];
+
+      if (transferenciaCasaId) {
+        const filtradas = sugestoesBrutas
+          .filter((s) => s.casaId === transferenciaCasaId)
+          .slice(0, 3);
+        setSugestoes(filtradas);
+        if (filtradas.length === 0) {
+          setErroSugestoes("Nenhum alojamento recomendado nessa casa.");
+        }
+      } else {
+        setSugestoes(sugestoesBrutas);
+      }
     } catch (error) {
       const msg =
         error instanceof Error

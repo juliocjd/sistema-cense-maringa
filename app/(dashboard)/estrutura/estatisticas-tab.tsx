@@ -107,9 +107,37 @@ export function EstatisticasTab({ casas: casasIniciais, totalAlojamentos }: Esta
     ).length;
 
     // Alertas
-    const adolescentesComRiscoSuicidio = adolescentes.filter(
-      (a) => a.statusUnidade === "ATIVO" && a.alertaRiscoSuicidio
-    ).length;
+    const suicidioPorNivel = adolescentes.reduce(
+      (acc, a) => {
+        if (a.statusUnidade !== "ATIVO" || !a.alertaRiscoSuicidio) return acc;
+        const raw = (a as any).alertaRiscoSuicidioNivel
+          ? String((a as any).alertaRiscoSuicidioNivel)
+          : "";
+        const norm = raw
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toUpperCase();
+        const chave = norm.includes("CRIT")
+          ? "CRITICO"
+          : norm.includes("ALT")
+          ? "ALTO"
+          : norm.includes("MED")
+          ? "MEDIO"
+          : norm.includes("BAI")
+          ? "BAIXO"
+          : "NAO_INFORMADO";
+        acc[chave] = (acc[chave] || 0) + 1;
+        return acc;
+      },
+      { CRITICO: 0, ALTO: 0, MEDIO: 0, BAIXO: 0, NAO_INFORMADO: 0 } as Record<string, number>
+    );
+
+    const adolescentesComRiscoSuicidio =
+      suicidioPorNivel.CRITICO +
+      suicidioPorNivel.ALTO +
+      suicidioPorNivel.MEDIO +
+      suicidioPorNivel.BAIXO +
+      suicidioPorNivel.NAO_INFORMADO;
     const adolescentesComPerfilMapeado = adolescentes.filter(
       (a) => a.statusUnidade === "ATIVO" && a.alertaPerfilMapeado
     ).length;
@@ -148,26 +176,6 @@ export function EstatisticasTab({ casas: casasIniciais, totalAlojamentos }: Esta
         .length,
     }));
 
-    // Distribuição por ala
-    const distribuicaoPorAla = casas.reduce(
-      (acc, casa) => {
-        casa.alojamentos.forEach((aloj) => {
-          const ala = aloj.ala || "Sem ala";
-          if (!acc[ala]) {
-            acc[ala] = { total: 0, ocupados: 0, livres: 0 };
-          }
-          acc[ala].total++;
-          if (aloj.adolescentes && aloj.adolescentes.length > 0) {
-            acc[ala].ocupados++;
-          } else if (aloj.statusManutencao !== "INTERDITADO") {
-            acc[ala].livres++;
-          }
-        });
-        return acc;
-      },
-      {} as Record<string, { total: number; ocupados: number; livres: number }>
-    );
-
     return {
       totalAlojamentosAtual,
       alojamentosOcupados,
@@ -179,9 +187,9 @@ export function EstatisticasTab({ casas: casasIniciais, totalAlojamentos }: Esta
       adolescentesComRiscoSuicidio,
       adolescentesComPerfilMapeado,
       adolescentesComAlertaSaude,
+      suicidioPorNivel,
       distribuicaoRisco,
       distribuicaoPorCasa,
-      distribuicaoPorAla,
     };
   }, [casas, adolescentes]);
 
@@ -293,6 +301,33 @@ export function EstatisticasTab({ casas: casasIniciais, totalAlojamentos }: Esta
               </div>
               <span className="text-2xl font-bold text-orange-900">{stats.adolescentesComRiscoSuicidio}</span>
             </div>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
+              {(["CRITICO", "ALTO", "MEDIO", "BAIXO", "NAO_INFORMADO"] as const).map((nivel) => {
+                const cores = {
+                  CRITICO: "bg-red-100 border-red-300 text-red-800",
+                  ALTO: "bg-orange-100 border-orange-300 text-orange-800",
+                  MEDIO: "bg-yellow-100 border-yellow-300 text-yellow-800",
+                  BAIXO: "bg-green-100 border-green-300 text-green-800",
+                  NAO_INFORMADO: "bg-gray-100 border-gray-300 text-gray-700",
+                };
+                const labels = {
+                  CRITICO: "Crítico",
+                  ALTO: "Alto",
+                  MEDIO: "Médio",
+                  BAIXO: "Baixo",
+                  NAO_INFORMADO: "N/I",
+                };
+                return (
+                  <div
+                    key={nivel}
+                    className={`flex items-center justify-between px-2 py-1 rounded-lg border ${cores[nivel]}`}
+                  >
+                    <span className="font-semibold">{labels[nivel]}</span>
+                    <span className="font-bold">{stats.suicidioPorNivel?.[nivel] ?? 0}</span>
+                  </div>
+                );
+              })}
+            </div>
             <div className="flex items-center justify-between p-3 bg-purple-50 rounded-lg">
               <div className="flex items-center gap-2">
                 <Lock className="text-purple-600" size={16} />
@@ -401,46 +436,6 @@ export function EstatisticasTab({ casas: casasIniciais, totalAlojamentos }: Esta
               </div>
             </div>
           ))}
-        </div>
-      </div>
-
-      {/* Distribuição por ala */}
-      <div className="bg-white rounded-xl shadow-lg p-6 border-2 border-gray-200">
-        <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-          <MapPin className="text-gray-600" size={24} />
-          Distribuição por Ala
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {Object.entries(stats.distribuicaoPorAla)
-            .sort(([a], [b]) => a.localeCompare(b))
-            .map(([ala, dados]) => (
-              <div
-                key={ala}
-                className="p-4 bg-indigo-50 rounded-lg border-2 border-indigo-200"
-              >
-                <h4 className="font-bold text-indigo-900 mb-3">{ala}</h4>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Total:</span>
-                    <span className="font-bold text-gray-900">{dados.total}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Ocupados:</span>
-                    <span className="font-bold text-green-700">{dados.ocupados}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Livres:</span>
-                    <span className="font-bold text-yellow-700">{dados.livres}</span>
-                  </div>
-                  <div className="mt-2 h-2 bg-gray-200 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-green-500"
-                      style={{ width: `${(dados.ocupados / dados.total) * 100}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
-            ))}
         </div>
       </div>
 
