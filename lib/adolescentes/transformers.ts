@@ -139,6 +139,7 @@ export const INCLUDE_ADOLESCENTE_DEFAULT = {
       tipoAlerta: true,
       descricaoAlerta: true,
       nivelRisco: true,
+      criadoEm: true,
     },
   },
   historicoMovimentacao: {

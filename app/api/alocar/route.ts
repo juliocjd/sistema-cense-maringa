@@ -8,7 +8,15 @@ import { registrarMovimentacao } from "@/lib/historico/movimentacao";
 type VerificacaoPayload = {
   requer_justificativa?: boolean;
   nivel_risco?: number | null;
-  alertas?: Array<{ tipo?: string }>;
+  alertas?: Array<{
+    tipo?: string;
+    nivel?: number;
+    mensagem?: string;
+    conflitoId?: string;
+    conflitoCriadoEm?: string | null;
+    alertaId?: string;
+    alertaCriadoEm?: string | null;
+  }>;
 };
 
 const ensureString = (value: unknown): string => {

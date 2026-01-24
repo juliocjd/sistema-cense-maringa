@@ -43,6 +43,7 @@ export const mapearConflitosInternos = (
         id: conflito.id,
         status: conflito.status,
         tipoConflito: conflito.tipoConflito,
+        criadoEm: conflito.criadoEm ?? null,
         adolescenteAId: conflito.adolescenteAId,
         adolescenteBId: conflito.adolescenteBId,
         adversario: adversario
@@ -82,6 +83,12 @@ export const mapearAdolescenteParaRisco = (
   alertaPerfilMapeado: adolescente.alertaPerfilMapeado,
   alertaSaudeConfidencial: adolescente.alertaSaudeConfidencial,
   alertaSaudeDetalhes: adolescente.alertaSaudeDetalhes,
+  alertasAtivos: (adolescente.alertasAtivos ?? []).map((a: any) => ({
+    id: a.id,
+    tipoAlerta: a.tipoAlerta,
+    nivelRisco: a.nivelRisco,
+    criadoEm: a.criadoEm ?? null,
+  })),
   faccao: adolescente.faccao
     ? {
         id: adolescente.faccao.id,

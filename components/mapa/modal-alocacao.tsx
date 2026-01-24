@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { X, AlertTriangle, Search, CheckCircle, XCircle } from "lucide-react";
 
 type Adolescente = any;
@@ -23,6 +23,10 @@ type VerificacaoConflito = {
     tipo: string;
     nivel: number;
     mensagem: string;
+    conflitoId?: string;
+    conflitoCriadoEm?: string | null;
+    alertaId?: string;
+    alertaCriadoEm?: string | null;
     adolescente_conflitante?: {
       id: string;
       nome: string;
@@ -68,6 +72,53 @@ export function ModalAlocacao({
     tipo: "erro" | "info";
     texto: string;
   } | null>(null);
+
+  const alertasAgrupados = useMemo(() => {
+    if (!verificacao?.alertas?.length) return [];
+
+    const mapa = new Map<
+      string,
+      {
+        tipo: string;
+        nivel: number;
+        mensagens: string[];
+        conflitos: Array<{ id: string; data?: string | null }>;
+        alertas: Array<{ id: string; data?: string | null }>;
+      }
+    >();
+
+    verificacao.alertas.forEach((alerta) => {
+      const tipoKey = (alerta.tipo ?? "OUTRO").toUpperCase();
+      const msgNorm = (alerta.mensagem ?? "").trim();
+
+      const entry =
+        mapa.get(tipoKey) ??
+        mapa
+          .set(tipoKey, {
+            tipo: tipoKey,
+            nivel: alerta.nivel ?? 0,
+            mensagens: [],
+            conflitos: [],
+            alertas: [],
+          })
+          .get(tipoKey)!;
+
+      entry.nivel = Math.max(entry.nivel, alerta.nivel ?? 0);
+      if (msgNorm && !entry.mensagens.includes(msgNorm)) {
+        entry.mensagens.push(msgNorm);
+      }
+
+      if (alerta.conflitoId && !entry.conflitos.some((c) => c.id === alerta.conflitoId)) {
+        entry.conflitos.push({ id: alerta.conflitoId, data: alerta.conflitoCriadoEm ?? null });
+      }
+
+      if (alerta.alertaId && !entry.alertas.some((a) => a.id === alerta.alertaId)) {
+        entry.alertas.push({ id: alerta.alertaId, data: alerta.alertaCriadoEm ?? null });
+      }
+    });
+
+    return Array.from(mapa.values());
+  }, [verificacao?.alertas]);
 
   const resetarEstado = () => {
     setBusca("");
@@ -451,14 +502,14 @@ const riscoIndicaPerigo = (
                   </div>
 
                   {/* Lista de Alertas */}
-                  {verificacao.alertas.length > 0 && (
+                  {alertasAgrupados.length > 0 && (
                     <div className="mb-6 space-y-3">
                       <h4 className="font-semibold text-gray-800">
                         Alertas Detectados:
                       </h4>
-                      {verificacao.alertas.map((alerta, index) => (
+                      {alertasAgrupados.map((alerta, index) => (
                         <div
-                          key={index}
+                          key={`${alerta.tipo}-${index}`}
                           className="p-4 bg-red-50 border-l-4 border-red-500 rounded-r-lg"
                         >
                           <div className="flex items-start gap-3">
@@ -468,40 +519,56 @@ const riscoIndicaPerigo = (
                             />
                             <div className="flex-1">
                               <p className="font-semibold text-red-900">
-                                {alerta.tipo.replace(/_/g, " ")} - Nivel{" "}
-                                {alerta.nivel}
+                                {alerta.tipo.replace(/_/g, " ")} - Nível {alerta.nivel}
                               </p>
-                              <p className="text-sm text-red-800 mt-1">
-                                {alerta.mensagem}
-                              </p>
-                              {alerta.adolescente_conflitante && (
-                                <p className="text-sm text-red-700 mt-2">
-                                  <span className="font-semibold">
-                                    Conflito com:
-                                  </span>{" "}
-                                  {alerta.adolescente_conflitante.nome}{" "}
-                                  (Alojamento{" "}
-                                  {alerta.adolescente_conflitante.alojamento})
+                              {alerta.mensagens.map((msg, i) => (
+                                <p key={`msg-${index}-${i}`} className="text-sm text-red-800 mt-1">
+                                  {msg}
                                 </p>
-                              )}
-                              {alerta.origem && (
-                                <p className="text-xs text-red-600 mt-1">
-                                  Origem: {alerta.origem}
-                                </p>
-                              )}
-                              {alerta.recomendacao && (
-                                <p className="text-sm text-red-700 mt-2 bg-red-100 p-2 rounded">
-                                  ðŸ’¡ {alerta.recomendacao}
-                                </p>
-                              )}
+                              ))}
+
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                {alerta.conflitos?.map((c) => (
+                                  <a
+                                    key={c.id}
+                                    href={`/conflitos/${c.id}`}
+                                    className="inline-flex items-center rounded-full border border-slate-300 px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100"
+                                  >
+                                    Ver conflito
+                                    {c.data
+                                      ? ` • ${new Date(c.data).toLocaleDateString("pt-BR")}`
+                                      : ""}
+                                  </a>
+                                ))}
+                                {alerta.alertas?.map((a) => (
+                                  <a
+                                    key={a.id}
+                                    href={`/alertas/${a.id}`}
+                                    className="inline-flex items-center rounded-full border border-amber-300 px-2.5 py-1 text-[11px] font-semibold text-amber-800 hover:bg-amber-50"
+                                  >
+                                    Ver alerta
+                                    {a.data
+                                      ? ` • ${new Date(a.data).toLocaleDateString("pt-BR")}`
+                                      : ""}
+                                  </a>
+                                ))}
+                                {(!alerta.alertas || alerta.alertas.length === 0) &&
+                                  alerta.tipo === "AMBIENTAL" &&
+                                  (alerta.mensagens?.some((m) => /suicid/i.test(m)) ?? false) && (
+                                    <a
+                                      href={`/alertas${adolescenteSelecionado?.id ? `?adolescenteId=${adolescenteSelecionado.id}` : ""}`}
+                                      className="inline-flex items-center rounded-full border border-amber-300 px-2.5 py-1 text-[11px] font-semibold text-amber-800 hover:bg-amber-50"
+                                    >
+                                      Ver alerta
+                                    </a>
+                                  )}
+                              </div>
                             </div>
                           </div>
                         </div>
                       ))}
                     </div>
-                  )}
-
-                  {/* Campo de Justificativa */}
+                  )}                  {/* Campo de Justificativa */}
                   {verificacao.requer_justificativa && (
                     <div className="mb-6">
                       <label className="block text-sm font-semibold text-gray-800 mb-2">
@@ -580,3 +647,5 @@ const riscoIndicaPerigo = (
     </div>
   );
 }
+
+

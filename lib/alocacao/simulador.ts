@@ -38,13 +38,21 @@ const removerAdolescenteDasCasas = (
 
 const construirAlertas = (
   detalhes: RiscoDetalhado[],
-  ambiental?: { ativo: boolean; nivel: number; motivos: string[] } | null
+  ambiental: { ativo: boolean; nivel: number; motivos: string[] } | null,
+  conflitoInfo: Map<string, { criadoEm?: string | null }>,
+  alertaSuicidio?: { id?: string; criadoEm?: string | null }
 ) => {
   const alertas = detalhes.map((item) => ({
     tipo: item.tipo,
     nivel: item.nivel,
     mensagem: item.mensagem,
     proximidade: item.proximidade,
+    conflitoId: item.referenciaConflitoId ?? undefined,
+    conflitoCriadoEm: item.referenciaConflitoId
+      ? conflitoInfo.get(item.referenciaConflitoId)?.criadoEm ?? null
+      : null,
+    alertaId: undefined as string | undefined,
+    alertaCriadoEm: undefined as string | undefined,
   }));
 
   if (ambiental?.ativo) {
@@ -54,6 +62,16 @@ const construirAlertas = (
         nivel: (ambiental.nivel ?? 2) as NivelRiscoBasico,
         mensagem,
         proximidade: undefined,
+        conflitoId: undefined,
+        conflitoCriadoEm: undefined,
+        alertaId:
+          alertaSuicidio && /suicid/i.test(mensagem)
+            ? alertaSuicidio.id
+            : undefined,
+        alertaCriadoEm:
+          alertaSuicidio && /suicid/i.test(mensagem)
+            ? alertaSuicidio.criadoEm ?? undefined
+            : undefined,
       });
     });
   }
@@ -123,7 +141,26 @@ export const simularAlocacao = ({
     ? avaliarVigilanciaFrontal(alojamentoAlvo, mapaAlojamentos)
     : { valido: true, avisos: [] };
 
-  const alertas = construirAlertas(resultado.detalhes, resultado.ambiental);
+  const conflitoInfo = new Map<string, { criadoEm?: string | null }>();
+  (adolescente.conflitosA ?? []).forEach((c: any) =>
+    conflitoInfo.set(c.id, { criadoEm: c.criadoEm ?? null })
+  );
+  (adolescente.conflitosB ?? []).forEach((c: any) =>
+    conflitoInfo.set(c.id, { criadoEm: c.criadoEm ?? null })
+  );
+  const alertaSuicidio =
+    (adolescente.alertasAtivos ?? []).find((a: any) =>
+      typeof a.tipoAlerta === "string"
+        ? a.tipoAlerta.toUpperCase().includes("SUICID")
+        : false
+    ) ?? null;
+
+  const alertas = construirAlertas(
+    resultado.detalhes,
+    resultado.ambiental ?? null,
+    conflitoInfo,
+    alertaSuicidio
+  );
   if (!vigilanciaFrontal.valido && vigilanciaFrontal.motivo) {
     const jaExiste = alertas.some(
       (alerta) => alerta.mensagem === vigilanciaFrontal.motivo

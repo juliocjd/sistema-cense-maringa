@@ -9,9 +9,8 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const adolescenteId = searchParams.get("adolescenteId");
     const alojamentoId = searchParams.get("alojamentoId");
-    const skipCache =
-      searchParams.get("refresh") === "1" ||
-      searchParams.get("cache") === "off";
+    // Força recarregar dados do adolescente (sem cache) para garantir alertas/ids atualizados
+    const skipCache = true;
 
     if (!adolescenteId || !alojamentoId) {
       return NextResponse.json(

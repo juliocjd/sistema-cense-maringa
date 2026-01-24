@@ -39,11 +39,14 @@ const filtrarConflitosAtivos = (
 };
 
 const carregarAdolescente = async (
-  adolescenteId: string
+  adolescenteId: string,
+  skipCache?: boolean
 ): Promise<PrismaAdolescenteMapa | null> => {
-  let adolescente = getAdolescenteMapaCache(adolescenteId);
-  if (adolescente) {
-    return adolescente;
+  let adolescente: PrismaAdolescenteMapa | null = null;
+
+  if (!skipCache) {
+    adolescente = getAdolescenteMapaCache(adolescenteId);
+    if (adolescente) return adolescente;
   }
 
   adolescente = await prisma.adolescente.findUnique({
@@ -61,7 +64,7 @@ export async function prepararContexto({
   adolescenteId: string;
   skipCache?: boolean;
 }): Promise<ContextoVerificacao | null> {
-  const adolescente = await carregarAdolescente(adolescenteId);
+  const adolescente = await carregarAdolescente(adolescenteId, skipCache);
   if (!adolescente) {
     return null;
   }
