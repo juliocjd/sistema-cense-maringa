@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
-  INCLUDE_ADOLESCENTE_DEFAULT,
-  mapPrismaAdolescente,
+  INCLUDE_ADOLESCENTE_MAPA,
+  mapPrismaAdolescenteMapa,
 } from "@/lib/adolescentes/transformers";
 import { getEstruturaSnapshot } from "@/lib/estrutura/snapshot";
 import {
   construirPayloadMapa,
   type SnapshotMapaPayload,
 } from "@/lib/estrutura/mapa-adapter";
-import { setAdolescentesMapaCache } from "@/lib/estrutura/adolescentes-cache";
+import {
+  getAdolescentesMapaCacheMapeados,
+  setAdolescentesMapaCache,
+} from "@/lib/estrutura/adolescentes-cache";
 
 export async function GET(request: NextRequest) {
   try {
@@ -18,16 +21,24 @@ export async function GET(request: NextRequest) {
       searchParams.get("refresh") === "1" ||
       searchParams.get("cache") === "off";
 
+    const adolescentesCache = !skipCache
+      ? getAdolescentesMapaCacheMapeados()
+      : null;
+
     const [snapshot, adolescentesDb] = await Promise.all([
       getEstruturaSnapshot({ skipCache }),
-      prisma.adolescente.findMany({
-        include: INCLUDE_ADOLESCENTE_DEFAULT,
-        orderBy: { nomeCompleto: "asc" },
-      }),
+      adolescentesCache
+        ? Promise.resolve(null)
+        : prisma.adolescente.findMany({
+            include: INCLUDE_ADOLESCENTE_MAPA,
+            orderBy: { nomeCompleto: "asc" },
+          }),
     ]);
 
-    setAdolescentesMapaCache(adolescentesDb);
-    const adolescentes = adolescentesDb.map(mapPrismaAdolescente);
+    const adolescentes = adolescentesCache ?? (adolescentesDb ?? []).map(mapPrismaAdolescenteMapa);
+    if (!adolescentesCache && adolescentesDb) {
+      setAdolescentesMapaCache(adolescentesDb, undefined, adolescentes);
+    }
 
     const { casas, avaliacoes }: SnapshotMapaPayload = construirPayloadMapa({
       snapshot,

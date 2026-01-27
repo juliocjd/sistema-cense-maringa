@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useSearchParams } from "next/navigation";
@@ -42,6 +42,7 @@ interface ModalDetalhesState {
 }
 
 const VISIBILITY_REFRESH_COOLDOWN_MS = 60000;
+const IMPACTOS_EXTERNOS_TTL_MS = 120000;
 
 const riscoClasses = {
   livre: "bg-gray-50 border-gray-300 hover:bg-gray-100",
@@ -69,6 +70,53 @@ const obterNomeResumido = (nome?: string | null) => {
   const primeiro = partes[0];
   const ultimo = partes.length > 1 ? partes[partes.length - 1] : null;
   return { primeiro, ultimo };
+};
+
+const construirMapaConflitosInternos = (
+  lista: AdolescenteTipo[]
+): Record<string, Array<{ id: string; adversario: { id: string; nome: string } }>> => {
+  const mapa: Record<
+    string,
+    Array<{ id: string; adversario: { id: string; nome: string } }>
+  > = {};
+
+  lista.forEach((adolescente) => {
+    if (!adolescente?.id) return;
+    const vistos = new Set<string>();
+
+    const adicionarConflito = (conflito: any) => {
+      if (!conflito?.id || vistos.has(conflito.id)) {
+        return;
+      }
+      vistos.add(conflito.id);
+
+      const adversarioId =
+        conflito?.adversario?.id ??
+        conflito?.adolescenteAId ??
+        conflito?.adolescenteBId ??
+        "";
+      const adversarioNome =
+        conflito?.adversario?.nomeCompleto ??
+        conflito?.adversario?.nome ??
+        "Desconhecido";
+
+      if (!mapa[adolescente.id]) {
+        mapa[adolescente.id] = [];
+      }
+      mapa[adolescente.id].push({
+        id: conflito.id,
+        adversario: {
+          id: adversarioId,
+          nome: adversarioNome,
+        },
+      });
+    };
+
+    (adolescente.conflitosA ?? []).forEach(adicionarConflito);
+    (adolescente.conflitosB ?? []).forEach(adicionarConflito);
+  });
+
+  return mapa;
 };
 
 const renderIconesAlerta = (
@@ -108,8 +156,8 @@ const renderIconesAlerta = (
         </div>
       )}
       {/*
-        REMOVIDO: Ícone vermelho de conflito
-        As cores de nível de risco e os ícones específicos já indicam os conflitos.
+        REMOVIDO: Ãcone vermelho de conflito
+        As cores de nÃ­vel de risco e os Ã­cones especÃ­ficos jÃ¡ indicam os conflitos.
       */}
     </div>
   );
@@ -165,7 +213,9 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
   const ultimoRefreshRef = useRef(0);
   const operacaoEmAndamentoRef = useRef(false);
   const refreshPendenteRef = useRef(false);
+  const refreshForcadoRef = useRef(false);
   const debounceRefreshRef = useRef<number | null>(null);
+  const ultimoImpactosRef = useRef(0);
 
   const totalCasas = casas.length;
 
@@ -203,11 +253,12 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
     [adolescentes]
   );
 
-  const carregarDados = useCallback(async () => {
+  const carregarDados = useCallback(async (force = false) => {
     setLoading(true);
     setError(null);
     try {
-      const mapaResponse = await fetch("/api/mapa/status?refresh=1", {
+      const mapaUrl = force ? "/api/mapa/status?refresh=1" : "/api/mapa/status";
+      const mapaResponse = await fetch(mapaUrl, {
         cache: "no-store",
       });
       if (!mapaResponse.ok) {
@@ -229,80 +280,48 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
       setCasas(casasRecebidas);
       setAdolescentes(adolescentesRecebidos);
       setAvaliacoes(avaliacoesServidor);
+      setConflitosInternos(construirMapaConflitosInternos(adolescentesRecebidos));
 
-      let impactos: Record<string, ImpactoConflitoExterno[]> = {};
-      try {
-        const impactosResponse = await fetch(
-          "/api/inteligencia/conflitos/impacto?status=ATIVO",
-          { cache: "no-store" }
-        );
-        if (impactosResponse.ok) {
-          const impactosData = await impactosResponse.json();
-          const lista: ImpactoConflitoExterno[] = Array.isArray(
-            impactosData?.impactos
-          )
-            ? impactosData.impactos
-            : [];
-          impactos = lista.reduce((acc, impacto) => {
-            const adolescenteId = impacto?.adolescente?.id;
-            if (!adolescenteId) return acc;
-            if (!acc[adolescenteId]) {
-              acc[adolescenteId] = [];
-            }
-            acc[adolescenteId].push(impacto);
-            return acc;
-          }, {} as Record<string, ImpactoConflitoExterno[]>);
-        }
-      } catch (impactoErro) {
-        console.warn("Falha ao carregar conflitos externos:", impactoErro);
-      }
-      setConflitosExternos(impactos);
+      const agoraImpactos = Date.now();
+      const deveAtualizarImpactos =
+        force ||
+        agoraImpactos - ultimoImpactosRef.current > IMPACTOS_EXTERNOS_TTL_MS ||
+        Object.keys(conflitosExternos).length === 0;
 
-      // Carregar conflitos internos
-      let conflitosMap: Record<string, Array<{ id: string; adversario: { id: string; nome: string } }>> = {};
-      try {
-        const conflitosResponse = await fetch("/api/conflitos?status=ATIVO", {
-          cache: "no-store",
-        });
-        if (conflitosResponse.ok) {
-          const conflitosData = await conflitosResponse.json();
-          if (Array.isArray(conflitosData)) {
-            conflitosData.forEach((conflito: any) => {
-              const adolescenteAId = conflito.adolescenteA?.id;
-              const adolescenteBId = conflito.adolescenteB?.id;
-
-              if (adolescenteAId) {
-                if (!conflitosMap[adolescenteAId]) {
-                  conflitosMap[adolescenteAId] = [];
-                }
-                conflitosMap[adolescenteAId].push({
-                  id: conflito.id,
-                  adversario: {
-                    id: adolescenteBId,
-                    nome: conflito.adolescenteB?.nome || "Desconhecido",
-                  },
-                });
+      if (deveAtualizarImpactos) {
+        let impactosAtualizados = false;
+        let impactos: Record<string, ImpactoConflitoExterno[]> = conflitosExternos;
+        try {
+          const impactosResponse = await fetch(
+            "/api/inteligencia/conflitos/impacto?status=ATIVO",
+            { cache: "no-store" }
+          );
+          if (impactosResponse.ok) {
+            const impactosData = await impactosResponse.json();
+            const lista: ImpactoConflitoExterno[] = Array.isArray(
+              impactosData?.impactos
+            )
+              ? impactosData.impactos
+              : [];
+            impactos = lista.reduce((acc, impacto) => {
+              const adolescenteId = impacto?.adolescente?.id;
+              if (!adolescenteId) return acc;
+              if (!acc[adolescenteId]) {
+                acc[adolescenteId] = [];
               }
-
-              if (adolescenteBId) {
-                if (!conflitosMap[adolescenteBId]) {
-                  conflitosMap[adolescenteBId] = [];
-                }
-                conflitosMap[adolescenteBId].push({
-                  id: conflito.id,
-                  adversario: {
-                    id: adolescenteAId,
-                    nome: conflito.adolescenteA?.nome || "Desconhecido",
-                  },
-                });
-              }
-            });
+              acc[adolescenteId].push(impacto);
+              return acc;
+            }, {} as Record<string, ImpactoConflitoExterno[]>);
+            impactosAtualizados = true;
           }
+        } catch (impactoErro) {
+          console.warn("Falha ao carregar conflitos externos:", impactoErro);
         }
-      } catch (conflitosErro) {
-        console.warn("Falha ao carregar conflitos internos:", conflitosErro);
+        if (impactosAtualizados) {
+          setConflitosExternos(impactos);
+          ultimoImpactosRef.current = agoraImpactos;
+        }
       }
-      setConflitosInternos(conflitosMap);
     } catch (erro) {
       console.error("Erro ao carregar dados:", erro);
       setError(
@@ -311,15 +330,18 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [conflitosExternos]);
 
-  const solicitarAtualizacao = useCallback(() => {
+  const solicitarAtualizacao = useCallback((force = false) => {
     const agora = Date.now();
     if (agora - ultimoRefreshRef.current < 1000) {
       return;
     }
     ultimoRefreshRef.current = agora;
-    carregarDados();
+    if (force) {
+      refreshForcadoRef.current = false;
+    }
+    carregarDados(force);
   }, [carregarDados]);
 
   const devePausarAtualizacao = useCallback(() => {
@@ -331,8 +353,17 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
     );
   }, []);
 
-  const agendarAtualizacao = useCallback(() => {
+  const consumirRefreshForcado = useCallback(() => {
+    const force = refreshForcadoRef.current;
+    refreshForcadoRef.current = false;
+    return force;
+  }, []);
+
+  const agendarAtualizacao = useCallback((force = false) => {
     refreshPendenteRef.current = true;
+    if (force) {
+      refreshForcadoRef.current = true;
+    }
 
     if (debounceRefreshRef.current !== null) {
       return;
@@ -344,9 +375,9 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
         return;
       }
       refreshPendenteRef.current = false;
-      solicitarAtualizacao();
+      solicitarAtualizacao(consumirRefreshForcado());
     }, 800);
-  }, [devePausarAtualizacao, solicitarAtualizacao]);
+  }, [consumirRefreshForcado, devePausarAtualizacao, solicitarAtualizacao]);
 
   useEffect(() => {
     solicitarAtualizacao();
@@ -368,7 +399,7 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
             payload?.tipo === "desalocacao" ||
             payload?.tipo === "refresh"
           ) {
-            agendarAtualizacao();
+            agendarAtualizacao(true);
           }
         } catch {
           /* ignore */
@@ -394,9 +425,9 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
     operacaoEmAndamentoRef.current = false;
     if (refreshPendenteRef.current && !devePausarAtualizacao()) {
       refreshPendenteRef.current = false;
-      solicitarAtualizacao();
+      solicitarAtualizacao(consumirRefreshForcado());
     }
-  }, [devePausarAtualizacao, solicitarAtualizacao]);
+  }, [consumirRefreshForcado, devePausarAtualizacao, solicitarAtualizacao]);
 
   const executarOperacao = useCallback(
     async <T,>(acao: () => Promise<T>): Promise<T> => {
@@ -437,7 +468,7 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
     };
   }, [agendarAtualizacao]);
 
-  // Auto-scroll para casa específica quando vem da URL
+  // Auto-scroll para casa especÃ­fica quando vem da URL
   useEffect(() => {
     if (casaNumeroFromUrl && casas.length > 0) {
       const casaNumero = parseInt(casaNumeroFromUrl, 10);
@@ -451,10 +482,10 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
             block: 'center'
           });
 
-          // Adicionar highlight temporário
+          // Adicionar highlight temporÃ¡rio
           setCasaHighlighted(casaNumero);
 
-          // Remover highlight após 3 segundos
+          // Remover highlight apÃ³s 3 segundos
           setTimeout(() => {
             setCasaHighlighted(null);
           }, 3000);
@@ -532,7 +563,7 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
     [avaliacoes, casasNormalizadas, conflitosExternos, slotsPorAdolescente]
   );
 
-  // Mapa de níveis de risco por adolescente (para filtrar dropdown)
+  // Mapa de nÃ­veis de risco por adolescente (para filtrar dropdown)
   const riscosPorAdolescente = useMemo(() => {
     const mapa = new Map<string, number>();
 
@@ -567,7 +598,7 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
     modalDetalhesAbertoRef.current = false;
     if (refreshPendenteRef.current && !devePausarAtualizacao()) {
       refreshPendenteRef.current = false;
-      solicitarAtualizacao();
+      solicitarAtualizacao(consumirRefreshForcado());
     }
   };
 
@@ -615,7 +646,7 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
 
       await response.json();
       fecharModalAlocacao();
-      await carregarDados();
+      await carregarDados(true);
     });
   };
 
@@ -643,7 +674,7 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
       }
 
       const data = await response.json();
-      await carregarDados();
+      await carregarDados(true);
       return data.mensagem || "Adolescente removido do alojamento";
     });
   };
@@ -672,7 +703,7 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
 
         await response.json();
         fecharModalDetalhes();
-        await carregarDados();
+        await carregarDados(true);
         alert("Adolescente desinternado com sucesso.");
       } finally {
         setDesinternandoId(null);
@@ -716,7 +747,7 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
       }
 
       await response.json();
-      await carregarDados();
+      await carregarDados(true);
     });
   };
 
@@ -747,7 +778,7 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
       }
 
       await response.json();
-      await carregarDados();
+      await carregarDados(true);
     });
   };
 
@@ -794,7 +825,7 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
         </div>
       </div>
 
-      {/* Legenda de risco e ícones de alerta */}
+      {/* Legenda de risco e Ã­cones de alerta */}
       <div className="bg-white rounded-xl shadow p-4 border border-gray-200 text-xs">
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -909,18 +940,18 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
             </div>
           </div>
 
-          {/* Adolescentes com conflitos não alocados */}
+          {/* Adolescentes com conflitos nÃ£o alocados */}
           {/*
-            REGRA DE NEGÓCIO: Conflitos e status de internação
+            REGRA DE NEGÃ“CIO: Conflitos e status de internaÃ§Ã£o
 
             1. Apenas adolescentes com status ATIVO/INTERNADO devem aparecer em listas de conflitos
-            2. Adolescentes TRANSFERIDOS, LIBERADOS ou EVADIDOS não devem aparecer
-            3. Quando um adolescente é desinternado:
-               - O conflito direto com ele deixa de existir (não está mais no sistema)
-               - MAS o risco pode permanecer entre o adolescente que ainda está internado
-                 e os ALIADOS do adolescente desinternado (mesmo bairro/facção)
+            2. Adolescentes TRANSFERIDOS, LIBERADOS ou EVADIDOS nÃ£o devem aparecer
+            3. Quando um adolescente Ã© desinternado:
+               - O conflito direto com ele deixa de existir (nÃ£o estÃ¡ mais no sistema)
+               - MAS o risco pode permanecer entre o adolescente que ainda estÃ¡ internado
+                 e os ALIADOS do adolescente desinternado (mesmo bairro/facÃ§Ã£o)
             4. Conflitos internos: registros diretos na tabela Conflito
-            5. Conflitos externos: rivalidades de bairro/facção detectadas pela inteligência
+            5. Conflitos externos: rivalidades de bairro/facÃ§Ã£o detectadas pela inteligÃªncia
           */}
           {(() => {
             const adolescentesComConflitosNaoAlocados = adolescentes.filter(
@@ -941,11 +972,11 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
                   </div>
                   <div>
                     <h3 className="font-bold text-xl text-red-900">
-                      Adolescentes com Conflitos Não Alocados
+                      Adolescentes com Conflitos NÃ£o Alocados
                     </h3>
                     <p className="text-sm text-red-700">
                       {adolescentesComConflitosNaoAlocados.length} adolescente(s)
-                      aguardando alocação com conflitos ativos
+                      aguardando alocaÃ§Ã£o com conflitos ativos
                     </p>
                   </div>
                 </div>
@@ -983,7 +1014,7 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
                       </div>
                       <div className="flex items-center gap-2 text-xs text-red-600">
                         <AlertCircle size={14} />
-                        <span>Clique para analisar e sugerir alocação</span>
+                        <span>Clique para analisar e sugerir alocaÃ§Ã£o</span>
                       </div>
                     </button>
                   ))}
@@ -1067,7 +1098,7 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
                           interditado
                             ? `Alojamento ${aloj.numeroAlojamento} - Interditado`
                             : ocupante && temConflitos
-                            ? `${ocupante.nomeCompleto} - Clique para visualizar | Clique no ícone vermelho para analisar conflitos`
+                            ? `${ocupante.nomeCompleto} - Clique para visualizar | Clique no Ã­cone vermelho para analisar conflitos`
                             : ocupante
                             ? `${ocupante.nomeCompleto} - Clique para visualizar`
                             : `Alojamento ${aloj.numeroAlojamento} - Clique para alocar`
@@ -1168,7 +1199,7 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
           modalAnaliseAbertoRef.current = false;
           if (refreshPendenteRef.current && !devePausarAtualizacao()) {
             refreshPendenteRef.current = false;
-            solicitarAtualizacao();
+            solicitarAtualizacao(consumirRefreshForcado());
           }
         }}
         adolescenteId={modalAnaliseImpacto.adolescenteId || ""}
@@ -1179,3 +1210,4 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
     </div>
   );
 }
+

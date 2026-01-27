@@ -167,8 +167,126 @@ export const INCLUDE_ADOLESCENTE_DEFAULT = {
   },
 } satisfies Prisma.AdolescenteInclude;
 
+// Lighter include for map/estrutura views (avoid heavy relations).
+export const INCLUDE_ADOLESCENTE_MAPA = {
+  alojamentoAtual: {
+    include: { casa: true },
+  },
+  faccao: true,
+  bairroOrigem: true,
+  alertasAtivos: {
+    where: { desativadoEm: null },
+    select: {
+      id: true,
+      tipoAlerta: true,
+      descricaoAlerta: true,
+      nivelRisco: true,
+    },
+  },
+  conflitosA: {
+    include: {
+      adolescenteB: {
+        select: {
+          id: true,
+          nomeCompleto: true,
+          numeroSms: true,
+          statusUnidade: true,
+          alojamentoAtual: {
+            select: {
+              numeroAlojamento: true,
+              ala: true,
+              casa: { select: { nome: true } },
+            },
+          },
+        },
+      },
+      ciOrigem: {
+        select: {
+          id: true,
+          numero: true,
+          ano: true,
+          tipoCI: true,
+          resumoCI: true,
+          dataFato: true,
+          desativadoEm: true,
+          suspensoPorStatus: true,
+        },
+      },
+      ocorrencias: {
+        include: {
+          ci: {
+            select: {
+              id: true,
+              numero: true,
+              ano: true,
+              tipoCI: true,
+              resumoCI: true,
+              dataFato: true,
+              desativadoEm: true,
+              suspensoPorStatus: true,
+            },
+          },
+        },
+        orderBy: { criadoEm: "desc" },
+      },
+    },
+  },
+  conflitosB: {
+    include: {
+      adolescenteA: {
+        select: {
+          id: true,
+          nomeCompleto: true,
+          numeroSms: true,
+          statusUnidade: true,
+          alojamentoAtual: {
+            select: {
+              numeroAlojamento: true,
+              ala: true,
+              casa: { select: { nome: true } },
+            },
+          },
+        },
+      },
+      ciOrigem: {
+        select: {
+          id: true,
+          numero: true,
+          ano: true,
+          tipoCI: true,
+          resumoCI: true,
+          dataFato: true,
+          desativadoEm: true,
+          suspensoPorStatus: true,
+        },
+      },
+      ocorrencias: {
+        include: {
+          ci: {
+            select: {
+              id: true,
+              numero: true,
+              ano: true,
+              tipoCI: true,
+              resumoCI: true,
+              dataFato: true,
+              desativadoEm: true,
+              suspensoPorStatus: true,
+            },
+          },
+        },
+        orderBy: { criadoEm: "desc" },
+      },
+    },
+  },
+} satisfies Prisma.AdolescenteInclude;
+
 type PrismaAdolescente = Prisma.AdolescenteGetPayload<{
   include: typeof INCLUDE_ADOLESCENTE_DEFAULT;
+}>;
+
+type PrismaAdolescenteMapa = Prisma.AdolescenteGetPayload<{
+  include: typeof INCLUDE_ADOLESCENTE_MAPA;
 }>;
 
 const formatDate = (valor: Date | string | null | undefined) => {
@@ -468,6 +586,240 @@ export function mapPrismaAdolescente(
         };
         }) ?? [],
     historicoInfracional,
+    alertasEspeciais,
+    alertasPendentes: 0,
+    criadoEm: formatDate(adolescente.criadoEm),
+    atualizadoEm: formatDate(adolescente.atualizadoEm),
+  };
+}
+
+export function mapPrismaAdolescenteMapa(
+  adolescente: PrismaAdolescenteMapa
+): Adolescente {
+  const STATUS_VALIDOS: ReadonlyArray<StatusUnidade> = [
+    "ATIVO",
+    "TRANSFERIDO",
+    "LIBERADO",
+    "EVADIDO",
+  ];
+
+  const statusUnidade = STATUS_VALIDOS.includes(
+    adolescente.statusUnidade as StatusUnidade
+  )
+    ? (adolescente.statusUnidade as StatusUnidade)
+    : "ATIVO";
+
+  const alojamentoAtual = adolescente.alojamentoAtual
+    ? {
+        id: adolescente.alojamentoAtual.id,
+        numero: adolescente.alojamentoAtual.numeroAlojamento,
+        ala: (adolescente.alojamentoAtual.ala ?? null) as Ala,
+        localizacaoPreferencial:
+          adolescente.alojamentoAtual.localizacaoPreferencial ?? false,
+        casa: adolescente.alojamentoAtual.casa
+          ? {
+              id: adolescente.alojamentoAtual.casa.id,
+              nome: adolescente.alojamentoAtual.casa.nome,
+              numero: adolescente.alojamentoAtual.casa.numero,
+            }
+          : null,
+      }
+    : null;
+
+  const alertasEspeciais =
+    adolescente.alertasAtivos
+      ?.map((alerta) => {
+        const tipo = mapearTipoEspecialPorCodigo(alerta.tipoAlerta);
+        if (!tipo) return null;
+        return {
+          id: alerta.id,
+          tipo,
+          descricao: alerta.descricaoAlerta ?? null,
+          nivelRisco: alerta.nivelRisco ?? null,
+        };
+      })
+      .filter(
+        (
+          alerta
+        ): alerta is NonNullable<typeof alerta> => Boolean(alerta)
+      ) ?? [];
+  const alertaSuicidioNivel = extrairNivelRiscoSuicidio(alertasEspeciais);
+
+  return {
+    id: adolescente.id,
+    nomeCompleto: adolescente.nomeCompleto,
+    nomeSocial: adolescente.nomeSocial ?? null,
+    vulgo: adolescente.vulgo ?? null,
+    numeroSms: adolescente.numeroSms ?? null,
+    numeroInterno: adolescente.numeroInterno ?? null,
+    fotoUrl: adolescente.fotoUrl ?? null,
+    dataNascimento: formatDate(adolescente.dataNascimento),
+    dataEntrada: formatDate(adolescente.dataEntrada),
+    numeroProcesso: adolescente.numeroProcesso ?? null,
+    atoInfracionalAtual: adolescente.atoInfracionalAtual ?? null,
+    atoInfracionalAno: adolescente.atoInfracionalAno ?? null,
+    atoInfracionalProcesso: adolescente.atoInfracionalProcesso ?? null,
+    atoInfracionalGravidade: adolescente.atoInfracionalGravidade ?? false,
+    atoInfracionalGravidadeObs: adolescente.atoInfracionalGravidadeObs ?? null,
+    statusUnidade,
+    alojamentoAtualId: adolescente.alojamentoAtualId ?? null,
+    faseInternacaoAtualId: adolescente.faseInternacaoAtualId ?? null,
+    dataDesinternacao: formatDate(adolescente.dataDesinternacao),
+    tecnicosReferencia: [],
+    alojamentoAtual,
+    faccaoGrupoId: adolescente.faccaoGrupoId ?? null,
+    faccaoFuncao: adolescente.faccaoFuncao ?? null,
+    faccaoInformacaoOrigem: adolescente.faccaoInformacaoOrigem ?? null,
+    faccaoInformacaoDetalhe: adolescente.faccaoInformacaoDetalhe ?? null,
+    faccao: adolescente.faccao
+      ? {
+          id: adolescente.faccao.id,
+          nome: adolescente.faccao.nomeFaccao,
+        }
+      : null,
+    bairroOrigemId: adolescente.bairroOrigemId ?? null,
+    bairroOrigem: adolescente.bairroOrigem
+      ? {
+          id: adolescente.bairroOrigem.id,
+          nome: adolescente.bairroOrigem.nomeBairro,
+          cidade: adolescente.bairroOrigem.cidade,
+        }
+      : null,
+    riscoFuga: adolescente.riscoFuga ?? null,
+    riscoFugaOrigem: null,
+    grupos: [],
+    tatuagens: [],
+    alertaRiscoSuicidio: adolescente.alertaRiscoSuicidio ?? false,
+    alertaPerfilMapeado: adolescente.alertaPerfilMapeado ?? false,
+    alertaSaudeConfidencial: adolescente.alertaSaudeConfidencial ?? false,
+    alertaSaudeDetalhes: adolescente.alertaSaudeDetalhes ?? null,
+    alertaRiscoSuicidioNivel: alertaSuicidioNivel,
+    conflitosA:
+      adolescente.conflitosA
+        ?.filter(
+          (conflito) => conflito.adolescenteB?.statusUnidade === "ATIVO"
+        )
+        .map((conflito) => {
+          let ocorrencias = (conflito.ocorrencias ?? []).filter((oc) => {
+            const ci = oc.ci as any;
+            if (!ci) return false;
+            if (ci.desativadoEm !== null) return false;
+            return ci.suspensoPorStatus === false;
+          });
+          if (
+            ocorrencias.length === 0 &&
+            conflito.ciOrigem &&
+            (conflito.ciOrigem as any).desativadoEm === null &&
+            (conflito.ciOrigem as any).suspensoPorStatus !== true
+          ) {
+            ocorrencias = [
+              {
+                id: `ci-${conflito.ciOrigem.id}`,
+                descricao: conflito.descricao ?? null,
+                criadoEm: conflito.criadoEm,
+                ci: conflito.ciOrigem,
+              } as any,
+            ];
+          }
+          ocorrencias.sort((a, b) =>
+            new Date(b.criadoEm as any).getTime() -
+            new Date(a.criadoEm as any).getTime()
+          );
+
+          return {
+            id: conflito.id,
+            adolescenteAId: conflito.adolescenteAId,
+            adolescenteBId: conflito.adolescenteBId,
+            tipoConflito: conflito.tipoConflito,
+            status: conflito.status,
+            descricao: conflito.descricao,
+            criadoEm: formatDate(conflito.criadoEm),
+            totalOcorrencias: ocorrencias.length,
+            ultimaOcorrenciaEm:
+              formatDate(conflito.ultimaOcorrenciaEm) ??
+              (ocorrencias[0]?.criadoEm
+                ? formatDate(ocorrencias[0].criadoEm)
+                : undefined),
+            ocorrencias: ocorrencias.map((oc) => ({
+              id: oc.id,
+              descricao: oc.descricao ?? null,
+              criadoEm: formatDate(oc.criadoEm) ?? null,
+              ci: oc.ci
+                ? {
+                    id: oc.ci.id,
+                    numero: oc.ci.numero,
+                    ano: oc.ci.ano,
+                    tipo: (oc.ci as any).tipo ?? oc.ci.tipoCI ?? null,
+                    resumo: (oc.ci as any).resumo ?? oc.ci.resumoCI ?? null,
+                    dataFato: formatDate(oc.ci.dataFato) ?? null,
+                  }
+                : null,
+            })),
+            adversario: conflito.adolescenteB
+              ? {
+                  id: conflito.adolescenteB.id,
+                  nomeCompleto: conflito.adolescenteB.nomeCompleto,
+                  numeroSms: conflito.adolescenteB.numeroSms ?? null,
+                }
+              : null,
+          };
+        }) ?? [],
+    conflitosB:
+      adolescente.conflitosB
+        ?.filter(
+          (conflito) => conflito.adolescenteA?.statusUnidade === "ATIVO"
+        )
+        .map((conflito) => {
+          const ocorrencias = (conflito.ocorrencias ?? []).filter((oc) => {
+            const ci = oc.ci as any;
+            if (!ci) return false;
+            if (ci.desativadoEm !== null) return false;
+            return ci.suspensoPorStatus === false;
+          });
+          ocorrencias.sort((a, b) =>
+            new Date(b.criadoEm as any).getTime() -
+            new Date(a.criadoEm as any).getTime()
+          );
+
+          return {
+            id: conflito.id,
+            adolescenteAId: conflito.adolescenteAId,
+            adolescenteBId: conflito.adolescenteBId,
+            tipoConflito: conflito.tipoConflito,
+            status: conflito.status,
+            descricao: conflito.descricao,
+            criadoEm: formatDate(conflito.criadoEm),
+            totalOcorrencias: ocorrencias.length,
+            ultimaOcorrenciaEm:
+              formatDate(conflito.ultimaOcorrenciaEm) ??
+              (ocorrencias[0]?.criadoEm
+                ? formatDate(ocorrencias[0].criadoEm)
+                : undefined),
+            ocorrencias: ocorrencias.map((oc) => ({
+              id: oc.id,
+              descricao: oc.descricao ?? null,
+              criadoEm: formatDate(oc.criadoEm) ?? null,
+              ci: oc.ci
+                ? {
+                    id: oc.ci.id,
+                    numero: oc.ci.numero,
+                    ano: oc.ci.ano,
+                    tipo: (oc.ci as any).tipo ?? oc.ci.tipoCI ?? null,
+                    resumo: (oc.ci as any).resumo ?? oc.ci.resumoCI ?? null,
+                    dataFato: formatDate(oc.ci.dataFato) ?? null,
+                  }
+                : null,
+            })),
+            adversario: conflito.adolescenteA
+              ? {
+                  id: conflito.adolescenteA.id,
+                  nomeCompleto: conflito.adolescenteA.nomeCompleto,
+                  numeroSms: conflito.adolescenteA.numeroSms ?? null,
+                }
+              : null,
+          };
+        }) ?? [],
+    historicoInfracional: [],
     alertasEspeciais,
     alertasPendentes: 0,
     criadoEm: formatDate(adolescente.criadoEm),
