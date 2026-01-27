@@ -72,6 +72,7 @@ export async function PUT(
             id: true,
             nomeCompleto: true,
             numeroSms: true,
+            statusUnidade: true,
           },
         },
         adolescenteB: {
@@ -79,6 +80,7 @@ export async function PUT(
             id: true,
             nomeCompleto: true,
             numeroSms: true,
+            statusUnidade: true,
           },
         },
         tentativasMediacao: {
@@ -113,7 +115,15 @@ export async function PUT(
 
     const conflitosDoGrupo = await prisma.conflito.findMany({
       where: filtroGrupo,
-      select: { id: true },
+      select: {
+        id: true,
+        adolescenteA: {
+          select: { statusUnidade: true },
+        },
+        adolescenteB: {
+          select: { statusUnidade: true },
+        },
+      },
     });
 
     if (conflitosDoGrupo.length === 0) {
@@ -123,10 +133,34 @@ export async function PUT(
       );
     }
 
+    const registrosAtivos = conflitosDoGrupo.filter(
+      (registro) =>
+        registro.adolescenteA?.statusUnidade === "ATIVO" &&
+        registro.adolescenteB?.statusUnidade === "ATIVO"
+    );
+
+    const parAtivo =
+      conflito.adolescenteA?.statusUnidade === "ATIVO" &&
+      conflito.adolescenteB?.statusUnidade === "ATIVO";
+
     const idsParaAtualizar =
       escopo === "PAR"
-        ? [conflitoId]
-        : conflitosDoGrupo.map((registro) => registro.id);
+        ? parAtivo
+          ? [conflitoId]
+          : []
+        : registrosAtivos.map((registro) => registro.id);
+
+    if (idsParaAtualizar.length === 0) {
+      return NextResponse.json(
+        {
+          erro:
+            "Não há registros com ambos os adolescentes ativos para marcar como resolvido.",
+          registrosTotais: conflitosDoGrupo.length,
+          registrosAtivos: registrosAtivos.length,
+        },
+        { status: 400 }
+      );
+    }
     const resolvidoEm = new Date();
 
     const resultado = await prisma.$transaction(async (tx) => {

@@ -23,12 +23,14 @@ type Participante = {
   numeroSms: string;
   alojamento?: string;
   lado?: string | null;
+  statusUnidade?: string | null;
 };
 
 type Conflito = {
   id: string;
   registroGrupoId: string;
   participantes: Participante[];
+  ativosPorLado: Record<"Lado 1" | "Lado 2", number>;
   tipoConflito: string;
   status: "ATIVO" | "RESOLVIDO";
   origem: string;
@@ -64,9 +66,29 @@ export function ListagemConflitos({
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
   const [excluindoId, setExcluindoId] = useState<string | null>(null);
 
+  const statusEfetivo = (c: Conflito): "ATIVO" | "RESOLVIDO" => {
+    const participanteAtivo = c.participantes?.some(
+      (p) => (p.statusUnidade ?? "").toUpperCase() === "ATIVO"
+    );
+    if (c.status === "RESOLVIDO" && participanteAtivo) {
+      return "ATIVO";
+    }
+    return c.status;
+  };
+
   const conflitosFiltrados = useMemo(() => {
     const termo = busca.toLowerCase();
     return conflitos.filter((conflito) => {
+      const ladosAtivos = conflito.ativosPorLado ?? {
+        "Lado 1": 0,
+        "Lado 2": 0,
+      };
+      const possuiAtivoPorLado =
+        ladosAtivos["Lado 1"] > 0 && ladosAtivos["Lado 2"] > 0;
+      if (!incluirInativos && !possuiAtivoPorLado) {
+        return false;
+      }
+
       const matchBusca =
         termo === "" ||
         conflito.participantes.some(
@@ -76,22 +98,22 @@ export function ListagemConflitos({
         );
 
       const matchStatus =
-        filtroStatus === "TODOS" || conflito.status === filtroStatus;
+        filtroStatus === "TODOS" || statusEfetivo(conflito) === filtroStatus;
 
       const matchTipo =
         filtroTipo === "TODOS" || conflito.tipoConflito === filtroTipo;
 
       return matchBusca && matchStatus && matchTipo;
     });
-  }, [conflitos, busca, filtroStatus, filtroTipo]);
+  }, [conflitos, busca, filtroStatus, filtroTipo, incluirInativos]);
 
   const stats = useMemo(
     () => ({
       total: conflitos.length,
-      ativos: conflitos.filter((c) => c.status === "ATIVO").length,
-      resolvidos: conflitos.filter((c) => c.status === "RESOLVIDO").length,
+      ativos: conflitos.filter((c) => statusEfetivo(c) === "ATIVO").length,
+      resolvidos: conflitos.filter((c) => statusEfetivo(c) === "RESOLVIDO").length,
       semMediacao: conflitos.filter(
-        (c) => c.status === "ATIVO" && c.tentativasMediacao === 0
+        (c) => statusEfetivo(c) === "ATIVO" && c.tentativasMediacao === 0
       ).length,
     }),
     [conflitos]
@@ -161,7 +183,8 @@ export function ListagemConflitos({
     janela.print();
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (conflito: Conflito) => {
+    const status = statusEfetivo(conflito);
     if (status === "ATIVO") {
       return (
         <span className="px-3 py-1 bg-red-100 text-red-800 rounded-full text-xs font-bold border border-red-300 flex items-center gap-1">
@@ -362,9 +385,14 @@ export function ListagemConflitos({
         ) : (
           conflitosFiltrados.map((conflito) => {
             const participantes = conflito.participantes ?? [];
-            const primeiro = participantes[0];
-            const demais = participantes.slice(1);
-            const semParticipantes = participantes.length === 0;
+            const participantesVisiveis = incluirInativos
+              ? participantes
+              : participantes.filter(
+                  (p) => (p.statusUnidade ?? "").toUpperCase() === "ATIVO"
+                );
+            const primeiro = participantesVisiveis[0];
+            const demais = participantesVisiveis.slice(1);
+            const semParticipantes = participantesVisiveis.length === 0;
             const fallbackTitulo =
               conflito.descricao?.trim() ||
               conflito.tipoConflito ||
@@ -401,7 +429,7 @@ export function ListagemConflitos({
                         >
                           {conflito.tipoConflito}
                         </span>
-                        {getStatusBadge(conflito.status)}
+                        {getStatusBadge(conflito)}
                         {semParticipantes && (
                           <span className="px-2 py-1 rounded text-xs font-semibold border border-amber-300 bg-amber-50 text-amber-700">
                             Participantes nao informados
@@ -433,7 +461,7 @@ export function ListagemConflitos({
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                  {participantes.map((participante) => (
+                  {participantesVisiveis.map((participante) => (
                     <div key={participante.id} className="bg-gray-50 rounded-lg p-3">
                       <div className="flex items-center justify-between mb-1">
                         <p className="text-xs text-gray-600">Participante</p>

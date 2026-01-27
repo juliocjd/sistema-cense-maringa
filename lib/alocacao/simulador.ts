@@ -63,7 +63,7 @@ const construirAlertas = (
         mensagem,
         proximidade: undefined,
         conflitoId: undefined,
-        conflitoCriadoEm: undefined,
+        conflitoCriadoEm: null,
         alertaId:
           alertaSuicidio && /suicid/i.test(mensagem)
             ? alertaSuicidio.id
@@ -171,6 +171,10 @@ export const simularAlocacao = ({
         nivel: 2 as NivelRiscoBasico,
         mensagem: vigilanciaFrontal.motivo,
         proximidade: undefined,
+        conflitoId: undefined,
+        conflitoCriadoEm: null,
+        alertaId: undefined,
+        alertaCriadoEm: undefined,
       });
     }
   }
@@ -182,6 +186,10 @@ export const simularAlocacao = ({
         nivel: 2 as NivelRiscoBasico,
         mensagem: aviso,
         proximidade: undefined,
+        conflitoId: undefined,
+        conflitoCriadoEm: null,
+        alertaId: undefined,
+        alertaCriadoEm: undefined,
       });
     }
   });

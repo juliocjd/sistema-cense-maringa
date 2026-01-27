@@ -19,11 +19,12 @@ const RISCO_EXPLICACOES = {
 };
 
 const TIPOS_CRITICOS_DESTAQUE = ["FUGA", "AGRESSAO", "AMEACA_SERVIDOR"];
+const DIRETOR_MARKER = "__DIRETOR_ATUAL__:";
 
 // GET /api/justificativas-algema/[id]/pdf - Gerar PDF da justificativa
 export async function GET(
   request: NextRequest,
-  context: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await context.params;
@@ -31,7 +32,7 @@ export async function GET(
     if (!id || typeof id !== "string") {
       return NextResponse.json(
         { erro: "ID da justificativa não informado" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -84,9 +85,15 @@ export async function GET(
     if (!justificativa) {
       return NextResponse.json(
         { erro: "Justificativa não encontrada" },
-        { status: 404 }
+        { status: 404 },
       );
     }
+
+    const diretorAtualUnidade =
+      justificativa.equipeProfissional
+        ?.find((item) => item.startsWith(DIRETOR_MARKER))
+        ?.slice(DIRETOR_MARKER.length)
+        .trim() ?? null;
 
     const [
       riscoFugaRegistro,
@@ -100,10 +107,7 @@ export async function GET(
           adolescenteId: justificativa.adolescenteId,
           tipo: "RISCO_FUGA_ALERTA",
         },
-        orderBy: [
-          { registradoEm: "desc" },
-          { criadoEm: "desc" },
-        ],
+        orderBy: [{ registradoEm: "desc" }, { criadoEm: "desc" }],
         select: {
           descricao: true,
           registradoEm: true,
@@ -160,10 +164,7 @@ export async function GET(
             in: [TIPO_PROTOCOLO_ATIVADO, TIPO_PROTOCOLO_ALTA],
           },
         },
-        orderBy: [
-          { registradoEm: "desc" },
-          { criadoEm: "desc" },
-        ],
+        orderBy: [{ registradoEm: "desc" }, { criadoEm: "desc" }],
         take: 10,
       }),
       prisma.alertaAtivo.findFirst({
@@ -226,18 +227,31 @@ export async function GET(
             riscoFugaRegistro.descricao ??
             "Risco de fuga elevado automaticamente apos CI/Alerta recente.",
           data: formatarDataHora(
-            riscoFugaRegistro.registradoEm ?? riscoFugaRegistro.criadoEm
+            riscoFugaRegistro.registradoEm ?? riscoFugaRegistro.criadoEm,
           ),
           origem: riscoFugaOrigemDescricao,
           responsavel: riscoFugaRegistro.operador?.nomeCompleto ?? null,
         }
       : null;
     const eventoProtocolo = suicidioEventos.find(
-      (evento) => evento.tipo === TIPO_PROTOCOLO_ATIVADO
+      (evento) => evento.tipo === TIPO_PROTOCOLO_ATIVADO,
     );
     const eventoAltaProtocolo = suicidioEventos.find(
-      (evento) => evento.tipo === TIPO_PROTOCOLO_ALTA
+      (evento) => evento.tipo === TIPO_PROTOCOLO_ALTA,
     );
+    const ultimoEventoProtocolo = suicidioEventos[0] ?? null;
+    const altaRecenteProtocolo =
+      ultimoEventoProtocolo?.tipo === TIPO_PROTOCOLO_ALTA;
+    const MENSAGEM_SUICIDIO_ATIVO =
+      "Há protocolo vigente de risco de suicídio, exigindo contenção para proteger a integridade física do adolescente, da equipe e de terceiros, conforme Súmula Vinculante nº 11 do STF.";
+    const MENSAGEM_SUICIDIO_ALTA =
+      "Adolescente ingressou em protocolo de suicídio, recebendo alta médica. Entretanto, há indícios de instabilidade emocional com dificuldades para lidar com frustrações, exigindo monitoramento contínuo para prevenção de riscos à sua integridade e à segurança da equipe e de terceiros.";
+    const mensagemSuicidioFinal = altaRecenteProtocolo
+      ? MENSAGEM_SUICIDIO_ALTA
+      : MENSAGEM_SUICIDIO_ATIVO;
+    const fundamentacaoLegalAjustada = justificativa.fundamentacaoLegal
+      .replace(MENSAGEM_SUICIDIO_ATIVO, mensagemSuicidioFinal)
+      .replace(MENSAGEM_SUICIDIO_ALTA, mensagemSuicidioFinal);
     const protocoloSuicidioResumo =
       alertaSuicidioAtivo || eventoProtocolo || eventoAltaProtocolo
         ? {
@@ -245,9 +259,11 @@ export async function GET(
             nivel: alertaSuicidioAtivo?.nivelRisco ?? null,
             alertaDescricao: alertaSuicidioAtivo?.descricaoAlerta ?? null,
             alertaCriadoEm: alertaSuicidioAtivo?.criadoEm ?? null,
+            altaRecente: altaRecenteProtocolo,
             ingresso: eventoProtocolo
               ? {
-                  data: eventoProtocolo.registradoEm ?? eventoProtocolo.criadoEm,
+                  data:
+                    eventoProtocolo.registradoEm ?? eventoProtocolo.criadoEm,
                   descricao: eventoProtocolo.descricao ?? null,
                 }
               : null,
@@ -305,7 +321,7 @@ export async function GET(
       `Documento Nº ${justificativa.numeroDocumento}`,
       pageWidth / 2,
       32,
-      { align: "center" }
+      { align: "center" },
     );
 
     yPosition = 50;
@@ -336,7 +352,7 @@ export async function GET(
 
     if (justificativa.adolescente.numeroSms) {
       dadosAdolescente.push([
-        "N?mero SMS:",
+        "Número SMS:",
         justificativa.adolescente.numeroSms,
       ]);
     }
@@ -345,7 +361,7 @@ export async function GET(
       dadosAdolescente.push([
         "Data de Nascimento:",
         new Date(justificativa.adolescente.dataNascimento).toLocaleDateString(
-          "pt-BR"
+          "pt-BR",
         ),
       ]);
     }
@@ -415,39 +431,174 @@ export async function GET(
 
     // ================= FUNDAMENTAÇÃO LEGAL =================
     checkPageBreak(60);
-    doc.setFontSize(14);
+    const tituloFundamentacao =
+      "3. FUNDAMENTAÇÃO FÁTICA - ELEMENTOS APURADOS PELOS DADOS NO SISTEMA";
+    const larguraMaxima = pageWidth - 28;
     doc.setFont("helvetica", "bold");
     doc.setTextColor(79, 70, 229);
-    doc.text(
-      "3. FUNDAMENTAÇÃO FÁTICA - ELEMENTOS APURADOS PELOS DADOS NO SISTEMA",
-      14,
-      yPosition
-    );
-    yPosition += 8;
+    let tituloFontSize = 13;
+    doc.setFontSize(tituloFontSize);
+    while (
+      doc.getTextWidth(tituloFundamentacao) > larguraMaxima &&
+      tituloFontSize > 11
+    ) {
+      tituloFontSize -= 0.5;
+      doc.setFontSize(tituloFontSize);
+    }
+    doc.text(tituloFundamentacao, 14, yPosition);
+    yPosition += 7;
 
     doc.setTextColor(0, 0, 0);
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
 
-    const fundamentacaoLinhas = doc.splitTextToSize(
-      justificativa.fundamentacaoLegal,
-      pageWidth - 28
-    );
-    fundamentacaoLinhas.forEach((linha: string) => {
-      checkPageBreak(6);
-      doc.text(linha, 14, yPosition);
-      yPosition += 6;
-    });
+    const ROTULOS_NEGRITO = [
+      "Ato infracional em apuração:",
+      "Há protocolo vigente de risco de suicídio",
+      "Vínculo orgânico com",
+      "Conflitos ativos:",
+      "Comunicados internos recentes:",
+      "Alertas ativos registrados no sistema:",
+      "Movimentação prevista para",
+      "Atualmente alojado",
+      "Integrante de grupo(s) em andamento:",
+    ];
 
-    if (justificativa.atoInfracionalBase) {
-      yPosition += 3;
+    const parseItensFundamentacao = (texto: string) => {
+      const conteudo = (texto ?? "").trim();
+      if (!conteudo) return [] as Array<{ numero: string; conteudo: string }>;
+      const regex = /(^|\n)(\d+)\.\s+/g;
+      const marcadores: Array<{
+        inicio: number;
+        inicioConteudo: number;
+        numero: string;
+      }> = [];
+      let match: RegExpExecArray | null;
+      while ((match = regex.exec(conteudo)) !== null) {
+        const inicio = match.index + (match[1] ? 1 : 0);
+        marcadores.push({
+          inicio,
+          inicioConteudo: regex.lastIndex,
+          numero: match[2],
+        });
+      }
+      if (marcadores.length === 0) {
+        return [{ numero: "1", conteudo }];
+      }
+      return marcadores
+        .map((marcador, indice) => {
+          const fim = marcadores[indice + 1]?.inicio ?? conteudo.length;
+          const trecho = conteudo.slice(marcador.inicioConteudo, fim).trim();
+          return trecho
+            ? {
+                numero: marcador.numero,
+                conteudo: trecho,
+              }
+            : null;
+        })
+        .filter((item): item is { numero: string; conteudo: string } =>
+          Boolean(item),
+        );
+    };
+
+    const extrairRotulo = (conteudo: string) => {
+      const texto = conteudo.trim();
+      const rotuloConhecido = ROTULOS_NEGRITO.find((rotulo) =>
+        texto.startsWith(rotulo),
+      );
+      if (rotuloConhecido) {
+        return {
+          rotulo: rotuloConhecido,
+          resto: texto.slice(rotuloConhecido.length).trim(),
+        };
+      }
+      const colonIndex = texto.indexOf(":");
+      if (colonIndex > 0 && colonIndex < 120) {
+        const rotulo = texto.slice(0, colonIndex + 1);
+        return {
+          rotulo,
+          resto: texto.slice(colonIndex + 1).trim(),
+        };
+      }
+      return { rotulo: "", resto: texto };
+    };
+
+    const extrairItensLista = (texto: string) => {
+      const base = texto.trim();
+      if (!base) return [] as string[];
+      if (base.includes("\n- ")) {
+        return base
+          .split(/\n\s*-\s+/)
+          .map((item) => item.replace(/^\-\s*/, "").trim())
+          .filter(Boolean);
+      }
+      return base
+        .split(/;\s+/)
+        .map((item) => item.replace(/^\-\s*/, "").trim())
+        .filter(Boolean);
+    };
+
+    const lineHeight = 5.2;
+    const renderLinhas = (linhas: string[], x = 14) => {
+      linhas.forEach((linha) => {
+        checkPageBreak(lineHeight + 1.5);
+        doc.text(linha, x, yPosition);
+        yPosition += lineHeight;
+      });
+    };
+
+    const itensFundamentacao = parseItensFundamentacao(
+      fundamentacaoLegalAjustada
+    ).filter(
+      (item) =>
+        !item.conteudo.trim().startsWith("Integrante de grupo(s) em andamento:")
+    );
+
+    itensFundamentacao.forEach((item) => {
+      const { rotulo, resto } = extrairRotulo(item.conteudo);
+      const ehLista =
+        /conflitos ativos|comunicados internos recentes|alertas ativos registrados no sistema/i.test(
+          rotulo,
+        );
+
+      if (!rotulo) {
+        doc.setFont("helvetica", "normal");
+        renderLinhas(
+          doc.splitTextToSize(
+            `${item.numero}. ${item.conteudo}`,
+            larguraMaxima,
+          ),
+        );
+        yPosition += 1.5;
+        return;
+      }
+
       doc.setFont("helvetica", "bold");
-      doc.text("Ato Infracional:", 14, yPosition);
-      yPosition += 6;
+      renderLinhas(
+        doc.splitTextToSize(`${item.numero}. ${rotulo}`, larguraMaxima),
+      );
+
       doc.setFont("helvetica", "normal");
-      doc.text(justificativa.atoInfracionalBase, 14, yPosition);
-      yPosition += 6;
-    }
+      if (!ehLista && resto) {
+        renderLinhas(doc.splitTextToSize(resto, larguraMaxima));
+        yPosition += 1.5;
+        return;
+      }
+
+      const itensLista = ehLista ? extrairItensLista(resto) : [];
+      const linhasLista =
+        itensLista.length > 0 ? itensLista : resto ? [resto] : [];
+      linhasLista.forEach((linha, indice) => {
+        if (indice > 0) {
+          yPosition += 1.5;
+        }
+        const bullet = `- ${linha}`;
+        const bulletLinhas = doc.splitTextToSize(bullet, larguraMaxima - 6);
+        renderLinhas(bulletLinhas, 18);
+        yPosition += 1.2;
+      });
+      yPosition += 1.5;
+    });
 
     if (
       justificativa.adolescente.atoInfracionalGravidade &&
@@ -460,7 +611,7 @@ export async function GET(
       doc.setFont("helvetica", "normal");
       const gravidadeLinhas = doc.splitTextToSize(
         justificativa.adolescente.atoInfracionalGravidadeObs,
-        pageWidth - 28
+        pageWidth - 28,
       );
       gravidadeLinhas.forEach((linha: string) => {
         checkPageBreak(6);
@@ -558,45 +709,48 @@ export async function GET(
       const boxWidth = pageWidth - 28;
       const linhasResumo: string[] = [
         protocoloSuicidioResumo.ativo
-          ? `Protocolo ativo (nivel ${
-              protocoloSuicidioResumo.nivel ?? "N/I"
-            })`
+          ? `Protocolo ativo (nivel ${protocoloSuicidioResumo.nivel ?? "N/I"})`
           : "Protocolo registrado sem alerta ativo no momento",
       ];
       if (protocoloSuicidioResumo.ingresso) {
         linhasResumo.push(
           `Ingresso em ${formatarDataHora(
-            protocoloSuicidioResumo.ingresso.data
+            protocoloSuicidioResumo.ingresso.data,
           )}${
             protocoloSuicidioResumo.ingresso.descricao
               ? ` — ${protocoloSuicidioResumo.ingresso.descricao}`
               : ""
-          }`
+          }`,
         );
       } else if (protocoloSuicidioResumo.alertaCriadoEm) {
         linhasResumo.push(
           `Ultimo alerta registrado em ${formatarDataHora(
-            protocoloSuicidioResumo.alertaCriadoEm
+            protocoloSuicidioResumo.alertaCriadoEm,
           )}${
             protocoloSuicidioResumo.alertaDescricao
               ? ` — ${protocoloSuicidioResumo.alertaDescricao}`
               : ""
-          }`
+          }`,
         );
       }
       if (protocoloSuicidioResumo.alta) {
         linhasResumo.push(
           `Alta medica em ${formatarDataHora(
-            protocoloSuicidioResumo.alta.data
+            protocoloSuicidioResumo.alta.data,
           )}${
             protocoloSuicidioResumo.alta.descricao
               ? ` — ${protocoloSuicidioResumo.alta.descricao}`
               : ""
-          }`
+          }`,
         );
       }
-
-      const blocoAltura = 20 + linhasResumo.length * 5;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      const larguraTexto = boxWidth - 12;
+      const linhasResumoQuebradas = linhasResumo.flatMap((linha) =>
+        doc.splitTextToSize(linha, larguraTexto),
+      );
+      const blocoAltura = 24 + linhasResumoQuebradas.length * 5;
       checkPageBreak(blocoAltura + 6);
       doc.setFillColor(253, 242, 248);
       doc.setDrawColor(219, 39, 119);
@@ -608,19 +762,16 @@ export async function GET(
         "PROTOCOLO DE RISCO DE SUICIDIO / ALTA MEDICA",
         pageWidth / 2,
         yPosition + 8,
-        { align: "center" }
+        { align: "center" },
       );
 
       doc.setFont("helvetica", "normal");
       doc.setFontSize(9);
       doc.setTextColor(74, 74, 74);
       let blocoY = yPosition + 15;
-      linhasResumo.forEach((linha) => {
-        const partes = doc.splitTextToSize(linha, boxWidth - 12);
-        partes.forEach((parte: string) => {
-          doc.text(parte, 20, blocoY);
-          blocoY += 5;
-        });
+      linhasResumoQuebradas.forEach((linha) => {
+        doc.text(linha, 20, blocoY);
+        blocoY += 5;
       });
       yPosition = yPosition + blocoAltura + 8;
       doc.setTextColor(0, 0, 0);
@@ -631,13 +782,13 @@ export async function GET(
       const boxWidth = pageWidth - 28;
       const descricaoLinhas = doc.splitTextToSize(
         `Motivo: ${riscoFugaDestaque.descricao}`,
-        boxWidth - 12
+        boxWidth - 12,
       );
       const metaLinhasOrigem: string[] = [];
 
       if (riscoFugaDestaque.data) {
         metaLinhasOrigem.push(
-          `Registrado em: ${riscoFugaDestaque.data as string}`
+          `Registrado em: ${riscoFugaDestaque.data as string}`,
         );
       }
       if (riscoFugaDestaque.origem) {
@@ -645,12 +796,12 @@ export async function GET(
       }
       if (riscoFugaDestaque.responsavel) {
         metaLinhasOrigem.push(
-          `Operador: ${riscoFugaDestaque.responsavel as string}`
+          `Operador: ${riscoFugaDestaque.responsavel as string}`,
         );
       }
 
       const metaLinhas = metaLinhasOrigem.flatMap((linha) =>
-        doc.splitTextToSize(linha, boxWidth - 12)
+        doc.splitTextToSize(linha, boxWidth - 12),
       );
       const blocoAltura =
         22 + (descricaoLinhas.length + metaLinhas.length) * 5 + 4;
@@ -665,7 +816,7 @@ export async function GET(
         "ELEVACAO AUTOMATICA DO RISCO DE FUGA",
         pageWidth / 2,
         yPosition + 8,
-        { align: "center" }
+        { align: "center" },
       );
 
       let blocoY = yPosition + 16;
@@ -771,7 +922,7 @@ export async function GET(
         "FATORES AGRAVANTES IDENTIFICADOS PELO SISTEMA DE INTELIGENCIA",
         pageWidth / 2,
         yPosition,
-        { align: "center" }
+        { align: "center" },
       );
       yPosition += 10;
 
@@ -786,7 +937,7 @@ export async function GET(
           ? `: ${justificativa.adolescente.atoInfracionalGravidadeObs}`
           : "";
         fatoresList.unshift(
-          `Ato com repercussao publica ou gravidade elevada${detalheGravidade}`
+          `Ato com repercussao publica ou gravidade elevada${detalheGravidade}`,
         );
       }
 
@@ -811,7 +962,7 @@ export async function GET(
       doc.setFont("helvetica", "normal");
       const historicoLinhas = doc.splitTextToSize(
         justificativa.historicoComportamental,
-        pageWidth - 28
+        pageWidth - 28,
       );
       historicoLinhas.forEach((linha: string) => {
         checkPageBreak(6);
@@ -838,18 +989,6 @@ export async function GET(
     justificativa.medidasSeguranca.forEach((medida) => {
       checkPageBreak(6);
       doc.text(`• ${medida}`, 14, yPosition);
-      yPosition += 6;
-    });
-
-    yPosition += 3;
-    doc.setFont("helvetica", "bold");
-    doc.text("Equipe Profissional:", 14, yPosition);
-    yPosition += 6;
-
-    justificativa.equipeProfissional.forEach((membro) => {
-      checkPageBreak(6);
-      doc.setFont("helvetica", "normal");
-      doc.text(`• ${membro}`, 14, yPosition);
       yPosition += 6;
     });
 
@@ -882,10 +1021,10 @@ export async function GET(
       if (justificativa.horaInicio) {
         doc.text(
           `Hora de Aplicação: ${new Date(
-            justificativa.horaInicio
+            justificativa.horaInicio,
           ).toLocaleTimeString("pt-BR")}`,
           14,
-          yPosition
+          yPosition,
         );
         yPosition += 6;
       }
@@ -893,10 +1032,10 @@ export async function GET(
       if (justificativa.horaFim) {
         doc.text(
           `Hora de Retirada: ${new Date(
-            justificativa.horaFim
+            justificativa.horaFim,
           ).toLocaleTimeString("pt-BR")}`,
           14,
-          yPosition
+          yPosition,
         );
         yPosition += 6;
       }
@@ -905,7 +1044,7 @@ export async function GET(
         doc.text(
           `Duração Total: ${justificativa.duracaoMinutos} minuto(s)`,
           14,
-          yPosition
+          yPosition,
         );
         yPosition += 6;
       }
@@ -929,7 +1068,7 @@ export async function GET(
 
       const observacoesLinhas = doc.splitTextToSize(
         justificativa.observacoesAdicionais,
-        pageWidth - 28
+        pageWidth - 28,
       );
       observacoesLinhas.forEach((linha: string) => {
         checkPageBreak(6);
@@ -941,56 +1080,41 @@ export async function GET(
       addLine();
     }
 
-    // ================= RESPONSÁVEL =================
-    checkPageBreak(50);
-    doc.setFontSize(14);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(79, 70, 229);
-    doc.text("8. RESPONSÁVEL PELA JUSTIFICATIVA", 14, yPosition);
+    // ================= ASSINATURA DO DIRETOR =================
+    const diretorAssinatura =
+      diretorAtualUnidade?.trim() || "Diretor da unidade";
+    checkPageBreak(36);
     yPosition += 8;
-
     doc.setTextColor(0, 0, 0);
-    doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
-
-    doc.text(
-      `Nome: ${justificativa.operadorResponsavel.nomeCompleto}`,
-      14,
-      yPosition
-    );
+    doc.setFontSize(10);
+    doc.text("_____________________________________________", pageWidth / 2, yPosition, {
+      align: "center",
+    });
     yPosition += 6;
-    doc.text(
-      `Cargo/Função: ${justificativa.operadorResponsavel.funcaoRole}`,
-      14,
-      yPosition
-    );
+    doc.text(diretorAssinatura, pageWidth / 2, yPosition, {
+      align: "center",
+    });
     yPosition += 6;
-    doc.text(
-      `Data de Emissão: ${new Date(justificativa.criadoEm).toLocaleString(
-        "pt-BR"
-      )}`,
-      14,
-      yPosition
-    );
-    yPosition += 10;
-
-    doc.text("_____________________________________________", 14, yPosition);
-    yPosition += 6;
-    doc.setFontSize(9);
-    doc.text("Assinatura do Responsável", 14, yPosition);
+    doc.text("Diretor do Centro de Socioeducação", pageWidth / 2, yPosition, {
+      align: "center",
+    });
 
     // ================= RODAPÉ =================
+    const dataEmissao = new Date(justificativa.criadoEm).toLocaleString(
+      "pt-BR",
+    );
     const pageCount = doc.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i);
-      doc.setFontSize(8);
+      doc.setFontSize(7.5);
       doc.setFont("helvetica", "normal");
       doc.setTextColor(100, 100, 100);
       doc.text(
-        `CENSE Maringá - Justificativa de Algema ${justificativa.numeroDocumento} | Página ${i} de ${pageCount}`,
+        `CENSE Maringá - Justificativa de Algema ${justificativa.numeroDocumento} | Data de Emissão: ${dataEmissao} | Página ${i} de ${pageCount}`,
         pageWidth / 2,
         pageHeight - 10,
-        { align: "center" }
+        { align: "center" },
       );
 
       doc.setFontSize(7);
@@ -998,7 +1122,7 @@ export async function GET(
         "Documento confidencial - Uso restrito aos profissionais autorizados",
         pageWidth / 2,
         pageHeight - 6,
-        { align: "center" }
+        { align: "center" },
       );
     }
 
@@ -1016,7 +1140,7 @@ export async function GET(
     console.error("Erro ao gerar PDF:", error);
     return NextResponse.json(
       { erro: "Erro ao gerar PDF da justificativa" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

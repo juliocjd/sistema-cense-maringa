@@ -147,7 +147,7 @@ export function CardAlerta({
 
                   {alerta.ciOrigemId && (
                     <Link
-                      href={`/comunicados-internos/${alerta.ciOrigemId}`}
+                      href={`/comunicados/${alerta.ciOrigemId}`}
                       className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
                     >
                       <FileText size={16} />

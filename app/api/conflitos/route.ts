@@ -440,6 +440,7 @@ export async function GET(request: Request) {
       adolescenteA: {
         id: c.adolescenteA.id,
         nome: c.adolescenteA.nomeCompleto,
+        statusUnidade: c.adolescenteA.statusUnidade,
         numeroSms: c.adolescenteA.numeroSms,
         alojamento: c.adolescenteA.alojamentoAtual
           ? `${c.adolescenteA.alojamentoAtual.casa.nome} - Aloj ${c.adolescenteA.alojamentoAtual.numeroAlojamento}`
@@ -448,6 +449,7 @@ export async function GET(request: Request) {
       adolescenteB: {
         id: c.adolescenteB.id,
         nome: c.adolescenteB.nomeCompleto,
+        statusUnidade: c.adolescenteB.statusUnidade,
         numeroSms: c.adolescenteB.numeroSms,
         alojamento: c.adolescenteB.alojamentoAtual
           ? `${c.adolescenteB.alojamentoAtual.casa.nome} - Aloj ${c.adolescenteB.alojamentoAtual.numeroAlojamento}`

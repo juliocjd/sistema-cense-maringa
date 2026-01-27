@@ -160,61 +160,70 @@ const mapearParticipante = (dados: ApiParticipante): Participante => ({
   lado: dados.lado ?? null,
 });
 
-const normalizarConflito = (dados: ApiConflito): Conflito => ({
-  id: dados.id,
-  tipoConflito: dados.tipo ?? dados.tipoConflito ?? "N/A",
-  status: ((dados.statusGrupo ?? dados.status) as string).toUpperCase() === "RESOLVIDO" ? "RESOLVIDO" : "ATIVO",
-  statusGrupo: (dados.statusGrupo ?? dados.status ?? null) as
-    | "ATIVO"
-    | "RESOLVIDO"
-    | "PARCIAL"
-    | null,
-  paresDoGrupo: dados.paresDoGrupo?.map((p) => ({
-    id: p.id,
-    status: p.status,
-    registroGrupoId: p.registroGrupoId,
-    ciLabel:
-      p.ciOrigemNumero !== null && p.ciOrigemNumero !== undefined
-        ? `CI ${p.ciOrigemNumero}/${p.ciOrigemAno ?? ""}`
-        : null,
-    adolescenteAId: p.adolescenteAId,
-    adolescenteBId: p.adolescenteBId,
-    adolescenteANome: p.adolescenteANome ?? null,
-    adolescenteBNome: p.adolescenteBNome ?? null,
-  })),
-  origem: dados.ciOrigem
-    ? `CI ${dados.ciOrigem.numero}/${dados.ciOrigem.ano}`
-    : "Registro direto",
-  descricao: dados.descricao,
-  criadoEm: dados.dataRegistro,
-  resolvidoEm: dados.dataResolucao ?? undefined,
-  totalOcorrencias: dados.totalOcorrencias ?? 0,
-  ultimaOcorrenciaEm: dados.ultimaOcorrenciaEm ?? undefined,
-  ocorrencias: dados.ocorrencias?.map((oc) => ({
-    id: oc.id,
-    descricao: oc.descricao ?? undefined,
-    criadoEm: oc.criadoEm,
-        ci: oc.ci
-          ? {
-              id: oc.ci.id,
-              numero: oc.ci.numero,
-              ano: oc.ci.ano,
-              tipo: (oc.ci as any).tipo ?? (oc.ci as any).tipoCI ?? null,
-              resumo:
-                (oc.ci as any).resumo ?? (oc.ci as any).resumoCI ?? null,
-              dataFato: oc.ci.dataFato ?? null,
-            }
+const normalizarConflito = (dados: ApiConflito): Conflito => {
+  const statusBruto = ((dados.statusGrupo ?? dados.status) as string | undefined)?.toUpperCase();
+  const statusNormalizado: "ATIVO" | "RESOLVIDO" =
+    statusBruto === "RESOLVIDO" ? "RESOLVIDO" : "ATIVO";
+
+  return {
+    id: dados.id,
+    tipoConflito: dados.tipo ?? dados.tipoConflito ?? "N/A",
+    status: statusNormalizado,
+    statusGrupo: (dados.statusGrupo ?? dados.status ?? null) as
+      | "ATIVO"
+      | "RESOLVIDO"
+      | "PARCIAL"
+      | null,
+    paresDoGrupo: dados.paresDoGrupo?.map((p) => ({
+      id: p.id,
+      status: p.status,
+      registroGrupoId: p.registroGrupoId,
+      ciLabel:
+        p.ciOrigemNumero !== null && p.ciOrigemNumero !== undefined
+          ? `CI ${p.ciOrigemNumero}/${p.ciOrigemAno ?? ""}`
           : null,
-      })),
-  participantes: dados.participantes?.map((p) =>
-    mapearParticipante({
-      ...p,
-      alojamentoAtual: p.alojamentoAtual,
-    })
-  ),
-  adolescenteA: mapearParticipante(dados.adolescenteA),
-  adolescenteB: mapearParticipante(dados.adolescenteB),
-});
+      adolescenteAId: p.adolescenteAId,
+      adolescenteBId: p.adolescenteBId,
+      adolescenteANome: p.adolescenteANome ?? null,
+      adolescenteBNome: p.adolescenteBNome ?? null,
+    })),
+    origem: dados.ciOrigem
+      ? `CI ${dados.ciOrigem.numero}/${dados.ciOrigem.ano}`
+      : "Registro direto",
+    descricao: dados.descricao,
+    criadoEm: dados.dataRegistro,
+    resolvidoEm:
+      statusNormalizado === "RESOLVIDO"
+        ? dados.dataResolucao ?? undefined
+        : undefined,
+    totalOcorrencias: dados.totalOcorrencias ?? 0,
+    ultimaOcorrenciaEm: dados.ultimaOcorrenciaEm ?? undefined,
+    ocorrencias: dados.ocorrencias?.map((oc) => ({
+      id: oc.id,
+      descricao: oc.descricao ?? undefined,
+      criadoEm: oc.criadoEm,
+      ci: oc.ci
+        ? {
+            id: oc.ci.id,
+            numero: oc.ci.numero,
+            ano: oc.ci.ano,
+            tipo: (oc.ci as any).tipo ?? (oc.ci as any).tipoCI ?? null,
+            resumo:
+              (oc.ci as any).resumo ?? (oc.ci as any).resumoCI ?? null,
+            dataFato: oc.ci.dataFato ?? null,
+          }
+        : null,
+    })),
+    participantes: dados.participantes?.map((p) =>
+      mapearParticipante({
+        ...p,
+        alojamentoAtual: p.alojamentoAtual,
+      })
+    ),
+    adolescenteA: mapearParticipante(dados.adolescenteA),
+    adolescenteB: mapearParticipante(dados.adolescenteB),
+  };
+};
 
 type Mediacao = {
   id: string;

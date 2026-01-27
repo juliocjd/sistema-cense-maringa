@@ -63,6 +63,10 @@ interface AnaliseRisco {
     alertaRiscoSuicidio: boolean;
     atoInfracionalGravidade: boolean;
   };
+  suicidioContexto?: {
+    altaRecente: boolean;
+    ultimoEventoTipo: string | null;
+  };
   observacao: string;
   contextoMovimentacao?: {
     bairroOrigem: { id: string; nome: string; cidade: string | null } | null;
@@ -91,6 +95,89 @@ const MOTIVOS = [
   { value: "AGRESSAO_GRAVE", label: "Agressão Grave ou Risco Iminente" },
   { value: "OUTRO", label: "Outro Motivo" },
 ];
+
+type FundamentacaoItem = {
+  numero: string;
+  conteudo: string;
+};
+
+const ROTULOS_NEGRITO = [
+  "Ato infracional em apuração:",
+  "Há protocolo vigente de risco de suicídio",
+  "Vínculo orgânico com",
+  "Conflitos ativos:",
+  "Comunicados internos recentes:",
+  "Alertas ativos registrados no sistema:",
+  "Movimentação prevista para",
+  "Atualmente alojado",
+  "Integrante de grupo(s) em andamento:",
+];
+
+const parseFundamentacao = (texto: string): FundamentacaoItem[] => {
+  const conteudo = (texto ?? "").trim();
+  if (!conteudo) return [];
+  const regex = /(^|\n)(\d+)\.\s+/g;
+  const marcadores: Array<{ inicio: number; inicioConteudo: number; numero: string }> = [];
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(conteudo)) !== null) {
+    const inicio = match.index + (match[1] ? 1 : 0);
+    marcadores.push({
+      inicio,
+      inicioConteudo: regex.lastIndex,
+      numero: match[2],
+    });
+  }
+  if (marcadores.length === 0) {
+    return [{ numero: "1", conteudo }];
+  }
+  return marcadores
+    .map((marcador, indice) => {
+      const fim = marcadores[indice + 1]?.inicio ?? conteudo.length;
+      const trecho = conteudo.slice(marcador.inicioConteudo, fim).trim();
+      return trecho
+        ? {
+            numero: marcador.numero,
+            conteudo: trecho,
+          }
+        : null;
+    })
+    .filter((item): item is FundamentacaoItem => Boolean(item));
+};
+
+const extrairRotulo = (conteudo: string) => {
+  const texto = conteudo.trim();
+  const rotuloConhecido = ROTULOS_NEGRITO.find((rotulo) => texto.startsWith(rotulo));
+  if (rotuloConhecido) {
+    return {
+      rotulo: rotuloConhecido,
+      resto: texto.slice(rotuloConhecido.length).trim(),
+    };
+  }
+  const colonIndex = texto.indexOf(":");
+  if (colonIndex > 0 && colonIndex < 120) {
+    const rotulo = texto.slice(0, colonIndex + 1);
+    return {
+      rotulo,
+      resto: texto.slice(colonIndex + 1).trim(),
+    };
+  }
+  return { rotulo: "", resto: texto };
+};
+
+const extrairItensLista = (texto: string): string[] => {
+  const base = texto.trim();
+  if (!base) return [];
+  if (base.includes("\n- ")) {
+    return base
+      .split(/\n\s*-\s+/)
+      .map((item) => item.replace(/^\-\s*/, "").trim())
+      .filter(Boolean);
+  }
+  return base
+    .split(/;\s+/)
+    .map((item) => item.replace(/^\-\s*/, "").trim())
+    .filter(Boolean);
+};
 
 export default function NovaJustificativaPage() {
   const router = useRouter();
@@ -125,7 +212,7 @@ export default function NovaJustificativaPage() {
   const [historicoComportamental, setHistoricoComportamental] = useState("");
 
   const [medidasSeguranca, setMedidasSeguranca] = useState<string[]>([]);
-  const [equipeProfissional, setEquipeProfissional] = useState<string[]>([""]);
+  const [diretorAtualUnidade, setDiretorAtualUnidade] = useState("");
   const [veiculoUtilizado, setVeiculoUtilizado] = useState("");
   const [observacoesAdicionais, setObservacoesAdicionais] = useState("");
   const [horaInicio, setHoraInicio] = useState("");
@@ -137,6 +224,14 @@ export default function NovaJustificativaPage() {
   );
   const contextoMovimentacao = analiseRisco?.contextoMovimentacao;
   const conflitoTerritorialDetectado = contextoMovimentacao?.conflitoTerritorial;
+  const fundamentacaoItens = useMemo(
+    () =>
+      parseFundamentacao(fundamentacaoLegal).filter(
+        (item) =>
+          !item.conteudo.trim().startsWith("Integrante de grupo(s) em andamento:")
+      ),
+    [fundamentacaoLegal]
+  );
 
   useEffect(() => {
     let ativo = true;
@@ -258,20 +353,6 @@ export default function NovaJustificativaPage() {
     );
   };
 
-  const adicionarMembro = () => {
-    setEquipeProfissional([...equipeProfissional, ""]);
-  };
-
-  const removerMembro = (index: number) => {
-    setEquipeProfissional(equipeProfissional.filter((_, i) => i !== index));
-  };
-
-  const atualizarMembro = (index: number, valor: string) => {
-    const novosMembros = [...equipeProfissional];
-    novosMembros[index] = valor;
-    setEquipeProfissional(novosMembros);
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -305,9 +386,9 @@ export default function NovaJustificativaPage() {
       return;
     }
 
-    const equipeLimpa = equipeProfissional.filter((m) => m.trim() !== "");
-    if (equipeLimpa.length === 0) {
-      alert("Informe ao menos um membro da equipe profissional");
+    const diretorAtual = diretorAtualUnidade.trim();
+    if (!diretorAtual) {
+      alert("Informe o atual diretor da unidade");
       return;
     }
 
@@ -348,7 +429,7 @@ export default function NovaJustificativaPage() {
         riscoAutolesao,
         historicoComportamental,
         medidasSeguranca,
-        equipeProfissional: equipeLimpa,
+        atualDiretorUnidade: diretorAtual,
         veiculoUtilizado,
         observacoesAdicionais,
         horaInicio: horaInicioFormatada,
@@ -803,12 +884,50 @@ export default function NovaJustificativaPage() {
                     <label className="block text-sm font-medium text-slate-700 mb-2">
                       Fundamentação Automática (Sistema de Inteligência)
                     </label>
-                    <textarea
-                      value={fundamentacaoLegal}
-                      readOnly
-                      rows={12}
-                      className="w-full px-4 py-3 border-2 border-slate-300 rounded-lg bg-slate-50 text-slate-700 font-mono text-sm"
-                    />
+                    <div className="w-full border-2 border-slate-300 rounded-lg bg-slate-50 text-slate-800 text-sm p-4 space-y-3 max-h-96 overflow-auto">
+                      {fundamentacaoItens.length === 0 ? (
+                        <p className="text-slate-500">
+                          A fundamentação automática aparecerá aqui após a análise.
+                        </p>
+                      ) : (
+                        fundamentacaoItens.map((item) => {
+                          const { rotulo, resto } = extrairRotulo(item.conteudo);
+                          const ehLista = /conflitos ativos|comunicados internos recentes|alertas ativos registrados no sistema/i.test(
+                            rotulo
+                          );
+                          const itensLista = ehLista ? extrairItensLista(resto) : [];
+                          return (
+                            <div key={`${item.numero}-${rotulo}`} className="leading-relaxed">
+                              <div>
+                                <span className="font-semibold">{item.numero}. </span>
+                                {rotulo ? (
+                                  <>
+                                    <span className="font-semibold">{rotulo}</span>
+                                    {!ehLista && resto ? <span> {resto}</span> : null}
+                                  </>
+                                ) : (
+                                  <span>{item.conteudo}</span>
+                                )}
+                              </div>
+                              {ehLista && (
+                                <div className="mt-2 pl-5 space-y-2">
+                                  {itensLista.length > 0 ? (
+                                    itensLista.map((linha, index) => (
+                                      <div key={`${item.numero}-linha-${index}`} className="leading-relaxed">
+                                        <span className="font-semibold">- </span>
+                                        <span>{linha}</span>
+                                      </div>
+                                    ))
+                                  ) : (
+                                    <div className="leading-relaxed">{resto}</div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
                   </div>
 
                   <div>
@@ -850,41 +969,25 @@ export default function NovaJustificativaPage() {
                   </div>
                 </div>
 
-                {/* 5. EQUIPE PROFISSIONAL */}
+                {/* 5. DIRETOR DA UNIDADE */}
                 <div>
                   <h2 className="font-bold text-xl text-slate-800 flex items-center gap-2 mb-4">
                     <User className="text-indigo-600" size={22} />
-                    5. Equipe Profissional *
+                    5. Atual Diretor da Unidade *
                   </h2>
-
-                  {equipeProfissional.map((membro, index) => (
-                    <div key={index} className="flex gap-2 mb-3">
-                      <input
-                        type="text"
-                        value={membro}
-                        onChange={(e) => atualizarMembro(index, e.target.value)}
-                        placeholder="Nome completo e função (ex: João Silva - Agente Socioeducativo)"
-                        className="flex-1 px-4 py-3 border-2 border-slate-300 rounded-lg focus:ring-4 focus:ring-indigo-200 focus:border-indigo-500 transition"
-                      />
-                      {equipeProfissional.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => removerMembro(index)}
-                          className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
-                        >
-                          Remover
-                        </button>
-                      )}
-                    </div>
-                  ))}
-
-                  <button
-                    type="button"
-                    onClick={adicionarMembro}
-                    className="px-4 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition font-medium"
-                  >
-                    + Adicionar Membro
-                  </button>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                      Nome do Diretor *
+                    </label>
+                    <input
+                      type="text"
+                      value={diretorAtualUnidade}
+                      onChange={(e) => setDiretorAtualUnidade(e.target.value)}
+                      placeholder="Digite o nome completo do diretor da unidade"
+                      required
+                      className="w-full px-4 py-3 border-2 border-slate-300 rounded-lg focus:ring-4 focus:ring-indigo-200 focus:border-indigo-500 transition"
+                    />
+                  </div>
                 </div>
 
                 {/* 6. INFORMAÇÕES COMPLEMENTARES */}

@@ -92,6 +92,12 @@ export type AdolescenteRisco = Pick<
   faccao?: { id: string | null; nome?: string | null } | null;
   conflitosA?: ConflitoRisco[];
   conflitosB?: ConflitoRisco[];
+  alertasAtivos?: Array<{
+    id?: string;
+    tipoAlerta?: string;
+    nivelRisco?: number;
+    criadoEm?: string | null;
+  }>;
 };
 
 export type AlojamentoRisco = Omit<Alojamento, "adolescentes"> & {

@@ -425,7 +425,7 @@ export function DetalhesConflito({
           </div>
         )}
 
-        {conflito.resolvidoEm && (
+        {conflito.status === "RESOLVIDO" && conflito.resolvidoEm && (
           <div className="mt-4 rounded-r-lg border-l-4 border-green-500 bg-green-50 p-4 text-green-900">
             Conflito resolvido em {formatarData(conflito.resolvidoEm)}
           </div>

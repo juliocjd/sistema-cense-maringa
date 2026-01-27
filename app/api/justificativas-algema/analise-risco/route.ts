@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import {
+  TIPO_PROTOCOLO_ALTA,
+  TIPO_PROTOCOLO_ATIVADO,
+} from "@/lib/alertas/protocolo-risco-suicidio";
 
 export const dynamic = "force-dynamic";
 
@@ -85,6 +89,17 @@ const limitarLista = (itens: string[], limite = 3): string => {
   return resto > 0
     ? `${primeiros.join("; ")} (+${resto} registro${resto > 1 ? "s" : ""})`
     : primeiros.join("; ");
+};
+
+const formatarListaBullets = (itens: string[], limite = 3): string => {
+  if (itens.length === 0) return "";
+  const primeiros = itens.slice(0, limite);
+  const resto = itens.length - primeiros.length;
+  const linhas = primeiros.map((item) => `- ${item}`);
+  if (resto > 0) {
+    linhas.push(`- (+${resto} registro${resto > 1 ? "s" : ""})`);
+  }
+  return linhas.join("\n\n");
 };
 
 export async function GET(request: NextRequest) {
@@ -211,6 +226,25 @@ export async function GET(request: NextRequest) {
         { status: 404 }
       );
     }
+
+    const suicidioEventos = await prisma.historicoMovimentacao.findMany({
+      where: {
+        adolescenteId: adolescente.id,
+        tipo: {
+          in: [TIPO_PROTOCOLO_ATIVADO, TIPO_PROTOCOLO_ALTA],
+        },
+      },
+      orderBy: [{ registradoEm: "desc" }, { criadoEm: "desc" }],
+      select: {
+        tipo: true,
+        registradoEm: true,
+        criadoEm: true,
+      },
+      take: 20,
+    });
+
+    const ultimoEventoProtocolo = suicidioEventos[0] ?? null;
+    const altaRecenteProtocolo = ultimoEventoProtocolo?.tipo === TIPO_PROTOCOLO_ALTA;
 
     const origemBairro = formatarBairro(adolescente.bairroOrigem as BairroBasico | null);
     const destinoBairro = bairroDestino ? formatarBairro(bairroDestino) : null;
@@ -367,9 +401,13 @@ export async function GET(request: NextRequest) {
         fatoresAgravantes,
         "Protocolo ativo de risco de suicídio/autolesão"
       );
+      const mensagemSuicidioAtivo =
+        "Há protocolo vigente de risco de suicídio, exigindo contenção para proteger a integridade física do adolescente, da equipe e de terceiros, conforme Súmula Vinculante nº 11 do STF.";
+      const mensagemSuicidioComAlta =
+        "Adolescente ingressou em protocolo de suicídio, recebendo alta médica. Entretanto, há indícios de instabilidade emocional com dificuldades para lidar com frustrações, exigindo monitoramento contínuo para prevenção de riscos à sua integridade e à segurança da equipe e de terceiros.";
       adicionarTexto(
         fundamentacoes,
-        "Há protocolo vigente de risco de suicídio, exigindo contenção para proteger a integridade física do adolescente, da equipe e de terceiros, conforme Súmula Vinculante nº 11 do STF."
+        altaRecenteProtocolo ? mensagemSuicidioComAlta : mensagemSuicidioAtivo
       );
     }
 
@@ -487,7 +525,6 @@ export async function GET(request: NextRequest) {
         `${totalConflitosAtivos} conflito(s) interpessoal(is) ativo(s)`
       );
       const detalhesConflitos = conflitosInterpessoais
-        .slice(0, 3)
         .map((item) =>
           [
             `com ${item.nome}`,
@@ -498,9 +535,12 @@ export async function GET(request: NextRequest) {
             .filter(Boolean)
             .join(" - ")
         );
+      const conflitosFormatados = formatarListaBullets(detalhesConflitos, 3);
       adicionarTexto(
         fundamentacoes,
-        `Conflitos ativos: ${limitarLista(detalhesConflitos)}.`
+        conflitosFormatados
+          ? `Conflitos ativos:\n${conflitosFormatados}`
+          : "Conflitos ativos registrados no sistema."
       );
     }
 
@@ -521,9 +561,12 @@ export async function GET(request: NextRequest) {
         fatoresAgravantes,
         `${cisRecentes} Comunicado(s) Interno(s) recentes`
       );
+      const cisFormatados = formatarListaBullets(detalhesCis, 3);
       adicionarTexto(
         fundamentacoes,
-        `Comunicados internos recentes: ${limitarLista(detalhesCis)}.`
+        cisFormatados
+          ? `Comunicados internos recentes:\n${cisFormatados}`
+          : "Comunicados internos recentes registrados no sistema."
       );
     }
 
@@ -545,7 +588,6 @@ export async function GET(request: NextRequest) {
       );
 
       const detalhesAlertas = adolescente.alertasAtivos
-        .slice(0, 3)
         .map((alerta) => {
           const referencia = formatarCi(alerta.ciOrigem);
           return [
@@ -558,9 +600,13 @@ export async function GET(request: NextRequest) {
             .join(" - ");
         });
 
+      const alertasFormatados = formatarListaBullets(detalhesAlertas, 3);
+
       adicionarTexto(
         fundamentacoes,
-        `Alertas ativos registrados no sistema: ${limitarLista(detalhesAlertas)}.`
+        alertasFormatados
+          ? `Alertas ativos registrados no sistema:\n${alertasFormatados}`
+          : "Alertas ativos registrados no sistema."
       );
     }
 
@@ -632,19 +678,6 @@ export async function GET(request: NextRequest) {
       adicionarTexto(
         fundamentacoes,
         `Atualmente alojado no ${adolescente.alojamentoAtual.numeroAlojamento} da Casa ${adolescente.alojamentoAtual.casa.nome}, alvo de monitoramento constante.`
-      );
-    }
-
-    if (adolescente.gruposMembros.length > 0) {
-      const grupos = adolescente.gruposMembros.map((membro) => {
-        const casa = membro.grupo.casa?.nome
-          ? `/${membro.grupo.casa?.nome}`
-          : "";
-        return `${membro.grupo.nomeGrupo}${casa}`;
-      });
-      adicionarTexto(
-        fundamentacoes,
-        `Integrante de grupo(s) em andamento: ${grupos.join(", ")}.`
       );
     }
 
@@ -738,7 +771,7 @@ export async function GET(request: NextRequest) {
     }
 
     medidasRecomendadas.push(
-      "Comunicar imediatamente qualquer intercorrência ao plantão da direção",
+      "Comunicar imediatamente qualquer intercorrência à gestão (Diretor/Diretor Assistente/Chefe de Segurança)",
       "Atualizar histórico operacional ao final da escolta"
     );
 
@@ -796,6 +829,10 @@ export async function GET(request: NextRequest) {
         totalHistoricoInfracional: adolescente.historicoInfracional.length,
         alertaRiscoSuicidio: adolescente.alertaRiscoSuicidio,
         atoInfracionalGravidade: adolescente.atoInfracionalGravidade,
+      },
+      suicidioContexto: {
+        altaRecente: altaRecenteProtocolo,
+        ultimoEventoTipo: ultimoEventoProtocolo?.tipo ?? null,
       },
       contextoMovimentacao: destinoContexto,
       observacao:

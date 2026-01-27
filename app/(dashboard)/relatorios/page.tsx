@@ -19,6 +19,7 @@ import { RelatorioHistoricoModalTrigger } from "@/components/relatorios/relatori
 import { RelatorioTransferenciaModalTrigger } from "@/components/relatorios/relatorio-transferencia-modal";
 import { RelatorioVisitasModalTrigger } from "@/components/relatorios/relatorio-visitas-modal";
 import { RelatorioFase3ModalTrigger } from "@/components/relatorios/relatorio-fase3-modal";
+import { RelatorioInterdicoesModalTrigger } from "@/components/relatorios/relatorio-interdicoes-modal";
 import { calcularImpactosExternos } from "@/lib/inteligencia/conflitos";
 
 export default async function RelatoriosPage() {
@@ -91,6 +92,16 @@ export default async function RelatoriosPage() {
       description:
         "Cruza conflitos, alertas e risco de fuga para avaliar se o adolescente pode ingressar na Casa 08 e gera um PDF com os achados.",
       action: <RelatorioFase3ModalTrigger />,
+    },
+    {
+      id: "interdicoes",
+      tone: "slate",
+      label: "Estrutura",
+      icon: AlertTriangle,
+      title: "Alojamentos interditados",
+      description:
+        "Lista os alojamentos atualmente interditados com justificativa, tipo de documento e referencia vinculada em um PDF organizado.",
+      action: <RelatorioInterdicoesModalTrigger />,
     },
   ];
 

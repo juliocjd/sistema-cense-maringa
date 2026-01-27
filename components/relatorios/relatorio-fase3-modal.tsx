@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { useEffect, useState } from "react";
 import {
@@ -142,7 +142,7 @@ export function RelatorioFase3ModalTrigger() {
   const [busca, setBusca] = useState("");
   const [resultados, setResultados] = useState<AdolescenteResultado[]>([]);
   const [selecionado, setSelecionado] = useState<AdolescenteResultado | null>(
-    null
+    null,
   );
   const [analise, setAnalise] = useState<RelatorioFase3Response | null>(null);
   const [carregando, setCarregando] = useState(false);
@@ -161,9 +161,12 @@ export function RelatorioFase3ModalTrigger() {
     const controller = new AbortController();
     const timeout = setTimeout(async () => {
       try {
-        const response = await fetch(`/api/search?q=${encodeURIComponent(termo)}`, {
-          signal: controller.signal,
-        });
+        const response = await fetch(
+          `/api/search?q=${encodeURIComponent(termo)}`,
+          {
+            signal: controller.signal,
+          },
+        );
         if (!response.ok) {
           throw new Error("Falha ao buscar adolescentes");
         }
@@ -201,7 +204,7 @@ export function RelatorioFase3ModalTrigger() {
     setSelecionado(adolescente);
     try {
       const response = await fetch(
-        `/api/relatorios/adolescentes/${adolescente.id}/fase3`
+        `/api/relatorios/adolescentes/${adolescente.id}/fase3`,
       );
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
@@ -214,7 +217,9 @@ export function RelatorioFase3ModalTrigger() {
       });
     } catch (error) {
       setErro(
-        error instanceof Error ? error.message : "Erro inesperado ao carregar dados"
+        error instanceof Error
+          ? error.message
+          : "Erro inesperado ao carregar dados",
       );
     } finally {
       setCarregando(false);
@@ -228,30 +233,121 @@ export function RelatorioFase3ModalTrigger() {
       const doc = new jsPDF();
       doc.setFontSize(16);
       doc.setFont("helvetica", "bold");
-      doc.text("Analise para progressao - Casa 08 (Fase 3)", 14, 18);
+      doc.text("Análise para progressao - Casa 08 (Fase 3)", 105, 18, {
+        align: "center",
+      });
       doc.setFontSize(11);
-      doc.setFont("helvetica", "normal");
-      doc.text(`Adolescente: ${analise.adolescente.nome}`, 14, 26);
-      doc.text(`Status: ${analise.adolescente.status}`, 14, 32);
-      doc.text(
-        `Fase atual: ${analise.adolescente.fase ?? "Nao informada"}`,
-        14,
-        38
+      const addLinhaRotuloValor = (rotulo: string, valor: string, y: number) => {
+        doc.setFont("helvetica", "bold");
+        doc.text(rotulo, 14, y);
+        const valorX = 14 + doc.getTextWidth(rotulo) + 4;
+        doc.setFont("helvetica", "normal");
+        doc.text(valor, valorX, y);
+      };
+      addLinhaRotuloValor("Adolescente:", analise.adolescente.nome, 26);
+      addLinhaRotuloValor("Status:", analise.adolescente.status, 32);
+      addLinhaRotuloValor(
+        "Fase atual:",
+        analise.adolescente.fase ?? "Nao informada",
+        38,
       );
-      doc.text(
-        `Risco de fuga: ${analise.adolescente.riscoFuga ?? "Nao informado"}`,
-        14,
-        44
+      addLinhaRotuloValor(
+        "Risco de fuga:",
+        analise.adolescente.riscoFuga ?? "Nao informado",
+        44,
       );
+      let cursorY = 50;
       if (analise.adolescente.alojamentoAtual) {
-        doc.text(
-          `Localizacao atual: ${analise.adolescente.alojamentoAtual}`,
-          14,
-          50
+        addLinhaRotuloValor(
+          "Localizacao atual:",
+          analise.adolescente.alojamentoAtual,
+          50,
         );
+        cursorY = 56;
       }
 
-      let startY = 58;
+      const bullet = (texto: string) => `- ${texto}`;
+      const larguraResumo = 174;
+      const impeditivos =
+        analise.avaliacao.impeditivos.length > 0
+          ? analise.avaliacao.impeditivos
+          : ["Sem impedimentos diretos detectados"];
+      const observacoes =
+        analise.avaliacao.observacoes.length > 0
+          ? analise.avaliacao.observacoes
+          : ["Sem observacoes complementares"];
+
+      // Calcula altura dinamica do bloco para que o fundo cubra ate Observacoes.
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      const medirLinhas = (itens: string[]) =>
+        itens.reduce(
+          (total, item) =>
+            total + doc.splitTextToSize(bullet(item), larguraResumo).length,
+          0,
+        );
+      const linhasImpedimentos = medirLinhas(impeditivos);
+      const linhasObservacoes = medirLinhas(observacoes);
+      const alturaBase = 46;
+      const alturaBloco =
+        alturaBase +
+        (linhasImpedimentos + linhasObservacoes) * 4.5;
+
+      // Replica o resumo exibido no modal logo abaixo da localizacao atual.
+      doc.setFillColor(248, 250, 252);
+      doc.setDrawColor(226, 232, 240);
+      doc.roundedRect(14, cursorY, 182, alturaBloco, 3, 3, "FD");
+      cursorY += 6;
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10.5);
+      doc.text("Resultado automatico", 105, cursorY, { align: "center" });
+      cursorY += 6;
+
+      const resultadoTitulo = analise.avaliacao.apto
+        ? "Apto para Casa 08"
+        : "Necessita avaliacao detalhada";
+      doc.setFontSize(12);
+      doc.text(resultadoTitulo, 18, cursorY);
+      cursorY += 5;
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      doc.text(
+        `${analise.adolescente.nome} · ${analise.adolescente.status}`,
+        18,
+        cursorY,
+      );
+      cursorY += 5;
+      doc.text(
+        `Fase atual: ${analise.adolescente.fase ?? "Nao informado"}`,
+        18,
+        cursorY,
+      );
+      cursorY += 7;
+
+      doc.setFont("helvetica", "bold");
+      doc.text("Impedimentos", 18, cursorY);
+      cursorY += 5;
+      doc.setFont("helvetica", "normal");
+      impeditivos.forEach((item) => {
+        const linhas = doc.splitTextToSize(bullet(item), larguraResumo);
+        doc.text(linhas, 20, cursorY);
+        cursorY += linhas.length * 4.5;
+      });
+
+      cursorY += 1;
+      doc.setFont("helvetica", "bold");
+      doc.text("Observacoes", 18, cursorY);
+      cursorY += 5;
+      doc.setFont("helvetica", "normal");
+      observacoes.forEach((item) => {
+        const linhas = doc.splitTextToSize(bullet(item), larguraResumo);
+        doc.text(linhas, 20, cursorY);
+        cursorY += linhas.length * 4.5;
+      });
+
+      let startY = cursorY + 4;
       if (analise.protocoloRiscoSuicidio) {
         const info = analise.protocoloRiscoSuicidio;
         const textosBase: string[] = [
@@ -265,20 +361,19 @@ export function RelatorioFase3ModalTrigger() {
               info.ultimaEntrada.descricao
                 ? ` - ${info.ultimaEntrada.descricao}`
                 : ""
-            }`
+            }`,
           );
         }
         if (info.ultimaAlta) {
+          textosBase.push("");
           textosBase.push(
             `Alta medica em ${formatarData(info.ultimaAlta.data)}${
-              info.ultimaAlta.descricao
-                ? ` - ${info.ultimaAlta.descricao}`
-                : ""
-            }`
+              info.ultimaAlta.descricao ? ` - ${info.ultimaAlta.descricao}` : ""
+            }`,
           );
         }
         const textos = textosBase.flatMap((linha) =>
-          doc.splitTextToSize(linha, 170)
+          doc.splitTextToSize(linha, 170),
         );
         const blocoAltura = 18 + textos.length * 5;
         doc.setFillColor(254, 226, 226);
@@ -286,12 +381,9 @@ export function RelatorioFase3ModalTrigger() {
         doc.roundedRect(14, startY, 182, blocoAltura, 3, 3, "FD");
         doc.setFont("helvetica", "bold");
         doc.setTextColor(190, 18, 60);
-        doc.text(
-          "PROTOCOLO DE RISCO DE SUICIDIO",
-          105,
-          startY + 7,
-          { align: "center" as const }
-        );
+        doc.text("PROTOCOLO DE RISCO DE SUICIDIO", 105, startY + 7, {
+          align: "center" as const,
+        });
         doc.setFont("helvetica", "normal");
         doc.setTextColor(60, 60, 60);
         let linhaY = startY + 14;
@@ -311,11 +403,11 @@ export function RelatorioFase3ModalTrigger() {
             analise.avaliacao.apto ? "Apto" : "Necessita avaliacao",
             formatarListaCelula(
               analise.avaliacao.impeditivos,
-              "Nenhum impedimento direto"
+              "Nenhum impedimento direto",
             ),
             formatarListaCelula(
               analise.avaliacao.observacoes,
-              "Sem observacoes adicionais"
+              "Sem observacoes adicionais",
             ),
           ],
         ],
@@ -337,7 +429,13 @@ export function RelatorioFase3ModalTrigger() {
       autoTable(doc, {
         startY: (doc as any).lastAutoTable.finalY + 8,
         head: [
-          ["Conflitos com Casa 08", "Tipo", "Status", "Registrado em", "Descricao"],
+          [
+            "Conflitos com Casa 08",
+            "Tipo",
+            "Status",
+            "Registrado em",
+            "Descricao",
+          ],
         ],
         body: conflitosCasaOito,
         theme: "grid",
@@ -374,7 +472,9 @@ export function RelatorioFase3ModalTrigger() {
 
       autoTable(doc, {
         startY: (doc as any).lastAutoTable.finalY + 8,
-        head: [["Alertas graves anteriores", "Nivel", "Criado em", "Encerrado em"]],
+        head: [
+          ["Alertas graves anteriores", "Nivel", "Criado em", "Encerrado em"],
+        ],
         body: alertasHistoricoBody,
         theme: "grid",
         styles: { fontSize: 9, cellPadding: 2 },
@@ -391,7 +491,7 @@ export function RelatorioFase3ModalTrigger() {
               ? ocupante.conflitos
                   .map(
                     (conflito) =>
-                      `${conflito.tipo ?? "Conflito"} (${conflito.status ?? "status?"})`
+                      `${conflito.tipo ?? "Conflito"} (${conflito.status ?? "status?"})`,
                   )
                   .join("\n")
               : "Sem conflito direto",
@@ -401,7 +501,13 @@ export function RelatorioFase3ModalTrigger() {
       autoTable(doc, {
         startY: (doc as any).lastAutoTable.finalY + 8,
         head: [
-          ["Ocupante Casa 08", "Alojamento", "Lado", "Faccao", "Conflitos com avaliado"],
+          [
+            "Ocupante Casa 08",
+            "Alojamento",
+            "Lado",
+            "Faccao",
+            "Conflitos com avaliado",
+          ],
         ],
         body: ocupantesBody,
         theme: "grid",
@@ -436,7 +542,7 @@ export function RelatorioFase3ModalTrigger() {
       });
 
       doc.save(
-        `relatorio-fase3-${analise.adolescente.nome.replace(/\s+/g, "-")}.pdf`
+        `relatorio-fase3-${analise.adolescente.nome.replace(/\s+/g, "-")}.pdf`,
       );
     } finally {
       setBaixando(false);
@@ -465,7 +571,8 @@ export function RelatorioFase3ModalTrigger() {
                   Analise de compatibilidade
                 </h2>
                 <p className="text-sm text-gray-600">
-                  Verifique se o adolescente pode ingressar na Casa 08 sem gerar riscos
+                  Verifique se o adolescente pode ingressar na Casa 08 sem gerar
+                  riscos
                 </p>
               </div>
               <button
@@ -553,12 +660,15 @@ export function RelatorioFase3ModalTrigger() {
                         {analise.adolescente.status}
                       </p>
                       <p className="text-xs text-gray-500">
-                        Fase atual: {analise.adolescente.fase ?? "Nao informada"}
+                        Fase atual:{" "}
+                        {analise.adolescente.fase ?? "Nao informada"}
                       </p>
                     </div>
                     <div className="space-y-2 text-sm text-gray-700">
                       <div>
-                        <p className="font-semibold text-gray-600">Impedimentos</p>
+                        <p className="font-semibold text-gray-600">
+                          Impedimentos
+                        </p>
                         <ul className="mt-1 list-disc pl-5 text-xs text-red-600">
                           {analise.avaliacao.impeditivos.length ? (
                             analise.avaliacao.impeditivos.map((item) => (
@@ -570,7 +680,9 @@ export function RelatorioFase3ModalTrigger() {
                         </ul>
                       </div>
                       <div>
-                        <p className="font-semibold text-gray-600">Observacoes</p>
+                        <p className="font-semibold text-gray-600">
+                          Observacoes
+                        </p>
                         <ul className="mt-1 list-disc pl-5 text-xs text-gray-600">
                           {analise.avaliacao.observacoes.length ? (
                             analise.avaliacao.observacoes.map((item) => (
@@ -597,8 +709,11 @@ export function RelatorioFase3ModalTrigger() {
                       {analise.protocoloRiscoSuicidio.ultimaEntrada && (
                         <p className="text-xs">
                           Inserido em{" "}
-                          {formatarData(analise.protocoloRiscoSuicidio.ultimaEntrada.data)}
-                          {analise.protocoloRiscoSuicidio.ultimaEntrada.descricao
+                          {formatarData(
+                            analise.protocoloRiscoSuicidio.ultimaEntrada.data,
+                          )}
+                          {analise.protocoloRiscoSuicidio.ultimaEntrada
+                            .descricao
                             ? ` — ${analise.protocoloRiscoSuicidio.ultimaEntrada.descricao}`
                             : ""}
                         </p>
@@ -606,7 +721,9 @@ export function RelatorioFase3ModalTrigger() {
                       {analise.protocoloRiscoSuicidio.ultimaAlta && (
                         <p className="text-xs">
                           Alta medica em{" "}
-                          {formatarData(analise.protocoloRiscoSuicidio.ultimaAlta.data)}
+                          {formatarData(
+                            analise.protocoloRiscoSuicidio.ultimaAlta.data,
+                          )}
                           {analise.protocoloRiscoSuicidio.ultimaAlta.descricao
                             ? ` — ${analise.protocoloRiscoSuicidio.ultimaAlta.descricao}`
                             : ""}
@@ -624,7 +741,8 @@ export function RelatorioFase3ModalTrigger() {
                     </div>
                     {analise.conflitosCasa08.length === 0 ? (
                       <p className="text-sm text-gray-700">
-                        Nao ha conflitos registrados com internos atualmente na Casa 08.
+                        Nao ha conflitos registrados com internos atualmente na
+                        Casa 08.
                       </p>
                     ) : (
                       <div className="space-y-2">
@@ -634,17 +752,22 @@ export function RelatorioFase3ModalTrigger() {
                             className="rounded-xl border border-indigo-100 bg-white/80 p-3 text-sm"
                           >
                             <p className="font-semibold text-gray-900">
-                              {conflito.adversario?.nome ?? "Adolescente nao identificado"}
+                              {conflito.adversario?.nome ??
+                                "Adolescente nao identificado"}
                             </p>
                             <p className="text-xs text-gray-500">
-                              {conflito.adversario?.alojamento ?? "Local nao informado"}
+                              {conflito.adversario?.alojamento ??
+                                "Local nao informado"}
                             </p>
                             <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
                               <span className="rounded-full bg-indigo-100 px-2 py-0.5 font-semibold text-indigo-700">
                                 {conflito.tipo ?? "Tipo nao informado"}
                               </span>
                               <StatusPill
-                                ativo={(conflito.status ?? "").toUpperCase() === "ATIVO"}
+                                ativo={
+                                  (conflito.status ?? "").toUpperCase() ===
+                                  "ATIVO"
+                                }
                               />
                               <span className="text-gray-500">
                                 Registrado em {formatarData(conflito.criadoEm)}
@@ -670,8 +793,9 @@ export function RelatorioFase3ModalTrigger() {
                         </h4>
                       </div>
                       <p className="text-sm text-gray-700">
-                        Mesmo fora da Casa 08, estes conflitos demonstram dificuldades
-                        de convivência que podem repercutir na Fase 3.
+                        Mesmo fora da Casa 08, estes conflitos demonstram
+                        dificuldades de convivência que podem repercutir na Fase
+                        3.
                       </p>
                       <div className="space-y-2">
                         {conflitosOutros.map((conflito) => (
@@ -680,10 +804,12 @@ export function RelatorioFase3ModalTrigger() {
                             className="rounded-xl border border-red-100 bg-white/90 p-3 text-sm"
                           >
                             <p className="font-semibold text-gray-900">
-                              {conflito.adversario?.nome ?? "Adversario nao identificado"}
+                              {conflito.adversario?.nome ??
+                                "Adversario nao identificado"}
                             </p>
                             <p className="text-xs text-gray-500">
-                              {conflito.adversario?.alojamento ?? "Local nao informado"}
+                              {conflito.adversario?.alojamento ??
+                                "Local nao informado"}
                             </p>
                             <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
                               <span className="rounded-full bg-red-100 px-2 py-0.5 font-semibold text-red-700">
@@ -821,7 +947,8 @@ export function RelatorioFase3ModalTrigger() {
                               {ocupante.lado ? ` · ${ocupante.lado}` : ""}
                             </p>
                             <p className="text-xs text-gray-500">
-                              Facção: {ocupante.adolescente.faccao ?? "Nao informada"}
+                              Facção:{" "}
+                              {ocupante.adolescente.faccao ?? "Nao informada"}
                             </p>
                             {ocupante.conflitos.length > 0 ? (
                               <ul className="mt-2 list-disc pl-4 text-xs text-red-600">
@@ -861,7 +988,9 @@ export function RelatorioFase3ModalTrigger() {
                         </p>
                         {analise.riscoFugaOrigem.registradoEm && (
                           <p>
-                            <span className="font-semibold">Registrado em:</span>{" "}
+                            <span className="font-semibold">
+                              Registrado em:
+                            </span>{" "}
                             {formatarData(analise.riscoFugaOrigem.registradoEm)}
                           </p>
                         )}

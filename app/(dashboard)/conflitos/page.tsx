@@ -9,6 +9,7 @@ type Participante = {
   numeroSms: string;
   alojamento?: string;
   lado?: string | null;
+  statusUnidade?: string | null;
 };
 
 type ApiConflito = {
@@ -35,6 +36,7 @@ type ApiConflito = {
 type Conflito = Omit<ApiConflito, "adolescenteA" | "adolescenteB"> & {
   registroGrupoId: string;
   participantes: Participante[];
+  ativosPorLado: Record<"Lado 1" | "Lado 2", number>;
 };
 
 const ordenarConflitos = (lista: Conflito[]) => {
@@ -57,6 +59,7 @@ const normalizarConflito = (conflito: ApiConflito): Conflito => {
   if (conflito.adolescenteA) {
     participantes.push({
       ...conflito.adolescenteA,
+      statusUnidade: (conflito.adolescenteA as any).statusUnidade ?? conflito.adolescenteA?.statusUnidade ?? null,
       lado: "Lado 1",
     });
   }
@@ -64,25 +67,51 @@ const normalizarConflito = (conflito: ApiConflito): Conflito => {
   if (conflito.adolescenteB) {
     participantes.push({
       ...conflito.adolescenteB,
+      statusUnidade: (conflito.adolescenteB as any).statusUnidade ?? conflito.adolescenteB?.statusUnidade ?? null,
       lado: "Lado 2",
     });
   }
+
+  const statusComParticipantes: "ATIVO" | "RESOLVIDO" =
+    conflito.status === "RESOLVIDO" &&
+    participantes.some(
+      (p) => (p.statusUnidade ?? "").toUpperCase() === "ATIVO"
+    )
+      ? "ATIVO"
+      : conflito.status;
+
+  const ativosPorLado = participantes.reduce(
+    (contagem, participante) => {
+      const lado = participante.lado === "Lado 2" ? "Lado 2" : "Lado 1";
+      const estaAtivo =
+        (participante.statusUnidade ?? "").toUpperCase() === "ATIVO";
+      if (estaAtivo) {
+        contagem[lado] += 1;
+      }
+      return contagem;
+    },
+    {
+      "Lado 1": 0,
+      "Lado 2": 0,
+    }
+  );
 
   return {
     id: conflito.id,
     registroGrupoId: conflito.registroGrupoId ?? conflito.id,
     tipoConflito: conflito.tipoConflito,
-    status: conflito.status,
+    status: statusComParticipantes,
     origem: conflito.origem,
     descricao: conflito.descricao,
     criadoEm: conflito.criadoEm,
-    resolvidoEm: conflito.resolvidoEm,
+    resolvidoEm: statusComParticipantes === "ATIVO" ? undefined : conflito.resolvidoEm,
     tentativasMediacao: conflito.tentativasMediacao,
     ultimaMediacao: conflito.ultimaMediacao,
     totalOcorrencias: conflito.totalOcorrencias ?? 0,
     ultimaOcorrenciaEm: conflito.ultimaOcorrenciaEm,
     operadorResponsavel: conflito.operadorResponsavel ?? null,
     participantes,
+    ativosPorLado,
   };
 };
 
@@ -188,12 +217,31 @@ const agruparConflitosPorGrupo = (lista: Conflito[]): Conflito[] => {
     }
   });
 
-  return Array.from(grupos.values()).map(
-    ({ participantesMap, ...resto }) => ({
+  return Array.from(grupos.values()).map(({ participantesMap, ...resto }) => {
+    const participantes = Array.from(participantesMap.values());
+    const ativosPorLado = participantes.reduce(
+      (contagem, participante) => {
+        const lado =
+          participante.lado === "Lado 2" ? "Lado 2" : "Lado 1";
+        const estaAtivo =
+          (participante.statusUnidade ?? "").toUpperCase() === "ATIVO";
+        if (estaAtivo) {
+          contagem[lado] += 1;
+        }
+        return contagem;
+      },
+      {
+        "Lado 1": 0,
+        "Lado 2": 0,
+      }
+    );
+
+    return {
       ...resto,
-      participantes: Array.from(participantesMap.values()),
-    })
-  );
+      participantes,
+      ativosPorLado,
+    };
+  });
 };
 
 export default function ConflitosPage() {

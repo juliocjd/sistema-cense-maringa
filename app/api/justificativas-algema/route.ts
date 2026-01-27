@@ -4,6 +4,8 @@ import { z } from "zod";
 
 export const dynamic = "force-dynamic";
 
+const DIRETOR_MARKER = "__DIRETOR_ATUAL__:";
+
 // Schema de validação
 const createJustificativaSchema = z.object({
   adolescenteId: z.string().uuid("ID do adolescente inválido"),
@@ -35,7 +37,8 @@ const createJustificativaSchema = z.object({
 
   // Medidas de Segurança
   medidasSeguranca: z.array(z.string()).min(1, "Selecione ao menos uma medida de segurança"),
-  equipeProfissional: z.array(z.string()).min(1, "Informe ao menos um membro da equipe"),
+  equipeProfissional: z.array(z.string()).optional(),
+  atualDiretorUnidade: z.string().min(3, "Informe o atual diretor da unidade"),
   veiculoUtilizado: z.string().optional(),
 
   // Observações
@@ -190,6 +193,14 @@ export async function POST(request: NextRequest) {
       duracaoMinutos = Math.round((fim.getTime() - inicio.getTime()) / 60000);
     }
 
+    const diretorAtual = validatedData.atualDiretorUnidade.trim();
+    const equipePersistida = [
+      `${DIRETOR_MARKER}${diretorAtual}`,
+      ...(validatedData.equipeProfissional ?? [])
+        .map((membro) => membro.trim())
+        .filter((membro) => membro.length > 0),
+    ];
+
     // Criar justificativa
     const justificativa = await prisma.justificativaAlgema.create({
       data: {
@@ -208,7 +219,7 @@ export async function POST(request: NextRequest) {
         riscoAutolesao: validatedData.riscoAutolesao,
         historicoComportamental: validatedData.historicoComportamental,
         medidasSeguranca: validatedData.medidasSeguranca,
-        equipeProfissional: validatedData.equipeProfissional,
+        equipeProfissional: equipePersistida,
         veiculoUtilizado: validatedData.veiculoUtilizado,
         observacoesAdicionais: validatedData.observacoesAdicionais,
         horaInicio: validatedData.horaInicio ? new Date(validatedData.horaInicio) : null,
@@ -251,6 +262,7 @@ export async function POST(request: NextRequest) {
           numeroDocumento,
           adolescente: adolescente.nomeCompleto,
           motivoPrincipal: validatedData.motivoPrincipal,
+          diretorAtual,
         },
       },
     });

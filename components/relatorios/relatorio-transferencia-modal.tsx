@@ -132,6 +132,18 @@ const normalizarTexto = (texto?: string | null) =>
     .trim()
     .toLowerCase();
 
+const limitarTexto = (texto: string, tamanho = 120) =>
+  texto.length <= tamanho ? texto : `${texto.slice(0, tamanho - 3)}...`;
+
+const formatarAltaMedicaProtocolo = (
+  ultimaAlta?: { data: string; descricao: string | null } | null
+) => {
+  if (!ultimaAlta) return null;
+  const dataFormatada = formatDate(ultimaAlta.data);
+  const descricao = ultimaAlta.descricao?.trim() ?? null;
+  return `${dataFormatada}${descricao ? `\n${descricao}` : ""}`;
+};
+
 const gerarChaveConflito = (conflito: RelatorioConflito) => {
   if (conflito.origem?.id) return conflito.origem.id;
   const dataIso = new Date(conflito.criadoEm).toISOString();
@@ -409,16 +421,12 @@ export function RelatorioTransferenciaModalTrigger() {
               : "Sem protocolo ativo",
           }
         : null,
-      relatorio.protocoloRiscoSuicidio?.ultimaAlta
+      formatarAltaMedicaProtocolo(relatorio.protocoloRiscoSuicidio?.ultimaAlta)
         ? {
             label: "Alta medica protocolo",
-            value: `${formatDate(
-              relatorio.protocoloRiscoSuicidio.ultimaAlta.data
-            )}${
-              relatorio.protocoloRiscoSuicidio.ultimaAlta.descricao
-                ? ` - ${relatorio.protocoloRiscoSuicidio.ultimaAlta.descricao}`
-                : ""
-            }`,
+            value: formatarAltaMedicaProtocolo(
+              relatorio.protocoloRiscoSuicidio?.ultimaAlta
+            )!,
           }
         : null,
     ].filter(Boolean) as Array<{ label: string; value: string }>;
@@ -431,16 +439,82 @@ export function RelatorioTransferenciaModalTrigger() {
       }
     };
 
+    const justificarLinha = (linha: string, largura: number) => {
+      const palavras = linha.trim().split(/\s+/).filter(Boolean);
+      if (palavras.length <= 1) return linha;
+      const gaps = palavras.length - 1;
+      const larguraPalavras = palavras.reduce(
+        (acc, palavra) => acc + doc.getTextWidth(palavra),
+        0
+      );
+      const larguraEspaco = doc.getTextWidth(" ");
+      const larguraBase = larguraPalavras + gaps * larguraEspaco;
+      const extra = largura - larguraBase;
+      if (extra <= 0 || larguraEspaco === 0) return linha;
+      const espacosExtrasPorGap = Math.max(
+        0,
+        Math.floor(extra / larguraEspaco / gaps)
+      );
+      const espacoJustificado = " ".repeat(1 + espacosExtrasPorGap);
+      return palavras.join(espacoJustificado);
+    };
+
     const addKeyValue = (label: string, value: string, indent = 0) => {
       const startX = 14 + indent;
       const valueX = startX + 42;
-      const linhas = doc.splitTextToSize(value, 160 - indent);
+      const margemDireita = 196;
+      const largura = Math.max(40, margemDireita - valueX);
+      const partes = value.split("\n");
+
+      // Trate a primeira parte (ex.: data) na mesma linha do label e force
+      // o restante a iniciar na linha seguinte.
+      if (partes.length > 1) {
+        const primeiraLinha = partes[0] ?? "";
+        const restante = partes.slice(1).join(" ").trim();
+        const linhasRestantes = restante
+          ? (doc.splitTextToSize(restante, largura) as string[])
+          : [];
+
+        ensureBreak((1 + linhasRestantes.length) * 5 + 4);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+        doc.text(`${label}:`, startX, cursorY);
+        doc.setFont("helvetica", "normal");
+        doc.text(primeiraLinha, valueX, cursorY);
+
+        const linhasAjustadas = linhasRestantes.map((linha: string, index: number) =>
+          index < linhasRestantes.length - 1
+            ? justificarLinha(linha, largura)
+            : linha
+        );
+        let yAtual = cursorY + 5;
+        linhasAjustadas.forEach((linha: string) => {
+          doc.text(linha, valueX, yAtual);
+          yAtual += 5;
+        });
+        cursorY = yAtual + 4;
+        return;
+      }
+
+      const linhas = doc.splitTextToSize(value, largura) as string[];
       ensureBreak(linhas.length * 5 + 4);
       doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
       doc.text(`${label}:`, startX, cursorY);
       doc.setFont("helvetica", "normal");
-      doc.text(linhas, valueX, cursorY);
-      cursorY += linhas.length * 5 + 4;
+      const primeira = linhas.shift();
+      if (primeira) {
+        doc.text(primeira, valueX, cursorY);
+      }
+      const linhasAjustadas = linhas.map((linha: string, index: number) =>
+        index < linhas.length - 1 ? justificarLinha(linha, largura) : linha
+      );
+      let yAtual = cursorY + 5;
+      linhasAjustadas.forEach((linha: string) => {
+        doc.text(linha, valueX, yAtual);
+        yAtual += 5;
+      });
+      cursorY = yAtual + 4;
     };
 
     const addSectionTitle = (titulo: string) => {
