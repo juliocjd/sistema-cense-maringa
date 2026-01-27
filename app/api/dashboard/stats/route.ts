@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getEstruturaSnapshot } from "@/lib/estrutura/snapshot";
 
 /**
  * GET /api/dashboard/stats
- * Retorna estatísticas gerais para o dashboard
+ * Retorna estatÃ­sticas gerais para o dashboard
  */
 export async function GET(request: NextRequest) {
   try {
@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Total de vagas (alojamentos não interditados)
+    // Total de vagas (alojamentos nÃ£o interditados)
     const totalVagas = await prisma.alojamento.count({
       where: {
         statusManutencao: {
@@ -36,14 +36,63 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Conflitos ativos (não resolvidos)
-    const conflitosAtivos = await prisma.conflito.count({
+    // Conflitos ativos (mesma regra do /conflitos)
+    const conflitosBase = await prisma.conflito.findMany({
       where: {
-        status: {
-          not: "RESOLVIDO",
-        },
+        OR: [
+          { adolescenteA: { statusUnidade: "ATIVO" } },
+          { adolescenteB: { statusUnidade: "ATIVO" } },
+        ],
       },
+      select: {
+        id: true,
+        registroGrupoId: true,
+        status: true,
+        tipoConflito: true,
+        criadoEm: true,
+        adolescenteA: { select: { statusUnidade: true } },
+        adolescenteB: { select: { statusUnidade: true } },
+      },
+      orderBy: { criadoEm: "desc" },
     });
+
+    const conflitosAgrupados = new Map<
+      string,
+      { status: "ATIVO" | "RESOLVIDO"; tipoConflito: string | null }
+    >();
+
+    conflitosBase.forEach((conflito) => {
+      const participanteAtivo =
+        (conflito.adolescenteA.statusUnidade ?? "").toUpperCase() === "ATIVO" ||
+        (conflito.adolescenteB.statusUnidade ?? "").toUpperCase() === "ATIVO";
+      const statusBruto: "ATIVO" | "RESOLVIDO" =
+        String(conflito.status ?? "")
+          .toUpperCase() === "RESOLVIDO"
+          ? "RESOLVIDO"
+          : "ATIVO";
+      const statusEfetivo: "ATIVO" | "RESOLVIDO" =
+        statusBruto === "RESOLVIDO" && participanteAtivo
+          ? "ATIVO"
+          : statusBruto;
+
+      const chave = conflito.registroGrupoId ?? conflito.id;
+      const atual = conflitosAgrupados.get(chave);
+      if (!atual) {
+        conflitosAgrupados.set(chave, {
+          status: statusEfetivo,
+          tipoConflito: conflito.tipoConflito ?? null,
+        });
+        return;
+      }
+
+      if (atual.status !== "ATIVO" && statusEfetivo === "ATIVO") {
+        atual.status = "ATIVO";
+      }
+    });
+
+    const conflitosAtivos = Array.from(conflitosAgrupados.values()).filter(
+      (grupo) => grupo.status === "ATIVO"
+    ).length;
 
     // Alertas ativos (API /alertas) e gravidades de risco (mapa)
     const alertasAtivos = await prisma.alertaAtivo.count({
@@ -191,15 +240,17 @@ export async function GET(request: NextRequest) {
     }
 
     // Conflitos por tipo
-    const conflitosPorTipo = await prisma.conflito.groupBy({
-      by: ["tipoConflito"],
-      where: {
-        status: {
-          not: "RESOLVIDO",
-        },
+    const conflitosPorTipo = Array.from(conflitosAgrupados.values()).reduce(
+      (acc, item) => {
+        if (item.status !== "ATIVO") {
+          return acc;
+        }
+        const chave = item.tipoConflito ?? "NAO_CLASSIFICADO";
+        acc[chave] = (acc[chave] ?? 0) + 1;
+        return acc;
       },
-      _count: true,
-    });
+      {} as Record<string, number>
+    );
 
     return NextResponse.json({
       totalAdolescentes,
@@ -226,17 +277,15 @@ export async function GET(request: NextRequest) {
           gravidadeAlertas.baixo +
           gravidadeAlertas.leve,
       },
-      conflitosPorTipo: conflitosPorTipo.reduce((acc, item) => {
-        const chave = item.tipoConflito ?? "NAO_CLASSIFICADO";
-        acc[chave] = item._count;
-        return acc;
-      }, {} as Record<string, number>),
+      conflitosPorTipo,
     });
   } catch (error) {
-    console.error("Erro ao buscar estatísticas do dashboard:", error);
+    console.error("Erro ao buscar estatÃ­sticas do dashboard:", error);
     return NextResponse.json(
-      { error: "Erro ao buscar estatísticas" },
+      { error: "Erro ao buscar estatÃ­sticas" },
       { status: 500 }
     );
   }
 }
+
+

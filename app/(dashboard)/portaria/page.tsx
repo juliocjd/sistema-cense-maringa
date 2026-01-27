@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useRef, useState } from "react";
 import {
@@ -150,9 +150,9 @@ export default function PortariaPage() {
     inativos: Adolescente[]
   ) => {
     const detalhes = inativos.length
-      ? ` Vínculos encontrados: ${descreverAdolescentes(inativos)}.`
+      ? ` VÃ­nculos encontrados: ${descreverAdolescentes(inativos)}.`
       : "";
-    return `Visitante ${visitanteNome} não possui adolescentes ativos autorizados para visitas no momento.${detalhes}`;
+    return `Visitante ${visitanteNome} nÃ£o possui adolescentes ativos autorizados para visitas no momento.${detalhes}`;
   };
 
   useEffect(() => {
@@ -341,7 +341,7 @@ export default function PortariaPage() {
         );
 
         if (visitasAbertas.length > 0) {
-          // Visitante tem visita em andamento - mostrar erro espec�fico
+          // Visitante tem visita em andamento - mostrar erro específico
           const nomes = visitasAbertas
             .map((v: any) => v.adolescente?.nomeCompleto || "Adolescente")
             .join(", ");
@@ -863,7 +863,7 @@ export default function PortariaPage() {
                               size={14}
                               className="text-amber-600 flex-shrink-0"
                             />
-                            Alguns adolescentes vinculados não estão ativos
+                            Alguns adolescentes vinculados nÃ£o estÃ£o ativos
                           </p>
                           <ul className="mt-1 list-disc list-inside space-y-0.5">
                             {adolescentesInativos.map((adolescente) => (
@@ -975,7 +975,7 @@ export default function PortariaPage() {
                       ) : (
                         <p className="text-gray-500 text-sm">
                           {adolescentesInativos.length > 0
-                            ? "Nenhum adolescente ativo disponível para este visitante."
+                            ? "Nenhum adolescente ativo disponÃ­vel para este visitante."
                             : "Nenhum adolescente relacionado"}
                         </p>
                       )}
@@ -983,7 +983,7 @@ export default function PortariaPage() {
                       <div className="mt-5 space-y-4">
                         <div className="space-y-2">
                           <label className="block text-sm font-semibold text-gray-700">
-                            Observações (opcional)
+                            ObservaÃ§Ãµes (opcional)
                           </label>
                           <textarea
                             value={observacoesVisita}
@@ -998,9 +998,9 @@ export default function PortariaPage() {
                         {validacaoResultado?.requerJustificativa && (
                           <div className="space-y-2">
                             <label className="block text-sm font-semibold text-gray-700 flex items-center gap-2">
-                              Justificativa de horário
+                              Justificativa de horÃ¡rio
                               <span className="text-xs font-semibold text-red-600">
-                                Obrigatório
+                                ObrigatÃ³rio
                               </span>
                             </label>
                             <textarea
@@ -1161,3 +1161,4 @@ export default function PortariaPage() {
     </div>
   );
 }
+

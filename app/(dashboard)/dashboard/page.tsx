@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -425,29 +425,6 @@ export default function DashboardPage() {
         })}
       </div>
 
-      {/* Conflitos por Tipo */}
-      {Object.keys(stats.conflitosPorTipo).length > 0 && (
-        <div className="bg-white rounded-2xl shadow-lg p-4 md:p-6">
-          <h2 className="text-lg md:text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-            <Swords className="text-red-600 w-5 h-5 md:w-6 md:h-6" />
-            Conflitos por Tipo
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
-            {Object.entries(stats.conflitosPorTipo).map(([tipo, count]) => (
-              <div
-                key={tipo}
-                className="bg-red-50 border border-red-200 rounded-lg p-3 md:p-4"
-              >
-                <p className="text-xs md:text-sm font-semibold text-red-900 uppercase tracking-wide mb-1">
-                  {tipo}
-                </p>
-                <p className="text-2xl md:text-3xl font-bold text-red-700">{count}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Ações Rápidas */}
       <div>
         <h2 className="text-lg md:text-xl font-bold text-gray-800 mb-4">Ações Rápidas</h2>
@@ -471,28 +448,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Informação sobre Alojamentos Interditados */}
-      {stats.alojamentosInterditados > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 md:p-4">
-          <div className="flex flex-col sm:flex-row items-start gap-3">
-            <AlertTriangle className="text-amber-600 mt-0.5 flex-shrink-0 w-5 h-5" />
-            <div className="flex-1">
-              <p className="text-sm md:text-base font-semibold text-amber-900">
-                {stats.alojamentosInterditados} alojamento(s) interditado(s)
-              </p>
-              <p className="text-xs md:text-sm text-amber-700 mt-1">
-                Há alojamentos fora de operação. Verifique a estrutura para mais detalhes.
-              </p>
-            </div>
-            <Link
-              href="/estrutura"
-              className="text-amber-700 hover:text-amber-800 text-xs md:text-sm font-semibold whitespace-nowrap self-start"
-            >
-              Ver estrutura →
-            </Link>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
+
