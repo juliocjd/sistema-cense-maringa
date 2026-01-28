@@ -33,6 +33,7 @@ const montarMembros = (grupo: any, mapaConflitos?: Map<string, number>) => {
             id: membro.adolescente.alojamentoAtual.id,
             numero: membro.adolescente.alojamentoAtual.numeroAlojamento,
             ala: membro.adolescente.alojamentoAtual.ala,
+            casaId: membro.adolescente.alojamentoAtual.casaId ?? null,
           }
         : null,
       conflitosAtivos: mapaConflitos?.get(membro.adolescente.id) ?? 0,
@@ -112,6 +113,7 @@ export async function GET(request: NextRequest) {
                       id: true,
                       numeroAlojamento: true,
                       ala: true,
+                      casaId: true,
                     },
                   },
                   conflitosA: {

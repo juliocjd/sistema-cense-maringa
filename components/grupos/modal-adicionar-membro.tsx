@@ -11,6 +11,15 @@ type Adolescente = {
   numeroInterno?: number | null;
   fotoUrl: string | null;
   statusUnidade: string;
+  grupos?: Array<{
+    id: string;
+    nome: string;
+    casa?: {
+      id?: string | null;
+      nome?: string | null;
+      numero?: string | null;
+    } | null;
+  }>;
   alojamentoAtual?: {
     id: string;
     numero: string | null;
@@ -40,6 +49,19 @@ type RespostaVerificacao = {
   mensagem: string;
 };
 
+type GrupoResumo = {
+  id: string;
+  nome: string;
+  casa?: string | null;
+};
+
+type RespostaConfirmacaoTroca = {
+  status: "REQUER_CONFIRMACAO_TROCA";
+  mensagem: string;
+  grupos_atuais: GrupoResumo[];
+  grupo_destino: GrupoResumo;
+};
+
 type ModalAdicionarMembroProps = {
   grupoId: string;
   nomeGrupo: string;
@@ -55,7 +77,9 @@ export function ModalAdicionarMembro({
   onClose,
   onSucesso,
 }: ModalAdicionarMembroProps) {
-  const [etapa, setEtapa] = useState<"selecionar" | "conflitos">("selecionar");
+  const [etapa, setEtapa] = useState<
+    "selecionar" | "conflitos" | "confirmar_troca"
+  >("selecionar");
   const [adolescentes, setAdolescentes] = useState<Adolescente[]>([]);
   const [busca, setBusca] = useState("");
   const [adolescenteSelecionado, setAdolescenteSelecionado] =
@@ -65,6 +89,8 @@ export function ModalAdicionarMembro({
   const [selecionados, setSelecionados] = useState<Adolescente[]>([]);
   const [filaProcessamento, setFilaProcessamento] = useState<Adolescente[]>([]);
   const [processandoFila, setProcessandoFila] = useState(false);
+  const [confirmacaoTroca, setConfirmacaoTroca] =
+    useState<RespostaConfirmacaoTroca | null>(null);
 
   // Estado dos conflitos
   const [conflitos, setConflitos] = useState<AlertaConflito[]>([]);
@@ -73,6 +99,7 @@ export function ModalAdicionarMembro({
   );
   const [justificativa, setJustificativa] = useState("");
   const [medidasAdicionais, setMedidasAdicionais] = useState<string[]>([]);
+  const [trocaConfirmada, setTrocaConfirmada] = useState(false);
   const sucessoAcumuladoRef = useRef(0);
 
   useEffect(() => {
@@ -84,7 +111,6 @@ export function ModalAdicionarMembro({
       setCarregandoAdolescentes(true);
       const params = new URLSearchParams({
         status: "ATIVO",
-        excluir_grupos: "true",
       });
       if (casaId) {
         params.set("casa_id", casaId);
@@ -119,11 +145,13 @@ export function ModalAdicionarMembro({
     adolescenteId,
     justificativa: justificativaTexto,
     medidas,
+    confirmarRemocao,
   }: {
     adolescenteId: string;
     justificativa?: string;
     medidas?: string[];
-  }): Promise<"sucesso" | "conflito" | "erro"> => {
+    confirmarRemocao?: boolean;
+  }): Promise<"sucesso" | "conflito" | "confirmacao" | "erro"> => {
     try {
       setLoading(true);
 
@@ -136,14 +164,33 @@ export function ModalAdicionarMembro({
           adolescenteId,
           justificativa: justificativaTexto,
           medidas_adicionais: medidas,
+          confirmar_remocao: confirmarRemocao ?? false,
         }),
       });
 
       const data = await response.json();
 
+      if (data?.status === "REQUER_CONFIRMACAO_TROCA") {
+        setConfirmacaoTroca({
+          status: "REQUER_CONFIRMACAO_TROCA",
+          mensagem: data.mensagem || "Confirmacao necessaria para trocar de grupo.",
+          grupos_atuais: Array.isArray(data.grupos_atuais)
+            ? data.grupos_atuais
+            : [],
+          grupo_destino: data.grupo_destino ?? {
+            id: grupoId,
+            nome: nomeGrupo,
+          },
+        });
+        setTrocaConfirmada(false);
+        setEtapa("confirmar_troca");
+        return "confirmacao";
+      }
+
       if (response.status === 400 && data.status === "REQUER_JUSTIFICATIVA") {
         setConflitos(Array.isArray(data.conflitos) ? data.conflitos : []);
         setNivelRisco(data.nivel ?? null);
+        setConfirmacaoTroca(null);
         setEtapa("conflitos");
         return "conflito";
       }
@@ -170,6 +217,12 @@ export function ModalAdicionarMembro({
     if (processandoFila) {
       return;
     }
+    const jaNoGrupoAtual = adolescente.grupos?.some(
+      (grupo) => grupo.id === grupoId
+    );
+    if (jaNoGrupoAtual) {
+      return;
+    }
     setSelecionados((prev) => {
       const existe = prev.some((item) => item.id === adolescente.id);
       if (existe) {
@@ -188,6 +241,8 @@ export function ModalAdicionarMembro({
     setNivelRisco(null);
     setJustificativa("");
     setMedidasAdicionais([]);
+    setConfirmacaoTroca(null);
+    setTrocaConfirmada(false);
     setSelecionados([]);
     await carregarAdolescentes();
     if (sucessoAcumuladoRef.current > 0) {
@@ -213,6 +268,11 @@ export function ModalAdicionarMembro({
     setAdolescenteSelecionado(atual);
     const resultado = await tentarAdicionar({ adolescenteId: atual.id });
 
+    if (resultado === "confirmacao") {
+      setFilaProcessamento(restante);
+      return;
+    }
+
     if (resultado === "conflito") {
       setFilaProcessamento(restante);
       return;
@@ -235,6 +295,8 @@ export function ModalAdicionarMembro({
     setNivelRisco(null);
     setJustificativa("");
     setMedidasAdicionais([]);
+    setConfirmacaoTroca(null);
+    setTrocaConfirmada(false);
     const fila = [...selecionados];
     setFilaProcessamento(fila);
     await processarFila(fila);
@@ -253,15 +315,47 @@ export function ModalAdicionarMembro({
       adolescenteId: adolescenteSelecionado.id,
       justificativa: justificativa.trim(),
       medidas: medidasLimpa,
+      confirmarRemocao: trocaConfirmada,
     });
 
     if (resultado === "sucesso") {
       sucessoAcumuladoRef.current += 1;
       setJustificativa("");
       setMedidasAdicionais([]);
+      setTrocaConfirmada(false);
       setEtapa("selecionar");
       await processarFila(filaProcessamento);
     }
+  };
+
+  const handleConfirmarTrocaGrupo = async () => {
+    if (!adolescenteSelecionado) return;
+    setTrocaConfirmada(true);
+    const resultado = await tentarAdicionar({
+      adolescenteId: adolescenteSelecionado.id,
+      confirmarRemocao: true,
+    });
+
+    if (resultado === "sucesso") {
+      sucessoAcumuladoRef.current += 1;
+      setTrocaConfirmada(false);
+      setConfirmacaoTroca(null);
+      setEtapa("selecionar");
+      await processarFila(filaProcessamento);
+    }
+  };
+
+  const handleCancelarTrocaGrupo = async () => {
+    if (adolescenteSelecionado) {
+      setSelecionados((prev) =>
+        prev.filter((item) => item.id !== adolescenteSelecionado.id)
+      );
+    }
+    setConfirmacaoTroca(null);
+    setTrocaConfirmada(false);
+    setEtapa("selecionar");
+    setAdolescenteSelecionado(null);
+    await processarFila(filaProcessamento);
   };
 
   const adolescentesFiltrados = adolescentes.filter((adolescente) => {
@@ -355,14 +449,25 @@ export function ModalAdicionarMembro({
                 <div className="space-y-2 max-h-96 overflow-y-auto">
                   {adolescentesFiltrados.map((adolescente) => {
                     const selecionado = estaSelecionado(adolescente.id);
+                    const gruposAtivos = adolescente.grupos ?? [];
+                    const grupoAtual = gruposAtivos.find(
+                      (grupo) => grupo.id === grupoId
+                    );
+                    const outrosGrupos = gruposAtivos.filter(
+                      (grupo) => grupo.id !== grupoId
+                    );
+                    const bloqueado = processandoFila || Boolean(grupoAtual);
+                    const mostrarCheck = selecionado || Boolean(grupoAtual);
                     return (
                       <button
                         key={adolescente.id}
                         type="button"
                         onClick={() => toggleSelecao(adolescente)}
-                        disabled={processandoFila}
+                        disabled={bloqueado}
                         className={`w-full flex items-center gap-4 p-4 border-2 rounded-lg transition-all text-left disabled:opacity-50 ${
-                          selecionado
+                          bloqueado
+                            ? "border-gray-200 bg-gray-50 cursor-not-allowed"
+                            : selecionado
                             ? "border-indigo-500 bg-indigo-50"
                             : "border-gray-200 hover:border-indigo-500 hover:bg-indigo-50"
                         }`}
@@ -408,9 +513,26 @@ export function ModalAdicionarMembro({
                                 : ""}
                             </p>
                           )}
+                          {grupoAtual && (
+                            <p className="text-amber-700">
+                              Ja neste grupo ({grupoAtual.nome})
+                            </p>
+                          )}
+                          {!grupoAtual && outrosGrupos.length > 0 && (
+                            <p className="text-orange-700">
+                              Em grupo:{" "}
+                              {outrosGrupos
+                                .map((grupo) =>
+                                  grupo.casa?.nome
+                                    ? `${grupo.nome} (${grupo.casa.nome})`
+                                    : grupo.nome
+                                )
+                                .join(", ")}
+                            </p>
+                          )}
                         </div>
                       </div>
-                      {selecionado ? (
+                      {mostrarCheck ? (
                         <CheckCircle className="text-green-600" size={20} />
                       ) : (
                         <UserPlus className="text-indigo-600" size={20} />
@@ -420,6 +542,53 @@ export function ModalAdicionarMembro({
                   })}
                 </div>
               )}
+            </>
+          )}
+
+          {etapa === "confirmar_troca" && adolescenteSelecionado && confirmacaoTroca && (
+            <>
+              <div className="p-4 rounded-lg border-2 mb-6 bg-amber-50 border-amber-200">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle
+                    size={24}
+                    className="flex-shrink-0 mt-1 text-amber-700"
+                  />
+                  <div>
+                    <h3 className="font-bold text-lg mb-1 text-amber-900">
+                      Confirmar troca de grupo
+                    </h3>
+                    <p className="text-sm text-amber-900">
+                      {confirmacaoTroca.mensagem}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="text-sm text-gray-700 space-y-2">
+                <p>
+                  Adolescente:{" "}
+                  <strong>{adolescenteSelecionado.nomeCompleto}</strong>
+                </p>
+                <p>
+                  Grupo(s) atual(is):{" "}
+                  {confirmacaoTroca.grupos_atuais.length > 0
+                    ? confirmacaoTroca.grupos_atuais
+                        .map((grupo) =>
+                          grupo.casa ? `${grupo.nome} (${grupo.casa})` : grupo.nome
+                        )
+                        .join(", ")
+                    : "-"}
+                </p>
+                <p>
+                  Novo grupo:{" "}
+                  {confirmacaoTroca.grupo_destino.casa
+                    ? `${confirmacaoTroca.grupo_destino.nome} (${confirmacaoTroca.grupo_destino.casa})`
+                    : confirmacaoTroca.grupo_destino.nome}
+                </p>
+                <p className="text-xs text-gray-500">
+                  Ao confirmar, o adolescente sera removido do(s) grupo(s) atual(is).
+                </p>
+              </div>
             </>
           )}
 
@@ -558,6 +727,8 @@ export function ModalAdicionarMembro({
                 setNivelRisco(null);
                 setJustificativa("");
                 setMedidasAdicionais([]);
+                setConfirmacaoTroca(null);
+                setTrocaConfirmada(false);
               }}
               className="flex-1 py-3 px-6 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors font-bold"
             >
@@ -570,6 +741,25 @@ export function ModalAdicionarMembro({
             >
               <UserPlus size={20} />
               {loading ? "Adicionando..." : "Confirmar e Adicionar"}
+            </button>
+          </div>
+        )}
+
+        {etapa === "confirmar_troca" && (
+          <div className="p-6 border-t border-gray-200 bg-gray-50 flex gap-4">
+            <button
+              onClick={handleCancelarTrocaGrupo}
+              className="flex-1 py-3 px-6 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors font-bold"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleConfirmarTrocaGrupo}
+              disabled={loading}
+              className="flex-1 flex items-center justify-center gap-2 bg-indigo-600 text-white py-3 px-6 rounded-lg hover:bg-indigo-700 transition-colors font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <UserPlus size={20} />
+              {loading ? "Confirmando..." : "Confirmar e transferir"}
             </button>
           </div>
         )}

@@ -246,7 +246,7 @@ describe("POST /api/grupos/[id]/adicionar-membro", () => {
     expect(json.erro).toBe("Adolescente nao encontrado");
   });
 
-  it("retorna 400 quando adolescente ja pertence a um grupo ativo", async () => {
+  it("retorna 409 quando adolescente ja pertence a um grupo ativo", async () => {
     mockedAuth.mockResolvedValueOnce({ user: { id: "oper-1" } } as any);
     mockedPrisma.operador.findUnique.mockResolvedValueOnce({ id: "oper-1" });
     mockedPrisma.grupo.findUnique.mockResolvedValueOnce({
@@ -263,6 +263,7 @@ describe("POST /api/grupos/[id]/adicionar-membro", () => {
       conflitosB: [],
       gruposMembros: [
         {
+          grupoId: "grupo-9",
           grupo: {
             id: "grupo-9",
             nomeGrupo: "Grupo B",
@@ -278,12 +279,15 @@ describe("POST /api/grupos/[id]/adicionar-membro", () => {
     );
     const json = await response.json();
 
-    expect(response.status).toBe(400);
-    expect(json.erro).toBe("Adolescente ja pertence a um grupo ativo");
-    expect(json.grupo_atual).toEqual({
-      id: "grupo-9",
-      nome: "Grupo B",
-      casa: "Casa 2",
+    expect(response.status).toBe(409);
+    expect(json.status).toBe("REQUER_CONFIRMACAO_TROCA");
+    expect(json.grupos_atuais).toEqual([
+      { id: "grupo-9", nome: "Grupo B", casa: "Casa 2" },
+    ]);
+    expect(json.grupo_destino).toEqual({
+      id: "grupo-1",
+      nome: "Grupo A",
+      casa: "Casa 1",
     });
   });
 

@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { emitMapaEvent } from "@/lib/mapa-event-bus";
 import { invalidateAdolescentesMapaCache } from "@/lib/estrutura/adolescentes-cache";
+import { invalidateEstruturaSnapshot } from "@/lib/estrutura/snapshot";
 import { registrarMovimentacao } from "@/lib/historico/movimentacao";
 
 type VerificacaoPayload = {
@@ -287,6 +288,7 @@ export async function POST(request: NextRequest) {
     });
 
     invalidateAdolescentesMapaCache();
+    invalidateEstruturaSnapshot();
 
     return NextResponse.json(
       {
@@ -433,6 +435,7 @@ export async function DELETE(request: NextRequest) {
     });
 
     invalidateAdolescentesMapaCache();
+    invalidateEstruturaSnapshot();
 
     return NextResponse.json({
       sucesso: true,

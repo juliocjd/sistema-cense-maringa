@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { invalidateEstruturaSnapshot } from "@/lib/estrutura/snapshot";
 
 const createSchema = z.object({
   casa_id: z.string().uuid("Casa ID invalido"),
@@ -221,6 +222,8 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    invalidateEstruturaSnapshot();
+
     return NextResponse.json(
       {
         id: alojamento.id,
@@ -387,6 +390,8 @@ export async function PATCH(request: NextRequest) {
         ipOrigem: getIp(request),
       },
     });
+
+    invalidateEstruturaSnapshot();
 
     return NextResponse.json({
       id: alojamento.id,

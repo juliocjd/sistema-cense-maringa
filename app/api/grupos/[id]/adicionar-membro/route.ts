@@ -37,6 +37,16 @@ const normalizeMedidas = (value: unknown): string[] => {
     .filter((item): item is string => item.length > 0);
 };
 
+const parseBoolean = (value: unknown): boolean => {
+  if (typeof value === "boolean") {
+    return value;
+  }
+  if (typeof value === "string") {
+    return value.toLowerCase() === "true";
+  }
+  return false;
+};
+
 const selecionarTecnico = (
   lista?:
     | Array<{
@@ -97,6 +107,9 @@ export async function POST(
     );
     const medidasAdicionais = normalizeMedidas(
       (payload as Record<string, unknown>)?.medidas_adicionais
+    );
+    const confirmarRemocao = parseBoolean(
+      (payload as Record<string, unknown>)?.confirmar_remocao
     );
 
     if (!adolescenteId) {
@@ -204,18 +217,38 @@ export async function POST(
       );
     }
 
-    if (adolescente.gruposMembros.length > 0) {
-      const grupoAtual = adolescente.gruposMembros[0].grupo;
+    const gruposAtivos = adolescente.gruposMembros ?? [];
+    const membroAtivoNoGrupoAtual = gruposAtivos.find(
+      (membro) => membro.grupoId === grupoId
+    );
+    if (membroAtivoNoGrupoAtual) {
+      return NextResponse.json(
+        { erro: "Adolescente ja e membro ativo deste grupo" },
+        { status: 400 }
+      );
+    }
+
+    const outrosGruposAtivos = gruposAtivos.filter(
+      (membro) => membro.grupoId !== grupoId
+    );
+    if (outrosGruposAtivos.length > 0 && !confirmarRemocao) {
       return NextResponse.json(
         {
-          erro: "Adolescente ja pertence a um grupo ativo",
-          grupo_atual: {
-            id: grupoAtual.id,
-            nome: grupoAtual.nomeGrupo,
-            casa: grupoAtual.casa.nome,
+          status: "REQUER_CONFIRMACAO_TROCA",
+          mensagem:
+            "Adolescente ja pertence a outro grupo ativo. Confirme para remover e adicionar ao novo grupo.",
+          grupos_atuais: outrosGruposAtivos.map((membro) => ({
+            id: membro.grupo.id,
+            nome: membro.grupo.nomeGrupo,
+            casa: membro.grupo.casa?.nome ?? null,
+          })),
+          grupo_destino: {
+            id: grupo.id,
+            nome: grupo.nomeGrupo,
+            casa: grupo.casa?.nome ?? null,
           },
         },
-        { status: 400 }
+        { status: 409 }
       );
     }
 
@@ -348,66 +381,6 @@ export async function POST(
       );
     }
 
-    const membrosOutrosGrupos = await prisma.grupoMembro.findMany({
-      where: {
-        dataSaida: null,
-        grupo: {
-          casaId: grupo.casaId,
-          id: { not: grupo.id },
-        },
-      },
-      include: {
-        grupo: { include: { casa: true } },
-        adolescente: {
-          include: {
-            alojamentoAtual: true,
-            bairroOrigem: true,
-            faccao: true,
-            tecnicosReferencia: {
-              include: { tecnicoReferencia: true },
-              orderBy: { criadoEm: "asc" },
-            },
-          },
-        },
-      },
-    });
-
-    const adversariosMesmaCasa = new Map<string, string>();
-    for (const membro of membrosOutrosGrupos) {
-      adversariosMesmaCasa.set(
-        membro.adolescenteId,
-        membro.grupo.nomeGrupo
-      );
-
-      // PRIORIDADE DE FACÇÃO: Se mesma facção, são aliados (ignora bairro)
-      const mesmaFaccao =
-        adolescente.faccaoGrupoId &&
-        membro.adolescente.faccaoGrupoId &&
-        adolescente.faccaoGrupoId === membro.adolescente.faccaoGrupoId;
-
-      if (mesmaFaccao) {
-        continue; // Mesma facção = aliados, não há conflito
-      }
-
-      // Só verifica conflito de bairro se AMBOS não têm facção
-      if (!adolescente.faccaoGrupoId && !membro.adolescente.faccaoGrupoId) {
-        registrarConflitoExtra(
-          membro.adolescente,
-          "bairro",
-          `grupo ${membro.grupo.nomeGrupo}`,
-          3
-        );
-      }
-
-      // Sempre verifica conflito de facção (se houver)
-      registrarConflitoExtra(
-        membro.adolescente,
-        "faccao",
-        `grupo ${membro.grupo.nomeGrupo}`,
-        4
-      );
-    }
-
     for (const conflito of conflitos) {
       const adversario = conflito.adversario;
       if (!adversario) {
@@ -418,54 +391,23 @@ export async function POST(
         (membro) => membro.id === adversario.id
       );
 
-      const conflitoGrupoAtual = estaNoGrupo;
-      const conflitoOutrosGrupos = adversariosMesmaCasa.has(adversario.id);
-
-      if (conflitoGrupoAtual) {
-        nivelRiscoMaximo = Math.max(nivelRiscoMaximo, 5);
-        alertas.push({
-          tipo: "CONFLITO_INTERNO",
-          nivel: 5,
-          mensagem: `Conflito ativo com ${adversario.nomeCompleto} no mesmo grupo`,
-          adolescente: {
-            id: adversario.id,
-            nome: adversario.nomeCompleto,
-          },
-        });
-        conflitosInternosIds.add(conflito.id);
-        requerJustificativa = true;
+      if (!estaNoGrupo) {
         continue;
       }
 
-      if (conflitoOutrosGrupos) {
-        nivelRiscoMaximo = Math.max(nivelRiscoMaximo, 4);
-        alertas.push({
-          tipo: "CONFLITO_GRUPO_CASA",
-          nivel: 4,
-          mensagem: `Conflito ativo com ${adversario.nomeCompleto} em outro grupo da mesma casa`,
-          adolescente: {
-            id: adversario.id,
-            nome: adversario.nomeCompleto,
-            grupo: adversariosMesmaCasa.get(adversario.id) ?? "Outro grupo",
-          },
-        });
-        requerJustificativa = true;
-        continue;
-      }
-
-      if (alertas.length === 0) {
-        alertas.push({
-          tipo: "CONFLITO_REGISTRADO",
-          nivel: 2,
-          mensagem: `Conflito registrado com ${adversario.nomeCompleto}`,
-          adolescente: {
-            id: adversario.id,
-            nome: adversario.nomeCompleto,
-          },
-        });
-      }
-      registrarConflitoExtra(adversario, "bairro", "grupo atual", 3);
-      registrarConflitoExtra(adversario, "faccao", "grupo atual", 4);
+      nivelRiscoMaximo = Math.max(nivelRiscoMaximo, 5);
+      alertas.push({
+        tipo: "CONFLITO_INTERNO",
+        nivel: 5,
+        mensagem: `Conflito ativo com ${adversario.nomeCompleto} no mesmo grupo`,
+        adolescente: {
+          id: adversario.id,
+          nome: adversario.nomeCompleto,
+        },
+      });
+      conflitosInternosIds.add(conflito.id);
+      requerJustificativa = true;
+      continue;
     }
 
     if (requerJustificativa && !justificativa) {
@@ -482,20 +424,60 @@ export async function POST(
       );
     }
 
-      const resultado = await prisma.$transaction(async (tx) => {
-        const novoMembro = await tx.grupoMembro.create({
-          data: {
-            grupoId,
-            adolescenteId,
-            dataEntrada: new Date(),
-          },
-          include: {
-          adolescente: true,
-          grupo: {
-            include: { casa: true },
-          },
-        },
-      });
+    const resultado = await prisma.$transaction(async (tx) => {
+      if (outrosGruposAtivos.length > 0) {
+        for (const membro of outrosGruposAtivos) {
+          const atualizado = await tx.grupoMembro.update({
+            where: { id: membro.id },
+            data: { dataSaida: new Date() },
+          });
+
+          await tx.logAuditoria.create({
+            data: {
+              operadorId,
+              acao: "GRUPO_REMOVER_MEMBRO",
+              tabelaAfetada: "grupos_membros",
+              registroIdAfetado: atualizado.id,
+              detalhesAlteracao: {
+                grupo: membro.grupo.nomeGrupo,
+                adolescente: adolescente.nomeCompleto,
+                dataSaida: atualizado.dataSaida,
+                motivo: "TROCA_GRUPO",
+                grupoDestino: grupo.nomeGrupo,
+              },
+              ipOrigem: request.headers.get("x-forwarded-for") ?? "unknown",
+            },
+          });
+        }
+      }
+
+      const novoMembro = membroAnterior
+        ? await tx.grupoMembro.update({
+            where: { id: membroAnterior.id },
+            data: {
+              dataEntrada: new Date(),
+              dataSaida: null,
+            },
+            include: {
+              adolescente: true,
+              grupo: {
+                include: { casa: true },
+              },
+            },
+          })
+        : await tx.grupoMembro.create({
+            data: {
+              grupoId,
+              adolescenteId,
+              dataEntrada: new Date(),
+            },
+            include: {
+              adolescente: true,
+              grupo: {
+                include: { casa: true },
+              },
+            },
+          });
 
       let decisaoId: string | null = null;
       if (requerJustificativa) {
@@ -591,4 +573,5 @@ export async function POST(
     );
   }
 }
+
 
