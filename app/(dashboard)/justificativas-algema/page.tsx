@@ -98,9 +98,15 @@ export default function JustificativasAlgemaPage() {
     }
   };
 
-  const handleDownloadPDF = async (id: string, numeroDocumento: string) => {
+  const handleDownloadPDF = async (
+    id: string,
+    numeroDocumento: string,
+    via: "agente" | "judicial"
+  ) => {
     try {
-      const response = await fetch(`/api/justificativas-algema/${id}/pdf`);
+      const response = await fetch(
+        `/api/justificativas-algema/${id}/pdf?via=${via}`
+      );
 
       if (!response.ok) {
         throw new Error("Erro ao gerar PDF");
@@ -110,7 +116,7 @@ export default function JustificativasAlgemaPage() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `justificativa-algema-${numeroDocumento}.pdf`;
+      a.download = `justificativa-algema-${numeroDocumento}-${via}.pdf`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -409,11 +415,31 @@ export default function JustificativasAlgemaPage() {
                       {/* Ações */}
                       <div className="flex flex-col gap-2 ml-4">
                         <button
-                          onClick={() => handleDownloadPDF(justificativa.id, justificativa.numeroDocumento)}
-                          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 text-sm font-semibold whitespace-nowrap"
+                          onClick={() =>
+                            handleDownloadPDF(
+                              justificativa.id,
+                              justificativa.numeroDocumento,
+                              "agente"
+                            )
+                          }
+                          className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-2 text-sm font-semibold whitespace-nowrap"
                         >
                           <Download size={16} />
-                          Download PDF
+                          PDF Agente
+                        </button>
+
+                        <button
+                          onClick={() =>
+                            handleDownloadPDF(
+                              justificativa.id,
+                              justificativa.numeroDocumento,
+                              "judicial"
+                            )
+                          }
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm font-semibold whitespace-nowrap"
+                        >
+                          <Download size={16} />
+                          PDF Judicial
                         </button>
 
                         <Link

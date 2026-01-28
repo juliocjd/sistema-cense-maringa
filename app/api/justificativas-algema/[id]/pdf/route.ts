@@ -5,8 +5,10 @@ import {
   TIPO_PROTOCOLO_ALTA,
   TIPO_PROTOCOLO_ATIVADO,
 } from "@/lib/alertas/protocolo-risco-suicidio";
+import fs from "fs/promises";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import path from "path";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +30,10 @@ export async function GET(
 ) {
   try {
     const { id } = await context.params;
+    const { searchParams } = new URL(request.url);
+    const viaParam = (searchParams.get("via") ?? "").toLowerCase();
+    const isViaAgente = viaParam === "agente";
+    const viaDescricao = isViaAgente ? "Via Operacional" : "Via Judicial";
 
     if (!id || typeof id !== "string") {
       return NextResponse.json(
@@ -283,6 +289,15 @@ export async function GET(
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
     let yPosition = 20;
+    let logoDataUrl: string | null = null;
+
+    try {
+      const logoPath = path.join(process.cwd(), "public", "logo-cense.png");
+      const logoBuffer = await fs.readFile(logoPath);
+      logoDataUrl = `data:image/png;base64,${logoBuffer.toString("base64")}`;
+    } catch (error) {
+      logoDataUrl = null;
+    }
 
     // Função auxiliar para adicionar linha horizontal
     const addLine = () => {
@@ -317,12 +332,33 @@ export async function GET(
     });
 
     doc.setFontSize(10);
-    doc.text(
-      `Documento Nº ${justificativa.numeroDocumento}`,
-      pageWidth / 2,
-      32,
-      { align: "center" },
-    );
+    const documentoCabecalho = `Documento Nº ${justificativa.numeroDocumento} - ${viaDescricao}`;
+    doc.text(documentoCabecalho, pageWidth / 2, 32, { align: "center" });
+
+    if (logoDataUrl) {
+      const logoProps = doc.getImageProperties(logoDataUrl);
+      const maxWidth = 24;
+      const maxHeight = 24;
+      let logoWidth = maxWidth;
+      let logoHeight = (logoProps.height * logoWidth) / logoProps.width;
+      if (logoHeight > maxHeight) {
+        logoHeight = maxHeight;
+        logoWidth = (logoProps.width * logoHeight) / logoProps.height;
+      }
+      const logoX = pageWidth - 14 - logoWidth;
+      const logoY = 6;
+      const GState = (doc as any).GState;
+      const canSetOpacity =
+        typeof (doc as any).setGState === "function" &&
+        typeof GState === "function";
+      if (canSetOpacity) {
+        (doc as any).setGState(new GState({ opacity: 1 }));
+      }
+      doc.addImage(logoDataUrl, "PNG", logoX, logoY, logoWidth, logoHeight);
+      if (canSetOpacity) {
+        (doc as any).setGState(new GState({ opacity: 1 }));
+      }
+    }
 
     yPosition = 50;
     doc.setTextColor(0, 0, 0);
@@ -389,7 +425,10 @@ export async function GET(
     doc.setFontSize(14);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(79, 70, 229);
-    doc.text("2. DADOS DA OCORRÊNCIA", 14, yPosition);
+    const tituloDadosAtividade = isViaAgente
+      ? "2. DADOS DA ATIVIDADE EXTERNA"
+      : "2. DADOS DA OCORRÊNCIA";
+    doc.text(tituloDadosAtividade, 14, yPosition);
     yPosition += 8;
 
     doc.setTextColor(0, 0, 0);
@@ -429,216 +468,223 @@ export async function GET(
     yPosition += 3;
     addLine();
 
-    // ================= FUNDAMENTAÇÃO LEGAL =================
-    checkPageBreak(60);
-    const tituloFundamentacao =
-      "3. FUNDAMENTAÇÃO FÁTICA - ELEMENTOS APURADOS PELOS DADOS NO SISTEMA";
-    const larguraMaxima = pageWidth - 28;
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(79, 70, 229);
-    let tituloFontSize = 13;
-    doc.setFontSize(tituloFontSize);
-    while (
-      doc.getTextWidth(tituloFundamentacao) > larguraMaxima &&
-      tituloFontSize > 11
-    ) {
-      tituloFontSize -= 0.5;
+    if (!isViaAgente) {
+      // ================= FUNDAMENTAÇÃO LEGAL =================
+      checkPageBreak(60);
+      const tituloFundamentacao =
+        "3. FUNDAMENTAÇÃO FÁTICA - ELEMENTOS APURADOS PELOS DADOS NO SISTEMA";
+      const larguraMaxima = pageWidth - 28;
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(79, 70, 229);
+      let tituloFontSize = 13;
       doc.setFontSize(tituloFontSize);
-    }
-    doc.text(tituloFundamentacao, 14, yPosition);
-    yPosition += 7;
-
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-
-    const ROTULOS_NEGRITO = [
-      "Ato infracional em apuração:",
-      "Há protocolo vigente de risco de suicídio",
-      "Vínculo orgânico com",
-      "Conflitos ativos:",
-      "Comunicados internos recentes:",
-      "Alertas ativos registrados no sistema:",
-      "Movimentação prevista para",
-      "Atualmente alojado",
-      "Integrante de grupo(s) em andamento:",
-    ];
-
-    const parseItensFundamentacao = (texto: string) => {
-      const conteudo = (texto ?? "").trim();
-      if (!conteudo) return [] as Array<{ numero: string; conteudo: string }>;
-      const regex = /(^|\n)(\d+)\.\s+/g;
-      const marcadores: Array<{
-        inicio: number;
-        inicioConteudo: number;
-        numero: string;
-      }> = [];
-      let match: RegExpExecArray | null;
-      while ((match = regex.exec(conteudo)) !== null) {
-        const inicio = match.index + (match[1] ? 1 : 0);
-        marcadores.push({
-          inicio,
-          inicioConteudo: regex.lastIndex,
-          numero: match[2],
-        });
+      while (
+        doc.getTextWidth(tituloFundamentacao) > larguraMaxima &&
+        tituloFontSize > 11
+      ) {
+        tituloFontSize -= 0.5;
+        doc.setFontSize(tituloFontSize);
       }
-      if (marcadores.length === 0) {
-        return [{ numero: "1", conteudo }];
-      }
-      return marcadores
-        .map((marcador, indice) => {
-          const fim = marcadores[indice + 1]?.inicio ?? conteudo.length;
-          const trecho = conteudo.slice(marcador.inicioConteudo, fim).trim();
-          return trecho
-            ? {
-                numero: marcador.numero,
-                conteudo: trecho,
-              }
-            : null;
-        })
-        .filter((item): item is { numero: string; conteudo: string } =>
-          Boolean(item),
+      doc.text(tituloFundamentacao, 14, yPosition);
+      yPosition += 7;
+
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+
+      const ROTULOS_NEGRITO = [
+        "Ato infracional em apuração:",
+        "Há protocolo vigente de risco de suicídio",
+        "Vínculo orgânico com",
+        "Conflitos ativos:",
+        "Comunicados internos recentes:",
+        "Alertas ativos registrados no sistema:",
+        "Movimentação prevista para",
+        "Atualmente alojado",
+        "Integrante de grupo(s) em andamento:",
+      ];
+
+      const parseItensFundamentacao = (texto: string) => {
+        const conteudo = (texto ?? "").trim();
+        if (!conteudo) return [] as Array<{ numero: string; conteudo: string }>;
+        const regex = /(^|\n)(\d+)\.\s+/g;
+        const marcadores: Array<{
+          inicio: number;
+          inicioConteudo: number;
+          numero: string;
+        }> = [];
+        let match: RegExpExecArray | null;
+        while ((match = regex.exec(conteudo)) !== null) {
+          const inicio = match.index + (match[1] ? 1 : 0);
+          marcadores.push({
+            inicio,
+            inicioConteudo: regex.lastIndex,
+            numero: match[2],
+          });
+        }
+        if (marcadores.length === 0) {
+          return [{ numero: "1", conteudo }];
+        }
+        return marcadores
+          .map((marcador, indice) => {
+            const fim = marcadores[indice + 1]?.inicio ?? conteudo.length;
+            const trecho = conteudo.slice(marcador.inicioConteudo, fim).trim();
+            return trecho
+              ? {
+                  numero: marcador.numero,
+                  conteudo: trecho,
+                }
+              : null;
+          })
+          .filter((item): item is { numero: string; conteudo: string } =>
+            Boolean(item),
+          );
+      };
+
+      const extrairRotulo = (conteudo: string) => {
+        const texto = conteudo.trim();
+        const rotuloConhecido = ROTULOS_NEGRITO.find((rotulo) =>
+          texto.startsWith(rotulo),
         );
-    };
+        if (rotuloConhecido) {
+          return {
+            rotulo: rotuloConhecido,
+            resto: texto.slice(rotuloConhecido.length).trim(),
+          };
+        }
+        const colonIndex = texto.indexOf(":");
+        if (colonIndex > 0 && colonIndex < 120) {
+          const rotulo = texto.slice(0, colonIndex + 1);
+          return {
+            rotulo,
+            resto: texto.slice(colonIndex + 1).trim(),
+          };
+        }
+        return { rotulo: "", resto: texto };
+      };
 
-    const extrairRotulo = (conteudo: string) => {
-      const texto = conteudo.trim();
-      const rotuloConhecido = ROTULOS_NEGRITO.find((rotulo) =>
-        texto.startsWith(rotulo),
-      );
-      if (rotuloConhecido) {
-        return {
-          rotulo: rotuloConhecido,
-          resto: texto.slice(rotuloConhecido.length).trim(),
-        };
-      }
-      const colonIndex = texto.indexOf(":");
-      if (colonIndex > 0 && colonIndex < 120) {
-        const rotulo = texto.slice(0, colonIndex + 1);
-        return {
-          rotulo,
-          resto: texto.slice(colonIndex + 1).trim(),
-        };
-      }
-      return { rotulo: "", resto: texto };
-    };
-
-    const extrairItensLista = (texto: string) => {
-      const base = texto.trim();
-      if (!base) return [] as string[];
-      if (base.includes("\n- ")) {
+      const extrairItensLista = (texto: string) => {
+        const base = texto.trim();
+        if (!base) return [] as string[];
+        if (base.includes("\n- ")) {
+          return base
+            .split(/\n\s*-\s+/)
+            .map((item) => item.replace(/^\-\s*/, "").trim())
+            .filter(Boolean);
+        }
         return base
-          .split(/\n\s*-\s+/)
+          .split(/;\s+/)
           .map((item) => item.replace(/^\-\s*/, "").trim())
           .filter(Boolean);
-      }
-      return base
-        .split(/;\s+/)
-        .map((item) => item.replace(/^\-\s*/, "").trim())
-        .filter(Boolean);
-    };
+      };
 
-    const lineHeight = 5.2;
-    const renderLinhas = (linhas: string[], x = 14) => {
-      linhas.forEach((linha) => {
-        checkPageBreak(lineHeight + 1.5);
-        doc.text(linha, x, yPosition);
-        yPosition += lineHeight;
-      });
-    };
+      const lineHeight = 5.2;
+      const renderLinhas = (linhas: string[], x = 14) => {
+        linhas.forEach((linha) => {
+          checkPageBreak(lineHeight + 1.5);
+          doc.text(linha, x, yPosition);
+          yPosition += lineHeight;
+        });
+      };
 
-    const itensFundamentacao = parseItensFundamentacao(
-      fundamentacaoLegalAjustada
-    ).filter(
-      (item) =>
-        !item.conteudo.trim().startsWith("Integrante de grupo(s) em andamento:")
-    );
-
-    itensFundamentacao.forEach((item) => {
-      const { rotulo, resto } = extrairRotulo(item.conteudo);
-      const ehLista =
-        /conflitos ativos|comunicados internos recentes|alertas ativos registrados no sistema/i.test(
-          rotulo,
-        );
-
-      if (!rotulo) {
-        doc.setFont("helvetica", "normal");
-        renderLinhas(
-          doc.splitTextToSize(
-            `${item.numero}. ${item.conteudo}`,
-            larguraMaxima,
-          ),
-        );
-        yPosition += 1.5;
-        return;
-      }
-
-      doc.setFont("helvetica", "bold");
-      renderLinhas(
-        doc.splitTextToSize(`${item.numero}. ${rotulo}`, larguraMaxima),
+      const itensFundamentacao = parseItensFundamentacao(
+        fundamentacaoLegalAjustada,
+      ).filter(
+        (item) =>
+          !item.conteudo
+            .trim()
+            .startsWith("Integrante de grupo(s) em andamento:"),
       );
 
-      doc.setFont("helvetica", "normal");
-      if (!ehLista && resto) {
-        renderLinhas(doc.splitTextToSize(resto, larguraMaxima));
-        yPosition += 1.5;
-        return;
-      }
+      itensFundamentacao.forEach((item) => {
+        const { rotulo, resto } = extrairRotulo(item.conteudo);
+        const ehLista =
+          /conflitos ativos|comunicados internos recentes|alertas ativos registrados no sistema/i.test(
+            rotulo,
+          );
 
-      const itensLista = ehLista ? extrairItensLista(resto) : [];
-      const linhasLista =
-        itensLista.length > 0 ? itensLista : resto ? [resto] : [];
-      linhasLista.forEach((linha, indice) => {
-        if (indice > 0) {
+        if (!rotulo) {
+          doc.setFont("helvetica", "normal");
+          renderLinhas(
+            doc.splitTextToSize(
+              `${item.numero}. ${item.conteudo}`,
+              larguraMaxima,
+            ),
+          );
           yPosition += 1.5;
+          return;
         }
-        const bullet = `- ${linha}`;
-        const bulletLinhas = doc.splitTextToSize(bullet, larguraMaxima - 6);
-        renderLinhas(bulletLinhas, 18);
-        yPosition += 1.2;
-      });
-      yPosition += 1.5;
-    });
 
-    if (
-      justificativa.adolescente.atoInfracionalGravidade &&
-      justificativa.adolescente.atoInfracionalGravidadeObs
-    ) {
-      yPosition += 3;
-      doc.setFont("helvetica", "bold");
-      doc.text("Gravidade do Ato:", 14, yPosition);
-      yPosition += 6;
-      doc.setFont("helvetica", "normal");
-      const gravidadeLinhas = doc.splitTextToSize(
-        justificativa.adolescente.atoInfracionalGravidadeObs,
-        pageWidth - 28,
-      );
-      gravidadeLinhas.forEach((linha: string) => {
-        checkPageBreak(6);
-        doc.text(linha, 14, yPosition);
+        doc.setFont("helvetica", "bold");
+        renderLinhas(
+          doc.splitTextToSize(`${item.numero}. ${rotulo}`, larguraMaxima),
+        );
+
+        doc.setFont("helvetica", "normal");
+        if (!ehLista && resto) {
+          renderLinhas(doc.splitTextToSize(resto, larguraMaxima));
+          yPosition += 1.5;
+          return;
+        }
+
+        const itensLista = ehLista ? extrairItensLista(resto) : [];
+        const linhasLista =
+          itensLista.length > 0 ? itensLista : resto ? [resto] : [];
+        linhasLista.forEach((linha, indice) => {
+          if (indice > 0) {
+            yPosition += 1.5;
+          }
+          const bullet = `- ${linha}`;
+          const bulletLinhas = doc.splitTextToSize(bullet, larguraMaxima - 6);
+          renderLinhas(bulletLinhas, 18);
+          yPosition += 1.2;
+        });
+        yPosition += 1.5;
+      });
+
+      if (
+        justificativa.adolescente.atoInfracionalGravidade &&
+        justificativa.adolescente.atoInfracionalGravidadeObs
+      ) {
+        yPosition += 3;
+        doc.setFont("helvetica", "bold");
+        doc.text("Gravidade do Ato:", 14, yPosition);
         yPosition += 6;
-      });
-    }
+        doc.setFont("helvetica", "normal");
+        const gravidadeLinhas = doc.splitTextToSize(
+          justificativa.adolescente.atoInfracionalGravidadeObs,
+          pageWidth - 28,
+        );
+        gravidadeLinhas.forEach((linha: string) => {
+          checkPageBreak(6);
+          doc.text(linha, 14, yPosition);
+          yPosition += 6;
+        });
+      }
 
-    if (justificativa.decisaoJudicial) {
+      if (justificativa.decisaoJudicial) {
+        yPosition += 3;
+        doc.setFont("helvetica", "bold");
+        doc.text("Decisão Judicial:", 14, yPosition);
+        yPosition += 6;
+        doc.setFont("helvetica", "normal");
+        doc.text(justificativa.decisaoJudicial, 14, yPosition);
+        yPosition += 6;
+      }
+
       yPosition += 3;
-      doc.setFont("helvetica", "bold");
-      doc.text("Decisão Judicial:", 14, yPosition);
-      yPosition += 6;
-      doc.setFont("helvetica", "normal");
-      doc.text(justificativa.decisaoJudicial, 14, yPosition);
-      yPosition += 6;
+      addLine();
     }
-
-    yPosition += 3;
-    addLine();
 
     // ================= AVALIAÇÃO DE RISCO =================
     checkPageBreak(50);
     doc.setFontSize(14);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(79, 70, 229);
-    doc.text("4. AVALIAÇÃO DE RISCO", 14, yPosition);
+    const tituloAvaliacao = isViaAgente
+      ? "3. AVALIAÇÃO DE RISCO"
+      : "4. AVALIAÇÃO DE RISCO";
+    doc.text(tituloAvaliacao, 14, yPosition);
     yPosition += 8;
 
     doc.setTextColor(0, 0, 0);
@@ -705,7 +751,7 @@ export async function GET(
       });
     });
 
-    if (protocoloSuicidioResumo) {
+    if (!isViaAgente && protocoloSuicidioResumo) {
       const boxWidth = pageWidth - 28;
       const linhasResumo: string[] = [
         protocoloSuicidioResumo.ativo
@@ -778,7 +824,7 @@ export async function GET(
       doc.setFontSize(10);
     }
 
-    if (riscoFugaDestaque) {
+    if (!isViaAgente && riscoFugaDestaque) {
       const boxWidth = pageWidth - 28;
       const descricaoLinhas = doc.splitTextToSize(
         `Motivo: ${riscoFugaDestaque.descricao}`,
@@ -858,7 +904,7 @@ export async function GET(
       })),
     ];
 
-    if (registrosCriticos.length > 0) {
+    if (!isViaAgente && registrosCriticos.length > 0) {
       const boxWidth = pageWidth - 28;
       const titulo = "REGISTROS CRITICOS: FUGA / AGRESSAO / AMEACA A SERVIDOR";
       const corpo: string[] = [];
@@ -914,17 +960,24 @@ export async function GET(
       justificativa.fatoresAgravantes.length > 0
     ) {
       checkPageBreak(40);
-      doc.setFont("helvetica", "bold");
-      doc.setFillColor(255, 243, 224); // Laranja claro
-      doc.rect(14, yPosition - 4, pageWidth - 28, 8, "F");
-      doc.setTextColor(180, 83, 9); // Laranja escuro
-      doc.text(
-        "FATORES AGRAVANTES IDENTIFICADOS PELO SISTEMA DE INTELIGENCIA",
-        pageWidth / 2,
-        yPosition,
-        { align: "center" },
-      );
-      yPosition += 10;
+      const tituloFatores = isViaAgente
+        ? "4. FATORES AGRAVANTES IDENTIFICADOS PELO SISTEMA DE INTELIGENCIA"
+        : "FATORES AGRAVANTES IDENTIFICADOS PELO SISTEMA DE INTELIGENCIA";
+
+      if (isViaAgente) {
+        doc.setFontSize(14);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(79, 70, 229);
+        doc.text(tituloFatores, 14, yPosition);
+        yPosition += 8;
+      } else {
+        doc.setFont("helvetica", "bold");
+        doc.setFillColor(255, 243, 224); // Laranja claro
+        doc.rect(14, yPosition - 4, pageWidth - 28, 8, "F");
+        doc.setTextColor(180, 83, 9); // Laranja escuro
+        doc.text(tituloFatores, pageWidth / 2, yPosition, { align: "center" });
+        yPosition += 10;
+      }
 
       doc.setTextColor(0, 0, 0);
       doc.setFont("helvetica", "normal");
@@ -954,7 +1007,7 @@ export async function GET(
       yPosition += 5;
     }
 
-    if (justificativa.historicoComportamental) {
+    if (!isViaAgente && justificativa.historicoComportamental) {
       checkPageBreak(30);
       doc.setFont("helvetica", "bold");
       doc.text("Histórico Comportamental:", 14, yPosition);
@@ -974,39 +1027,31 @@ export async function GET(
     yPosition += 3;
     addLine();
 
-    // ================= MEDIDAS DE SEGURANÇA =================
-    checkPageBreak(50);
-    doc.setFontSize(14);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(79, 70, 229);
-    doc.text("5. MEDIDAS DE SEGURANÇA ADOTADAS", 14, yPosition);
-    yPosition += 8;
-
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-
-    justificativa.medidasSeguranca.forEach((medida) => {
-      checkPageBreak(6);
-      doc.text(`• ${medida}`, 14, yPosition);
-      yPosition += 6;
-    });
-
-    if (justificativa.veiculoUtilizado) {
-      yPosition += 3;
+    if (isViaAgente) {
+      // ================= MEDIDAS DE SEGURANÇA =================
+      checkPageBreak(50);
+      doc.setFontSize(14);
       doc.setFont("helvetica", "bold");
-      doc.text("Veículo Utilizado:", 14, yPosition);
-      yPosition += 6;
+      doc.setTextColor(79, 70, 229);
+      doc.text("5. MEDIDAS DE SEGURANÇA ADOTADAS", 14, yPosition);
+      yPosition += 8;
+
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(10);
       doc.setFont("helvetica", "normal");
-      doc.text(justificativa.veiculoUtilizado, 14, yPosition);
-      yPosition += 6;
+
+      justificativa.medidasSeguranca.forEach((medida) => {
+        checkPageBreak(6);
+        doc.text(`• ${medida}`, 14, yPosition);
+        yPosition += 6;
+      });
+
+      yPosition += 3;
+      addLine();
     }
 
-    yPosition += 3;
-    addLine();
-
     // ================= TEMPO DE USO =================
-    if (justificativa.horaInicio || justificativa.horaFim) {
+    if (!isViaAgente && (justificativa.horaInicio || justificativa.horaFim)) {
       checkPageBreak(30);
       doc.setFontSize(14);
       doc.setFont("helvetica", "bold");
@@ -1054,7 +1099,7 @@ export async function GET(
     }
 
     // ================= OBSERVAÇÕES =================
-    if (justificativa.observacoesAdicionais) {
+    if (!isViaAgente && justificativa.observacoesAdicionais) {
       checkPageBreak(30);
       doc.setFontSize(14);
       doc.setFont("helvetica", "bold");
@@ -1083,19 +1128,27 @@ export async function GET(
     // ================= ASSINATURA DO DIRETOR =================
     const diretorAssinatura =
       diretorAtualUnidade?.trim() || "Diretor da unidade";
+    const diretorAssinaturaFinal = diretorAssinatura.toUpperCase();
     checkPageBreak(36);
     yPosition += 8;
     doc.setTextColor(0, 0, 0);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
-    doc.text("_____________________________________________", pageWidth / 2, yPosition, {
+    doc.text(
+      "_____________________________________________",
+      pageWidth / 2,
+      yPosition,
+      {
+        align: "center",
+      },
+    );
+    yPosition += 6;
+    doc.setFont("helvetica", "bold");
+    doc.text(diretorAssinaturaFinal, pageWidth / 2, yPosition, {
       align: "center",
     });
     yPosition += 6;
-    doc.text(diretorAssinatura, pageWidth / 2, yPosition, {
-      align: "center",
-    });
-    yPosition += 6;
+    doc.setFont("helvetica", "normal");
     doc.text("Diretor do Centro de Socioeducação", pageWidth / 2, yPosition, {
       align: "center",
     });
@@ -1111,7 +1164,7 @@ export async function GET(
       doc.setFont("helvetica", "normal");
       doc.setTextColor(100, 100, 100);
       doc.text(
-        `CENSE Maringá - Justificativa de Algema ${justificativa.numeroDocumento} | Data de Emissão: ${dataEmissao} | Página ${i} de ${pageCount}`,
+        `CENSE Maringá - Justificativa de Algema ${justificativa.numeroDocumento} (${viaDescricao}) | Data de Emissão: ${dataEmissao} | Página ${i} de ${pageCount}`,
         pageWidth / 2,
         pageHeight - 10,
         { align: "center" },
@@ -1133,7 +1186,7 @@ export async function GET(
     return new NextResponse(pdfBuffer, {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="justificativa-algema-${justificativa.numeroDocumento}.pdf"`,
+        "Content-Disposition": `attachment; filename="justificativa-algema-${justificativa.numeroDocumento}-${isViaAgente ? "agente" : "judicial"}.pdf"`,
       },
     });
   } catch (error) {

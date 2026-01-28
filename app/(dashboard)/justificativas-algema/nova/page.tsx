@@ -6,7 +6,6 @@ import {
   Shield,
   AlertTriangle,
   User,
-  FileText,
   Clock,
   Truck,
   CheckSquare,
@@ -96,89 +95,6 @@ const MOTIVOS = [
   { value: "OUTRO", label: "Outro Motivo" },
 ];
 
-type FundamentacaoItem = {
-  numero: string;
-  conteudo: string;
-};
-
-const ROTULOS_NEGRITO = [
-  "Ato infracional em apuração:",
-  "Há protocolo vigente de risco de suicídio",
-  "Vínculo orgânico com",
-  "Conflitos ativos:",
-  "Comunicados internos recentes:",
-  "Alertas ativos registrados no sistema:",
-  "Movimentação prevista para",
-  "Atualmente alojado",
-  "Integrante de grupo(s) em andamento:",
-];
-
-const parseFundamentacao = (texto: string): FundamentacaoItem[] => {
-  const conteudo = (texto ?? "").trim();
-  if (!conteudo) return [];
-  const regex = /(^|\n)(\d+)\.\s+/g;
-  const marcadores: Array<{ inicio: number; inicioConteudo: number; numero: string }> = [];
-  let match: RegExpExecArray | null;
-  while ((match = regex.exec(conteudo)) !== null) {
-    const inicio = match.index + (match[1] ? 1 : 0);
-    marcadores.push({
-      inicio,
-      inicioConteudo: regex.lastIndex,
-      numero: match[2],
-    });
-  }
-  if (marcadores.length === 0) {
-    return [{ numero: "1", conteudo }];
-  }
-  return marcadores
-    .map((marcador, indice) => {
-      const fim = marcadores[indice + 1]?.inicio ?? conteudo.length;
-      const trecho = conteudo.slice(marcador.inicioConteudo, fim).trim();
-      return trecho
-        ? {
-            numero: marcador.numero,
-            conteudo: trecho,
-          }
-        : null;
-    })
-    .filter((item): item is FundamentacaoItem => Boolean(item));
-};
-
-const extrairRotulo = (conteudo: string) => {
-  const texto = conteudo.trim();
-  const rotuloConhecido = ROTULOS_NEGRITO.find((rotulo) => texto.startsWith(rotulo));
-  if (rotuloConhecido) {
-    return {
-      rotulo: rotuloConhecido,
-      resto: texto.slice(rotuloConhecido.length).trim(),
-    };
-  }
-  const colonIndex = texto.indexOf(":");
-  if (colonIndex > 0 && colonIndex < 120) {
-    const rotulo = texto.slice(0, colonIndex + 1);
-    return {
-      rotulo,
-      resto: texto.slice(colonIndex + 1).trim(),
-    };
-  }
-  return { rotulo: "", resto: texto };
-};
-
-const extrairItensLista = (texto: string): string[] => {
-  const base = texto.trim();
-  if (!base) return [];
-  if (base.includes("\n- ")) {
-    return base
-      .split(/\n\s*-\s+/)
-      .map((item) => item.replace(/^\-\s*/, "").trim())
-      .filter(Boolean);
-  }
-  return base
-    .split(/;\s+/)
-    .map((item) => item.replace(/^\-\s*/, "").trim())
-    .filter(Boolean);
-};
-
 export default function NovaJustificativaPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -205,7 +121,6 @@ export default function NovaJustificativaPage() {
 
   // Campos editáveis (com valores da análise como padrão)
   const [fundamentacaoLegal, setFundamentacaoLegal] = useState("");
-  const [fundamentacaoComplementar, setFundamentacaoComplementar] = useState("");
   const [riscoFuga, setRiscoFuga] = useState("");
   const [riscoAgressao, setRiscoAgressao] = useState("");
   const [riscoAutolesao, setRiscoAutolesao] = useState("");
@@ -224,15 +139,6 @@ export default function NovaJustificativaPage() {
   );
   const contextoMovimentacao = analiseRisco?.contextoMovimentacao;
   const conflitoTerritorialDetectado = contextoMovimentacao?.conflitoTerritorial;
-  const fundamentacaoItens = useMemo(
-    () =>
-      parseFundamentacao(fundamentacaoLegal).filter(
-        (item) =>
-          !item.conteudo.trim().startsWith("Integrante de grupo(s) em andamento:")
-      ),
-    [fundamentacaoLegal]
-  );
-
   useEffect(() => {
     let ativo = true;
     const carregarBairros = async () => {
@@ -324,7 +230,7 @@ export default function NovaJustificativaPage() {
           setRiscoAutolesao(analise.analiseRisco.riscoAutolesao);
           setFundamentacaoLegal(analise.fundamentacaoLegal);
           setHistoricoComportamental(analise.historicoComportamentalSugerido);
-          setMedidasSeguranca(analise.medidasSegurancaRecomendadas);
+          setMedidasSeguranca([]);
         } else {
           alert("Erro ao carregar análise de risco do adolescente");
         }
@@ -372,11 +278,7 @@ export default function NovaJustificativaPage() {
       return;
     }
 
-    const fundamentacaoFinal = fundamentacaoComplementar
-      ? `${fundamentacaoLegal}\n\nCOMPLEMENTAÇÃO DO OPERADOR:\n${fundamentacaoComplementar}`
-      : fundamentacaoLegal;
-
-    if (fundamentacaoFinal.length < 50) {
+    if (fundamentacaoLegal.length < 50) {
       alert("A fundamentação legal deve ter no mínimo 50 caracteres");
       return;
     }
@@ -421,7 +323,7 @@ export default function NovaJustificativaPage() {
         dataHoraOcorrencia: dataHoraOcorrenciaFormatada,
         motivoPrincipal,
         destinoMovimentacao,
-        fundamentacaoLegal: fundamentacaoFinal,
+        fundamentacaoLegal,
         atoInfracionalBase: adolescenteSelecionado?.atoInfracionalAtual || undefined,
         numeroProcesso: adolescenteSelecionado?.numeroProcesso || undefined,
         riscoFuga,
@@ -866,89 +768,11 @@ export default function NovaJustificativaPage() {
                   </div>
                 </div>
 
-                {/* 3. FUNDAMENTAÇÃO LEGAL */}
-                <div>
-                  <h2 className="font-bold text-xl text-slate-800 flex items-center gap-2 mb-4">
-                    <FileText className="text-indigo-600" size={22} />
-                    3. Fundamentação Legal
-                  </h2>
-
-                  <div className="bg-yellow-50 border-l-4 border-yellow-500 p-4 mb-4 rounded">
-                    <p className="text-sm text-yellow-900">
-                      <strong>Fundamentação gerada automaticamente</strong> com base nos dados do adolescente.
-                      Você pode complementar com informações específicas desta movimentação.
-                    </p>
-                  </div>
-
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                      Fundamentação Automática (Sistema de Inteligência)
-                    </label>
-                    <div className="w-full border-2 border-slate-300 rounded-lg bg-slate-50 text-slate-800 text-sm p-4 space-y-3 max-h-96 overflow-auto">
-                      {fundamentacaoItens.length === 0 ? (
-                        <p className="text-slate-500">
-                          A fundamentação automática aparecerá aqui após a análise.
-                        </p>
-                      ) : (
-                        fundamentacaoItens.map((item) => {
-                          const { rotulo, resto } = extrairRotulo(item.conteudo);
-                          const ehLista = /conflitos ativos|comunicados internos recentes|alertas ativos registrados no sistema/i.test(
-                            rotulo
-                          );
-                          const itensLista = ehLista ? extrairItensLista(resto) : [];
-                          return (
-                            <div key={`${item.numero}-${rotulo}`} className="leading-relaxed">
-                              <div>
-                                <span className="font-semibold">{item.numero}. </span>
-                                {rotulo ? (
-                                  <>
-                                    <span className="font-semibold">{rotulo}</span>
-                                    {!ehLista && resto ? <span> {resto}</span> : null}
-                                  </>
-                                ) : (
-                                  <span>{item.conteudo}</span>
-                                )}
-                              </div>
-                              {ehLista && (
-                                <div className="mt-2 pl-5 space-y-2">
-                                  {itensLista.length > 0 ? (
-                                    itensLista.map((linha, index) => (
-                                      <div key={`${item.numero}-linha-${index}`} className="leading-relaxed">
-                                        <span className="font-semibold">- </span>
-                                        <span>{linha}</span>
-                                      </div>
-                                    ))
-                                  ) : (
-                                    <div className="leading-relaxed">{resto}</div>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                      Complementação do Operador (Opcional)
-                    </label>
-                    <textarea
-                      value={fundamentacaoComplementar}
-                      onChange={(e) => setFundamentacaoComplementar(e.target.value)}
-                      placeholder="Adicione informações específicas desta movimentação, se necessário..."
-                      rows={4}
-                      className="w-full px-4 py-3 border-2 border-slate-300 rounded-lg focus:ring-4 focus:ring-indigo-200 focus:border-indigo-500 transition"
-                    />
-                  </div>
-                </div>
-
-                {/* 4. MEDIDAS DE SEGURANÇA */}
+                {/* 3. MEDIDAS DE SEGURANÇA */}
                 <div>
                   <h2 className="font-bold text-xl text-slate-800 flex items-center gap-2 mb-4">
                     <CheckSquare className="text-indigo-600" size={22} />
-                    4. Medidas de Segurança (Recomendadas pelo Sistema)
+                    3. Medidas de Segurança (Recomendadas pelo Sistema)
                   </h2>
 
                   <div className="space-y-2">
@@ -969,11 +793,11 @@ export default function NovaJustificativaPage() {
                   </div>
                 </div>
 
-                {/* 5. DIRETOR DA UNIDADE */}
+                {/* 4. DIRETOR DA UNIDADE */}
                 <div>
                   <h2 className="font-bold text-xl text-slate-800 flex items-center gap-2 mb-4">
                     <User className="text-indigo-600" size={22} />
-                    5. Atual Diretor da Unidade *
+                    4. Atual Diretor da Unidade *
                   </h2>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">
@@ -990,11 +814,11 @@ export default function NovaJustificativaPage() {
                   </div>
                 </div>
 
-                {/* 6. INFORMAÇÕES COMPLEMENTARES */}
+                {/* 5. INFORMAÇÕES COMPLEMENTARES */}
                 <div>
                   <h2 className="font-bold text-xl text-slate-800 flex items-center gap-2 mb-4">
                     <Truck className="text-indigo-600" size={22} />
-                    6. Informações Complementares
+                    5. Informações Complementares
                   </h2>
 
                   <div className="space-y-4">
