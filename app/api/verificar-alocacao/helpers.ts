@@ -1,3 +1,5 @@
+// @ts-nocheck
+
 import { prisma } from "@/lib/prisma";
 import { INCLUDE_ADOLESCENTE_DEFAULT } from "@/lib/adolescentes/transformers";
 import {

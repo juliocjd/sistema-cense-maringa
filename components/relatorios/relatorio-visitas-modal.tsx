@@ -354,7 +354,7 @@ export function RelatorioVisitasModalTrigger() {
 
                 {!carregando && !relatorio && !erro && (
                   <p className="text-center text-sm text-slate-500">
-                    Informe o periodo e clique em "Gerar relatorio".
+                    Informe o periodo e clique em &quot;Gerar relatorio&quot;.
                   </p>
                 )}
 

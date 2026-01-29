@@ -18,6 +18,8 @@ import {
   ImpactoConflitoPayload,
 } from "@/types/inteligencia";
 import RelatorioImpactoCard from "./relatorio-impacto-card";
+import { useAuth } from "@/hooks/useAuth";
+import { hasPermission, PERMISSIONS } from "@/lib/auth/permissions";
 
 type FiltroTipo = "TODOS" | "BAIRRO" | "FACCAO";
 type FiltroStatus = "TODOS" | "ATIVO" | "INATIVO";
@@ -32,6 +34,11 @@ export default function PainelConflitos({
   impactoResumo,
 }: PainelConflitosProps) {
   const router = useRouter();
+  const { user } = useAuth();
+  const podeGerenciar = useMemo(
+    () => hasPermission(user?.permissions, PERMISSIONS.CONFLITOS_EXTERNOS_MANAGE),
+    [user?.permissions]
+  );
   const [busca, setBusca] = useState("");
   const [tipoFiltro, setTipoFiltro] = useState<FiltroTipo>("TODOS");
   const [statusFiltro, setStatusFiltro] = useState<FiltroStatus>("TODOS");
@@ -80,6 +87,9 @@ export default function PainelConflitos({
   }, [busca, conflitos, statusFiltro, tipoFiltro]);
 
   const encerrarConflito = async (conflito: ConflitoExternoResumo) => {
+    if (!podeGerenciar) {
+      return;
+    }
     if (conflito.status !== "ATIVO") {
       return;
     }
@@ -274,7 +284,8 @@ export default function PainelConflitos({
                     <button
                       type="button"
                       onClick={() => encerrarConflito(conflito)}
-                      className="inline-flex items-center gap-1 rounded-full border border-rose-200 px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm font-semibold text-rose-700 transition hover:bg-rose-600 hover:text-white"
+                      disabled={!podeGerenciar}
+                      className="inline-flex items-center gap-1 rounded-full border border-rose-200 px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm font-semibold text-rose-700 transition hover:bg-rose-600 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <Trash2 className="w-3.5 h-3.5 md:w-4 md:h-4" />
                       Encerrar

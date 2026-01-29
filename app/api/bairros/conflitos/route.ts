@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { hasPermission, PERMISSIONS } from "@/lib/auth/permissions";
+import { resolveUserPermissions } from "@/lib/auth/resolve-permissions";
 
 const listSchema = z.object({
   bairroId: z.string().uuid().optional(),
@@ -96,11 +98,19 @@ export async function POST(request: NextRequest) {
 
     const operador = await prisma.operador.findUnique({
       where: { id: operadorId },
-      select: { id: true },
+      select: { id: true, funcaoRole: true },
     });
     if (!operador) {
       return NextResponse.json(
         { erro: "Operador nao encontrado" },
+        { status: 403 }
+      );
+    }
+
+    const permissoes = resolveUserPermissions(session, operador);
+    if (!hasPermission(permissoes, PERMISSIONS.CONFLITOS_EXTERNOS_MANAGE)) {
+      return NextResponse.json(
+        { erro: "Sem permissao para gerenciar conflitos externos" },
         { status: 403 }
       );
     }

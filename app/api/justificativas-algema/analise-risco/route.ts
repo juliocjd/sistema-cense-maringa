@@ -4,6 +4,8 @@ import {
   TIPO_PROTOCOLO_ALTA,
   TIPO_PROTOCOLO_ATIVADO,
 } from "@/lib/alertas/protocolo-risco-suicidio";
+import { auth } from "@/auth";
+import { hasPermission, PERMISSIONS } from "@/lib/auth/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -104,6 +106,15 @@ const formatarListaBullets = (itens: string[], limite = 3): string => {
 
 export async function GET(request: NextRequest) {
   try {
+    const session = await auth().catch(() => null);
+    const permissoes = session?.user?.permissions ?? [];
+    if (!hasPermission(permissoes, PERMISSIONS.JUSTIFICATIVAS_ALGEMA_VIEW)) {
+      return NextResponse.json(
+        { erro: "Sem permissao para acessar justificativas de algema" },
+        { status: 403 }
+      );
+    }
+
     const url = new URL(request.url);
     const adolescenteId = url.searchParams.get("adolescenteId");
     const bairroDestinoId = url.searchParams.get("bairroDestinoId");
@@ -121,6 +132,7 @@ export async function GET(request: NextRequest) {
       include: {
         faccao: true,
         bairroOrigem: true,
+        atoInfracionalAtualCatalogo: true,
         alojamentoAtual: {
           include: {
             casa: true,
@@ -318,8 +330,9 @@ export async function GET(request: NextRequest) {
     const fatoresAgravantes: string[] = [];
 
     // 1. Ato infracional atual
+    const atoAtualNome = adolescente.atoInfracionalAtualCatalogo?.nome ?? null;
     const atoAtualPartes = [
-      adolescente.atoInfracionalAtual,
+      atoAtualNome,
       adolescente.atoInfracionalAno ? `(${adolescente.atoInfracionalAno})` : null,
       adolescente.atoInfracionalProcesso
         ? `Processo ${adolescente.atoInfracionalProcesso}`
@@ -803,7 +816,7 @@ export async function GET(request: NextRequest) {
         nomeCompleto: adolescente.nomeCompleto,
         numeroSms: adolescente.numeroSms,
         numeroProcesso: adolescente.numeroProcesso,
-        atoInfracionalAtual: adolescente.atoInfracionalAtual,
+        atoInfracionalAtual: atoAtualNome,
         faccao: adolescente.faccao?.nomeFaccao ?? null,
         bairroOrigem: descreverBairro(origemBairro),
       },

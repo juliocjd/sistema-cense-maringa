@@ -18,6 +18,8 @@ import {
   Flame,
 } from "lucide-react";
 import type { Adolescente } from "@/types";
+import { useAuth } from "@/hooks/useAuth";
+import { hasPermission, PERMISSIONS } from "@/lib/auth/permissions";
 
 type StatusFiltro = "TODOS" | "ATIVO" | "TRANSFERIDO" | "LIBERADO" | "EVADIDO";
 type AlertaFiltro =
@@ -190,6 +192,11 @@ const renderAlojamento = (adolescente: Adolescente) => {
 };
 
 export function ListagemAdolescentes() {
+  const { user } = useAuth();
+  const podeCadastrar = useMemo(
+    () => hasPermission(user?.permissions, PERMISSIONS.ADOLESCENTES_CREATE),
+    [user?.permissions]
+  );
   const [adolescentes, setAdolescentes] = useState<Adolescente[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erroCarregamento, setErroCarregamento] = useState<string | null>(null);
@@ -341,14 +348,16 @@ export function ListagemAdolescentes() {
               <Download className="w-4 h-4 md:w-5 md:h-5" />
               <span className="hidden sm:inline">Exportar</span>
             </button>
-            <Link
-              href="/adolescentes/novo"
-              className="px-3 md:px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2 font-semibold text-sm md:text-base"
-            >
-              <UserPlus className="w-4 h-4 md:w-5 md:h-5" />
-              <span className="hidden sm:inline">Novo cadastro</span>
-              <span className="sm:hidden">Novo</span>
-            </Link>
+            {podeCadastrar && (
+              <Link
+                href="/adolescentes/novo"
+                className="px-3 md:px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2 font-semibold text-sm md:text-base"
+              >
+                <UserPlus className="w-4 h-4 md:w-5 md:h-5" />
+                <span className="hidden sm:inline">Novo cadastro</span>
+                <span className="sm:hidden">Novo</span>
+              </Link>
+            )}
           </div>
         </div>
       </header>

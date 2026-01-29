@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { auth } from "@/auth";
+import { hasPermission, PERMISSIONS } from "@/lib/auth/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -57,6 +59,15 @@ const createJustificativaSchema = z.object({
 // GET /api/justificativas-algema - Listar justificativas
 export async function GET(request: NextRequest) {
   try {
+    const session = await auth().catch(() => null);
+    const permissoes = session?.user?.permissions ?? [];
+    if (!hasPermission(permissoes, PERMISSIONS.JUSTIFICATIVAS_ALGEMA_VIEW)) {
+      return NextResponse.json(
+        { erro: "Sem permissao para acessar justificativas de algema" },
+        { status: 403 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const adolescenteId = searchParams.get("adolescenteId");
     const status = searchParams.get("status");
@@ -129,6 +140,15 @@ export async function GET(request: NextRequest) {
 // POST /api/justificativas-algema - Criar nova justificativa
 export async function POST(request: NextRequest) {
   try {
+    const session = await auth().catch(() => null);
+    const permissoes = session?.user?.permissions ?? [];
+    if (!hasPermission(permissoes, PERMISSIONS.JUSTIFICATIVAS_ALGEMA_VIEW)) {
+      return NextResponse.json(
+        { erro: "Sem permissao para criar justificativas de algema" },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
 
     // Validar dados
@@ -142,7 +162,8 @@ export async function POST(request: NextRequest) {
         nomeCompleto: true,
         numeroSms: true,
         statusUnidade: true,
-        atoInfracionalAtual: true,
+        atoInfracionalAtualId: true,
+        atoInfracionalAtualCatalogo: { select: { id: true, nome: true } },
         numeroProcesso: true,
         atoInfracionalGravidade: true,
       },
@@ -211,7 +232,10 @@ export async function POST(request: NextRequest) {
         motivoPrincipal: validatedData.motivoPrincipal,
         destinoMovimentacao: validatedData.destinoMovimentacao,
         fundamentacaoLegal: validatedData.fundamentacaoLegal,
-        atoInfracionalBase: validatedData.atoInfracionalBase || adolescente.atoInfracionalAtual,
+        atoInfracionalBase:
+          validatedData.atoInfracionalBase ||
+          adolescente.atoInfracionalAtualCatalogo?.nome ||
+          null,
         numeroProcesso: validatedData.numeroProcesso || adolescente.numeroProcesso,
         decisaoJudicial: validatedData.decisaoJudicial,
         riscoFuga: validatedData.riscoFuga,

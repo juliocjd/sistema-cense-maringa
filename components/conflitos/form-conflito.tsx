@@ -4,6 +4,8 @@ import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { CatalogoBairro, CatalogoFaccao } from "@/types/inteligencia";
+import { useAuth } from "@/hooks/useAuth";
+import { hasPermission, PERMISSIONS } from "@/lib/auth/permissions";
 
 type TipoConflito = "BAIRRO" | "FACCAO";
 
@@ -17,6 +19,11 @@ export default function FormConflito({
   faccoes,
 }: FormConflitoProps) {
   const router = useRouter();
+  const { user } = useAuth();
+  const podeGerenciar = useMemo(
+    () => hasPermission(user?.permissions, PERMISSIONS.CONFLITOS_EXTERNOS_MANAGE),
+    [user?.permissions]
+  );
   const [tipo, setTipo] = useState<TipoConflito>("BAIRRO");
   const [origem, setOrigem] = useState("");
   const [destino, setDestino] = useState("");
@@ -35,7 +42,8 @@ export default function FormConflito({
     origem.length > 0 &&
     destino.length > 0 &&
     origem !== destino &&
-    fonteValida;
+    fonteValida &&
+    podeGerenciar;
 
   const resetar = () => {
     setOrigem("");
@@ -108,6 +116,11 @@ export default function FormConflito({
           A selecao de bairros usa cidade como contexto; para faccao apenas o
           nome cadastrado e exibido.
         </p>
+        {!podeGerenciar && (
+          <p className="mt-2 text-xs font-semibold text-amber-700">
+            Acesso somente leitura: criacao de conflitos externos bloqueada.
+          </p>
+        )}
       </header>
 
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -127,6 +140,7 @@ export default function FormConflito({
                 value={opcao}
                 checked={tipo === opcao}
                 onChange={() => setTipo(opcao)}
+                disabled={!podeGerenciar}
                 className="sr-only"
               />
               {opcao === "BAIRRO" ? "Territorial" : "Faccao"}
@@ -142,6 +156,7 @@ export default function FormConflito({
             <select
               value={origem}
               onChange={(event) => setOrigem(event.target.value)}
+              disabled={!podeGerenciar}
               className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:outline-none"
             >
               <option value="">Selecione a origem</option>
@@ -161,6 +176,7 @@ export default function FormConflito({
             <select
               value={destino}
               onChange={(event) => setDestino(event.target.value)}
+              disabled={!podeGerenciar}
               className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:outline-none"
             >
               <option value="">Selecione o destino</option>
@@ -183,6 +199,7 @@ export default function FormConflito({
             value={fonteInformacao}
             onChange={(event) => setFonteInformacao(event.target.value)}
             rows={3}
+            disabled={!podeGerenciar}
             className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:outline-none"
             placeholder="Ex: Entrevista com o adolescente Joao (CI 123/2025), materia jornalistica, comunicacao com outra unidade..."
           />

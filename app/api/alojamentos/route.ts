@@ -4,6 +4,7 @@ import type { Prisma } from "@prisma/client";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { invalidateEstruturaSnapshot } from "@/lib/estrutura/snapshot";
+import { hasPermission, PERMISSIONS } from "@/lib/auth/permissions";
 
 const createSchema = z.object({
   casa_id: z.string().uuid("Casa ID invalido"),
@@ -158,6 +159,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const permissoes = session?.user?.permissions ?? [];
+    if (!hasPermission(permissoes, PERMISSIONS.ESTRUTURA_EDIT)) {
+      return NextResponse.json(
+        { erro: "Sem permissao para alterar a estrutura" },
+        { status: 403 }
+      );
+    }
+
     const operadorExiste = await prisma.operador.findUnique({
       where: { id: operadorId },
     });
@@ -279,6 +288,14 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json(
         { erro: "Operador nao autenticado" },
         { status: 401 }
+      );
+    }
+
+    const permissoes = session?.user?.permissions ?? [];
+    if (!hasPermission(permissoes, PERMISSIONS.ESTRUTURA_EDIT)) {
+      return NextResponse.json(
+        { erro: "Sem permissao para alterar a estrutura" },
+        { status: 403 }
       );
     }
 

@@ -1,9 +1,19 @@
 export type PermissionCode = string;
 
+export const PERMISSIONS = {
+  ADOLESCENTES_CREATE: "ADOLESCENTES_CREATE",
+  ESTRUTURA_EDIT: "ESTRUTURA_EDIT",
+  ADOLESCENTES_EDIT_ALOJAMENTO: "ADOLESCENTES_EDIT_ALOJAMENTO",
+  CONFLITOS_EXTERNOS_VIEW: "CONFLITOS_EXTERNOS_VIEW",
+  CONFLITOS_EXTERNOS_MANAGE: "CONFLITOS_EXTERNOS_MANAGE",
+  JUSTIFICATIVAS_ALGEMA_VIEW: "JUSTIFICATIVAS_ALGEMA_VIEW",
+} as const;
+
 export const LEGACY_ROLE_PERMISSIONS: Record<string, PermissionCode[]> = {
   ADMIN: ["*"],
-  OPERADOR: [],
-  CONSULTA: [],
+  OPERADOR: ["FULL_ACCESS"],
+  CONSULTA: ["READ_ONLY", "CONFLITOS_EXTERNOS_VIEW"],
+  TECNICO_REFERENCIA: [],
 };
 
 export function mergePermissions(perms: PermissionCode[]): PermissionCode[] {
@@ -19,7 +29,7 @@ export function hasPermission(
     return false;
   }
   const normalized = userPermissions.map((p) => p.toUpperCase());
-  if (normalized.includes("*")) {
+  if (normalized.includes("*") || normalized.includes("FULL_ACCESS")) {
     return true;
   }
   const requiredList = Array.isArray(required) ? required : [required];

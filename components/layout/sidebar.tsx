@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 
 import { useAuth } from "@/hooks/useAuth";
+import { hasPermission, PERMISSIONS } from "@/lib/auth/permissions";
 
 type MenuEntry = {
   label: string;
@@ -61,6 +62,27 @@ export function Sidebar({
 
   const expanded = isOpen || (isDesktop && forceOpen);
 
+  const isAdmin = useMemo(() => {
+    const cargo = user?.cargo ?? "";
+    const roles = user?.roles ?? [];
+    return (
+      cargo.toUpperCase() === "ADMIN" ||
+      roles.some((role) => role.toUpperCase() === "ADMIN")
+    );
+  }, [user]);
+  const podeCadastrarAdolescente = useMemo(
+    () => hasPermission(user?.permissions, PERMISSIONS.ADOLESCENTES_CREATE),
+    [user?.permissions]
+  );
+  const podeVerConflitosExternos = useMemo(
+    () => hasPermission(user?.permissions, PERMISSIONS.CONFLITOS_EXTERNOS_VIEW),
+    [user?.permissions]
+  );
+  const podeVerJustificativas = useMemo(
+    () => hasPermission(user?.permissions, PERMISSIONS.JUSTIFICATIVAS_ALGEMA_VIEW),
+    [user?.permissions]
+  );
+
   const menuItems: MenuSection[] = useMemo(
     () => [
       {
@@ -74,7 +96,15 @@ export function Sidebar({
         section: "Adolescentes",
         items: [
           { label: "Lista de Adolescentes", href: "/adolescentes", icon: Users },
-          { label: "Novo Cadastro", href: "/adolescentes/novo", icon: UserPlus },
+          ...(podeCadastrarAdolescente
+            ? [
+                {
+                  label: "Novo Cadastro",
+                  href: "/adolescentes/novo",
+                  icon: UserPlus,
+                },
+              ]
+            : []),
         ],
       },
       {
@@ -82,11 +112,15 @@ export function Sidebar({
         items: [
           { label: "Comunicados Internos", href: "/comunicados", icon: FileText },
           { label: "Conflitos Internos", href: "/conflitos", icon: Swords },
-          {
-            label: "Conflitos Externos",
-            href: "/inteligencia/conflitos",
-            icon: BarChart3,
-          },
+          ...(podeVerConflitosExternos
+            ? [
+                {
+                  label: "Conflitos Externos",
+                  href: "/inteligencia/conflitos",
+                  icon: BarChart3,
+                },
+              ]
+            : []),
           { label: "Alertas Ativos", href: "/alertas", icon: AlertTriangle },
           { label: "Grupos de Atividade", href: "/grupos", icon: UserCircle },
           {
@@ -103,7 +137,15 @@ export function Sidebar({
         items: [
           { label: "Central de Relatorios", href: "/relatorios", icon: FileText },
           { label: "Analytics", href: "/analytics", icon: PieChart },
-          { label: "Justificativas de Algema", href: "/justificativas-algema", icon: Shield },
+          ...(podeVerJustificativas
+            ? [
+                {
+                  label: "Justificativas de Algema",
+                  href: "/justificativas-algema",
+                  icon: Shield,
+                },
+              ]
+            : []),
         ],
       },
       {
@@ -120,8 +162,15 @@ export function Sidebar({
           { label: "Usuarios & Permissoes", href: "/configuracoes/usuarios", icon: Settings },
         ],
       },
-    ],
-    []
+    ]
+      .map((section) => {
+        if (section.section !== "Configuracoes") {
+          return section;
+        }
+        return isAdmin ? section : { ...section, items: [] };
+      })
+      .filter((section) => section.items.length > 0),
+    [isAdmin, podeCadastrarAdolescente, podeVerConflitosExternos, podeVerJustificativas]
   );
 
   const isActive = (href: string) => {

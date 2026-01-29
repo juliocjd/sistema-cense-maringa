@@ -19,6 +19,8 @@ import {
   MapPin,
   RefreshCw,
 } from "lucide-react";
+import PermissionGuard from "@/components/auth/permission-guard";
+import { PERMISSIONS } from "@/lib/auth/permissions";
 
 interface Adolescente {
   id: string;
@@ -373,8 +375,9 @@ export default function NovaJustificativaPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
-      <div className="max-w-5xl mx-auto">
+    <PermissionGuard required={PERMISSIONS.JUSTIFICATIVAS_ALGEMA_VIEW}>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
+        <div className="max-w-5xl mx-auto">
         <div className="mb-6">
           <button
             onClick={() => router.back()}
@@ -922,7 +925,8 @@ export default function NovaJustificativaPage() {
             </div>
           </div>
         </div>
+        </div>
       </div>
-    </div>
+    </PermissionGuard>
   );
 }

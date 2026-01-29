@@ -163,6 +163,7 @@ interface ModalAlojamentoDetalhesProps {
     documentoTipo: InterdicaoDocumentoTipo,
     documentoReferencia: string
   ) => Promise<void>;
+  readOnly?: boolean;
 }
 
 const nivelClasses: Record<string, string> = {
@@ -282,7 +283,9 @@ export default function ModalAlojamentoDetalhes({
   onSolicitarAlocacao,
   onInterditar,
   onLiberarInterdicao,
+  readOnly = false,
 }: ModalAlojamentoDetalhesProps) {
+  const somenteLeitura = readOnly;
   const ocupante = alojamento?.adolescentes?.[0] ?? null;
   const alertasEspeciaisPorTipo = useMemo(() => {
     if (!ocupante?.alertasEspeciais?.length) {
@@ -471,10 +474,13 @@ export default function ModalAlojamentoDetalhes({
 
   // Auto-verify risk when alojamento is selected for transfer
   useEffect(() => {
+    if (somenteLeitura) {
+      return;
+    }
     if (transferenciaAlojamentoId && ocupante) {
       verificarTransferencia();
     }
-  }, [transferenciaAlojamentoId, ocupante?.id]);
+  }, [somenteLeitura, transferenciaAlojamentoId, ocupante?.id]);
 
   const localizarAdolescente = (
     adolescenteId?: string | null
@@ -1077,6 +1083,12 @@ const motivosAmbientaisDetalhados = useMemo<MotivoAmbientalDetalhado[]>(() => {
   }, [casas, transferenciaCasaId, alojamento]);
 
   const verificarTransferencia = async () => {
+    if (somenteLeitura) {
+      setTransferenciaErro(
+        "Acesso somente leitura: transferencia bloqueada para seu perfil."
+      );
+      return;
+    }
     if (!ocupante || !transferenciaAlojamentoId) return;
 
     setTransferindo(true);
@@ -1116,6 +1128,12 @@ const motivosAmbientaisDetalhados = useMemo<MotivoAmbientalDetalhado[]>(() => {
     : false;
 
   const confirmarTransferencia = async () => {
+    if (somenteLeitura) {
+      setTransferenciaErro(
+        "Acesso somente leitura: transferencia bloqueada para seu perfil."
+      );
+      return;
+    }
     if (!ocupante || !transferenciaAlojamentoId) {
       setTransferenciaErro("Selecione o alojamento de destino.");
       return;
@@ -1233,6 +1251,12 @@ const motivosAmbientaisDetalhados = useMemo<MotivoAmbientalDetalhado[]>(() => {
   };
 
   const buscarSugestoes = async () => {
+    if (somenteLeitura) {
+      setErroSugestoes(
+        "Acesso somente leitura: sugestoes bloqueadas para seu perfil."
+      );
+      return;
+    }
     if (!ocupante) return;
     setCarregandoSugestoes(true);
     setErroSugestoes(null);
@@ -1418,6 +1442,11 @@ const motivosAmbientaisDetalhados = useMemo<MotivoAmbientalDetalhado[]>(() => {
             <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-2 text-sm text-amber-800">
               Este alojamento esta interditado. Atualize os dados ou libere o leito na aba
               Interdicao.
+            </div>
+          )}
+          {somenteLeitura && (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-xs text-slate-600">
+              Acesso somente leitura: operacoes de alocacao, transferencia e interdicao estao bloqueadas.
             </div>
           )}
 
@@ -1875,47 +1904,53 @@ const motivosAmbientaisDetalhados = useMemo<MotivoAmbientalDetalhado[]>(() => {
                     </div>
                   )}
 
-                  <div className="flex flex-wrap gap-3 items-center">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        onDesalocar(alojamento.id, ocupante.id, "Remocao manual")
-                      }
-                      disabled={desinternandoLocal || desinternandoId === ocupante.id}
-                      className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-60 disabled:cursor-not-allowed"
-                    >
-                      Remover do alojamento
-                    </button>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        setDesinternandoLocal(true);
-                        try {
-                          await onDesinternar(ocupante.id);
-                          onClose();
-                        } finally {
-                          setDesinternandoLocal(false);
+                  {somenteLeitura ? (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                      Acesso somente leitura: remoção e desinternação estão bloqueadas para seu perfil.
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-3 items-center">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onDesalocar(alojamento.id, ocupante.id, "Remocao manual")
                         }
-                      }}
-                      disabled={desinternandoLocal || desinternandoId === ocupante.id}
-                      className="rounded-lg border border-amber-300 px-4 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-60 disabled:cursor-not-allowed"
-                    >
-                      <span className="inline-flex items-center gap-2">
-                        {(desinternandoLocal ||
-                          desinternandoId === ocupante.id) && (
-                          <Activity className="h-4 w-4 animate-spin" />
-                        )}
-                        {desinternandoLocal || desinternandoId === ocupante.id
-                          ? "Processando..."
-                          : "Desinternar"}
-                      </span>
-                    </button>
-                    {(desinternandoLocal || desinternandoId === ocupante.id) && (
-                      <span className="text-xs text-amber-700">
-                        Aguarde, estamos registrando a desinternacao.
-                      </span>
-                    )}
-                  </div>
+                        disabled={desinternandoLocal || desinternandoId === ocupante.id}
+                        className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-60 disabled:cursor-not-allowed"
+                      >
+                        Remover do alojamento
+                      </button>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          setDesinternandoLocal(true);
+                          try {
+                            await onDesinternar(ocupante.id);
+                            onClose();
+                          } finally {
+                            setDesinternandoLocal(false);
+                          }
+                        }}
+                        disabled={desinternandoLocal || desinternandoId === ocupante.id}
+                        className="rounded-lg border border-amber-300 px-4 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-60 disabled:cursor-not-allowed"
+                      >
+                        <span className="inline-flex items-center gap-2">
+                          {(desinternandoLocal ||
+                            desinternandoId === ocupante.id) && (
+                            <Activity className="h-4 w-4 animate-spin" />
+                          )}
+                          {desinternandoLocal || desinternandoId === ocupante.id
+                            ? "Processando..."
+                            : "Desinternar"}
+                        </span>
+                      </button>
+                      {(desinternandoLocal || desinternandoId === ocupante.id) && (
+                        <span className="text-xs text-amber-700">
+                          Aguarde, estamos registrando a desinternacao.
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -1923,13 +1958,19 @@ const motivosAmbientaisDetalhados = useMemo<MotivoAmbientalDetalhado[]>(() => {
                     Este alojamento esta livre. Utilize o botao abaixo para iniciar
                     uma nova alocacao.
                   </p>
-                  <button
-                    type="button"
-                    onClick={onSolicitarAlocacao}
-                    className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500"
-                  >
-                    Alocar adolescente
-                  </button>
+                  {somenteLeitura ? (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                      Acesso somente leitura: alocação está bloqueada para seu perfil.
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={onSolicitarAlocacao}
+                      className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500"
+                    >
+                      Alocar adolescente
+                    </button>
+                  )}
                 </div>
               )}
             </section>
@@ -1941,7 +1982,12 @@ const motivosAmbientaisDetalhados = useMemo<MotivoAmbientalDetalhado[]>(() => {
                 Transferir / realocar
               </h3>
 
-              {ocupante ? (
+              {somenteLeitura ? (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+                  Acesso somente leitura: transferencias e realocacoes estao
+                  bloqueadas para seu perfil.
+                </div>
+              ) : ocupante ? (
                 <>
                   <div className="flex flex-wrap items-center gap-3 mb-4">
                     <p className="text-sm text-slate-600">
@@ -2235,6 +2281,11 @@ const motivosAmbientaisDetalhados = useMemo<MotivoAmbientalDetalhado[]>(() => {
                   Remova ou transfira o adolescente atual antes de prosseguir com a interdicao.
                 </div>
               )}
+              {somenteLeitura && (
+                <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+                  Acesso somente leitura: interdição está bloqueada para seu perfil.
+                </div>
+              )}
 
               <div className="grid gap-4 lg:grid-cols-[1.3fr,0.9fr]">
                 <div>
@@ -2245,6 +2296,7 @@ const motivosAmbientaisDetalhados = useMemo<MotivoAmbientalDetalhado[]>(() => {
                     value={interdicaoJustificativa}
                     onChange={(event) => setInterdicaoJustificativa(event.target.value)}
                     rows={2}
+                    disabled={somenteLeitura}
                     className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:outline-none resize-none"
                   />
                 </div>
@@ -2260,6 +2312,7 @@ const motivosAmbientaisDetalhados = useMemo<MotivoAmbientalDetalhado[]>(() => {
                           event.target.value as InterdicaoDocumentoTipo
                         )
                       }
+                      disabled={somenteLeitura}
                       className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:outline-none bg-white"
                     >
                       <option value="">Selecione</option>
@@ -2281,6 +2334,7 @@ const motivosAmbientaisDetalhados = useMemo<MotivoAmbientalDetalhado[]>(() => {
                       onChange={(event) =>
                         setInterdicaoDocumentoReferencia(event.target.value)
                       }
+                      disabled={somenteLeitura}
                       className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:outline-none"
                     />
                   </div>
@@ -2296,7 +2350,7 @@ const motivosAmbientaisDetalhados = useMemo<MotivoAmbientalDetalhado[]>(() => {
                   <button
                     type="button"
                     onClick={() => executarInterdicao("INTERDITAR", false)}
-                    disabled={interdicaoLoading}
+                    disabled={interdicaoLoading || somenteLeitura}
                     className="rounded-lg px-4 py-2 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60"
                   >
                     {interdicaoLoading ? "Processando..." : "Atualizar dados"}
@@ -2308,14 +2362,16 @@ const motivosAmbientaisDetalhados = useMemo<MotivoAmbientalDetalhado[]>(() => {
                     executarInterdicao(statusInterditado ? "LIBERAR" : "INTERDITAR")
                   }
                   disabled={
-                    interdicaoLoading || (!statusInterditado && !podeInterditar)
+                    interdicaoLoading ||
+                    somenteLeitura ||
+                    (!statusInterditado && !podeInterditar)
                   }
                   className={`rounded-lg px-4 py-2 text-sm font-semibold text-white ${
                     statusInterditado
                       ? "bg-slate-600 hover:bg-slate-500"
                       : "bg-red-600 hover:bg-red-500"
                   } ${
-                    !statusInterditado && !podeInterditar
+                    somenteLeitura || (!statusInterditado && !podeInterditar)
                       ? "opacity-60 cursor-not-allowed"
                       : ""
                   }`}

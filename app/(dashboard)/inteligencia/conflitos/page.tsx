@@ -1,5 +1,7 @@
 "use server";
 
+import { redirect } from "next/navigation";
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import {
   listarConflitosExternos,
@@ -12,6 +14,7 @@ import CatalogoFaccoesCard from "@/components/conflitos/catalogo-faccoes-card";
 import RelatorioImpactoModalTrigger from "@/components/conflitos/relatorio-impacto-modal-trigger";
 import RelatorioAfiliacoesModalTrigger from "@/components/conflitos/relatorio-afiliacoes-modal";
 import { CatalogoBairro, CatalogoFaccao } from "@/types/inteligencia";
+import { hasPermission, PERMISSIONS } from "@/lib/auth/permissions";
 
 async function buscarCatalogoBairros(): Promise<CatalogoBairro[]> {
   const bairros = await prisma.bairro.findMany({
@@ -66,6 +69,12 @@ type PageProps = {
 export default async function InteligenciaConflitos({
   searchParams,
 }: PageProps) {
+  const session = await auth().catch(() => null);
+  const permissoes = session?.user?.permissions ?? [];
+  if (!hasPermission(permissoes, PERMISSIONS.CONFLITOS_EXTERNOS_VIEW)) {
+    redirect("/dashboard");
+  }
+
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const conflitoIdDefault = resolvedSearchParams?.conflitoId ?? null;
   const [bairros, faccoes, conflitos, impactoResumo] = await Promise.all([

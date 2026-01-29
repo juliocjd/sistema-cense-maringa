@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Users,
@@ -17,6 +17,8 @@ import {
   Mail,
   UserCheck,
 } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { hasPermission, PERMISSIONS } from "@/lib/auth/permissions";
 
 type DashboardStats = {
   totalAdolescentes: number;
@@ -44,6 +46,15 @@ type DashboardStats = {
 };
 
 export default function DashboardPage() {
+  const { user } = useAuth();
+  const podeCadastrarAdolescente = useMemo(
+    () => hasPermission(user?.permissions, PERMISSIONS.ADOLESCENTES_CREATE),
+    [user?.permissions]
+  );
+  const podeVerConflitosExternos = useMemo(
+    () => hasPermission(user?.permissions, PERMISSIONS.CONFLITOS_EXTERNOS_VIEW),
+    [user?.permissions]
+  );
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -171,13 +182,17 @@ export default function DashboardPage() {
       link: "/estrutura",
       cor: "indigo",
     },
-    {
-      titulo: "Novo Adolescente",
-      descricao: "Cadastrar novo adolescente",
-      icone: UserPlus,
-      link: "/adolescentes/novo",
-      cor: "green",
-    },
+    ...(podeCadastrarAdolescente
+      ? [
+          {
+            titulo: "Novo Adolescente",
+            descricao: "Cadastrar novo adolescente",
+            icone: UserPlus,
+            link: "/adolescentes/novo",
+            cor: "green",
+          },
+        ]
+      : []),
     {
       titulo: "Portaria",
       descricao: "Controle de visitantes e reconhecimento facial",
@@ -199,13 +214,17 @@ export default function DashboardPage() {
       link: "/grupos",
       cor: "purple",
     },
-    {
-      titulo: "Inteligência",
-      descricao: "Gerenciar bairros, facções e conflitos externos",
-      icone: Shield,
-      link: "/inteligencia",
-      cor: "blue",
-    },
+    ...(podeVerConflitosExternos
+      ? [
+          {
+            titulo: "Inteligência",
+            descricao: "Gerenciar bairros, facções e conflitos externos",
+            icone: Shield,
+            link: "/inteligencia",
+            cor: "blue",
+          },
+        ]
+      : []),
     {
       titulo: "Analytics",
       descricao: "Visualizar métricas e indicadores",

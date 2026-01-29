@@ -49,12 +49,12 @@ const mapOperadorPermissions = (operador: {
   );
 
   const legacyRole = (operador.funcaoRole ?? "OPERADOR").toUpperCase();
-  const roles =
-    rolesFromDb.length > 0 ? rolesFromDb : [legacyRole];
+  const hasDbRoles = rolesFromDb.length > 0;
+  const roles = hasDbRoles ? rolesFromDb : [legacyRole];
 
   const fallbackPerms = LEGACY_ROLE_PERMISSIONS[legacyRole] ?? [];
   const permissions = mergePermissions(
-    permissoesFromDb.length > 0 ? permissoesFromDb : fallbackPerms
+    hasDbRoles ? permissoesFromDb : fallbackPerms
   );
 
   return { roles, permissions };

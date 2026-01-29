@@ -24,6 +24,7 @@ import type {
   AdolescenteCadastroPayload,
   AdolescenteHistoricoInfracionalItem,
   AdolescenteHistoricoRegistroInput,
+  AdolescenteFaccaoHistoricoItem,
   FaccaoCatalogo,
   BairroCatalogo,
   TatuagemCatalogo,
@@ -35,6 +36,8 @@ import {
   ALERTAS_ESPECIAIS,
   type AlertaEspecialTipo,
 } from "@/lib/alertas/especiais";
+import { useAuth } from "@/hooks/useAuth";
+import { hasPermission, PERMISSIONS } from "@/lib/auth/permissions";
 
 const STATUS_OPCOES: Array<{ value: StatusUnidade; label: string }> = [
   { value: "ATIVO", label: "Ativo / Internado" },
@@ -185,10 +188,19 @@ export function CadastroAdolescente({
   initialData,
   modo = "CADASTRO",
   permitirAlocacaoAutomatica,
-}: CadastroAdolescenteProps) {
-  const ehEdicao = modo === "EDICAO";
-  const podeSelecionarAlojamento =
-    permitirAlocacaoAutomatica ?? !ehEdicao;
+  }: CadastroAdolescenteProps) {
+    const ehEdicao = modo === "EDICAO";
+    const { user } = useAuth();
+    const podeAlterarAlojamento = useMemo(
+      () =>
+        hasPermission(
+          user?.permissions,
+          PERMISSIONS.ADOLESCENTES_EDIT_ALOJAMENTO
+        ),
+      [user?.permissions]
+    );
+    const podeSelecionarAlojamento =
+      (permitirAlocacaoAutomatica ?? !ehEdicao) && podeAlterarAlojamento;
   const tituloPagina = ehEdicao
     ? "Editar adolescente"
     : "Cadastro de Adolescente";
@@ -238,7 +250,10 @@ export function CadastroAdolescente({
   });
 
   const [atoInfracional, setAtoInfracional] = useState({
+    catalogoId: "",
     descricao: "",
+    gravidadeCatalogo: "",
+    violenciaCatalogo: null as boolean | null,
     ano: "",
     processo: "",
     gravidade: false,
@@ -248,6 +263,7 @@ export function CadastroAdolescente({
       unidade: string;
       ano: string;
       observacoes?: string;
+      catalogoId?: string;
     }[],
   });
   const [historicoExistente, setHistoricoExistente] = useState<
@@ -261,6 +277,30 @@ export function CadastroAdolescente({
     faccaoOrigemDetalhe: "",
     bairroId: "",
     riscoFuga: "BAIXO" as RiscoFuga,
+  });
+  const [faccaoHistorico, setFaccaoHistorico] = useState<
+    AdolescenteFaccaoHistoricoItem[]
+  >(initialData?.faccaoHistorico ?? []);
+  const [modalDeclaracaoFaccao, setModalDeclaracaoFaccao] = useState<{
+    aberto: boolean;
+    faccaoId: string;
+    funcao: string;
+    origem: "" | "CONFESSADA" | "OBSERVACAO" | "INTELIGENCIA" | "TERCEIROS" | "NAO_INFORMADO";
+    nivelConfianca: "" | "BAIXO" | "MEDIO" | "ALTO" | "NAO_AVALIADO";
+    observacao: string;
+    fonte: string;
+    salvando: boolean;
+    erro: string | null;
+  }>({
+    aberto: false,
+    faccaoId: "",
+    funcao: "",
+    origem: "NAO_INFORMADO",
+    nivelConfianca: "NAO_AVALIADO",
+    observacao: "",
+    fonte: "",
+    salvando: false,
+    erro: null,
   });
   const [riscoFugaOrigemInfo, setRiscoFugaOrigemInfo] = useState<
     Adolescente["riscoFugaOrigem"] | null
@@ -437,11 +477,15 @@ export function CadastroAdolescente({
         : ""
     );
 
-    setAtoInfracional({
-      descricao: initialData.atoInfracionalAtual ?? "",
-      ano: initialData.atoInfracionalAno
-        ? String(initialData.atoInfracionalAno)
-        : "",
+  setAtoInfracional({
+    catalogoId: initialData.atoInfracionalAtualId ?? "",
+    descricao: initialData.atoInfracionalAtual ?? "",
+    gravidadeCatalogo: initialData.atoInfracionalCatalogoGravidade ?? "",
+    violenciaCatalogo:
+      initialData.atoInfracionalCatalogoViolencia ?? null,
+    ano: initialData.atoInfracionalAno
+      ? String(initialData.atoInfracionalAno)
+      : "",
       processo:
         initialData.atoInfracionalProcesso ??
         initialData.numeroProcesso ??
@@ -462,6 +506,7 @@ export function CadastroAdolescente({
       bairroId: initialData.bairroOrigemId ?? "",
       riscoFuga: (initialData.riscoFuga as RiscoFuga) ?? "BAIXO",
     });
+    setFaccaoHistorico(initialData.faccaoHistorico ?? []);
     setTecnicosReferenciaIds(
       Array.isArray(initialData.tecnicosReferencia)
         ? initialData.tecnicosReferencia.map((tec) => tec.id)
@@ -611,6 +656,12 @@ export function CadastroAdolescente({
   }, [sugestoesOriginais, tipoInternacao]);
 
   const buscarSugestoesAlojamento = async () => {
+    if (!podeSelecionarAlojamento) {
+      setErroSugestoes(
+        "Sem permissao para selecionar alojamento para este perfil."
+      );
+      return;
+    }
     if (!vinculacoes.bairroId && !vinculacoes.faccaoId) {
       setErroSugestoes(
         "Informe o bairro ou a faccao antes de solicitar sugestoes."
@@ -694,6 +745,53 @@ export function CadastroAdolescente({
     bairros: [],
     tatuagens: [],
   });
+  const [atoSugestoes, setAtoSugestoes] = useState<
+    Array<{
+      id: string;
+      nome: string;
+      ativo: boolean;
+      gravidade?: string | null;
+      violenciaOuGraveAmeaca?: boolean | null;
+    }>
+  >([]);
+  const [buscandoAto, setBuscandoAto] = useState(false);
+  const [mostrarSugestoesAto, setMostrarSugestoesAto] = useState(false);
+  const [gestaoAtos, setGestaoAtos] = useState<{
+    aberto: boolean;
+    itens: Array<{
+      id: string;
+      nome: string;
+      gravidade?: string | null;
+      violenciaOuGraveAmeaca?: boolean | null;
+      ativo: boolean;
+    }>;
+    busca: string;
+    carregando: boolean;
+    erro: string | null;
+    salvandoId: string | null;
+  }>({
+    aberto: false,
+    itens: [],
+    busca: "",
+    carregando: false,
+    erro: null,
+    salvandoId: null,
+  });
+  const [modalNovoAto, setModalNovoAto] = useState<{
+    aberto: boolean;
+    nome: string;
+    gravidade: string;
+    violenciaOuGraveAmeaca: boolean;
+    erro: string | null;
+    salvando: boolean;
+  }>({
+    aberto: false,
+    nome: "",
+    gravidade: "",
+    violenciaOuGraveAmeaca: false,
+    erro: null,
+    salvando: false,
+  });
 
   useEffect(() => {
     if (statusUnidade !== "ATIVO") {
@@ -708,6 +806,165 @@ export function CadastroAdolescente({
       setTipoInternacao(null);
     }
   }, [statusUnidade]);
+
+  useEffect(() => {
+    const termo = atoInfracional.descricao.trim();
+    if (termo.length < 2) {
+      setAtoSugestoes([]);
+      return;
+    }
+
+    const handle = window.setTimeout(async () => {
+      setBuscandoAto(true);
+      try {
+        const response = await fetch(
+          `/api/atos-infracionais?busca=${encodeURIComponent(termo)}`
+        );
+        if (response.ok) {
+          const payload = await response.json();
+          if (Array.isArray(payload?.atos)) {
+            setAtoSugestoes(payload.atos);
+          }
+        }
+      } catch (error) {
+        console.error("Erro ao buscar atos infracionais", error);
+      } finally {
+        setBuscandoAto(false);
+      }
+    }, 250);
+
+    return () => window.clearTimeout(handle);
+  }, [atoInfracional.descricao]);
+
+  const carregarGestaoAtos = async (termo?: string) => {
+    setGestaoAtos((prev) => ({ ...prev, carregando: true, erro: null }));
+    try {
+      const params = new URLSearchParams();
+      params.set("incluirInativos", "true");
+      if (termo && termo.trim().length >= 1) {
+        params.set("busca", termo.trim());
+      }
+      const response = await fetch(`/api/atos-infracionais?${params.toString()}`);
+      if (!response.ok) {
+        throw new Error("Falha ao carregar atos infracionais");
+      }
+      const payload = await response.json();
+      const itens = Array.isArray(payload?.atos) ? payload.atos : [];
+      setGestaoAtos((prev) => ({ ...prev, itens, carregando: false }));
+    } catch (error: any) {
+      console.error(error);
+      setGestaoAtos((prev) => ({
+        ...prev,
+        carregando: false,
+        erro: error?.message ?? "Erro ao carregar atos",
+      }));
+    }
+  };
+
+  const abrirGestaoAtos = () => {
+    setGestaoAtos((prev) => ({
+      ...prev,
+      aberto: true,
+      erro: null,
+    }));
+    carregarGestaoAtos(gestaoAtos.busca);
+  };
+
+  const fecharGestaoAtos = () => {
+    setGestaoAtos((prev) => ({
+      ...prev,
+      aberto: false,
+      salvandoId: null,
+      erro: null,
+    }));
+  };
+
+  const atualizarCampoGestao = (
+    id: string,
+    campo: "nome" | "gravidade" | "violenciaOuGraveAmeaca" | "ativo",
+    valor: any
+  ) => {
+    setGestaoAtos((prev) => ({
+      ...prev,
+      itens: prev.itens.map((item) =>
+        item.id === id ? { ...item, [campo]: valor } : item
+      ),
+    }));
+  };
+
+  const salvarGestaoAto = async (id: string) => {
+    const item = gestaoAtos.itens.find((i) => i.id === id);
+    if (!item) return;
+    setGestaoAtos((prev) => ({ ...prev, salvandoId: id, erro: null }));
+    try {
+      const response = await fetch("/api/atos-infracionais", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id,
+          nome: item.nome,
+          gravidade: item.gravidade ?? null,
+          violenciaOuGraveAmeaca: !!item.violenciaOuGraveAmeaca,
+          ativo: item.ativo,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.erro ?? "Nao foi possivel salvar");
+      }
+      // Atualiza lista com dados retornados
+      setGestaoAtos((prev) => ({
+        ...prev,
+        salvandoId: null,
+        itens: prev.itens.map((i) =>
+          i.id === id
+            ? {
+                ...i,
+                nome: payload.nome ?? i.nome,
+                gravidade: payload.gravidade ?? i.gravidade,
+                violenciaOuGraveAmeaca:
+                  payload.violenciaOuGraveAmeaca ?? i.violenciaOuGraveAmeaca,
+                ativo: payload.ativo ?? i.ativo,
+              }
+            : i
+        ),
+      }));
+      // Atualiza sugestões locais caso o item seja usado
+      setAtoSugestoes((prev) =>
+        prev.map((s) =>
+          s.id === id
+            ? {
+                ...s,
+                nome: payload.nome ?? s.nome,
+                gravidade: payload.gravidade ?? s.gravidade,
+                violenciaOuGraveAmeaca:
+                  payload.violenciaOuGraveAmeaca ?? s.violenciaOuGraveAmeaca,
+                ativo: payload.ativo ?? s.ativo,
+              }
+            : s
+        )
+      );
+      // Se o ato selecionado no formulário for este, reflita imediatamente
+      setAtoInfracional((prev) =>
+        prev.catalogoId === id
+          ? {
+              ...prev,
+              descricao: payload.nome ?? prev.descricao,
+              gravidadeCatalogo: payload.gravidade ?? prev.gravidadeCatalogo,
+              violenciaCatalogo:
+                payload.violenciaOuGraveAmeaca ?? prev.violenciaCatalogo,
+            }
+          : prev
+      );
+    } catch (error: any) {
+      console.error(error);
+      setGestaoAtos((prev) => ({
+        ...prev,
+        salvandoId: null,
+        erro: error?.message ?? "Erro ao salvar ato",
+      }));
+    }
+  };
   const [modalNovoBairro, setModalNovoBairro] = useState<{
     aberto: boolean;
     nome: string;
@@ -806,6 +1063,96 @@ export function CadastroAdolescente({
     () => referencias.bairros,
     [referencias.bairros]
   );
+
+const selecionarAtoCatalogo = (ato: {
+  id: string;
+  nome: string;
+  gravidade?: string | null;
+  violenciaOuGraveAmeaca?: boolean | null;
+}) => {
+  setAtoInfracional((prev) => ({
+    ...prev,
+    catalogoId: ato.id,
+    descricao: ato.nome,
+    gravidadeCatalogo: ato.gravidade ?? "",
+    violenciaCatalogo:
+      ato.violenciaOuGraveAmeaca ?? prev.violenciaCatalogo ?? null,
+  }));
+  setMostrarSugestoesAto(false);
+};
+
+  const abrirModalNovoAto = () => {
+    setModalNovoAto({
+      aberto: true,
+      nome: atoInfracional.descricao,
+      gravidade: "",
+      violenciaOuGraveAmeaca: false,
+      erro: null,
+      salvando: false,
+    });
+  };
+
+  const fecharModalNovoAto = () => {
+    setModalNovoAto({
+      aberto: false,
+      nome: "",
+      gravidade: "",
+      violenciaOuGraveAmeaca: false,
+      erro: null,
+      salvando: false,
+    });
+  };
+
+  const salvarNovoAto = async () => {
+    if (modalNovoAto.salvando) return;
+    const nome = modalNovoAto.nome.trim();
+    if (nome.length < 3) {
+      setModalNovoAto((prev) => ({ ...prev, erro: "Informe um nome com pelo menos 3 caracteres." }));
+      return;
+    }
+    setModalNovoAto((prev) => ({ ...prev, salvando: true, erro: null }));
+    try {
+      const response = await fetch("/api/atos-infracionais", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nome,
+          gravidade: modalNovoAto.gravidade || undefined,
+          violenciaOuGraveAmeaca: modalNovoAto.violenciaOuGraveAmeaca,
+        }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        setModalNovoAto((prev) => ({
+          ...prev,
+          salvando: false,
+          erro: payload?.erro ?? "Nao foi possivel salvar o ato infracional.",
+        }));
+        return;
+      }
+
+      const novo = {
+        id: payload.id as string,
+        nome: payload.nome as string,
+        ativo: payload.ativo !== false,
+        gravidade: payload.gravidade ?? null,
+        violenciaOuGraveAmeaca:
+          payload.violenciaOuGraveAmeaca ?? false,
+      };
+      setAtoSugestoes((prev) => [novo, ...prev]);
+      selecionarAtoCatalogo(novo);
+      fecharModalNovoAto();
+    } catch (error) {
+      console.error("Erro ao salvar novo ato infracional:", error);
+      setModalNovoAto((prev) => ({
+        ...prev,
+        salvando: false,
+        erro: "Erro ao salvar novo ato infracional.",
+      }));
+    }
+  };
 
   const abrirModalNovoBairro = () => {
     setModalNovoBairro({
@@ -1050,6 +1397,77 @@ export function CadastroAdolescente({
     if (etapaAtual < etapas.length) setEtapaAtual(etapaAtual + 1);
   };
 
+  const abrirModalDeclaracaoFaccao = () => {
+    setModalDeclaracaoFaccao({
+      aberto: true,
+      faccaoId: vinculacoes.faccaoId,
+      funcao: vinculacoes.faccaoFuncao,
+      origem: (vinculacoes.faccaoOrigem || "NAO_INFORMADO") as
+        | "CONFESSADA"
+        | "OBSERVACAO"
+        | "INTELIGENCIA"
+        | "TERCEIROS"
+        | "NAO_INFORMADO"
+        | "",
+      nivelConfianca: "NAO_AVALIADO",
+      observacao: vinculacoes.faccaoOrigemDetalhe,
+      fonte: "",
+      salvando: false,
+      erro: null,
+    });
+  };
+
+  const fecharModalDeclaracaoFaccao = () => {
+    setModalDeclaracaoFaccao((prev) => ({
+      ...prev,
+      aberto: false,
+      salvando: false,
+      erro: null,
+    }));
+  };
+
+  const salvarDeclaracaoFaccao = async () => {
+    if (!initialData?.id || modalDeclaracaoFaccao.salvando) return;
+    const payload: Record<string, any> = {
+      faccaoGrupoId: modalDeclaracaoFaccao.faccaoId || null,
+      faccaoFuncao: modalDeclaracaoFaccao.funcao || null,
+      faccaoInformacaoOrigem: modalDeclaracaoFaccao.origem || "NAO_INFORMADO",
+      faccaoInformacaoDetalhe: modalDeclaracaoFaccao.observacao || null,
+    };
+    setModalDeclaracaoFaccao((prev) => ({ ...prev, salvando: true, erro: null }));
+    try {
+      const response = await fetch(`/api/adolescentes/${initialData.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(result?.erro ?? "Nao foi possivel registrar declaracao");
+      }
+      // atualiza estados locais
+      setVinculacoes((prev) => ({
+        ...prev,
+        faccaoId: result.faccaoGrupoId ?? "",
+        faccaoFuncao: result.faccaoFuncao ?? "",
+        faccaoOrigem: (result.faccaoInformacaoOrigem ?? "") as
+          | ""
+          | "CONFESSADA"
+          | "OBSERVACAO",
+        faccaoOrigemDetalhe: result.faccaoInformacaoDetalhe ?? "",
+      }));
+      setFaccaoHistorico(result.faccaoHistorico ?? []);
+      fecharModalDeclaracaoFaccao();
+    } catch (error: any) {
+      console.error(error);
+      setModalDeclaracaoFaccao((prev) => ({
+        ...prev,
+        salvando: false,
+        erro: error?.message ?? "Erro ao registrar declaracao",
+      }));
+    }
+  };
+
   const etapaAnterior = () => {
     if (etapaAtual > 1) setEtapaAtual(etapaAtual - 1);
   };
@@ -1111,17 +1529,17 @@ export function CadastroAdolescente({
     }
 
     const descricaoAto = atoInfracional.descricao.trim();
+    const atoSelecionadoId = atoInfracional.catalogoId?.trim() ?? "";
     if (statusUnidade === "ATIVO") {
-      if (!descricaoAto) {
-        mensagens.push("Descreva o ato infracional atual.");
-        etapaErro = Math.max(etapaErro, 2);
-      } else if (descricaoAto.length < 5) {
-        mensagens.push("Detalhe o ato infracional atual com pelo menos 5 caracteres.");
+      if (!atoSelecionadoId) {
+        mensagens.push("Selecione o ato infracional atual a partir do catalogo.");
         etapaErro = Math.max(etapaErro, 2);
       }
-    } else if (descricaoAto && descricaoAto.length < 5) {
-      mensagens.push("Detalhe o ato infracional atual com pelo menos 5 caracteres.");
-      etapaErro = Math.max(etapaErro, 2);
+    } else if (descricaoAto || atoSelecionadoId) {
+      if (!atoSelecionadoId) {
+        mensagens.push("Selecione o ato infracional atual a partir do catalogo.");
+        etapaErro = Math.max(etapaErro, 2);
+      }
     }
 
     if (atoInfracional.ano.trim()) {
@@ -1254,6 +1672,7 @@ export function CadastroAdolescente({
               ano: anoValido ?? null,
               unidade: sanitize(item.unidade) ?? null,
               observacoes: sanitize(item.observacoes) ?? null,
+              catalogoId: item.catalogoId,
             };
           })
           .filter(
@@ -1278,7 +1697,8 @@ export function CadastroAdolescente({
           ? Number.parseInt(numeroInternoSanitizado, 10)
           : undefined,
         dataEntrada: sanitize(dadosPessoais.dataEntrada),
-        atoInfracionalAtual: sanitize(atoInfracional.descricao),
+        atoInfracionalAtualId:
+          atoInfracional.catalogoId?.trim() || undefined,
         atoInfracionalAno: anoValido,
         atoInfracionalProcesso: processoSanitizado,
         atoInfracionalGravidade: atoInfracional.gravidade,
@@ -1723,22 +2143,144 @@ export function CadastroAdolescente({
                 Ato Infracional
               </h2>
 
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Ato Infracional Atual
-                </label>
-                <textarea
-                  value={atoInfracional.descricao}
-                  onChange={(e) =>
-                    setAtoInfracional({
-                      ...atoInfracional,
-                      descricao: e.target.value,
-                    })
-                  }
-                  rows={3}
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all resize-none"
-                  placeholder="Ex: Analogos a roubo qualificado (art. 157, paragrafo 2, CP)"
-                />
+      <div className="space-y-2">
+        <label className="block text-sm font-semibold text-gray-700">
+          Ato Infracional Atual
+        </label>
+        <div className="relative">
+                  <input
+                    type="text"
+                    value={atoInfracional.descricao}
+                    onFocus={() => setMostrarSugestoesAto(true)}
+                    onChange={(e) => {
+                      setAtoInfracional({
+                        ...atoInfracional,
+                        descricao: e.target.value,
+                        catalogoId: "",
+                        gravidadeCatalogo: "",
+                        violenciaCatalogo: null,
+                      });
+                      setMostrarSugestoesAto(true);
+                    }}
+                    onBlur={() =>
+                      window.setTimeout(() => setMostrarSugestoesAto(false), 120)
+                    }
+            className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
+            placeholder="Digite para buscar no catalogo"
+          />
+                  {buscandoAto && (
+                    <Loader2 className="absolute right-3 top-3 h-5 w-5 animate-spin text-indigo-500" />
+                  )}
+                  {mostrarSugestoesAto &&
+                    (atoSugestoes.length > 0 ||
+                      atoInfracional.descricao.trim().length >= 2) && (
+                      <div className="absolute z-30 mt-1 max-h-52 w-full overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+                        {atoSugestoes.length === 0 && (
+                          <p className="px-3 py-2 text-sm text-slate-500">
+                            {buscandoAto
+                              ? "Buscando..."
+                              : "Nenhum ato encontrado para o termo informado."}
+                          </p>
+                        )}
+                        {atoSugestoes.map((ato) => (
+                          <button
+                            type="button"
+                            key={ato.id}
+                            onMouseDown={() => selecionarAtoCatalogo(ato)}
+                            className="flex w-full items-start gap-2 px-3 py-2 text-left hover:bg-indigo-50"
+                          >
+                            <div className="flex flex-col">
+                              <span className="font-semibold text-slate-800">
+                                {ato.nome}
+                              </span>
+                              {ato.gravidade && (
+                                <span className="text-[11px] font-semibold uppercase text-slate-500">
+                                  Gravidade: {ato.gravidade}
+                                </span>
+                              )}
+                              {ato.violenciaOuGraveAmeaca && (
+                                <span className="text-[11px] font-semibold uppercase text-rose-600">
+                                  Violencia ou grave ameaca
+                                </span>
+                              )}
+                            </div>
+                            {!ato.ativo && (
+                              <span className="rounded-full bg-amber-100 px-2 text-[10px] font-semibold uppercase text-amber-700">
+                                inativo
+                              </span>
+                            )}
+                          </button>
+                        ))}
+                        <div className="border-t border-slate-100 bg-slate-50 px-3 py-2">
+                          <button
+                            type="button"
+                            onMouseDown={abrirModalNovoAto}
+                            className="text-sm font-semibold text-indigo-700 hover:text-indigo-600"
+                          >
+                            + Cadastrar novo ato
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                </div>
+                <p className="text-xs text-gray-500">
+                  Digite para buscar e selecione um ato do catalogo. Se nao encontrar,
+                  cadastre um novo.
+                </p>
+                {atoInfracional.gravidadeCatalogo && (
+                  <p className="text-xs font-semibold text-slate-600">
+                    Gravidade catalogo: {atoInfracional.gravidadeCatalogo}
+                  </p>
+                )}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 uppercase">
+                      Gravidade (catalogo)
+                    </label>
+                    <input
+                      disabled
+                      value={atoInfracional.gravidadeCatalogo || "—"}
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700"
+                      readOnly
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 uppercase">
+                      Violencia ou grave ameaca (catalogo)
+                    </label>
+                    <input
+                      disabled
+                      value={
+                        atoInfracional.violenciaCatalogo === null
+                          ? "—"
+                          : atoInfracional.violenciaCatalogo
+                            ? "Sim"
+                            : "Não"
+                      }
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700"
+                      readOnly
+                    />
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      Campo abaixo “Ato com repercussao publica ou gravidade elevada” continua para a situação específica deste adolescente.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={abrirModalNovoAto}
+                    className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                  >
+                    Cadastrar novo ato
+                  </button>
+                  <button
+                    type="button"
+                    onClick={abrirGestaoAtos}
+                    className="ml-2 rounded-lg border border-indigo-200 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50"
+                  >
+                    Gerenciar Atos Infracionais
+                  </button>
+                </div>
               </div>
 
               <div className="space-y-4">
@@ -2035,11 +2577,11 @@ export function CadastroAdolescente({
                   </select>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Funcao dentro da organizacao
-                  </label>
-                  <input
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Funcao dentro da organizacao
+                </label>
+                <input
                     type="text"
                     value={vinculacoes.faccaoFuncao}
                     onChange={(e) =>
@@ -2056,6 +2598,76 @@ export function CadastroAdolescente({
                     Se conhecido, informe o papel desempenhado pelo adolescente dentro da faccao.
                   </p>
                 </div>
+
+                {initialData?.id && (
+                  <div className="md:col-span-2 rounded-xl border border-slate-200 p-4 bg-slate-50">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-700">
+                          Histórico de facção
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          A declaração atual fica ativa; anteriores permanecem registradas.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={abrirModalDeclaracaoFaccao}
+                        className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-500"
+                      >
+                        Nova declaração
+                      </button>
+                    </div>
+                    <div className="mt-3 space-y-2 max-h-64 overflow-auto pr-1">
+                      {faccaoHistorico.length === 0 && (
+                        <p className="text-xs text-slate-500">
+                          Nenhuma declaração registrada.
+                        </p>
+                      )}
+                      {faccaoHistorico.map((h) => (
+                        <div
+                          key={h.id}
+                          className="rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-700"
+                        >
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-semibold text-slate-800">
+                              {h.faccaoNome || "Sem faccao / nao informado"}
+                            </span>
+                            <span className="rounded-full bg-slate-100 px-2 py-[2px] text-[10px] font-semibold uppercase text-slate-600">
+                              {h.statusRegistro}
+                            </span>
+                            {h.nivelConfianca && (
+                              <span className="rounded-full bg-indigo-50 px-2 py-[2px] text-[10px] font-semibold uppercase text-indigo-700">
+                                Confiança: {h.nivelConfianca}
+                              </span>
+                            )}
+                            <span className="text-[10px] text-slate-500">
+                              Origem: {h.origemInformacao}
+                            </span>
+                            <span className="text-[10px] text-slate-500">
+                              {h.criadoEm}
+                            </span>
+                          </div>
+                          {h.funcao && (
+                            <p className="mt-1 text-[11px] text-slate-600">
+                              Função: {h.funcao}
+                            </p>
+                          )}
+                          {h.observacao && (
+                            <p className="mt-1 text-[11px] text-slate-600">
+                              Obs: {h.observacao}
+                            </p>
+                          )}
+                          {h.criadoPor && (
+                            <p className="mt-1 text-[10px] text-slate-500">
+                              Registrado por {h.criadoPor.nome}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <div className="md:col-span-2 space-y-2">
                   <label className="block text-sm font-semibold text-gray-700">
@@ -2324,6 +2936,11 @@ export function CadastroAdolescente({
             <Bed className="text-indigo-600" />
             Alojamento
           </h2>
+          {!podeSelecionarAlojamento && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+              Seu perfil permite apenas visualizar alojamentos. Alteracoes estao bloqueadas.
+            </div>
+          )}
 
           <div className="mb-4">
             <p className="text-sm font-semibold text-gray-700 mb-2">
@@ -2348,16 +2965,16 @@ export function CadastroAdolescente({
                     key={opcao.value}
                     type="button"
                     onClick={() => setTipoInternacao(opcao.value)}
-                    className={`flex-1 min-w-[140px] rounded-xl border px-4 py-2 text-left text-sm transition ${
+                  className={`flex-1 min-w-[140px] rounded-xl border px-4 py-2 text-left text-sm transition ${
                       ativo
                         ? "border-indigo-500 bg-indigo-50 text-indigo-700 shadow-sm"
                         : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
                     } ${
-                      statusUnidade !== "ATIVO"
+                      statusUnidade !== "ATIVO" || !podeSelecionarAlojamento
                         ? "opacity-50 cursor-not-allowed"
                         : ""
                     }`}
-                    disabled={statusUnidade !== "ATIVO"}
+                    disabled={statusUnidade !== "ATIVO" || !podeSelecionarAlojamento}
                   >
                     <span className="block font-semibold">{opcao.label}</span>
                     <span className="text-xs text-slate-500">{opcao.dica}</span>
@@ -2389,7 +3006,7 @@ export function CadastroAdolescente({
                 buscarSugestoesAlojamento();
               }}
               className="rounded-full border border-indigo-300 bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 disabled:opacity-60"
-              disabled={carregandoSugestoes || !tipoInternacao}
+              disabled={carregandoSugestoes || !tipoInternacao || !podeSelecionarAlojamento}
             >
               {carregandoSugestoes ? "Sugerindo..." : "Sugerir com base no risco"}
             </button>
@@ -2406,7 +3023,7 @@ export function CadastroAdolescente({
               if (statusUnidade !== "ATIVO") return;
               setAlojamentoSelecionado(e.target.value ? e.target.value : null);
             }}
-            disabled={statusUnidade !== "ATIVO"}
+            disabled={statusUnidade !== "ATIVO" || !podeSelecionarAlojamento}
             className={`w-full px-4 py-3 border-2 rounded-lg outline-none transition-all ${
               statusUnidade === "ATIVO"
                 ? "border-gray-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
@@ -2449,7 +3066,8 @@ export function CadastroAdolescente({
                     <button
                       type="button"
                       onClick={() => setAlojamentoSelecionado(sugestao.alojamentoId)}
-                      className="rounded-full border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100"
+                      disabled={!podeSelecionarAlojamento}
+                      className="rounded-full border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                       Usar
                     </button>
@@ -2743,6 +3361,250 @@ export function CadastroAdolescente({
           </div>
         </div>
       )}
+      {modalNovoAto.aberto && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <h3 className="text-lg font-semibold text-slate-900">
+              Cadastrar novo ato infracional
+            </h3>
+            <p className="text-sm text-slate-500">
+              Utilize este cadastro para manter o catalogo padronizado.
+            </p>
+
+      <div className="mt-4 space-y-3">
+        <div>
+          <label className="text-xs font-semibold uppercase text-slate-500">
+            Nome do ato infracional
+          </label>
+                <input
+                  type="text"
+                  value={modalNovoAto.nome}
+                  onChange={(event) =>
+                    setModalNovoAto((prev) => ({
+                      ...prev,
+                      nome: event.target.value,
+                      erro: null,
+                    }))
+                  }
+                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:outline-none"
+                  placeholder="Ex.: Roubo qualificado (art. 157, paragrafo 2)"
+                />
+              </div>
+          {modalNovoAto.erro && (
+            <p className="text-sm text-rose-600">{modalNovoAto.erro}</p>
+          )}
+        </div>
+        <div>
+          <label className="text-xs font-semibold uppercase text-slate-500">
+            Gravidade (catalogo)
+          </label>
+          <select
+            value={modalNovoAto.gravidade}
+            onChange={(event) =>
+              setModalNovoAto((prev) => ({
+                ...prev,
+                gravidade: event.target.value,
+              }))
+            }
+            className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:outline-none"
+          >
+            <option value="">Selecione</option>
+            <option value="LEVE">Leve</option>
+            <option value="MEDIO">Medio</option>
+            <option value="GRAVE">Grave</option>
+            <option value="HEDIONDO">Hediondo</option>
+          </select>
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            id="novo-ato-violencia"
+            type="checkbox"
+            className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+            checked={modalNovoAto.violenciaOuGraveAmeaca}
+            onChange={(event) =>
+              setModalNovoAto((prev) => ({
+                ...prev,
+                violenciaOuGraveAmeaca: event.target.checked,
+              }))
+            }
+          />
+          <label
+            htmlFor="novo-ato-violencia"
+            className="text-sm font-semibold text-slate-700"
+          >
+            Violencia ou grave ameaca
+          </label>
+        </div>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={fecharModalNovoAto}
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100"
+                disabled={modalNovoAto.salvando}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={salvarNovoAto}
+                disabled={modalNovoAto.salvando}
+                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:opacity-60"
+              >
+                {modalNovoAto.salvando ? "Salvando..." : "Salvar ato"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {gestaoAtos.aberto && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-3xl rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900">
+                  Gerenciar atos infracionais
+                </h3>
+                <p className="text-sm text-slate-500">
+                  Edite nome, gravidade, violência/grave ameaça ou ative/desative sem sair do cadastro.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={fecharGestaoAtos}
+                className="rounded-full border border-slate-200 px-3 py-1 text-sm font-semibold text-slate-600 hover:bg-slate-100"
+              >
+                Fechar
+              </button>
+            </div>
+
+            <div className="mt-4 flex items-center gap-3">
+              <input
+                type="text"
+                value={gestaoAtos.busca}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setGestaoAtos((prev) => ({ ...prev, busca: v }));
+                  carregarGestaoAtos(v);
+                }}
+                placeholder="Buscar por nome"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+              />
+              <button
+                type="button"
+                onClick={() => carregarGestaoAtos(gestaoAtos.busca)}
+                className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-500"
+              >
+                Atualizar
+              </button>
+            </div>
+
+            <div className="mt-4 max-h-[60vh] overflow-auto rounded-xl border border-slate-100">
+              <table className="min-w-full divide-y divide-slate-100 text-sm">
+                <thead className="bg-slate-50">
+                  <tr>
+                    <th className="px-3 py-2 text-left font-semibold text-slate-600">Nome</th>
+                    <th className="px-3 py-2 text-left font-semibold text-slate-600">Gravidade</th>
+                    <th className="px-3 py-2 text-left font-semibold text-slate-600">Violência?</th>
+                    <th className="px-3 py-2 text-left font-semibold text-slate-600">Ativo</th>
+                    <th className="px-3 py-2"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {gestaoAtos.carregando && (
+                    <tr>
+                      <td colSpan={5} className="px-3 py-4 text-center text-slate-500">
+                        Carregando...
+                      </td>
+                    </tr>
+                  )}
+                  {!gestaoAtos.carregando && gestaoAtos.itens.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="px-3 py-4 text-center text-slate-500">
+                        Nenhum ato encontrado.
+                      </td>
+                    </tr>
+                  )}
+                  {gestaoAtos.itens.map((item) => (
+                    <tr key={item.id} className={!item.ativo ? "bg-amber-50" : ""}>
+                      <td className="px-3 py-2 align-top">
+                        <input
+                          value={item.nome}
+                          onChange={(e) =>
+                            atualizarCampoGestao(item.id, "nome", e.target.value)
+                          }
+                          className="w-full rounded border border-slate-200 px-2 py-1 text-sm"
+                        />
+                      </td>
+                      <td className="px-3 py-2 align-top">
+                        <select
+                          value={item.gravidade ?? ""}
+                          onChange={(e) =>
+                            atualizarCampoGestao(
+                              item.id,
+                              "gravidade",
+                              e.target.value || null
+                            )
+                          }
+                          className="w-full rounded border border-slate-200 px-2 py-1 text-sm"
+                        >
+                          <option value="">-</option>
+                          <option value="LEVE">Leve</option>
+                          <option value="MEDIO">Medio</option>
+                          <option value="GRAVE">Grave</option>
+                          <option value="HEDIONDO">Hediondo</option>
+                        </select>
+                      </td>
+                      <td className="px-3 py-2 align-top">
+                        <label className="flex items-center gap-2 text-sm text-slate-700">
+                          <input
+                            type="checkbox"
+                            checked={!!item.violenciaOuGraveAmeaca}
+                            onChange={(e) =>
+                              atualizarCampoGestao(
+                                item.id,
+                                "violenciaOuGraveAmeaca",
+                                e.target.checked
+                              )
+                            }
+                          />
+                          Sim
+                        </label>
+                      </td>
+                      <td className="px-3 py-2 align-top">
+                        <label className="flex items-center gap-2 text-sm text-slate-700">
+                          <input
+                            type="checkbox"
+                            checked={item.ativo}
+                            onChange={(e) =>
+                              atualizarCampoGestao(item.id, "ativo", e.target.checked)
+                            }
+                          />
+                          Ativo
+                        </label>
+                      </td>
+                      <td className="px-3 py-2 align-top">
+                        <button
+                          type="button"
+                          onClick={() => salvarGestaoAto(item.id)}
+                          disabled={gestaoAtos.salvandoId === item.id}
+                          className="rounded bg-indigo-600 px-3 py-1 text-xs font-semibold text-white hover:bg-indigo-500 disabled:opacity-60"
+                        >
+                          {gestaoAtos.salvandoId === item.id ? "Salvando..." : "Salvar"}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {gestaoAtos.erro && (
+              <p className="mt-3 text-sm text-rose-600">{gestaoAtos.erro}</p>
+            )}
+          </div>
+        </div>
+      )}
       {modalNovoBairro.aberto && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
@@ -2811,6 +3673,158 @@ export function CadastroAdolescente({
                 className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:opacity-60"
               >
                 {modalNovoBairro.salvando ? "Salvando..." : "Salvar bairro"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {modalDeclaracaoFaccao.aberto && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+            <h3 className="text-lg font-semibold text-slate-900">
+              Nova declaração de facção
+            </h3>
+            <p className="text-sm text-slate-500">
+              Registre uma nova versão; as anteriores permanecem no histórico.
+            </p>
+
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="text-xs font-semibold uppercase text-slate-500">
+                  Facção / Grupo
+                </label>
+                <select
+                  value={modalDeclaracaoFaccao.faccaoId}
+                  onChange={(e) =>
+                    setModalDeclaracaoFaccao((prev) => ({
+                      ...prev,
+                      faccaoId: e.target.value,
+                    }))
+                  }
+                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:outline-none"
+                >
+                  {faccoesDisponiveis.map((faccao) => (
+                    <option key={faccao.id} value={faccao.id}>
+                      {faccao.nome}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-semibold uppercase text-slate-500">
+                  Função (opcional)
+                </label>
+                <input
+                  type="text"
+                  value={modalDeclaracaoFaccao.funcao}
+                  onChange={(e) =>
+                    setModalDeclaracaoFaccao((prev) => ({
+                      ...prev,
+                      funcao: e.target.value,
+                    }))
+                  }
+                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:outline-none"
+                  placeholder="Ex.: liderança, soldado, sem função"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold uppercase text-slate-500">
+                    Origem da informação
+                  </label>
+                  <select
+                    value={modalDeclaracaoFaccao.origem}
+                    onChange={(e) =>
+                      setModalDeclaracaoFaccao((prev) => ({
+                        ...prev,
+                        origem: e.target.value as any,
+                      }))
+                    }
+                    className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:outline-none"
+                  >
+                    <option value="NAO_INFORMADO">Não informado</option>
+                    <option value="CONFESSADA">Confessada</option>
+                    <option value="OBSERVACAO">Observação / inteligência</option>
+                    <option value="INTELIGENCIA">Inteligência formal</option>
+                    <option value="TERCEIROS">Relato de terceiros</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold uppercase text-slate-500">
+                    Nível de confiança
+                  </label>
+                  <select
+                    value={modalDeclaracaoFaccao.nivelConfianca}
+                    onChange={(e) =>
+                      setModalDeclaracaoFaccao((prev) => ({
+                        ...prev,
+                        nivelConfianca: e.target.value as any,
+                      }))
+                    }
+                    className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:outline-none"
+                  >
+                    <option value="NAO_AVALIADO">Não avaliado</option>
+                    <option value="BAIXO">Baixo</option>
+                    <option value="MEDIO">Médio</option>
+                    <option value="ALTO">Alto</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-semibold uppercase text-slate-500">
+                  Observação (opcional)
+                </label>
+                <textarea
+                  value={modalDeclaracaoFaccao.observacao}
+                  onChange={(e) =>
+                    setModalDeclaracaoFaccao((prev) => ({
+                      ...prev,
+                      observacao: e.target.value,
+                    }))
+                  }
+                  rows={3}
+                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:outline-none"
+                  placeholder="Detalhe a narrativa, contexto, quem presenciou, etc."
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold uppercase text-slate-500">
+                  Fonte / documento (opcional)
+                </label>
+                <input
+                  type="text"
+                  value={modalDeclaracaoFaccao.fonte}
+                  onChange={(e) =>
+                    setModalDeclaracaoFaccao((prev) => ({
+                      ...prev,
+                      fonte: e.target.value,
+                    }))
+                  }
+                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:outline-none"
+                  placeholder="Ex.: relatório psicossocial, BO, anotação interna"
+                />
+              </div>
+              {modalDeclaracaoFaccao.erro && (
+                <p className="text-sm text-rose-600">{modalDeclaracaoFaccao.erro}</p>
+              )}
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={fecharModalDeclaracaoFaccao}
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100"
+                disabled={modalDeclaracaoFaccao.salvando}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={salvarDeclaracaoFaccao}
+                disabled={modalDeclaracaoFaccao.salvando}
+                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-60"
+              >
+                {modalDeclaracaoFaccao.salvando ? "Salvando..." : "Salvar declaração"}
               </button>
             </div>
           </div>

@@ -5,6 +5,8 @@ import { emitMapaEvent } from "@/lib/mapa-event-bus";
 import { invalidateAdolescentesMapaCache } from "@/lib/estrutura/adolescentes-cache";
 import { invalidateEstruturaSnapshot } from "@/lib/estrutura/snapshot";
 import { registrarMovimentacao } from "@/lib/historico/movimentacao";
+import { hasPermission, PERMISSIONS } from "@/lib/auth/permissions";
+import { resolveUserPermissions } from "@/lib/auth/resolve-permissions";
 
 type VerificacaoPayload = {
   requer_justificativa?: boolean;
@@ -51,12 +53,20 @@ export async function POST(request: NextRequest) {
 
     const operadorValido = await prisma.operador.findUnique({
       where: { id: operadorId },
-      select: { id: true },
+      select: { id: true, funcaoRole: true },
     });
 
     if (!operadorValido) {
       return NextResponse.json(
         { erro: "Operador nao encontrado" },
+        { status: 403 }
+      );
+    }
+
+    const permissoes = resolveUserPermissions(session, operadorValido);
+    if (!hasPermission(permissoes, PERMISSIONS.ESTRUTURA_EDIT)) {
+      return NextResponse.json(
+        { erro: "Sem permissao para alterar a estrutura" },
         { status: 403 }
       );
     }
@@ -336,12 +346,20 @@ export async function DELETE(request: NextRequest) {
 
     const operadorValido = await prisma.operador.findUnique({
       where: { id: operadorId },
-      select: { id: true },
+      select: { id: true, funcaoRole: true },
     });
 
     if (!operadorValido) {
       return NextResponse.json(
         { erro: "Operador nao encontrado" },
+        { status: 403 }
+      );
+    }
+
+    const permissoes = resolveUserPermissions(session, operadorValido);
+    if (!hasPermission(permissoes, PERMISSIONS.ESTRUTURA_EDIT)) {
+      return NextResponse.json(
+        { erro: "Sem permissao para alterar a estrutura" },
         { status: 403 }
       );
     }

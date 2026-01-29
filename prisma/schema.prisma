@@ -22,6 +22,8 @@ model Operador {
   justificativasAlgemaAprovador   JustificativaAlgema[]      @relation("JustificativaAlgemaAprovador")
   justificativasAlgemaResponsavel JustificativaAlgema[]      @relation("JustificativaAlgemaResponsavel")
   logAuditoria                    LogAuditoria[]
+  atosInfracionaisCriados         AtoInfracionalCatalogo[]   @relation("AtoInfracionalCatalogoCriador")
+  declaracoesFaccaoCriadas        AdolescenteFaccaoHistorico[] @relation("OperadorCriadorFaccaoHistorico")
   papeis                          OperadorPapel[]
   solicitacoesTransf              SolicitacaoTransferencia[]
 
@@ -163,6 +165,7 @@ model Faccao {
   nomeFaccao       String           @unique @map("nome_faccao")
   descricao        String?
   adolescentes     Adolescente[]
+  declaracoes      AdolescenteFaccaoHistorico[] @relation("DeclaracaoFaccao")
   conflitosFaccaoA FaccaoConflito[] @relation("FaccaoA")
   conflitosFaccaoB FaccaoConflito[] @relation("FaccaoB")
 
@@ -193,6 +196,23 @@ model Bairro {
 
   @@unique([nomeBairro, cidade])
   @@map("bairros")
+}
+
+model AtoInfracionalCatalogo {
+  id            String      @id @default(uuid())
+  nome          String
+  gravidade     String?
+  violenciaOuGraveAmeaca Boolean @default(false) @map("violencia_ou_grave_ameaca")
+  ativo         Boolean     @default(true)
+  criadoEm      DateTime    @default(now()) @map("criado_em")
+  criadoPorId   String?     @map("criado_por_id")
+  criadoPor     Operador?   @relation("AtoInfracionalCatalogoCriador", fields: [criadoPorId], references: [id])
+  adolescentes  Adolescente[]
+  historicos    AdolescenteHistoricoInfracional[]
+
+  @@map("atos_infracionais_catalogo")
+  @@index([ativo])
+  @@unique([nome], map: "atos_infracionais_catalogo_nome_key")
 }
 
 model BairroConflito {
@@ -238,7 +258,7 @@ model Adolescente {
   dataNascimento             DateTime?                         @map("data_nascimento") @db.Date
   dataEntrada                DateTime?                         @map("data_entrada")
   numeroProcesso             String?                           @map("numero_processo")
-  atoInfracionalAtual        String?                           @map("ato_infracional_atual")
+  atoInfracionalAtualId      String?                           @map("ato_infracional_atual_id")
   statusUnidade              String                            @default("ATIVO") @map("status_unidade")
   faccaoGrupoId              String?                           @map("faccao_grupo_id")
   bairroOrigemId             String?                           @map("bairro_origem_id")
@@ -261,11 +281,14 @@ model Adolescente {
   faccaoFuncao               String?                           @map("faccao_funcao")
   faccaoInformacaoOrigem     String?                           @map("faccao_informacao_origem")
   faccaoInformacaoDetalhe    String?                           @map("faccao_informacao_detalhe")
+  faccaoVinculoAtualId       String?                           @unique @db.Uuid @map("faccao_vinculo_atual_id")
   tecnicosReferencia         AdolescenteTecnicoReferencia[]
   alojamentoAtual            Alojamento?                       @relation(fields: [alojamentoAtualId], references: [id])
   bairroOrigem               Bairro?                           @relation(fields: [bairroOrigemId], references: [id])
   faccao                     Faccao?                           @relation(fields: [faccaoGrupoId], references: [id])
+  faccaoVinculoAtual         AdolescenteFaccaoHistorico?       @relation("FaccaoVinculoAtual", fields: [faccaoVinculoAtualId], references: [id])
   faseInternacaoAtual        FaseInternacao?                   @relation(fields: [faseInternacaoAtualId], references: [id])
+  atoInfracionalAtualCatalogo AtoInfracionalCatalogo?          @relation(fields: [atoInfracionalAtualId], references: [id])
   historicoInfracional       AdolescenteHistoricoInfracional[]
   tatuagens                  AdolescenteTatuagem[]
   visitantesLink             AdolescenteVisitanteLink[]
@@ -281,10 +304,33 @@ model Adolescente {
   historicoTransferencias    HistoricoTransferencia[]
   justificativasAlgema       JustificativaAlgema[]
   solicitacoesTransf         SolicitacaoTransferencia[]
+  faccaoHistorico            AdolescenteFaccaoHistorico[]      @relation("AdolescenteFaccaoHistorico")
   visitasRegistro            VisitaRegistro[]
 
   @@map("adolescentes")
 }
+
+model AdolescenteFaccaoHistorico {
+  id                String     @id @default(uuid())
+  adolescenteId     String     @db.Text @map("adolescente_id")
+  faccaoId          String?    @db.Text @map("faccao_id")
+  faccao            Faccao?    @relation("DeclaracaoFaccao", fields: [faccaoId], references: [id])
+  funcao            String?    @map("funcao")
+  origemInformacao  String     @map("origem_informacao") // CONFESSADA, OBSERVACAO, INTELIGENCIA, TERCEIROS, NAO_INFORMADO
+  nivelConfianca    String?    @map("nivel_confianca")   // BAIXO, MEDIO, ALTO, NAO_AVALIADO
+  statusRegistro    String     @default("ATIVA") @map("status_registro") // ATIVA, CONTESTADA, REVOGADA
+  observacao        String?    @map("observacao")
+  fonte             String?    @map("fonte")
+  criadoEm          DateTime   @default(now()) @map("criado_em")
+  criadoPorId       String?    @db.Text @map("criado_por_id")
+  criadoPor         Operador?  @relation("OperadorCriadorFaccaoHistorico", fields: [criadoPorId], references: [id])
+  adolescente       Adolescente @relation("AdolescenteFaccaoHistorico", fields: [adolescenteId], references: [id])
+  vinculoAtualDe    Adolescente? @relation("FaccaoVinculoAtual")
+
+  @@map("adolescentes_faccao_historico")
+  @@index([adolescenteId, statusRegistro])
+}
+
 
 model AdolescenteTecnicoReferencia {
   id                   String              @id @default(uuid())
@@ -316,6 +362,7 @@ model AdolescenteHistoricoInfracional {
   id                         String      @id @default(uuid())
   adolescenteId              String      @map("adolescente_id")
   atoInfracionalDescricao    String      @map("ato_infracional_descricao")
+  atoInfracionalCatalogoId   String?     @map("ato_infracional_catalogo_id")
   unidadeInternacao          String?     @map("unidade_internacao")
   ano                        Int?
   observacoes                String?
@@ -324,6 +371,7 @@ model AdolescenteHistoricoInfracional {
   atoInfracionalGravidade    Boolean     @default(false) @map("ato_infracional_gravidade")
   atoInfracionalGravidadeObs String?     @map("ato_infracional_gravidade_obs")
   adolescente                Adolescente @relation(fields: [adolescenteId], references: [id])
+  atoInfracionalCatalogo     AtoInfracionalCatalogo? @relation(fields: [atoInfracionalCatalogoId], references: [id])
 
   @@map("adolescentes_historico_infracional")
 }

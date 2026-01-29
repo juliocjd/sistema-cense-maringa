@@ -1,71 +1,121 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { ensureOperador } from "@/lib/auth/ensure-operador";
+import { del } from "@vercel/blob";
+import fs from "fs/promises";
+import path from "path";
+import { auth } from "@/auth";
+import { hasPermission, PERMISSIONS } from "@/lib/auth/permissions";
 
 export const dynamic = "force-dynamic";
 
+const removerPdfArquivo = async (arquivoPdfPath?: string | null) => {
+  const caminho = arquivoPdfPath?.trim();
+  if (!caminho) {
+    return { removido: false, motivo: "sem_arquivo" };
+  }
+
+  if (caminho.startsWith("http://") || caminho.startsWith("https://")) {
+    try {
+      await del(caminho);
+      return { removido: true, origem: "blob" };
+    } catch (error) {
+      return {
+        removido: false,
+        origem: "blob",
+        erro: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  const baseDir = process.cwd();
+  const relativo = caminho.replace(/^\/+/, "");
+  const resolved = path.isAbsolute(caminho)
+    ? path.resolve(caminho)
+    : path.resolve(baseDir, relativo);
+
+  if (!resolved.startsWith(baseDir)) {
+    return { removido: false, motivo: "fora_da_base" };
+  }
+
+  try {
+    await fs.unlink(resolved);
+    return { removido: true, origem: "local" };
+  } catch (error: any) {
+    if (error?.code === "ENOENT") {
+      return { removido: false, origem: "local", motivo: "nao_encontrado" };
+    }
+    return {
+      removido: false,
+      origem: "local",
+      erro: error instanceof Error ? error.message : String(error),
+    };
+  }
+};
+
+/**
+ * DELETE /api/justificativas-algema/[id]
+ * Remove justificativa e exclui o PDF associado (se existir).
+ */
 export async function DELETE(
   request: NextRequest,
-  context: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await context.params;
-
-    if (!id) {
+    const session = await auth().catch(() => null);
+    const permissoes = session?.user?.permissions ?? [];
+    if (!hasPermission(permissoes, PERMISSIONS.JUSTIFICATIVAS_ALGEMA_VIEW)) {
       return NextResponse.json(
-        { erro: "ID da justificativa nao informado" },
-        { status: 400 }
+        { erro: "Sem permissao para excluir justificativas de algema" },
+        { status: 403 }
       );
     }
 
-    const authResult = await ensureOperador(request);
-    if (!authResult.ok) {
-      return authResult.response;
-    }
+    const { id } = await params;
 
     const justificativa = await prisma.justificativaAlgema.findUnique({
       where: { id },
       select: {
         id: true,
         numeroDocumento: true,
-        status: true,
-        adolescenteId: true,
+        arquivoPdfPath: true,
       },
     });
 
     if (!justificativa) {
       return NextResponse.json(
-        { erro: "Justificativa nao encontrada" },
+        { erro: "Justificativa não encontrada" },
         { status: 404 }
       );
     }
 
-    await prisma.$transaction([
-      prisma.justificativaAlgema.delete({ where: { id } }),
-      prisma.logAuditoria.create({
+    const resultadoPdf = await removerPdfArquivo(justificativa.arquivoPdfPath);
+
+    await prisma.$transaction(async (tx) => {
+      await tx.justificativaAlgema.delete({ where: { id } });
+      await tx.logAuditoria.create({
         data: {
-          operadorId: authResult.operadorId,
           acao: "DELETE",
           tabelaAfetada: "JustificativaAlgema",
-          registroIdAfetado: id,
+          registroIdAfetado: justificativa.id,
           detalhesAlteracao: {
             numeroDocumento: justificativa.numeroDocumento,
-            statusAnterior: justificativa.status,
-            adolescenteId: justificativa.adolescenteId,
+            arquivoPdfPath: justificativa.arquivoPdfPath,
+            pdfRemovido: resultadoPdf.removido,
+            pdfDetalhes: resultadoPdf,
           },
-          ipOrigem: authResult.ip,
         },
-      }),
-    ]);
+      });
+    });
 
     return NextResponse.json({
       mensagem: "Justificativa removida com sucesso",
-      id,
+      pdfRemovido: resultadoPdf.removido,
+      pdfDetalhes: resultadoPdf,
     });
   } catch (error) {
-    console.error("Erro ao remover justificativa:", error);
+    console.error("Erro ao excluir justificativa:", error);
     return NextResponse.json(
-      { erro: "Erro ao remover justificativa de algema" },
+      { erro: "Erro ao excluir justificativa de algema" },
       { status: 500 }
     );
   }

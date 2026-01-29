@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { ensureAuthDefaults } from "@/lib/auth/ensure-defaults";
 
 const OPERADOR_INCLUDE = {
   papeis: {
@@ -162,6 +163,12 @@ export async function GET() {
         { erro: "Acesso restrito a administradores" },
         { status: 403 }
       );
+    }
+
+    try {
+      await ensureAuthDefaults();
+    } catch (error) {
+      console.warn("Falha ao garantir papeis/permissoes padrao:", error);
     }
 
     const [operadores, papeis] = await Promise.all([

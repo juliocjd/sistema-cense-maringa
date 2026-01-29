@@ -164,6 +164,7 @@ export interface AdolescenteHistoricoInfracionalItem {
   gravidadeObs?: string | null;
   unidadeInternacao?: string | null;
   observacoes?: string | null;
+  catalogoId?: string | null;
 }
 
 export interface AdolescenteHistoricoRegistroInput {
@@ -171,6 +172,7 @@ export interface AdolescenteHistoricoRegistroInput {
   ano?: number | string | null;
   unidade?: string | null;
   observacoes?: string | null;
+  catalogoId?: string | null;
 }
 
 export interface Adolescente {
@@ -184,7 +186,10 @@ export interface Adolescente {
   dataNascimento?: string;
   dataEntrada?: string;
   numeroProcesso?: string | null;
+  atoInfracionalAtualId?: string | null;
   atoInfracionalAtual?: string | null;
+  atoInfracionalCatalogoGravidade?: string | null;
+  atoInfracionalCatalogoViolencia?: boolean | null;
   atoInfracionalAno?: number | null;
   atoInfracionalProcesso?: string | null;
   atoInfracionalGravidade: boolean;
@@ -207,6 +212,8 @@ export interface Adolescente {
   faccaoFuncao?: string | null;
   faccaoInformacaoOrigem?: FaccaoInformacaoOrigem | string | null;
   faccaoInformacaoDetalhe?: string | null;
+  faccaoVinculoAtualId?: string | null;
+  faccaoHistorico?: AdolescenteFaccaoHistoricoItem[];
   faccao?: {
     id: string;
     nome: string;
@@ -249,6 +256,20 @@ export interface Adolescente {
 
   criadoEm?: string;
   atualizadoEm?: string;
+}
+
+export interface AdolescenteFaccaoHistoricoItem {
+  id: string;
+  faccaoId?: string | null;
+  faccaoNome?: string | null;
+  funcao?: string | null;
+  origemInformacao: string;
+  nivelConfianca?: string | null;
+  statusRegistro: string;
+  observacao?: string | null;
+  fonte?: string | null;
+  criadoEm: string;
+  criadoPor?: { id: string; nome: string } | null;
 }
 
 export type AdolescenteAlertaEspecial = {

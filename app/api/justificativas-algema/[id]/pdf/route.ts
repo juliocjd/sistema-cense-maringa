@@ -9,6 +9,8 @@ import fs from "fs/promises";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import path from "path";
+import { auth } from "@/auth";
+import { hasPermission, PERMISSIONS } from "@/lib/auth/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +31,15 @@ export async function GET(
   context: { params: Promise<{ id: string }> },
 ) {
   try {
+    const session = await auth().catch(() => null);
+    const permissoes = session?.user?.permissions ?? [];
+    if (!hasPermission(permissoes, PERMISSIONS.JUSTIFICATIVAS_ALGEMA_VIEW)) {
+      return NextResponse.json(
+        { erro: "Sem permissao para acessar justificativas de algema" },
+        { status: 403 },
+      );
+    }
+
     const { id } = await context.params;
     const { searchParams } = new URL(request.url);
     const viaParam = (searchParams.get("via") ?? "").toLowerCase();
@@ -56,7 +67,14 @@ export async function GET(
             numeroSms: true,
             dataNascimento: true,
             numeroProcesso: true,
-            atoInfracionalAtual: true,
+            atoInfracionalAtualId: true,
+            atoInfracionalAtualCatalogo: {
+              select: {
+                nome: true,
+                gravidade: true,
+                violenciaOuGraveAmeaca: true,
+              },
+            },
             atoInfracionalGravidade: true,
             atoInfracionalGravidadeObs: true,
             riscoFuga: true,
@@ -255,9 +273,19 @@ export async function GET(
     const mensagemSuicidioFinal = altaRecenteProtocolo
       ? MENSAGEM_SUICIDIO_ALTA
       : MENSAGEM_SUICIDIO_ATIVO;
-    const fundamentacaoLegalAjustada = justificativa.fundamentacaoLegal
+    const gravidadeCatalogo =
+      justificativa.adolescente.atoInfracionalAtualCatalogo?.gravidade ?? null;
+    let fundamentacaoLegalAjustada = justificativa.fundamentacaoLegal
       .replace(MENSAGEM_SUICIDIO_ATIVO, mensagemSuicidioFinal)
       .replace(MENSAGEM_SUICIDIO_ALTA, mensagemSuicidioFinal);
+    fundamentacaoLegalAjustada = fundamentacaoLegalAjustada.replace(
+      /Ato infracional em apura[çc][aã]o:[^\n]*/i,
+      `Gravidade (catalogo): ${gravidadeCatalogo ?? "NÃ£o informado"}`,
+    );
+    fundamentacaoLegalAjustada = fundamentacaoLegalAjustada.replace(
+      /V[ií]nculo faccional identificado[^\n]*/i,
+      "Vinculado faccional identificado",
+    );
     const protocoloSuicidioResumo =
       alertaSuicidioAtivo || eventoProtocolo || eventoAltaProtocolo
         ? {

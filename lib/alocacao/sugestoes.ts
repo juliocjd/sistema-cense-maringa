@@ -304,6 +304,7 @@ const criarCandidatoFallback = (
     dataNascimento: null,
     dataEntrada: null,
     numeroProcesso: null,
+    atoInfracionalAtualId: null,
     atoInfracionalAtual: null,
     atoInfracionalAno: null,
     atoInfracionalProcesso: null,

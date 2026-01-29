@@ -9,7 +9,11 @@ import {
   CheckCircle2,
   XCircle,
   Plus,
+  Pencil,
+  Save,
+  Trash2,
 } from "lucide-react";
+import AdminGuard from "@/components/auth/admin-guard";
 
 type OperadorItem = {
   id: string;
@@ -41,6 +45,14 @@ const listasIguais = (a: string[], b: string[]) => {
 };
 
 export default function UsuariosConfigPage() {
+  return (
+    <AdminGuard>
+      <UsuariosConfigContent />
+    </AdminGuard>
+  );
+}
+
+function UsuariosConfigContent() {
   const [operadores, setOperadores] = useState<OperadorItem[]>([]);
   const [papeis, setPapeis] = useState<PapelItem[]>([]);
   const [draftPapeis, setDraftPapeis] = useState<Record<string, string[]>>({});
@@ -49,6 +61,8 @@ export default function UsuariosConfigPage() {
   const [erro, setErro] = useState<string | null>(null);
   const [salvandoId, setSalvandoId] = useState<string | null>(null);
   const roleOptions = ["OPERADOR", "ADMIN"];
+  const statusOptions = ["ATIVO", "INATIVO", "BLOQUEADO"];
+  const [excluindoId, setExcluindoId] = useState<string | null>(null);
   const [modalNovoAberto, setModalNovoAberto] = useState(false);
   const [novoOperador, setNovoOperador] = useState({
     nomeCompleto: "",
@@ -59,6 +73,19 @@ export default function UsuariosConfigPage() {
   });
   const [erroNovo, setErroNovo] = useState<string | null>(null);
   const [salvandoNovo, setSalvandoNovo] = useState(false);
+  const [modalEditarAberto, setModalEditarAberto] = useState(false);
+  const [operadorEditando, setOperadorEditando] = useState<OperadorItem | null>(
+    null
+  );
+  const [editarOperador, setEditarOperador] = useState({
+    nomeCompleto: "",
+    email: "",
+    status: "ATIVO",
+    funcaoRole: "OPERADOR",
+    senha: "",
+  });
+  const [erroEditar, setErroEditar] = useState<string | null>(null);
+  const [salvandoEdicao, setSalvandoEdicao] = useState(false);
 
   const carregarDados = async () => {
     setLoading(true);
@@ -168,6 +195,141 @@ export default function UsuariosConfigPage() {
       );
     } finally {
       setSalvandoId(null);
+    }
+  };
+
+  const handleExcluirOperador = async (operador: OperadorItem) => {
+    const confirmado = window.confirm(
+      `Confirma a exclusao do usuario ${operador.nomeCompleto}? Esta acao nao podera ser desfeita.`
+    );
+    if (!confirmado) return;
+
+    setExcluindoId(operador.id);
+    try {
+      const response = await fetch(`/api/operadores/${operador.id}`, {
+        method: "DELETE",
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(payload?.erro ?? "Erro ao excluir usuario");
+      }
+      setOperadores((prev) => prev.filter((item) => item.id !== operador.id));
+      setDraftPapeis((prev) => {
+        const { [operador.id]: _, ...restante } = prev;
+        return restante;
+      });
+      if (operadorEditando?.id === operador.id) {
+        fecharEdicao();
+      }
+      alert(payload?.mensagem ?? "Usuario excluido com sucesso.");
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Erro inesperado ao excluir usuario"
+      );
+    } finally {
+      setExcluindoId(null);
+    }
+  };
+
+  const abrirEdicao = (operador: OperadorItem) => {
+    setOperadorEditando(operador);
+    setEditarOperador({
+      nomeCompleto: operador.nomeCompleto,
+      email: operador.email,
+      status: operador.status,
+      funcaoRole: operador.funcaoRole,
+      senha: "",
+    });
+    setErroEditar(null);
+    setModalEditarAberto(true);
+  };
+
+  const fecharEdicao = () => {
+    setModalEditarAberto(false);
+    setOperadorEditando(null);
+    setErroEditar(null);
+    setEditarOperador({
+      nomeCompleto: "",
+      email: "",
+      status: "ATIVO",
+      funcaoRole: "OPERADOR",
+      senha: "",
+    });
+  };
+
+  const atualizarCampoEdicao = (
+    campo: "nomeCompleto" | "email" | "status" | "funcaoRole" | "senha",
+    valor: string
+  ) => {
+    setEditarOperador((prev) => ({ ...prev, [campo]: valor }));
+  };
+
+  const handleSalvarEdicao = async () => {
+    if (!operadorEditando) return;
+    setErroEditar(null);
+
+    const nomeTrim = editarOperador.nomeCompleto.trim();
+    const emailTrim = editarOperador.email.trim().toLowerCase();
+    const senhaTrim = editarOperador.senha.trim();
+
+    if (senhaTrim.length > 0 && senhaTrim.length < 6) {
+      setErroEditar("Senha deve ter no minimo 6 caracteres.");
+      return;
+    }
+
+    const payload: Record<string, string> = {};
+    if (nomeTrim && nomeTrim !== operadorEditando.nomeCompleto) {
+      payload.nomeCompleto = nomeTrim;
+    }
+    if (emailTrim && emailTrim !== operadorEditando.email.toLowerCase()) {
+      payload.email = emailTrim;
+    }
+    if (editarOperador.status !== operadorEditando.status) {
+      payload.status = editarOperador.status;
+    }
+    if (editarOperador.funcaoRole !== operadorEditando.funcaoRole) {
+      payload.funcaoRole = editarOperador.funcaoRole;
+    }
+    if (senhaTrim) {
+      payload.senha = senhaTrim;
+    }
+
+    if (Object.keys(payload).length === 0) {
+      setErroEditar("Nenhuma alteracao para salvar.");
+      return;
+    }
+
+    setSalvandoEdicao(true);
+    try {
+      const response = await fetch(
+        `/api/operadores/${operadorEditando.id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }
+      );
+      const resposta = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(resposta?.erro ?? "Erro ao atualizar operador");
+      }
+      const operadorAtualizado = resposta.operador as OperadorItem;
+      setOperadores((prev) =>
+        prev.map((item) =>
+          item.id === operadorAtualizado.id ? operadorAtualizado : item
+        )
+      );
+      fecharEdicao();
+    } catch (error) {
+      setErroEditar(
+        error instanceof Error
+          ? error.message
+          : "Erro inesperado ao salvar"
+      );
+    } finally {
+      setSalvandoEdicao(false);
     }
   };
 
@@ -346,6 +508,21 @@ export default function UsuariosConfigPage() {
                   </div>
 
                   <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => abrirEdicao(operador)}
+                      className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:text-slate-900"
+                    >
+                      <Pencil size={16} />
+                      Editar dados
+                    </button>
+                    <button
+                      onClick={() => handleExcluirOperador(operador)}
+                      disabled={excluindoId === operador.id}
+                      className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-700 transition hover:text-red-900 disabled:opacity-60"
+                    >
+                      <Trash2 size={16} />
+                      {excluindoId === operador.id ? "Excluindo..." : "Excluir"}
+                    </button>
                     <button
                       onClick={() => atualizarDraft(operador, operador.papeis)}
                       disabled={!possuiAlteracoes || salvandoId === operador.id}
@@ -614,6 +791,147 @@ export default function UsuariosConfigPage() {
                     </>
                   ) : (
                     "Criar operador"
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modalEditarAberto && operadorEditando && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-slate-900">
+                  Editar operador
+                </h2>
+                <p className="text-sm text-slate-500">
+                  Atualize os dados basicos do usuario selecionado.
+                </p>
+              </div>
+              <button
+                onClick={fecharEdicao}
+                className="text-sm text-slate-500 hover:text-slate-900"
+              >
+                Fechar
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-semibold text-slate-700">
+                  Nome completo
+                </label>
+                <input
+                  type="text"
+                  value={editarOperador.nomeCompleto}
+                  onChange={(event) =>
+                    atualizarCampoEdicao("nomeCompleto", event.target.value)
+                  }
+                  className="mt-1 w-full rounded-lg border border-slate-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                />
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="text-sm font-semibold text-slate-700">
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    value={editarOperador.email}
+                    onChange={(event) =>
+                      atualizarCampoEdicao("email", event.target.value)
+                    }
+                    className="mt-1 w-full rounded-lg border border-slate-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-semibold text-slate-700">
+                    Senha (opcional)
+                  </label>
+                  <input
+                    type="password"
+                    value={editarOperador.senha}
+                    onChange={(event) =>
+                      atualizarCampoEdicao("senha", event.target.value)
+                    }
+                    className="mt-1 w-full rounded-lg border border-slate-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                    placeholder="Deixe em branco para manter"
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="text-sm font-semibold text-slate-700">
+                    Funcao
+                  </label>
+                  <select
+                    value={editarOperador.funcaoRole}
+                    onChange={(event) =>
+                      atualizarCampoEdicao("funcaoRole", event.target.value)
+                    }
+                    className="mt-1 w-full rounded-lg border border-slate-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                  >
+                    {roleOptions.map((role) => (
+                      <option key={role} value={role}>
+                        {role}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-semibold text-slate-700">
+                    Status
+                  </label>
+                  <select
+                    value={editarOperador.status}
+                    onChange={(event) =>
+                      atualizarCampoEdicao("status", event.target.value)
+                    }
+                    className="mt-1 w-full rounded-lg border border-slate-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                  >
+                    {statusOptions.map((status) => (
+                      <option key={status} value={status}>
+                        {status}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {erroEditar && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+                  {erroEditar}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={fecharEdicao}
+                  className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-900"
+                  disabled={salvandoEdicao}
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleSalvarEdicao}
+                  disabled={salvandoEdicao}
+                  className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300"
+                >
+                  {salvandoEdicao ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Salvando...
+                    </>
+                  ) : (
+                    <>
+                      <Save size={16} />
+                      Salvar dados
+                    </>
                   )}
                 </button>
               </div>

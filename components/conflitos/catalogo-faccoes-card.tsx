@@ -1,10 +1,12 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Shield, UsersRound, Pencil, Trash2, XCircle } from "lucide-react";
 
 import { CatalogoFaccao } from "@/types/inteligencia";
+import { useAuth } from "@/hooks/useAuth";
+import { hasPermission, PERMISSIONS } from "@/lib/auth/permissions";
 
 interface CatalogoFaccoesCardProps {
   faccoes: CatalogoFaccao[];
@@ -16,6 +18,11 @@ export default function CatalogoFaccoesCard({
   faccoes,
 }: CatalogoFaccoesCardProps) {
   const router = useRouter();
+  const { user } = useAuth();
+  const podeGerenciar = useMemo(
+    () => hasPermission(user?.permissions, PERMISSIONS.CONFLITOS_EXTERNOS_MANAGE),
+    [user?.permissions]
+  );
   const [form, setForm] = useState(estadoInicial);
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -24,6 +31,9 @@ export default function CatalogoFaccoesCard({
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!podeGerenciar) {
+      return;
+    }
     if (loading) return;
 
     setLoading(true);
@@ -78,7 +88,7 @@ export default function CatalogoFaccoesCard({
   };
 
   const remover = async (id: string) => {
-    if (loading) return;
+    if (loading || !podeGerenciar) return;
     const confirmar = window.confirm(
       "Remover a faccao selecionada? Essa opcao so e permitida quando nao ha adolescentes vinculados."
     );
@@ -110,6 +120,11 @@ export default function CatalogoFaccoesCard({
         <h3 className="text-xl font-semibold text-slate-900">
           {faccoes.length} faccao(oes) cadastradas
         </h3>
+        {!podeGerenciar && (
+          <p className="mt-2 text-xs font-semibold text-amber-700">
+            Acesso somente leitura: edicao de faccoes bloqueada.
+          </p>
+        )}
       </header>
 
       <form onSubmit={handleSubmit} className="space-y-3">
@@ -123,6 +138,7 @@ export default function CatalogoFaccoesCard({
             onChange={(event) =>
               setForm((prev) => ({ ...prev, nome: event.target.value }))
             }
+            disabled={!podeGerenciar}
             placeholder="Ex.: PCC"
             className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:outline-none"
           />
@@ -136,6 +152,7 @@ export default function CatalogoFaccoesCard({
             onChange={(event) =>
               setForm((prev) => ({ ...prev, descricao: event.target.value }))
             }
+            disabled={!podeGerenciar}
             rows={2}
             placeholder="Resumo ou fonte da informacao"
             className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:outline-none"
@@ -147,8 +164,8 @@ export default function CatalogoFaccoesCard({
         <div className="flex gap-2">
           <button
             type="submit"
-            disabled={loading}
-            className="flex-1 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
+            disabled={loading || !podeGerenciar}
+            className="flex-1 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {editandoId ? "Salvar alteracoes" : "Cadastrar faccao"}
           </button>
@@ -156,7 +173,8 @@ export default function CatalogoFaccoesCard({
             <button
               type="button"
               onClick={cancelarEdicao}
-              className="inline-flex items-center justify-center gap-1 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-600"
+              disabled={!podeGerenciar}
+              className="inline-flex items-center justify-center gap-1 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-600 disabled:opacity-60 disabled:cursor-not-allowed"
             >
               <XCircle size={14} />
               Cancelar
@@ -203,7 +221,8 @@ export default function CatalogoFaccoesCard({
                     setErro(null);
                     setMensagem(null);
                   }}
-                  className="rounded-full border border-transparent p-1 hover:border-slate-200 hover:text-slate-600"
+                  disabled={!podeGerenciar}
+                  className="rounded-full border border-transparent p-1 hover:border-slate-200 hover:text-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
                   title="Editar faccao"
                 >
                   <Pencil size={14} />
@@ -211,7 +230,8 @@ export default function CatalogoFaccoesCard({
                 <button
                   type="button"
                   onClick={() => remover(faccao.id)}
-                  className="rounded-full border border-transparent p-1 hover:border-rose-200 hover:text-rose-600"
+                  disabled={!podeGerenciar}
+                  className="rounded-full border border-transparent p-1 hover:border-rose-200 hover:text-rose-600 disabled:opacity-50 disabled:cursor-not-allowed"
                   title="Remover faccao"
                 >
                   <Trash2 size={14} />

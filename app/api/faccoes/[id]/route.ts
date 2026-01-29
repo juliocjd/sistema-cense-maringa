@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
+import { hasPermission, PERMISSIONS } from "@/lib/auth/permissions";
+import { resolveUserPermissions } from "@/lib/auth/resolve-permissions";
 
 const paramsSchema = z.object({
   id: z.string().uuid("Id da faccao invalido"),
@@ -164,12 +166,20 @@ export async function PUT(
 
     const operadorExiste = await prisma.operador.findUnique({
       where: { id: operadorId },
-      select: { id: true },
+      select: { id: true, funcaoRole: true },
     });
 
     if (!operadorExiste) {
       return NextResponse.json(
         { erro: "Operador nao encontrado" },
+        { status: 403 }
+      );
+    }
+
+    const permissoes = resolveUserPermissions(session, operadorExiste);
+    if (!hasPermission(permissoes, PERMISSIONS.CONFLITOS_EXTERNOS_MANAGE)) {
+      return NextResponse.json(
+        { erro: "Sem permissao para gerenciar conflitos externos" },
         { status: 403 }
       );
     }
@@ -315,12 +325,20 @@ export async function DELETE(
 
     const operadorExiste = await prisma.operador.findUnique({
       where: { id: operadorId },
-      select: { id: true },
+      select: { id: true, funcaoRole: true },
     });
 
     if (!operadorExiste) {
       return NextResponse.json(
         { erro: "Operador nao encontrado" },
+        { status: 403 }
+      );
+    }
+
+    const permissoes = resolveUserPermissions(session, operadorExiste);
+    if (!hasPermission(permissoes, PERMISSIONS.CONFLITOS_EXTERNOS_MANAGE)) {
+      return NextResponse.json(
+        { erro: "Sem permissao para gerenciar conflitos externos" },
         { status: 403 }
       );
     }

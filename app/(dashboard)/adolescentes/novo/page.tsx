@@ -5,6 +5,8 @@ import { CadastroAdolescente } from "@/components/cadastro/cadastro-adolescente"
 import { useRouter } from "next/navigation";
 import type { AdolescenteCadastroPayload } from "@/types";
 import { useAuth } from "@/hooks/useAuth";
+import PermissionGuard from "@/components/auth/permission-guard";
+import { PERMISSIONS } from "@/lib/auth/permissions";
 
 const DEFAULT_API_ERROR = "Erro ao cadastrar adolescente";
 
@@ -146,13 +148,15 @@ export default function CadastroAdolescentePage() {
   };
 
   return (
-    <div>
-      {mostrarFormulario && (
-        <CadastroAdolescente
-          onSalvar={handleSalvar}
-          onCancelar={handleCancelar}
-        />
-      )}
-    </div>
+    <PermissionGuard required={PERMISSIONS.ADOLESCENTES_CREATE}>
+      <div>
+        {mostrarFormulario && (
+          <CadastroAdolescente
+            onSalvar={handleSalvar}
+            onCancelar={handleCancelar}
+          />
+        )}
+      </div>
+    </PermissionGuard>
   );
 }

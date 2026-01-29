@@ -29,6 +29,8 @@ import {
   criarMapaSlots,
   type ResultadoRisco,
 } from "@/lib/riscos/calcular";
+import { useAuth } from "@/hooks/useAuth";
+import { hasPermission, PERMISSIONS } from "@/lib/auth/permissions";
 
 type VisaoGeralTabProps = {
   casas: Casa[];
@@ -167,6 +169,11 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
   const searchParams = useSearchParams();
   const casaNumeroFromUrl = searchParams.get("casa");
   const [casaHighlighted, setCasaHighlighted] = useState<number | null>(null);
+  const { user } = useAuth();
+  const podeEditarEstrutura = useMemo(
+    () => hasPermission(user?.permissions, PERMISSIONS.ESTRUTURA_EDIT),
+    [user?.permissions]
+  );
 
   const [casas, setCasas] = useState<Casa[]>(casasIniciais ?? []);
   const [adolescentes, setAdolescentes] = useState<AdolescenteTipo[]>([]);
@@ -581,6 +588,9 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
   }, [casasNormalizadas, avaliarRiscoAlojamento]);
 
   const abrirModalAlocacao = (alojamento: Alojamento & { casa?: Casa }) => {
+    if (!podeEditarEstrutura) {
+      return;
+    }
     setAlojamentoSelecionado(alojamento);
     setModalAlocacaoAberto(true);
     modalAlocacaoAbertoRef.current = true;
@@ -914,7 +924,7 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
               <p className="text-yellow-800 mb-4">
                 Crie as 8 casas e 78 alojamentos antes de iniciar as operacoes.
               </p>
-              <InicializarEstruturaButton />
+              {podeEditarEstrutura && <InicializarEstruturaButton />}
             </div>
           </div>
         </div>
@@ -929,7 +939,7 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
             </div>
           )}
         <div className={`space-y-4 ${loading ? "opacity-40 pointer-events-none" : ""}`}>
-          <div className="flex items-center justify-end mb-4">
+          <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
               {loading && (
                 <div className="flex items-center gap-2 text-indigo-600">
@@ -938,6 +948,11 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
                 </div>
               )}
             </div>
+            {!podeEditarEstrutura && (
+              <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                Acesso somente leitura
+              </span>
+            )}
           </div>
 
           {/* Adolescentes com conflitos nÃ£o alocados */}
@@ -1146,6 +1161,7 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
         onClose={fecharModalDetalhes}
         casas={casasNormalizadas}
         conflitosExternos={conflitosExternos}
+        readOnly={!podeEditarEstrutura}
         onDesalocar={async (alojamentoId, adolescenteId, motivo) => {
           await handleDesalocar(alojamentoId, adolescenteId, motivo);
         }}

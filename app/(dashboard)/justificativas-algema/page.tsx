@@ -15,8 +15,11 @@ import {
   CheckCircle,
   Clock,
   RefreshCw,
+  Trash2,
 } from "lucide-react";
 import Link from "next/link";
+import PermissionGuard from "@/components/auth/permission-guard";
+import { PERMISSIONS } from "@/lib/auth/permissions";
 
 interface JustificativaAlgema {
   id: string;
@@ -70,6 +73,7 @@ export default function JustificativasAlgemaPage() {
   const [busca, setBusca] = useState("");
   const [statusFiltro, setStatusFiltro] = useState("");
   const [total, setTotal] = useState(0);
+  const [excluindoId, setExcluindoId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchJustificativas();
@@ -127,6 +131,41 @@ export default function JustificativasAlgemaPage() {
     }
   };
 
+  const handleExcluir = async (id: string, numeroDocumento: string) => {
+    const confirmado = window.confirm(
+      `Confirma a exclusão da justificativa ${numeroDocumento}? Esta ação não poderá ser desfeita.`
+    );
+    if (!confirmado) return;
+
+    setExcluindoId(id);
+    try {
+      const response = await fetch(`/api/justificativas-algema/${id}`, {
+        method: "DELETE",
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(payload?.erro ?? "Erro ao excluir justificativa");
+      }
+
+      setJustificativas((prev) => prev.filter((item) => item.id !== id));
+      setTotal((prev) => Math.max(0, prev - 1));
+
+      if (payload?.pdfRemovido === false && payload?.pdfDetalhes?.erro) {
+        alert(
+          `Justificativa excluída, mas não foi possível remover o PDF: ${payload.pdfDetalhes.erro}`
+        );
+      } else {
+        alert("Justificativa excluída com sucesso.");
+      }
+    } catch (error) {
+      alert(
+        error instanceof Error ? error.message : "Erro ao excluir justificativa"
+      );
+    } finally {
+      setExcluindoId(null);
+    }
+  };
+
   const justificativasFiltradas = justificativas.filter((j) => {
     const searchLower = busca.toLowerCase();
     return (
@@ -143,8 +182,9 @@ export default function JustificativasAlgemaPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50 to-purple-50 p-6">
-      <div className="max-w-7xl mx-auto">
+    <PermissionGuard required={PERMISSIONS.JUSTIFICATIVAS_ALGEMA_VIEW}>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50 to-purple-50 p-6">
+        <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-4">
@@ -442,6 +482,22 @@ export default function JustificativasAlgemaPage() {
                           PDF Judicial
                         </button>
 
+                        <button
+                          onClick={() =>
+                            handleExcluir(
+                              justificativa.id,
+                              justificativa.numeroDocumento
+                            )
+                          }
+                          disabled={excluindoId === justificativa.id}
+                          className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 text-sm font-semibold whitespace-nowrap disabled:opacity-60"
+                        >
+                          <Trash2 size={16} />
+                          {excluindoId === justificativa.id
+                            ? "Excluindo..."
+                            : "Excluir"}
+                        </button>
+
                         <Link
                           href={`/adolescentes/${justificativa.adolescente.id}`}
                           className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2 text-sm font-semibold whitespace-nowrap"
@@ -481,7 +537,8 @@ export default function JustificativasAlgemaPage() {
             </div>
           </div>
         </div>
+        </div>
       </div>
-    </div>
+    </PermissionGuard>
   );
 }
