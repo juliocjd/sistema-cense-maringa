@@ -7,6 +7,7 @@ type Participante = {
   id: string;
   nome: string;
   numeroSms: string;
+  fotoUrl?: string | null;
   alojamento?: string;
   lado?: string | null;
   statusUnidade?: string | null;
@@ -146,11 +147,20 @@ const agruparConflitosPorGrupo = (lista: Conflito[]): Conflito[] => {
         const atual = grupo!.participantesMap.get(participante.id);
         if (!atual) {
           grupo!.participantesMap.set(participante.id, participante);
-        } else if (!atual.lado && participante.lado) {
-          grupo!.participantesMap.set(participante.id, {
-            ...atual,
-            lado: participante.lado,
-          });
+        } else {
+          const atualizacoes: Partial<Participante> = {};
+          if (!atual.lado && participante.lado) {
+            atualizacoes.lado = participante.lado;
+          }
+          if (!atual.fotoUrl && participante.fotoUrl) {
+            atualizacoes.fotoUrl = participante.fotoUrl;
+          }
+          if (Object.keys(atualizacoes).length > 0) {
+            grupo!.participantesMap.set(participante.id, {
+              ...atual,
+              ...atualizacoes,
+            });
+          }
         }
       });
     }

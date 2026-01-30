@@ -19,6 +19,7 @@ type Participante = {
   id: string;
   nome: string;
   numeroSms: string;
+  fotoUrl?: string | null;
   alojamento?: string | null;
   lado?: string | null;
 };
@@ -29,6 +30,7 @@ type Conflito = {
     id: string;
     nome: string;
     numeroSms: string;
+    fotoUrl?: string | null;
     alojamento?: string | null;
     lado?: string | null;
   };
@@ -36,6 +38,7 @@ type Conflito = {
     id: string;
     nome: string;
     numeroSms: string;
+    fotoUrl?: string | null;
     alojamento?: string | null;
     lado?: string | null;
   };
@@ -104,6 +107,7 @@ export function DetalhesConflito({
           id: conflito.adolescenteA.id,
           nome: conflito.adolescenteA.nome,
           numeroSms: conflito.adolescenteA.numeroSms,
+          fotoUrl: conflito.adolescenteA.fotoUrl ?? null,
           alojamento: conflito.adolescenteA.alojamento,
           lado: conflito.adolescenteA.lado ?? "Lado 1",
         },
@@ -111,6 +115,7 @@ export function DetalhesConflito({
           id: conflito.adolescenteB.id,
           nome: conflito.adolescenteB.nome,
           numeroSms: conflito.adolescenteB.numeroSms,
+          fotoUrl: conflito.adolescenteB.fotoUrl ?? null,
           alojamento: conflito.adolescenteB.alojamento,
           lado: conflito.adolescenteB.lado ?? "Lado 2",
         },
@@ -277,10 +282,10 @@ export function DetalhesConflito({
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              onClick={handleNotificarTecnicos}
-              disabled={notificando}
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                onClick={handleNotificarTecnicos}
+                disabled={notificando}
               className="flex items-center gap-2 rounded-lg border border-indigo-200 bg-white px-4 py-2 font-semibold text-indigo-700 transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:text-gray-400"
             >
               <Mail size={18} />
@@ -359,53 +364,65 @@ export function DetalhesConflito({
       <div className="rounded-2xl bg-white p-6 shadow-lg">
         <h2 className="mb-4 text-xl font-bold text-gray-800">Informacoes do conflito</h2>
 
-        <div className="grid gap-6 md:grid-cols-2">
-          {(conflito.participantes?.length
-            ? conflito.participantes
-            : [
-                {
-                  id: conflito.adolescenteA.id,
-                  nome: conflito.adolescenteA.nome,
-                  numeroSms: conflito.adolescenteA.numeroSms,
-                  alojamento: conflito.adolescenteA.alojamento,
-                },
-                {
-                  id: conflito.adolescenteB.id,
-                  nome: conflito.adolescenteB.nome,
-                  numeroSms: conflito.adolescenteB.numeroSms,
-                  alojamento: conflito.adolescenteB.alojamento,
-                },
-              ]
-          ).map((participante, index) => (
-            <div
-              key={`${participante.id}-${index}`}
-              className="rounded-lg border-2 border-red-200 bg-red-50 p-4"
-            >
-              <h3 className="mb-3 flex items-center gap-2 font-semibold text-gray-700">
-                <User size={18} />
-                <span className="flex items-center gap-2">
-                  {`Participante ${index + 1}`}
-                  {participante.lado && (
-                    <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700">
-                      {participante.lado}
-                    </span>
-                  )}
-                </span>
-              </h3>
-              <p className="text-lg font-bold text-gray-900">{participante.nome}</p>
-              <p className="text-sm text-gray-600">
-                SMS: {participante.numeroSms}
-                {participante.alojamento ? ` | ${participante.alojamento}` : ""}
-              </p>
-              <Link
-                href={`/adolescentes/${participante.id}`}
-                className="mt-2 inline-flex items-center text-sm font-semibold text-indigo-600 hover:text-indigo-700"
+          <div className="grid gap-6 md:grid-cols-2">
+            {participantes.map((participante, index) => (
+              <div
+                key={`${participante.id}-${index}`}
+                className="rounded-lg border-2 border-red-200 bg-red-50 p-4"
               >
-                Ver dossie &rarr;
-              </Link>
-            </div>
-          ))}
-        </div>
+                <h3 className="mb-3 flex items-center gap-2 font-semibold text-gray-700">
+                  <User size={18} />
+                  <span className="flex items-center gap-2">
+                    {`Participante ${index + 1}`}
+                    {participante.lado && (
+                      <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700">
+                        {participante.lado}
+                      </span>
+                    )}
+                  </span>
+                </h3>
+                <div className="flex items-start gap-3">
+                  {participante.fotoUrl ? (
+                    <a
+                      href={participante.fotoUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      title="Abrir foto em tamanho maior"
+                      className="shrink-0"
+                    >
+                      <div className="h-10 w-10 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-sm font-semibold">
+                        <img
+                          src={participante.fotoUrl}
+                          alt={participante.nome}
+                          className="h-full w-full object-cover"
+                        />
+                      </div>
+                    </a>
+                  ) : (
+                    <div
+                      title="Sem foto cadastrada"
+                      className="h-10 w-10 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-sm font-semibold shrink-0"
+                    >
+                      {participante.nome?.trim().charAt(0) ?? "?"}
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-lg font-bold text-gray-900">{participante.nome}</p>
+                    <p className="text-sm text-gray-600">
+                      SMS: {participante.numeroSms}
+                      {participante.alojamento ? ` | ${participante.alojamento}` : ""}
+                    </p>
+                    <Link
+                      href={`/adolescentes/${participante.id}`}
+                      className="mt-2 inline-flex items-center text-sm font-semibold text-indigo-600 hover:text-indigo-700"
+                    >
+                      Ver dossie &rarr;
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
 
         <div className="mt-6 grid gap-4 md:grid-cols-2">
           <div className="rounded-lg bg-gray-50 p-3 text-sm text-gray-700">

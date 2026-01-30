@@ -8,6 +8,7 @@ type Adolescente = {
   id: string;
   nomeCompleto: string;
   numeroSms: string;
+  fotoUrl?: string | null;
   alojamento?: string;
 };
 

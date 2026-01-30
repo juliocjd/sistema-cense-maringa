@@ -1394,49 +1394,78 @@ const motivosAmbientaisDetalhados = useMemo<MotivoAmbientalDetalhado[]>(() => {
           </div>
         </div>
 
-        <div className="max-h-[80vh] overflow-y-auto px-6 py-6 space-y-6">
-          <div className="flex flex-wrap gap-3 border-b border-slate-200 pb-4">
-            {(
-              [
-                {
-                  id: "ocupacao",
-                  label: "Ocupacao atual",
-                  disabled: statusInterditado,
-                },
-                {
-                  id: "transferencia",
-                  label: "Transferir / realocar",
-                  disabled: statusInterditado,
-                },
-                { id: "interdicao", label: "Interdicao", disabled: false },
-              ] as Array<{ id: TabKey; label: string; disabled: boolean }>
-            ).map((tab) => {
-              const isDisabled = tab.disabled;
-              const isActive = abaAtiva === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  disabled={isDisabled}
-                  onClick={() => {
-                    if (!isDisabled) setAbaAtiva(tab.id);
-                  }}
-                  title={
-                    isDisabled
-                      ? "Alojamento interditado: utilize a aba Interdicao."
-                      : undefined
-                  }
-                  className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-                    isActive
-                      ? "bg-indigo-600 text-white"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                  } ${isDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
-                >
-                  {tab.label}
-                </button>
-              );
-            })}
-          </div>
+          <div className="max-h-[80vh] overflow-y-auto px-6 py-6 space-y-6">
+            <div className="flex flex-col gap-3 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-wrap gap-3">
+                {(
+                  [
+                    {
+                      id: "ocupacao",
+                      label: "Ocupacao atual",
+                      disabled: statusInterditado,
+                    },
+                    {
+                      id: "transferencia",
+                      label: "Transferir / realocar",
+                      disabled: statusInterditado,
+                    },
+                    { id: "interdicao", label: "Interdicao", disabled: false },
+                  ] as Array<{ id: TabKey; label: string; disabled: boolean }>
+                ).map((tab) => {
+                  const isDisabled = tab.disabled;
+                  const isActive = abaAtiva === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      disabled={isDisabled}
+                      onClick={() => {
+                        if (!isDisabled) setAbaAtiva(tab.id);
+                      }}
+                      title={
+                        isDisabled
+                          ? "Alojamento interditado: utilize a aba Interdicao."
+                          : undefined
+                      }
+                      className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                        isActive
+                          ? "bg-indigo-600 text-white"
+                          : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      } ${isDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
+                    >
+                      {tab.label}
+                    </button>
+                  );
+                })}
+              </div>
+              {ocupante && (
+                <div className="self-start sm:self-center shrink-0">
+                  {ocupante.fotoUrl ? (
+                    <a
+                      href={ocupante.fotoUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      title="Abrir foto em tamanho maior"
+                    >
+                      <div className="h-16 w-16 rounded-2xl border border-slate-200 bg-slate-100 shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-lg font-semibold">
+                        <img
+                          src={ocupante.fotoUrl}
+                          alt={ocupante.nomeCompleto}
+                          className="h-full w-full object-cover"
+                        />
+                      </div>
+                    </a>
+                  ) : (
+                    <div
+                      title="Sem foto cadastrada"
+                      className="h-16 w-16 rounded-2xl border border-slate-200 bg-slate-100 shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-lg font-semibold"
+                    >
+                      {ocupante.nomeCompleto?.charAt(0) ?? "?"}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
 
           {statusInterditado && (
             <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-2 text-sm text-amber-800">

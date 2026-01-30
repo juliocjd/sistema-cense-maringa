@@ -8,6 +8,7 @@ type AdolescenteResumo = {
   id: string;
   nome: string;
   numeroSms: string;
+  fotoUrl?: string | null;
   alojamento?: string;
   ladoConflito?: "LADO_1" | "LADO_2" | null;
 };
@@ -65,6 +66,7 @@ type ApiCI = {
     nomeCompleto?: string | null;
     nomeSocial?: string | null;
     numeroSms?: string | null;
+    fotoUrl?: string | null;
     alojamento?: string | null;
     ladoConflito?: string | null;
     alojamentoAtual?: {
@@ -152,6 +154,7 @@ const normalizarCI = (payload: ApiCI): ComunicadoInterno => ({
     id: adolescente.id,
     nome: formatarNomeAdolescente(adolescente),
     numeroSms: adolescente.numeroSms ?? "Nao informado",
+    fotoUrl: adolescente.fotoUrl ?? null,
     alojamento:
       adolescente.alojamento ??
       formatarAlojamento(adolescente.alojamentoAtual ?? null),

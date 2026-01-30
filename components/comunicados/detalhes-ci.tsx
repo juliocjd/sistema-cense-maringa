@@ -31,6 +31,7 @@ type ComunicadoInterno = {
     id: string;
     nome: string;
     numeroSms: string;
+    fotoUrl?: string | null;
     alojamento?: string;
     ladoConflito?: "LADO_1" | "LADO_2" | null;
   }>;
@@ -81,6 +82,7 @@ export function DetalhesCI({
   const [loading, setLoading] = useState(false);
   const [excluindoConflitoId, setExcluindoConflitoId] = useState<string | null>(null);
   const [excluindoAlertaId, setExcluindoAlertaId] = useState<string | null>(null);
+  const mostrarFotosNosCards = true;
 
   // Form de conflito
   const [lado1Selecionados, setLado1Selecionados] = useState<string[]>([]);
@@ -520,11 +522,11 @@ export function DetalhesCI({
           Voltar para lista
         </Link>
 
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-800 mb-2">
-              CI {ci.numero}/{ci.ano}
-            </h1>
+          <div className="flex items-start justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-800 mb-2">
+                CI {ci.numero}/{ci.ano}
+              </h1>
             <div className="flex items-center gap-2">
               <span
                 className={`px-3 py-1 rounded-full text-sm font-bold border ${badge.cor}`}
@@ -534,10 +536,10 @@ export function DetalhesCI({
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            {ci.caminhoPdf && (
-              <a
-                href={ci.caminhoPdf}
+            <div className="flex flex-wrap items-center gap-3">
+              {ci.caminhoPdf && (
+                <a
+                  href={ci.caminhoPdf}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="px-5 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2 font-semibold"
@@ -646,52 +648,102 @@ export function DetalhesCI({
                     </p>
                   ) : (
                     <div className="space-y-2">
-                      {lista.map((participante) => (
-                        <Link
-                          key={participante.id}
-                          href={`/adolescentes/${participante.id}`}
-                          className="block rounded-lg border border-indigo-100 bg-white px-3 py-2 hover:bg-indigo-100"
-                        >
-                          <p className="font-semibold text-gray-800">
-                            {participante.nome}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            SMS: {participante.numeroSms ?? "No informado"}
-                            {participante.alojamento ? (
-                              <span className="ml-1">
-                                | {participante.alojamento}
-                              </span>
-                            ) : null}
-                          </p>
-                        </Link>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                        {lista.map((participante) => (
+                          <Link
+                            key={participante.id}
+                            href={`/adolescentes/${participante.id}`}
+                            className="block rounded-lg border border-indigo-100 bg-white px-3 py-2 hover:bg-indigo-100"
+                          >
+                            <div className="flex items-center gap-3">
+                              {mostrarFotosNosCards && (
+                                participante.fotoUrl ? (
+                                  <div
+                                    title="Foto cadastrada"
+                                    className="h-9 w-9 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-sm font-semibold shrink-0"
+                                  >
+                                    <img
+                                      src={participante.fotoUrl}
+                                      alt={participante.nome}
+                                      className="h-full w-full object-cover"
+                                    />
+                                  </div>
+                                ) : (
+                                  <div
+                                    title="Sem foto cadastrada"
+                                    className="h-9 w-9 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-sm font-semibold shrink-0"
+                                  >
+                                    {participante.nome?.trim().charAt(0) ?? "?"}
+                                  </div>
+                                )
+                              )}
+                              <div>
+                                <p className="font-semibold text-gray-800">
+                                  {participante.nome}
+                                </p>
+                                <p className="text-xs text-gray-500">
+                                  SMS: {participante.numeroSms ?? "No informado"}
+                                  {participante.alojamento ? (
+                                    <span className="ml-1">
+                                      | {participante.alojamento}
+                                    </span>
+                                  ) : null}
+                                </p>
+                              </div>
+                            </div>
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </div>
               )
             )}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {ci.adolescentes.map((adolescente) => (
-              <Link
-                key={adolescente.id}
-                href={`/adolescentes/${adolescente.id}`}
-                className="bg-indigo-50 border-2 border-indigo-200 rounded-lg p-4 hover:bg-indigo-100 transition-colors"
-              >
-                <p className="font-bold text-gray-800 mb-1">
-                  {adolescente.nome}
-                </p>
-                <p className="text-sm text-gray-600">
-                  SMS: {adolescente.numeroSms || "Nao informado"}
-                  {adolescente.alojamento && (
-                    <span className="ml-1">| {adolescente.alojamento}</span>
-                  )}
-                </p>
-              </Link>
-            ))}
-          </div>
-        )}
+              {ci.adolescentes.map((adolescente) => (
+                <Link
+                  key={adolescente.id}
+                  href={`/adolescentes/${adolescente.id}`}
+                  className="bg-indigo-50 border-2 border-indigo-200 rounded-lg p-4 hover:bg-indigo-100 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    {mostrarFotosNosCards && (
+                      adolescente.fotoUrl ? (
+                        <div
+                          title="Foto cadastrada"
+                          className="h-9 w-9 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-sm font-semibold shrink-0"
+                        >
+                          <img
+                            src={adolescente.fotoUrl}
+                            alt={adolescente.nome}
+                            className="h-full w-full object-cover"
+                          />
+                        </div>
+                      ) : (
+                        <div
+                          title="Sem foto cadastrada"
+                          className="h-9 w-9 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-sm font-semibold shrink-0"
+                        >
+                          {adolescente.nome?.trim().charAt(0) ?? "?"}
+                        </div>
+                      )
+                    )}
+                    <div>
+                      <p className="font-bold text-gray-800 mb-1">
+                        {adolescente.nome}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        SMS: {adolescente.numeroSms || "Nao informado"}
+                        {adolescente.alojamento && (
+                          <span className="ml-1">| {adolescente.alojamento}</span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
       </div>
 
       {/* Gatilhos Automticos */}

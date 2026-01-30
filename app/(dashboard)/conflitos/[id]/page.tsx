@@ -8,6 +8,7 @@ type Participante = {
   id: string;
   nome: string;
   numeroSms: string;
+  fotoUrl?: string | null;
   alojamento?: string | null;
   lado?: string | null;
 };
@@ -56,6 +57,7 @@ type ApiParticipante = {
   nomeCompleto?: string | null;
   nomeSocial?: string | null;
   numeroSms?: string | null;
+  fotoUrl?: string | null;
   alojamento?: string | null;
   alojamentoAtual?: {
     descricao?: string | null;
@@ -156,6 +158,7 @@ const mapearParticipante = (dados: ApiParticipante): Participante => ({
   id: dados.id,
   nome: formatarNome(dados),
   numeroSms: dados.numeroSms ?? "",
+  fotoUrl: dados.fotoUrl ?? null,
   alojamento: formatarAlojamento(dados.alojamento ?? dados.alojamentoAtual),
   lado: dados.lado ?? null,
 });

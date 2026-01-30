@@ -19,6 +19,7 @@ type ComunicadoInterno = {
     id: string;
     nome: string;
     numeroSms: string;
+    fotoUrl?: string | null;
     ladoConflito?: "LADO_1" | "LADO_2" | null;
   }>;
   conflitos?: Array<{

@@ -19,6 +19,7 @@ type AdolescenteResumo = {
   id: string;
   nome: string;
   numeroSms: string;
+  fotoUrl?: string | null;
   ladoConflito?: "LADO_1" | "LADO_2" | null;
 };
 
@@ -465,27 +466,27 @@ export function ListagemCIs({ comunicados }: ListagemCIsProps) {
                     </div>
                   </div>
 
-                  <div className="flex gap-2">
-                    {ci.caminhoPdf && (
-                      <a
-                        href={ci.caminhoPdf}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2 font-semibold"
+                    <div className="flex items-center gap-2">
+                      {ci.caminhoPdf && (
+                        <a
+                          href={ci.caminhoPdf}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2 font-semibold"
+                        >
+                          <Download size={18} />
+                          PDF
+                        </a>
+                      )}
+                      <Link
+                        href={`/comunicados/${ci.id}`}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 font-semibold"
                       >
-                        <Download size={18} />
-                        PDF
-                      </a>
-                    )}
-                    <Link
-                      href={`/comunicados/${ci.id}`}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 font-semibold"
-                    >
-                      <Eye size={18} />
-                      Ver Detalhes
-                    </Link>
+                        <Eye size={18} />
+                        Ver Detalhes
+                      </Link>
+                    </div>
                   </div>
-                </div>
 
                 <div className="mb-4">
                   <p className="text-gray-800 line-clamp-2">{ci.resumoCi}</p>
@@ -520,13 +521,13 @@ export function ListagemCIs({ comunicados }: ListagemCIsProps) {
                     <p className="text-sm font-semibold text-gray-700 mb-2">
                       Adolescentes envolvidos:
                     </p>
-                    {exibirLados && ladosConflito ? (
-                      <div className="grid gap-4 md:grid-cols-2">
-                        {[
-                          { titulo: "Lado 1", lista: ladosConflito.lado1 },
-                          { titulo: "Lado 2", lista: ladosConflito.lado2 },
-                        ].map(({ titulo, lista }) => (
-                          <div
+                      {exibirLados && ladosConflito ? (
+                        <div className="grid gap-4 md:grid-cols-2">
+                          {[
+                            { titulo: "Lado 1", lista: ladosConflito.lado1 },
+                            { titulo: "Lado 2", lista: ladosConflito.lado2 },
+                          ].map(({ titulo, lista }) => (
+                            <div
                             key={titulo}
                             className="rounded-2xl border border-indigo-100 bg-indigo-50/70 p-3"
                           >
@@ -543,46 +544,86 @@ export function ListagemCIs({ comunicados }: ListagemCIsProps) {
                                 Nenhum adolescente neste lado.
                               </p>
                             ) : (
-                              <div className="space-y-2">
-                                {lista.map((participante) => (
-                                  <Link
-                                    key={participante.id}
-                                    href={`/adolescentes/${participante.id}`}
-                                    className="block rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm hover:bg-indigo-100"
+                                <div className="space-y-2">
+                                  {lista.map((participante) => (
+                                    <Link
+                                      key={participante.id}
+                                      href={`/adolescentes/${participante.id}`}
+                                      className="block rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm hover:bg-indigo-100"
+                                    >
+                                      <div className="flex items-center gap-3">
+                                        {participante.fotoUrl ? (
+                                          <div className="h-8 w-8 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-xs font-semibold shrink-0">
+                                            <img
+                                              src={participante.fotoUrl}
+                                              alt={participante.nome}
+                                              className="h-full w-full object-cover"
+                                            />
+                                          </div>
+                                        ) : (
+                                          <div
+                                            title="Sem foto cadastrada"
+                                            className="h-8 w-8 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-xs font-semibold shrink-0"
+                                          >
+                                            {participante.nome?.trim().charAt(0) ?? "?"}
+                                          </div>
+                                        )}
+                                        <div>
+                                          <p className="font-semibold text-gray-800">
+                                            {participante.nome}
+                                          </p>
+                                          <p className="text-xs text-gray-500">
+                                            SMS: {participante.numeroSms}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    </Link>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                          {ci.adolescentes.map((adolescente) => (
+                            <Link
+                              key={adolescente.id}
+                              href={`/adolescentes/${adolescente.id}`}
+                              className="rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm hover:bg-indigo-100"
+                            >
+                              <div className="flex items-center gap-3">
+                                {adolescente.fotoUrl ? (
+                                  <div className="h-8 w-8 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-xs font-semibold shrink-0">
+                                    <img
+                                      src={adolescente.fotoUrl}
+                                      alt={adolescente.nome}
+                                      className="h-full w-full object-cover"
+                                    />
+                                  </div>
+                                ) : (
+                                  <div
+                                    title="Sem foto cadastrada"
+                                    className="h-8 w-8 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-xs font-semibold shrink-0"
                                   >
-                                    <p className="font-semibold text-gray-800">
-                                      {participante.nome}
-                                    </p>
-                                    <p className="text-xs text-gray-500">
-                                      SMS: {participante.numeroSms}
-                                    </p>
-                                  </Link>
-                                ))}
+                                    {adolescente.nome?.trim().charAt(0) ?? "?"}
+                                  </div>
+                                )}
+                                <div>
+                                  <p className="font-semibold text-gray-800">
+                                    {adolescente.nome}
+                                  </p>
+                                  <p className="text-xs text-gray-500">
+                                    SMS: {adolescente.numeroSms}
+                                  </p>
+                                </div>
                               </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="flex flex-wrap gap-2">
-                        {ci.adolescentes.slice(0, 3).map((adolescente) => (
-                          <Link
-                            key={adolescente.id}
-                            href={`/adolescentes/${adolescente.id}`}
-                            className="px-3 py-1 bg-indigo-100 text-indigo-800 rounded-full text-sm font-semibold hover:bg-indigo-200 transition-colors"
-                          >
-                            {adolescente.nome} (SMS: {adolescente.numeroSms})
-                          </Link>
-                        ))}
-                        {ci.adolescentes.length > 3 && (
-                          <span className="px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-sm font-semibold">
-                            +{ci.adolescentes.length - 3} mais
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
+                            </Link>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
               </div>
             );
           })

@@ -44,6 +44,7 @@ type Adolescente = {
   id: string;
   nomeCompleto: string;
   numeroSms: string;
+  fotoUrl?: string | null;
   alojamento?: string;
 };
 
@@ -176,6 +177,7 @@ export function RegistroCI({ adolescentes, onSalvar }: RegistroCIProps) {
   const selecionadosParaEnvio = modoConflito
     ? [...ladoA, ...ladoB]
     : adolescentesSelecionados;
+  const adolescenteDestaque = selecionadosParaEnvio[0];
 
   const handleSalvar = async () => {
     // Valida??es
@@ -244,12 +246,17 @@ export function RegistroCI({ adolescentes, onSalvar }: RegistroCIProps) {
           <ArrowLeft size={20} />
           Voltar para lista
         </Link>
-        <h1 className="text-3xl font-bold text-gray-800">
-          Registrar Novo Comunicado Interno
-        </h1>
-        <p className="text-gray-600 mt-2">
-          Preencha as informações do CI e vincule os adolescentes envolvidos
-        </p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-800">
+              Registrar Novo Comunicado Interno
+            </h1>
+            <p className="text-gray-600 mt-2">
+              Preencha as informações do CI e vincule os adolescentes envolvidos
+            </p>
+          </div>
+          {null}
+        </div>
       </div>
 
       {/* Formulário */}
@@ -454,25 +461,41 @@ export function RegistroCI({ adolescentes, onSalvar }: RegistroCIProps) {
                       </div>
                     )}
                   </div>
-                  {ladoA.length > 0 && (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {ladoA.map((item) => (
-                        <span
-                          key={item.id}
-                          className="inline-flex items-center gap-2 rounded-full bg-blue-100 px-3 py-1 text-sm font-semibold text-blue-700"
-                        >
-                          {item.nomeCompleto}
-                          <button
-                            type="button"
-                            onClick={() => removerDoLado("A", item.id)}
-                            className="text-blue-600 hover:text-blue-800"
+                    {ladoA.length > 0 && (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {ladoA.map((item) => (
+                          <span
+                            key={item.id}
+                            className="inline-flex items-center gap-2 rounded-full bg-blue-100 px-3 py-1 text-sm font-semibold text-blue-700"
                           >
-                            <X size={14} />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                            {item.fotoUrl ? (
+                              <span className="h-7 w-7 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-[10px] font-semibold">
+                                <img
+                                  src={item.fotoUrl}
+                                  alt={item.nomeCompleto}
+                                  className="h-full w-full object-cover"
+                                />
+                              </span>
+                            ) : (
+                              <span
+                                title="Sem foto cadastrada"
+                                className="h-7 w-7 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-[10px] font-semibold"
+                              >
+                                {item.nomeCompleto?.trim().charAt(0) ?? "?"}
+                              </span>
+                            )}
+                            <span>{item.nomeCompleto}</span>
+                            <button
+                              type="button"
+                              onClick={() => removerDoLado("A", item.id)}
+                              className="text-blue-600 hover:text-blue-800"
+                            >
+                              <X size={14} />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
                 </div>
 
                 <div className="rounded-2xl border border-gray-200 p-4">
@@ -524,25 +547,41 @@ export function RegistroCI({ adolescentes, onSalvar }: RegistroCIProps) {
                       </div>
                     )}
                   </div>
-                  {ladoB.length > 0 && (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {ladoB.map((item) => (
-                        <span
-                          key={item.id}
-                          className="inline-flex items-center gap-2 rounded-full bg-indigo-100 px-3 py-1 text-sm font-semibold text-indigo-700"
-                        >
-                          {item.nomeCompleto}
-                          <button
-                            type="button"
-                            onClick={() => removerDoLado("B", item.id)}
-                            className="text-indigo-600 hover:text-indigo-800"
+                    {ladoB.length > 0 && (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {ladoB.map((item) => (
+                          <span
+                            key={item.id}
+                            className="inline-flex items-center gap-2 rounded-full bg-indigo-100 px-3 py-1 text-sm font-semibold text-indigo-700"
                           >
-                            <X size={14} />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                            {item.fotoUrl ? (
+                              <span className="h-7 w-7 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-[10px] font-semibold">
+                                <img
+                                  src={item.fotoUrl}
+                                  alt={item.nomeCompleto}
+                                  className="h-full w-full object-cover"
+                                />
+                              </span>
+                            ) : (
+                              <span
+                                title="Sem foto cadastrada"
+                                className="h-7 w-7 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-[10px] font-semibold"
+                              >
+                                {item.nomeCompleto?.trim().charAt(0) ?? "?"}
+                              </span>
+                            )}
+                            <span>{item.nomeCompleto}</span>
+                            <button
+                              type="button"
+                              onClick={() => removerDoLado("B", item.id)}
+                              className="text-indigo-600 hover:text-indigo-800"
+                            >
+                              <X size={14} />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
                 </div>
               </div>
             </div>
@@ -614,6 +653,22 @@ export function RegistroCI({ adolescentes, onSalvar }: RegistroCIProps) {
                         key={adolescente.id}
                         className="flex items-center gap-2 px-3 py-2 bg-blue-100 text-blue-800 rounded-lg border border-blue-300"
                       >
+                        {adolescente.fotoUrl ? (
+                          <div className="h-8 w-8 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-xs font-semibold shrink-0">
+                            <img
+                              src={adolescente.fotoUrl}
+                              alt={adolescente.nomeCompleto}
+                              className="h-full w-full object-cover"
+                            />
+                          </div>
+                        ) : (
+                          <div
+                            title="Sem foto cadastrada"
+                            className="h-8 w-8 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-xs font-semibold shrink-0"
+                          >
+                            {adolescente.nomeCompleto?.trim().charAt(0) ?? "?"}
+                          </div>
+                        )}
                         <div>
                           <p className="font-semibold text-sm">
                             {adolescente.nomeCompleto}

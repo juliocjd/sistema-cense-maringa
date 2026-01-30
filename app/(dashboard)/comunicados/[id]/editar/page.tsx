@@ -48,6 +48,7 @@ type ApiAdolescente = {
   nomeSocial?: string | null;
   nome?: string | null;
   numeroSms?: string | null;
+  fotoUrl?: string | null;
   alojamento?: string | null;
   ladoConflito?: string | null;
   alojamentoAtual?: {
@@ -65,6 +66,7 @@ type Adolescente = {
   id: string;
   nome: string;
   numeroSms: string;
+  fotoUrl?: string | null;
   alojamento?: string;
   ladoConflito?: "LADO_1" | "LADO_2" | null;
 };
@@ -120,7 +122,12 @@ const mergeAdolescentes = (
   base.forEach((item) => mapa.set(item.id, item));
   extras.forEach((item) => {
     if (mapa.has(item.id)) {
-      mapa.set(item.id, { ...mapa.get(item.id)!, ...item });
+      const atual = mapa.get(item.id)!;
+      mapa.set(item.id, {
+        ...atual,
+        ...item,
+        fotoUrl: item.fotoUrl ?? atual.fotoUrl ?? null,
+      });
       return;
     }
     mapa.set(item.id, item);
@@ -193,6 +200,7 @@ export default function EditarCIPage() {
         id: item.id,
         nome: formatarNomeAdolescente(item),
         numeroSms: item.numeroSms ?? "N?o informado",
+        fotoUrl: item.fotoUrl ?? null,
         alojamento: formatarAlojamento(item.alojamentoAtual, item.alojamento),
         ladoConflito:
           item.ladoConflito === "LADO_1"
@@ -229,6 +237,7 @@ export default function EditarCIPage() {
               id: item.id,
               nome: formatarNomeAdolescente(item),
               numeroSms: item.numeroSms ?? "N?o informado",
+              fotoUrl: item.fotoUrl ?? null,
               alojamento: formatarAlojamento(
                 item.alojamentoAtual,
                 item.alojamento
@@ -264,6 +273,7 @@ export default function EditarCIPage() {
                 id: a.id,
                 nome: a.nome ?? a.nomeCompleto ?? "Participante Lado 1",
                 numeroSms: a.numeroSms ?? "N?o informado",
+                fotoUrl: null,
               });
             }
             if (b?.id) {
@@ -271,6 +281,7 @@ export default function EditarCIPage() {
                 id: b.id,
                 nome: b.nome ?? b.nomeCompleto ?? "Participante Lado 2",
                 numeroSms: b.numeroSms ?? "N?o informado",
+                fotoUrl: null,
               });
             }
           });
@@ -605,6 +616,22 @@ export default function EditarCIPage() {
                           key={item.id}
                           className="inline-flex items-center gap-2 rounded-full bg-blue-100 px-3 py-1 text-sm font-semibold text-blue-700"
                         >
+                          {item.fotoUrl ? (
+                            <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white text-[10px] font-semibold text-slate-500 shadow-sm">
+                              <img
+                                src={item.fotoUrl}
+                                alt={item.nome}
+                                className="h-full w-full object-cover"
+                              />
+                            </span>
+                          ) : (
+                            <span
+                              title="Sem foto cadastrada"
+                              className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white text-[10px] font-semibold text-slate-500 shadow-sm"
+                            >
+                              {item.nome?.trim().charAt(0) ?? "?"}
+                            </span>
+                          )}
                           {item.nome}
                           <button
                             type="button"
@@ -686,6 +713,22 @@ export default function EditarCIPage() {
                           key={item.id}
                           className="inline-flex items-center gap-2 rounded-full bg-indigo-100 px-3 py-1 text-sm font-semibold text-indigo-700"
                         >
+                          {item.fotoUrl ? (
+                            <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white text-[10px] font-semibold text-slate-500 shadow-sm">
+                              <img
+                                src={item.fotoUrl}
+                                alt={item.nome}
+                                className="h-full w-full object-cover"
+                              />
+                            </span>
+                          ) : (
+                            <span
+                              title="Sem foto cadastrada"
+                              className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white text-[10px] font-semibold text-slate-500 shadow-sm"
+                            >
+                              {item.nome?.trim().charAt(0) ?? "?"}
+                            </span>
+                          )}
                           {item.nome}
                           <button
                             type="button"
@@ -754,25 +797,40 @@ export default function EditarCIPage() {
               ) : (
                 <div className="flex flex-wrap gap-2">
                   {adolescentesSelecionados.map((adolescente) => (
-                    <span
+                    <div
                       key={adolescente.id}
-                      className="inline-flex items-center gap-2 rounded-full bg-blue-100 px-3 py-1 text-sm font-semibold text-blue-700"
+                      className="flex items-center gap-2 rounded-lg border border-blue-300 bg-blue-100 px-3 py-2 text-blue-800"
                     >
-                      <span>
-                        {adolescente.nome}
-                        <span className="text-xs text-blue-500">
-                          {" "}
-                          (SMS: {adolescente.numeroSms})
+                      {adolescente.fotoUrl ? (
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white text-xs font-semibold text-slate-500 shadow-sm">
+                          <img
+                            src={adolescente.fotoUrl}
+                            alt={adolescente.nome}
+                            className="h-full w-full object-cover"
+                          />
                         </span>
-                      </span>
+                      ) : (
+                        <span
+                          title="Sem foto cadastrada"
+                          className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white text-xs font-semibold text-slate-500 shadow-sm"
+                        >
+                          {adolescente.nome?.trim().charAt(0) ?? "?"}
+                        </span>
+                      )}
+                      <div>
+                        <p className="text-sm font-semibold">
+                          {adolescente.nome}
+                        </p>
+                        <p className="text-xs">SMS: {adolescente.numeroSms}</p>
+                      </div>
                       <button
                         type="button"
                         onClick={() => removerAdolescente(adolescente.id)}
-                        className="text-blue-600 hover:text-blue-800"
+                        className="rounded p-1 text-blue-600 transition-colors hover:bg-blue-200 hover:text-blue-800"
                       >
-                        <X size={14} />
+                        <X size={16} />
                       </button>
-                    </span>
+                    </div>
                   ))}
                 </div>
               )}

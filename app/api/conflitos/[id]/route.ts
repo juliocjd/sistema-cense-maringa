@@ -43,28 +43,30 @@ const coletarParticipantes = (
   conflitos: any[],
   ladosMap?: Map<string, LadoToken>
 ) => {
-  const mapa = new Map<
-    string,
-    {
-      id: string;
-      nomeCompleto: string;
-      numeroSms: string | null;
-      alojamentoAtual: ReturnType<typeof formatarAlojamento>;
-      lado?: string;
-    }
-  >();
+    const mapa = new Map<
+      string,
+      {
+        id: string;
+        nomeCompleto: string;
+        numeroSms: string | null;
+        fotoUrl: string | null;
+        alojamentoAtual: ReturnType<typeof formatarAlojamento>;
+        lado?: string;
+      }
+    >();
 
   const adicionar = (dados: any) => {
     if (!dados) return;
     if (!mapa.has(dados.id)) {
       const ladoToken = ladosMap?.get(dados.id);
-      mapa.set(dados.id, {
-        id: dados.id,
-        nomeCompleto: dados.nomeCompleto ?? dados.nomeSocial ?? "",
-        numeroSms: dados.numeroSms ?? "",
-        alojamentoAtual: formatarAlojamento(dados.alojamentoAtual),
-        lado: ladoToken ? LADO_LABELS[ladoToken] : undefined,
-      });
+        mapa.set(dados.id, {
+          id: dados.id,
+          nomeCompleto: dados.nomeCompleto ?? dados.nomeSocial ?? "",
+          numeroSms: dados.numeroSms ?? "",
+          fotoUrl: dados.fotoUrl ?? null,
+          alojamentoAtual: formatarAlojamento(dados.alojamentoAtual),
+          lado: ladoToken ? LADO_LABELS[ladoToken] : undefined,
+        });
     }
   };
 
@@ -294,30 +296,32 @@ export async function GET(
     // Conflitos do grupo para mapear lados/participantes
     const conflitosAgrupados = await prisma.conflito.findMany({
       where: filtroGrupo,
-      include: {
-        adolescenteA: {
-          select: {
-            id: true,
-            nomeCompleto: true,
-            nomeSocial: true,
-            numeroSms: true,
-            alojamentoAtual: {
-              include: { casa: true },
+        include: {
+          adolescenteA: {
+            select: {
+              id: true,
+              nomeCompleto: true,
+              nomeSocial: true,
+              numeroSms: true,
+              fotoUrl: true,
+              alojamentoAtual: {
+                include: { casa: true },
+              },
+            },
+          },
+          adolescenteB: {
+            select: {
+              id: true,
+              nomeCompleto: true,
+              nomeSocial: true,
+              numeroSms: true,
+              fotoUrl: true,
+              alojamentoAtual: {
+                include: { casa: true },
+              },
             },
           },
         },
-        adolescenteB: {
-          select: {
-            id: true,
-            nomeCompleto: true,
-            nomeSocial: true,
-            numeroSms: true,
-            alojamentoAtual: {
-              include: { casa: true },
-            },
-          },
-        },
-      },
     });
 
     const totalAtivos = conflitosAgrupados.filter(

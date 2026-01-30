@@ -165,6 +165,7 @@ export async function GET(request: NextRequest) {
                   id: true,
                   nomeCompleto: true,
                   numeroSms: true,
+                  fotoUrl: true,
                 },
               },
             },
@@ -254,12 +255,13 @@ export async function GET(request: NextRequest) {
             nome: "Operador nao identificado",
           }
         : null,
-      adolescentes: ci.adolescentes.map((link) => ({
-        id: link.adolescente.id,
-        nome: link.adolescente.nomeCompleto,
-        numeroSms: link.adolescente.numeroSms,
-        ladoConflito: link.ladoConflito as "LADO_1" | "LADO_2" | null,
-      })),
+        adolescentes: ci.adolescentes.map((link) => ({
+          id: link.adolescente.id,
+          nome: link.adolescente.nomeCompleto,
+          numeroSms: link.adolescente.numeroSms,
+          fotoUrl: link.adolescente.fotoUrl ?? null,
+          ladoConflito: link.ladoConflito as "LADO_1" | "LADO_2" | null,
+        })),
       conflitos: ci.conflitos.map((conflito) => ({
         id: conflito.id,
         status: conflito.status,

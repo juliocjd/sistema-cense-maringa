@@ -302,33 +302,35 @@ export async function GET(request: Request) {
 
     const conflitos = await prisma.conflito.findMany({
       where,
-      include: {
-        adolescenteA: {
-          select: {
-            id: true,
-            nomeCompleto: true,
-            statusUnidade: true,
-            numeroSms: true,
-            alojamentoAtual: {
-              include: {
-                casa: true,
+        include: {
+          adolescenteA: {
+            select: {
+              id: true,
+              nomeCompleto: true,
+              statusUnidade: true,
+              numeroSms: true,
+              fotoUrl: true,
+              alojamentoAtual: {
+                include: {
+                  casa: true,
+                },
               },
             },
           },
-        },
-        adolescenteB: {
-          select: {
-            id: true,
-            nomeCompleto: true,
-            statusUnidade: true,
-            numeroSms: true,
-            alojamentoAtual: {
-              include: {
-                casa: true,
+          adolescenteB: {
+            select: {
+              id: true,
+              nomeCompleto: true,
+              statusUnidade: true,
+              numeroSms: true,
+              fotoUrl: true,
+              alojamentoAtual: {
+                include: {
+                  casa: true,
+                },
               },
             },
           },
-        },
         ciOrigem: {
           select: {
             id: true,
@@ -437,24 +439,26 @@ export async function GET(request: Request) {
       return {
       id: c.id,
       registroGrupoId: c.registroGrupoId,
-      adolescenteA: {
-        id: c.adolescenteA.id,
-        nome: c.adolescenteA.nomeCompleto,
-        statusUnidade: c.adolescenteA.statusUnidade,
-        numeroSms: c.adolescenteA.numeroSms,
-        alojamento: c.adolescenteA.alojamentoAtual
-          ? `${c.adolescenteA.alojamentoAtual.casa.nome} - Aloj ${c.adolescenteA.alojamentoAtual.numeroAlojamento}`
-          : undefined,
-      },
-      adolescenteB: {
-        id: c.adolescenteB.id,
-        nome: c.adolescenteB.nomeCompleto,
-        statusUnidade: c.adolescenteB.statusUnidade,
-        numeroSms: c.adolescenteB.numeroSms,
-        alojamento: c.adolescenteB.alojamentoAtual
-          ? `${c.adolescenteB.alojamentoAtual.casa.nome} - Aloj ${c.adolescenteB.alojamentoAtual.numeroAlojamento}`
-          : undefined,
-      },
+        adolescenteA: {
+          id: c.adolescenteA.id,
+          nome: c.adolescenteA.nomeCompleto,
+          statusUnidade: c.adolescenteA.statusUnidade,
+          numeroSms: c.adolescenteA.numeroSms,
+          fotoUrl: c.adolescenteA.fotoUrl ?? null,
+          alojamento: c.adolescenteA.alojamentoAtual
+            ? `${c.adolescenteA.alojamentoAtual.casa.nome} - Aloj ${c.adolescenteA.alojamentoAtual.numeroAlojamento}`
+            : undefined,
+        },
+        adolescenteB: {
+          id: c.adolescenteB.id,
+          nome: c.adolescenteB.nomeCompleto,
+          statusUnidade: c.adolescenteB.statusUnidade,
+          numeroSms: c.adolescenteB.numeroSms,
+          fotoUrl: c.adolescenteB.fotoUrl ?? null,
+          alojamento: c.adolescenteB.alojamentoAtual
+            ? `${c.adolescenteB.alojamentoAtual.casa.nome} - Aloj ${c.adolescenteB.alojamentoAtual.numeroAlojamento}`
+            : undefined,
+        },
       tipoConflito: c.tipoConflito,
       status: c.status,
       origem: c.ciOrigem

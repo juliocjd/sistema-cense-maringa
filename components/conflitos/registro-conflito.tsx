@@ -8,6 +8,7 @@ type Adolescente = {
   id: string;
   nomeCompleto: string;
   numeroSms: string;
+  fotoUrl?: string | null;
   alojamento?: string;
 };
 
@@ -170,10 +171,15 @@ export function RegistroConflito({
           <ArrowLeft size={20} />
           Voltar para lista
         </Link>
-        <h1 className="text-3xl font-bold text-gray-800">Registrar novo conflito</h1>
-        <p className="mt-2 text-sm text-gray-600">
-          Selecione todos os adolescentes envolvidos e descreva a ocorrencia registrada.
-        </p>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-800">Registrar novo conflito</h1>
+            <p className="mt-2 text-sm text-gray-600">
+              Selecione todos os adolescentes envolvidos e descreva a ocorrencia registrada.
+            </p>
+          </div>
+          {null}
+        </div>
       </div>
 
       <div className="rounded-2xl bg-white p-8 shadow-lg">
@@ -190,6 +196,53 @@ export function RegistroConflito({
               </div>
             </div>
           </div>
+
+
+          <div>
+            <label className="mb-2 block text-sm font-semibold text-gray-700">
+              Tipo de conflito *
+            </label>
+            <select
+              value={tipoConflito}
+              onChange={(event) => setTipoConflito(event.target.value)}
+              className="w-full rounded-lg border-2 border-gray-300 px-4 py-3 focus:border-red-500 focus:ring-2 focus:ring-red-200"
+            >
+              <option value="">Selecione...</option>
+              <option value="FACCAO">Faccoes rivais</option>
+              <option value="TERRITORIAL">Disputa territorial</option>
+              <option value="PESSOAL">Rivalidade pessoal</option>
+              <option value="OUTROS">Outros</option>
+            </select>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-gray-700">
+                Origem do registro *
+              </label>
+              <select
+                value={origem}
+                onChange={(event) => setOrigem(event.target.value)}
+                className="w-full rounded-lg border-2 border-gray-300 px-4 py-3 focus:border-red-500 focus:ring-2 focus:ring-red-200"
+              >
+                <option value="">Selecione...</option>
+                <option value="CI">Comunicado interno (CI)</option>
+                <option value="OBSERVACAO">Observacao direta</option>
+                <option value="DENUNCIA">Denuncia</option>
+                <option value="OUTROS">Outros</option>
+              </select>
+            </div>
+            {origem === "CI" && (
+              <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                Para conflitos com origem em CI, cadastre o Comunicado em{" "}
+                <Link href="/comunicados/novo" className="font-semibold underline">
+                  /comunicados
+                </Link>{" "}
+                e marque “Gerar conflito”. Este formulário não cria CI.
+              </div>
+            )}
+          </div>
+
 
           <div className="grid gap-6 md:grid-cols-2">
             <div className="rounded-2xl border border-gray-200 p-4">
@@ -243,27 +296,43 @@ export function RegistroConflito({
                   </div>
                 )}
               </div>
-              {ladoA.length > 0 && (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {ladoA.map((item) => (
-                    <span
-                      key={item.id}
-                      className="inline-flex items-center gap-2 rounded-full bg-red-100 px-3 py-1 text-sm font-semibold text-red-700"
-                    >
-                      {item.nomeCompleto}
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setLadoA((lista) => lista.filter((alvo) => alvo.id !== item.id))
-                        }
-                        className="text-red-600 hover:text-red-800"
+                {ladoA.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {ladoA.map((item) => (
+                      <span
+                        key={item.id}
+                        className="inline-flex items-center gap-2 rounded-full bg-red-100 px-3 py-1 text-sm font-semibold text-red-700"
                       >
-                        <X size={14} />
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              )}
+                        {item.fotoUrl ? (
+                          <span className="h-7 w-7 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-[10px] font-semibold">
+                            <img
+                              src={item.fotoUrl}
+                              alt={item.nomeCompleto}
+                              className="h-full w-full object-cover"
+                            />
+                          </span>
+                        ) : (
+                          <span
+                            title="Sem foto cadastrada"
+                            className="h-7 w-7 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-[10px] font-semibold"
+                          >
+                            {item.nomeCompleto?.trim().charAt(0) ?? "?"}
+                          </span>
+                        )}
+                        <span>{item.nomeCompleto}</span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setLadoA((lista) => lista.filter((alvo) => alvo.id !== item.id))
+                          }
+                          className="text-red-600 hover:text-red-800"
+                        >
+                          <X size={14} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
             </div>
 
             <div className="rounded-2xl border border-gray-200 p-4">
@@ -317,73 +386,44 @@ export function RegistroConflito({
                   </div>
                 )}
               </div>
-              {ladoB.length > 0 && (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {ladoB.map((item) => (
-                    <span
-                      key={item.id}
-                      className="inline-flex items-center gap-2 rounded-full bg-indigo-100 px-3 py-1 text-sm font-semibold text-indigo-700"
-                    >
-                      {item.nomeCompleto}
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setLadoB((lista) => lista.filter((alvo) => alvo.id !== item.id))
-                        }
-                        className="text-indigo-600 hover:text-indigo-800"
+                {ladoB.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {ladoB.map((item) => (
+                      <span
+                        key={item.id}
+                        className="inline-flex items-center gap-2 rounded-full bg-indigo-100 px-3 py-1 text-sm font-semibold text-indigo-700"
                       >
-                        <X size={14} />
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              )}
+                        {item.fotoUrl ? (
+                          <span className="h-7 w-7 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-[10px] font-semibold">
+                            <img
+                              src={item.fotoUrl}
+                              alt={item.nomeCompleto}
+                              className="h-full w-full object-cover"
+                            />
+                          </span>
+                        ) : (
+                          <span
+                            title="Sem foto cadastrada"
+                            className="h-7 w-7 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-[10px] font-semibold"
+                          >
+                            {item.nomeCompleto?.trim().charAt(0) ?? "?"}
+                          </span>
+                        )}
+                        <span>{item.nomeCompleto}</span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setLadoB((lista) => lista.filter((alvo) => alvo.id !== item.id))
+                          }
+                          className="text-indigo-600 hover:text-indigo-800"
+                        >
+                          <X size={14} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
             </div>
-          </div>
-
-          <div>
-            <label className="mb-2 block text-sm font-semibold text-gray-700">
-              Tipo de conflito *
-            </label>
-            <select
-              value={tipoConflito}
-              onChange={(event) => setTipoConflito(event.target.value)}
-              className="w-full rounded-lg border-2 border-gray-300 px-4 py-3 focus:border-red-500 focus:ring-2 focus:ring-red-200"
-            >
-              <option value="">Selecione...</option>
-              <option value="FACCAO">Faccoes rivais</option>
-              <option value="TERRITORIAL">Disputa territorial</option>
-              <option value="PESSOAL">Rivalidade pessoal</option>
-              <option value="OUTROS">Outros</option>
-            </select>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <label className="mb-2 block text-sm font-semibold text-gray-700">
-                Origem do registro *
-              </label>
-              <select
-                value={origem}
-                onChange={(event) => setOrigem(event.target.value)}
-                className="w-full rounded-lg border-2 border-gray-300 px-4 py-3 focus:border-red-500 focus:ring-2 focus:ring-red-200"
-              >
-                <option value="">Selecione...</option>
-                <option value="CI">Comunicado interno (CI)</option>
-                <option value="OBSERVACAO">Observacao direta</option>
-                <option value="DENUNCIA">Denuncia</option>
-                <option value="OUTROS">Outros</option>
-              </select>
-            </div>
-            {origem === "CI" && (
-              <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                Para conflitos com origem em CI, cadastre o Comunicado em{" "}
-                <Link href="/comunicados/novo" className="font-semibold underline">
-                  /comunicados
-                </Link>{" "}
-                e marque “Gerar conflito”. Este formulário não cria CI.
-              </div>
-            )}
           </div>
 
           <div>
@@ -436,3 +476,4 @@ export function RegistroConflito({
     </div>
   );
 }
+

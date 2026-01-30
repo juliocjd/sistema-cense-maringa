@@ -21,6 +21,7 @@ type Participante = {
   id: string;
   nome: string;
   numeroSms: string;
+  fotoUrl?: string | null;
   alojamento?: string;
   lado?: string | null;
   statusUnidade?: string | null;
@@ -405,12 +406,12 @@ export function ListagemConflitos({
                     .join(", ")}`
                 : primeiro?.nome ?? fallbackTitulo;
 
-            return (
-              <div
-                key={`${conflito.registroGrupoId}-${conflito.id}`}
-                className={`bg-white rounded-xl shadow-lg p-6 border-l-4 hover:shadow-xl transition-all ${
-                  conflito.status === "ATIVO"
-                    ? "border-red-500"
+              return (
+                <div
+                  key={`${conflito.registroGrupoId}-${conflito.id}`}
+                  className={`bg-white rounded-xl shadow-lg p-6 border-l-4 hover:shadow-xl transition-all ${
+                    conflito.status === "ATIVO"
+                      ? "border-red-500"
                     : "border-green-500"
                 }`}
               >
@@ -438,11 +439,11 @@ export function ListagemConflitos({
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {onExcluir && (
-                      <button
-                        type="button"
-                        onClick={() => acionarExclusao(conflito)}
+                    <div className="flex items-center gap-3">
+                      {onExcluir && (
+                        <button
+                          type="button"
+                          onClick={() => acionarExclusao(conflito)}
                         disabled={excluindoId === conflito.id}
                         className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 font-semibold disabled:opacity-70 disabled:cursor-not-allowed"
                       >
@@ -461,25 +462,53 @@ export function ListagemConflitos({
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                  {participantesVisiveis.map((participante) => (
-                    <div key={participante.id} className="bg-gray-50 rounded-lg p-3">
-                      <div className="flex items-center justify-between mb-1">
-                        <p className="text-xs text-gray-600">Participante</p>
-                        {participante.lado && (
-                          <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold uppercase text-red-700 tracking-wide">
-                            {participante.lado}
-                          </span>
-                        )}
+                    {participantesVisiveis.map((participante) => (
+                      <div key={participante.id} className="bg-gray-50 rounded-lg p-3">
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="text-xs text-gray-600">Participante</p>
+                          {participante.lado && (
+                            <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold uppercase text-red-700 tracking-wide">
+                              {participante.lado}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3">
+                          {participante.fotoUrl ? (
+                            <a
+                              href={participante.fotoUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              title="Abrir foto em tamanho maior"
+                              className="shrink-0"
+                            >
+                              <div className="h-9 w-9 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-sm font-semibold">
+                                <img
+                                  src={participante.fotoUrl}
+                                  alt={participante.nome}
+                                  className="h-full w-full object-cover"
+                                />
+                              </div>
+                            </a>
+                          ) : (
+                            <div
+                              title="Sem foto cadastrada"
+                              className="h-9 w-9 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-sm font-semibold shrink-0"
+                            >
+                              {participante.nome?.trim().charAt(0) ?? "?"}
+                            </div>
+                          )}
+                          <div>
+                            <p className="font-semibold text-gray-800">{participante.nome}</p>
+                            <p className="text-sm text-gray-600">
+                              SMS: {participante.numeroSms}
+                              {participante.alojamento && (
+                                <> - {participante.alojamento}</>
+                              )}
+                            </p>
+                          </div>
+                        </div>
                       </div>
-                      <p className="font-semibold text-gray-800">{participante.nome}</p>
-                      <p className="text-sm text-gray-600">
-                        SMS: {participante.numeroSms}
-                        {participante.alojamento && (
-                          <> - {participante.alojamento}</>
-                        )}
-                      </p>
-                    </div>
-                  ))}
+                    ))}
                 </div>
 
                 <div className="flex items-center justify-between text-sm flex-wrap gap-2">
