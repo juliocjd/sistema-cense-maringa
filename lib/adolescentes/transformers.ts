@@ -27,7 +27,9 @@ export const INCLUDE_ADOLESCENTE_DEFAULT: any = {
     },
     orderBy: { criadoEm: "desc" },
   },
-  bairroOrigem: true,
+  bairroOrigem: {
+    include: { cidadeCatalogo: { select: { estado: true } } },
+  },
   tecnicosReferencia: {
     include: {
       tecnicoReferencia: true,
@@ -194,7 +196,9 @@ export const INCLUDE_ADOLESCENTE_MAPA = {
     include: { casa: true },
   },
   faccao: true,
-  bairroOrigem: true,
+  bairroOrigem: {
+    include: { cidadeCatalogo: { select: { estado: true } } },
+  },
   alertasAtivos: {
     where: { desativadoEm: null },
     select: {
@@ -432,6 +436,8 @@ export function mapPrismaAdolescente(adolescente: any): Adolescente {
     (adolescente as any).atoInfracionalAtualCatalogo?.violenciaOuGraveAmeaca ?? null,
     atoInfracionalAno: adolescente.atoInfracionalAno ?? null,
     atoInfracionalProcesso: adolescente.atoInfracionalProcesso ?? null,
+    atoInfracionalObservacoes:
+      (adolescente as any).atoInfracionalObservacoes ?? null,
     atoInfracionalGravidade: adolescente.atoInfracionalGravidade ?? false,
     atoInfracionalGravidadeObs: adolescente.atoInfracionalGravidadeObs ?? null,
     statusUnidade,
@@ -480,6 +486,7 @@ export function mapPrismaAdolescente(adolescente: any): Adolescente {
           id: adolescente.bairroOrigem.id,
           nome: adolescente.bairroOrigem.nomeBairro,
           cidade: adolescente.bairroOrigem.cidade,
+          estado: adolescente.bairroOrigem.cidadeCatalogo?.estado ?? null,
         }
       : null,
     riscoFuga: adolescente.riscoFuga ?? null,
@@ -728,6 +735,7 @@ export function mapPrismaAdolescenteMapa(
           id: adolescente.bairroOrigem.id,
           nome: adolescente.bairroOrigem.nomeBairro,
           cidade: adolescente.bairroOrigem.cidade,
+          estado: adolescente.bairroOrigem.cidadeCatalogo?.estado ?? null,
         }
       : null,
     riscoFuga: adolescente.riscoFuga ?? null,

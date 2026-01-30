@@ -140,10 +140,18 @@ export interface FaccaoCatalogo {
   totalAdolescentes?: number;
 }
 
+export interface CidadeCatalogo {
+  id: string;
+  nome: string;
+  estado: string;
+}
+
 export interface BairroCatalogo {
   id: string;
   nomeBairro: string;
   cidade: string;
+  cidadeId?: string;
+  estado?: string | null;
   totalAdolescentes?: number;
 }
 
@@ -196,6 +204,7 @@ export interface Adolescente {
   atoInfracionalCatalogoViolencia?: boolean | null;
   atoInfracionalAno?: number | null;
   atoInfracionalProcesso?: string | null;
+  atoInfracionalObservacoes?: string | null;
   atoInfracionalGravidade: boolean;
   atoInfracionalGravidadeObs?: string | null;
   statusUnidade: StatusUnidade;
@@ -228,6 +237,7 @@ export interface Adolescente {
     id: string;
     nome: string;
     cidade: string;
+    estado?: string | null;
   } | null;
 
   riscoFuga?: RiscoFuga | string | null;
@@ -441,6 +451,7 @@ export interface AlertaAtivo {
       id: string;
       nomeBairro: string;
       cidade: string;
+      estado?: string | null;
     } | null;
     faccao?: {
       id: string;

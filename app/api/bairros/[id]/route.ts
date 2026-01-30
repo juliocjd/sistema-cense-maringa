@@ -12,6 +12,7 @@ const paramsSchema = z.object({
 const updateSchema = z
   .object({
     nomeBairro: z.string().min(2).optional(),
+    cidadeId: z.string().uuid().optional(),
     cidade: z.string().min(2).optional(),
   })
   .refine(
@@ -47,6 +48,7 @@ export async function GET(
     const bairro = await prisma.bairro.findUnique({
       where: { id: parsedParams.data.id },
       include: {
+        cidadeCatalogo: { select: { estado: true } },
         adolescentes: incluirAdolescentes
           ? {
               select: {
@@ -106,6 +108,8 @@ export async function GET(
       id: bairro.id,
       nomeBairro: bairro.nomeBairro,
       cidade: bairro.cidade,
+      cidadeId: (bairro as any).cidadeId ?? null,
+      estado: (bairro as any).cidadeCatalogo?.estado ?? null,
       totalAdolescentes: bairro._count?.adolescentes ?? adolescentes.length,
       conflitosRegistrados:
         (bairro._count?.bairrosConflitosA ?? 0) +
@@ -209,7 +213,12 @@ export async function PUT(
 
     const bairroAtual = await prisma.bairro.findUnique({
       where: { id: bairroId },
-      select: { id: true, nomeBairro: true, cidade: true },
+      select: {
+        id: true,
+        nomeBairro: true,
+        cidade: true,
+        cidadeId: true,
+      },
     });
 
     if (!bairroAtual) {
@@ -220,11 +229,51 @@ export async function PUT(
     }
 
     const novoNome = parsedBody.data.nomeBairro ?? bairroAtual.nomeBairro;
-    const novaCidade = parsedBody.data.cidade ?? bairroAtual.cidade;
+    let cidadeIdDestino = bairroAtual.cidadeId;
+    let cidadeNomeDestino = bairroAtual.cidade;
+    let estadoDestino: string | null = null;
+
+    if (parsedBody.data.cidadeId) {
+      const cidadeDb = await prisma.cidade.findUnique({
+        where: { id: parsedBody.data.cidadeId },
+        select: { id: true, nome: true, estado: true },
+      });
+      if (!cidadeDb) {
+        return NextResponse.json(
+          { erro: "Cidade nao encontrada" },
+          { status: 400 }
+        );
+      }
+      cidadeIdDestino = cidadeDb.id;
+      cidadeNomeDestino = cidadeDb.nome;
+      estadoDestino = cidadeDb.estado;
+    } else if (parsedBody.data.cidade) {
+      const nomeCidade = parsedBody.data.cidade.trim();
+      const cidadesEncontradas = await prisma.cidade.findMany({
+        where: { nome: { equals: nomeCidade, mode: "insensitive" } },
+        select: { id: true, nome: true, estado: true },
+        orderBy: { estado: "asc" },
+      });
+      if (cidadesEncontradas.length === 0) {
+        return NextResponse.json(
+          { erro: "Cidade nao encontrada. Cadastre a cidade antes." },
+          { status: 400 }
+        );
+      }
+      if (cidadesEncontradas.length > 1) {
+        return NextResponse.json(
+          { erro: "Cidade encontrada em mais de um estado. Selecione no catalogo." },
+          { status: 400 }
+        );
+      }
+      cidadeIdDestino = cidadesEncontradas[0].id;
+      cidadeNomeDestino = cidadesEncontradas[0].nome;
+      estadoDestino = cidadesEncontradas[0].estado;
+    }
 
     if (
       novoNome.toLowerCase() !== bairroAtual.nomeBairro.toLowerCase() ||
-      novaCidade.toLowerCase() !== bairroAtual.cidade.toLowerCase()
+      cidadeIdDestino !== bairroAtual.cidadeId
     ) {
       const conflito = await prisma.bairro.findFirst({
         where: {
@@ -233,10 +282,7 @@ export async function PUT(
             equals: novoNome,
             mode: "insensitive",
           },
-          cidade: {
-            equals: novaCidade,
-            mode: "insensitive",
-          },
+          cidadeId: cidadeIdDestino,
         },
         select: { id: true },
       });
@@ -255,8 +301,11 @@ export async function PUT(
         ...(parsedBody.data.nomeBairro
           ? { nomeBairro: parsedBody.data.nomeBairro }
           : {}),
-        ...(parsedBody.data.cidade
-          ? { cidade: parsedBody.data.cidade }
+        ...(cidadeIdDestino !== bairroAtual.cidadeId
+          ? {
+              cidade: cidadeNomeDestino,
+              cidadeCatalogo: { connect: { id: cidadeIdDestino } },
+            }
           : {}),
       },
     });
@@ -276,6 +325,8 @@ export async function PUT(
       id: bairroAtualizado.id,
       nomeBairro: bairroAtualizado.nomeBairro,
       cidade: bairroAtualizado.cidade,
+      cidadeId: (bairroAtualizado as any).cidadeId ?? null,
+      estado: estadoDestino,
       mensagem: "Bairro atualizado com sucesso",
     });
   } catch (error) {

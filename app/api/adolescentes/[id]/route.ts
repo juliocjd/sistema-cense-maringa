@@ -95,6 +95,7 @@ const updateAdolescenteSchema = z.object({
   atoInfracionalAtualId: z.string().uuid().optional().nullable(),
   atoInfracionalAno: z.number().optional().nullable(),
   atoInfracionalProcesso: z.string().optional().nullable(),
+  atoInfracionalObservacoes: z.string().optional().nullable(),
   atoInfracionalGravidade: z.boolean().optional(),
   atoInfracionalGravidadeObs: z.string().optional().nullable(),
   statusUnidade: z.enum(["ATIVO", "TRANSFERIDO", "LIBERADO", "EVADIDO"]).optional(),
@@ -281,7 +282,21 @@ export async function GET(
       );
     }
 
-    const resposta = mapPrismaAdolescente(adolescente);
+    let adolescenteComAlojamento = adolescente;
+    if (!adolescente.alojamentoAtual && adolescente.alojamentoAtualId) {
+      const alojamento = await prisma.alojamento.findUnique({
+        where: { id: adolescente.alojamentoAtualId },
+        include: { casa: true },
+      });
+      if (alojamento) {
+        adolescenteComAlojamento = {
+          ...(adolescente as any),
+          alojamentoAtual: alojamento,
+        } as typeof adolescente;
+      }
+    }
+
+    const resposta = mapPrismaAdolescente(adolescenteComAlojamento);
     resposta.alertasPendentes = await contarAlertasPendentes(id);
 
     return NextResponse.json(resposta);
@@ -373,7 +388,11 @@ export async function PUT(
         ? sanitizeNullableString(validated.numeroSms) ?? undefined
         : undefined;
 
-    if (numeroSmsSanitizado) {
+    const numeroSmsAtual = sanitizeNullableString(
+      (existente as any).numeroSms ?? undefined
+    );
+
+    if (numeroSmsSanitizado && numeroSmsSanitizado !== numeroSmsAtual) {
       const existenteSms = await prisma.adolescente.findFirst({
         where: {
           numeroSms: numeroSmsSanitizado,
@@ -589,8 +608,18 @@ export async function PUT(
     const deveGerarHistorico =
       saiuDeAtivo && Boolean(atoAtualCatalogoId || atoAtualNome);
 
+    const observacoesComplementaresAtual =
+      (existente as any).atoInfracionalObservacoes ?? null;
+
     const comarcaHistoricoPadrao =
       process.env.COMARCA_PADRAO?.trim() || "Maringa";
+
+    const observacoesHistorico = [
+      observacoesComplementaresAtual,
+      `Status alterado de ${statusAtual} para ${novoStatus}`,
+    ]
+      .filter((valor) => Boolean(valor && String(valor).trim().length > 0))
+      .join(" | ");
 
     const historicoParaCriar: Prisma.AdolescenteHistoricoInfracionalUncheckedCreateInput | null =
       deveGerarHistorico
@@ -606,7 +635,7 @@ export async function PUT(
               existente.atoInfracionalGravidadeObs ?? null,
             unidadeInternacao: comarcaHistoricoPadrao,
             ano: existente.atoInfracionalAno ?? new Date().getFullYear(),
-            observacoes: `Status alterado de ${statusAtual} para ${novoStatus}`,
+            observacoes: observacoesHistorico || null,
           }
         : null;
     const camposAlterados: string[] = [];
@@ -688,6 +717,13 @@ export async function PUT(
       camposAlterados.push("atoInfracionalProcesso");
     }
 
+    if (validated.atoInfracionalObservacoes !== undefined) {
+      data.atoInfracionalObservacoes = nullableStringOrNull(
+        validated.atoInfracionalObservacoes
+      );
+      camposAlterados.push("atoInfracionalObservacoes");
+    }
+
     if (validated.atoInfracionalGravidade !== undefined) {
       data.atoInfracionalGravidade = validated.atoInfracionalGravidade;
       camposAlterados.push("atoInfracionalGravidade");
@@ -766,12 +802,14 @@ export async function PUT(
       data.atoInfracionalAtualCatalogo = { disconnect: true };
       data.atoInfracionalAno = null;
       data.atoInfracionalProcesso = null;
+      data.atoInfracionalObservacoes = null;
       data.atoInfracionalGravidade = false;
       data.atoInfracionalGravidadeObs = null;
       camposAlterados.push(
         "atoInfracionalAtualId",
         "atoInfracionalAno",
         "atoInfracionalProcesso",
+        "atoInfracionalObservacoes",
         "atoInfracionalGravidade",
         "atoInfracionalGravidadeObs"
       );

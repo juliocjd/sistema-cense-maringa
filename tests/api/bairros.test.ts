@@ -22,12 +22,17 @@ vi.mock("@/lib/prisma", () => {
     update: vi.fn(),
     delete: vi.fn(),
   };
+  const cidade = {
+    findUnique: vi.fn(),
+    findMany: vi.fn(),
+  };
   const operador = { findUnique: vi.fn() };
   const logAuditoria = { create: vi.fn() };
 
   return {
     prisma: {
       bairro,
+      cidade,
       operador,
       logAuditoria,
     },
@@ -43,6 +48,10 @@ const mockedPrisma = prisma as unknown as {
     create: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
     delete: ReturnType<typeof vi.fn>;
+  };
+  cidade: {
+    findUnique: ReturnType<typeof vi.fn>;
+    findMany: ReturnType<typeof vi.fn>;
   };
   operador: { findUnique: ReturnType<typeof vi.fn> };
   logAuditoria: { create: ReturnType<typeof vi.fn> };
@@ -75,6 +84,8 @@ describe("GET /api/bairros", () => {
         id: "bairro-1",
         nomeBairro: "Zona 7",
         cidade: "Maringa",
+        cidadeId: "22222222-2222-2222-2222-222222222222",
+        cidadeCatalogo: { estado: "PR" },
         _count: { adolescentes: 5 },
       },
     ]);
@@ -125,6 +136,8 @@ describe("GET /api/bairros/[id]", () => {
       id: bairroId,
       nomeBairro: "Zona 7",
       cidade: "Maringa",
+      cidadeId: "22222222-2222-2222-2222-222222222222",
+      cidadeCatalogo: { estado: "PR" },
       _count: { adolescentes: 2, bairrosConflitosA: 1, bairrosConflitosB: 0 },
       adolescentes: [
         {
@@ -172,7 +185,7 @@ describe("POST /api/bairros", () => {
 
     const request = buildRequest("POST", url, {
       nomeBairro: "Zona 7",
-      cidade: "Maringa",
+      cidadeId: "22222222-2222-2222-2222-222222222222",
     });
     const response = await POST(request);
     const json = await response.json();
@@ -187,7 +200,7 @@ describe("POST /api/bairros", () => {
 
     const request = buildRequest("POST", url, {
       nomeBairro: "Zona 7",
-      cidade: "Maringa",
+      cidadeId: "22222222-2222-2222-2222-222222222222",
     });
     const response = await POST(request);
     const json = await response.json();
@@ -231,10 +244,15 @@ describe("POST /api/bairros", () => {
     mockedAuth.mockResolvedValue({ user: { id: "oper-1" } } as any);
     mockedPrisma.operador.findUnique.mockResolvedValue({ id: "oper-1" });
     mockedPrisma.bairro.findFirst.mockResolvedValueOnce({ id: "bairro-dup" });
+    mockedPrisma.cidade.findUnique.mockResolvedValueOnce({
+      id: "22222222-2222-2222-2222-222222222222",
+      nome: "Maringa",
+      estado: "PR",
+    });
 
     const request = buildRequest("POST", url, {
       nomeBairro: "Zona 7",
-      cidade: "Maringa",
+      cidadeId: "22222222-2222-2222-2222-222222222222",
     });
     const response = await POST(request);
     const json = await response.json();
@@ -247,15 +265,21 @@ describe("POST /api/bairros", () => {
     mockedAuth.mockResolvedValue({ user: { id: "oper-1" } } as any);
     mockedPrisma.operador.findUnique.mockResolvedValue({ id: "oper-1" });
     mockedPrisma.bairro.findFirst.mockResolvedValue(null);
+    mockedPrisma.cidade.findUnique.mockResolvedValueOnce({
+      id: "22222222-2222-2222-2222-222222222222",
+      nome: "Maringa",
+      estado: "PR",
+    });
     mockedPrisma.bairro.create.mockResolvedValue({
       id: "bairro-1",
       nomeBairro: "Zona 7",
       cidade: "Maringa",
+      cidadeId: "22222222-2222-2222-2222-222222222222",
     });
 
     const request = buildRequest("POST", url, {
       nomeBairro: "Zona 7",
-      cidade: "Maringa",
+      cidadeId: "22222222-2222-2222-2222-222222222222",
     });
     const response = await POST(request);
     const json = await response.json();
@@ -305,12 +329,17 @@ describe("PUT /api/bairros/[id]", () => {
         id: bairroId,
         nomeBairro: "Zona 7",
         cidade: "Maringa",
+        cidadeId: "22222222-2222-2222-2222-222222222222",
       })
       .mockResolvedValueOnce(null);
+    mockedPrisma.cidade.findMany.mockResolvedValueOnce([
+      { id: "33333333-3333-3333-3333-333333333333", nome: "Sarandi", estado: "PR" },
+    ]);
     mockedPrisma.bairro.update.mockResolvedValue({
       id: bairroId,
       nomeBairro: "Zona 7",
       cidade: "Sarandi",
+      cidadeId: "33333333-3333-3333-3333-333333333333",
     });
 
     const request = buildRequest("PUT", url, { cidade: "Sarandi" });
@@ -331,6 +360,7 @@ describe("PUT /api/bairros/[id]", () => {
       id: bairroId,
       nomeBairro: "Zona 7",
       cidade: "Maringa",
+      cidadeId: "22222222-2222-2222-2222-222222222222",
     });
 
     const request = buildRequest("PUT", url, {});
@@ -366,11 +396,13 @@ describe("PUT /api/bairros/[id]", () => {
         id: bairroId,
         nomeBairro: "Zona 7",
         cidade: "Maringa",
+        cidadeId: "22222222-2222-2222-2222-222222222222",
       })
       .mockResolvedValueOnce({
         id: "outro-bairro",
         nomeBairro: "Zona 8",
         cidade: "Maringa",
+        cidadeId: "22222222-2222-2222-2222-222222222222",
       });
     mockedPrisma.bairro.findFirst.mockResolvedValueOnce({
       id: "outro-bairro",

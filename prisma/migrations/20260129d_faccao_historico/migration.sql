@@ -1,8 +1,8 @@
 -- Histórico de facção para adolescentes
 CREATE TABLE IF NOT EXISTS "adolescentes_faccao_historico" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  "adolescente_id" text NOT NULL REFERENCES "adolescentes"("id") ON DELETE CASCADE,
-  "faccao_id" text REFERENCES "faccoes"("id"),
+  "adolescente_id" uuid NOT NULL REFERENCES "adolescentes"("id") ON DELETE CASCADE,
+  "faccao_id" uuid REFERENCES "faccoes"("id"),
   "funcao" text,
   "origem_informacao" text NOT NULL,
   "nivel_confianca" text,
@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS "adolescentes_faccao_historico" (
   "observacao" text,
   "fonte" text,
   "criado_em" timestamp NOT NULL DEFAULT now(),
-  "criado_por_id" text REFERENCES "operadores"("id")
+  "criado_por_id" uuid REFERENCES "operadores"("id")
 );
 
 CREATE INDEX IF NOT EXISTS "adolescentes_faccao_historico_idx_adol_status"

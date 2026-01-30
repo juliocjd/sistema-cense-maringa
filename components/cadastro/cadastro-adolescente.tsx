@@ -27,6 +27,7 @@ import type {
   AdolescenteFaccaoHistoricoItem,
   FaccaoCatalogo,
   BairroCatalogo,
+  CidadeCatalogo,
   TatuagemCatalogo,
   RiscoFuga,
   StatusUnidade,
@@ -38,6 +39,7 @@ import {
 } from "@/lib/alertas/especiais";
 import { useAuth } from "@/hooks/useAuth";
 import { hasPermission, PERMISSIONS } from "@/lib/auth/permissions";
+import { ESTADOS_BRASIL } from "@/lib/geo/estados";
 
 const STATUS_OPCOES: Array<{ value: StatusUnidade; label: string }> = [
   { value: "ATIVO", label: "Ativo / Internado" },
@@ -171,6 +173,13 @@ const aplicarFiltroSugestoes = (
   };
 };
 
+const normalizarTexto = (valor: string) =>
+  valor
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+
 interface CadastroAdolescenteProps {
   onSalvar: (
     adolescente: AdolescenteCadastroPayload,
@@ -257,6 +266,7 @@ export function CadastroAdolescente({
     violenciaCatalogo: null as boolean | null,
     ano: "",
     processo: "",
+    observacoesComplementares: "",
     gravidade: false,
     gravidadeDescricao: "",
     historico: [] as {
@@ -410,6 +420,17 @@ export function CadastroAdolescente({
       return;
     }
 
+    if (
+      ehEdicao &&
+      initialData?.numeroSms &&
+      smsSanitizado === initialData.numeroSms.trim()
+    ) {
+      setSmsDuplicado(null);
+      setSmsErroVerificacao(null);
+      setSmsUltimoVerificado(smsSanitizado);
+      return;
+    }
+
     if (smsSanitizado === smsUltimoVerificado) {
       return;
     }
@@ -493,6 +514,8 @@ export function CadastroAdolescente({
         initialData.atoInfracionalProcesso ??
         initialData.numeroProcesso ??
         "",
+      observacoesComplementares:
+        initialData.atoInfracionalObservacoes ?? "",
       gravidade: initialData.atoInfracionalGravidade ?? false,
       gravidadeDescricao: initialData.atoInfracionalGravidadeObs ?? "",
       historico: [],
@@ -510,8 +533,11 @@ export function CadastroAdolescente({
       riscoFuga: (initialData.riscoFuga as RiscoFuga) ?? "BAIXO",
     });
     if (initialData.bairroOrigem) {
+      const estado = initialData.bairroOrigem.estado
+        ? ` - ${initialData.bairroOrigem.estado}`
+        : "";
       setBairroBusca(
-        `${initialData.bairroOrigem.nome} - ${initialData.bairroOrigem.cidade}`
+        `${initialData.bairroOrigem.nome} - ${initialData.bairroOrigem.cidade}${estado}`
       );
     } else {
       setBairroBusca("");
@@ -559,6 +585,7 @@ export function CadastroAdolescente({
         significadoPessoal: t.significadoPessoal ?? "",
       })) ?? []
     );
+    setAlojamentoSelecionado(initialData.alojamentoAtualId ?? null);
   }, [initialData]);
 
   useEffect(() => {
@@ -604,7 +631,7 @@ export function CadastroAdolescente({
   }, [statusUnidade]);
 
   const [alojamentosLivres, setAlojamentosLivres] = useState<
-    { id: string; casa: string; numero: string; ala: string | null }[]
+    { id: string; casa: string; numero: string; ala: string | null; atual?: boolean }[]
   >([]);
   const [alojamentoSelecionado, setAlojamentoSelecionado] = useState<
     string | null
@@ -628,21 +655,43 @@ export function CadastroAdolescente({
           throw new Error("Falha ao carregar alojamentos livres");
         }
         const payload = await response.json();
-        setAlojamentosLivres(
-          payload.alojamentos.map((aloj: any) => ({
-            id: aloj.id,
-            casa: `${aloj.casa.nome} (${aloj.casa.numero})`,
-            numero: aloj.numero_alojamento,
-            ala: aloj.ala ?? null,
-          }))
-        );
+        let lista = payload.alojamentos.map((aloj: any) => ({
+          id: aloj.id,
+          casa: `${aloj.casa.nome} (${aloj.casa.numero})`,
+          numero: aloj.numero_alojamento,
+          ala: aloj.ala ?? null,
+        }));
+
+        if (
+          ehEdicao &&
+          initialData?.alojamentoAtualId &&
+          initialData.alojamentoAtual &&
+          !lista.some((item: any) => item.id === initialData.alojamentoAtualId)
+        ) {
+          const casaNome =
+            initialData.alojamentoAtual.casa?.nome ?? "Casa";
+          const casaNumero =
+            initialData.alojamentoAtual.casa?.numero ?? "-";
+          lista = [
+            ...lista,
+            {
+              id: initialData.alojamentoAtualId,
+              casa: `${casaNome} (${casaNumero})`,
+              numero: initialData.alojamentoAtual.numero ?? "-",
+              ala: initialData.alojamentoAtual.ala ?? null,
+              atual: true,
+            },
+          ];
+        }
+
+        setAlojamentosLivres(lista);
       } catch {
         setAlojamentosLivres([]);
       }
     };
 
     carregarAlojamentosLivres();
-  }, []);
+  }, [ehEdicao, initialData?.alojamentoAtualId, initialData?.alojamentoAtual]);
 
   useEffect(() => {
     setSugestoesOriginais([]);
@@ -749,13 +798,24 @@ export function CadastroAdolescente({
   const [referencias, setReferencias] = useState<{
     faccoes: FaccaoCatalogo[];
     bairros: BairroCatalogo[];
+    cidades: CidadeCatalogo[];
     tatuagens: TatuagemCatalogo[];
   }>({
     faccoes: [],
     bairros: [],
+    cidades: [],
     tatuagens: [],
   });
   const [atoSugestoes, setAtoSugestoes] = useState<
+    Array<{
+      id: string;
+      nome: string;
+      ativo: boolean;
+      gravidade?: string | null;
+      violenciaOuGraveAmeaca?: boolean | null;
+    }>
+  >([]);
+  const [atosCatalogoCache, setAtosCatalogoCache] = useState<
     Array<{
       id: string;
       nome: string;
@@ -830,12 +890,43 @@ export function CadastroAdolescente({
         const response = await fetch(
           `/api/atos-infracionais?busca=${encodeURIComponent(termo)}`
         );
+        let lista: Array<{
+          id: string;
+          nome: string;
+          ativo: boolean;
+          gravidade?: string | null;
+          violenciaOuGraveAmeaca?: boolean | null;
+        }> = [];
         if (response.ok) {
           const payload = await response.json();
           if (Array.isArray(payload?.atos)) {
-            setAtoSugestoes(payload.atos);
+            lista = payload.atos;
           }
         }
+
+        if (lista.length === 0) {
+          let base = atosCatalogoCache;
+          if (base.length === 0) {
+            const fallback = await fetch("/api/atos-infracionais");
+            if (fallback.ok) {
+              const payload = await fallback.json();
+              if (Array.isArray(payload?.atos)) {
+                base = payload.atos;
+                setAtosCatalogoCache(base);
+              }
+            }
+          }
+          const termoNormalizado = normalizarTexto(termo);
+          if (base.length > 0 && termoNormalizado) {
+            lista = base
+              .filter((ato) =>
+                normalizarTexto(ato.nome).includes(termoNormalizado)
+              )
+              .slice(0, 20);
+          }
+        }
+
+        setAtoSugestoes(lista);
       } catch (error) {
         console.error("Erro ao buscar atos infracionais", error);
       } finally {
@@ -844,7 +935,7 @@ export function CadastroAdolescente({
     }, 250);
 
     return () => window.clearTimeout(handle);
-  }, [atoInfracional.descricao]);
+  }, [atoInfracional.descricao, atosCatalogoCache]);
 
   const carregarGestaoAtos = async (termo?: string) => {
     setGestaoAtos((prev) => ({ ...prev, carregando: true, erro: null }));
@@ -978,13 +1069,26 @@ export function CadastroAdolescente({
   const [modalNovoBairro, setModalNovoBairro] = useState<{
     aberto: boolean;
     nome: string;
-    cidade: string;
+    cidadeId: string;
     erro: string | null;
     salvando: boolean;
   }>({
     aberto: false,
     nome: "",
-    cidade: "",
+    cidadeId: "",
+    erro: null,
+    salvando: false,
+  });
+  const [modalNovaCidade, setModalNovaCidade] = useState<{
+    aberto: boolean;
+    nome: string;
+    estado: string;
+    erro: string | null;
+    salvando: boolean;
+  }>({
+    aberto: false,
+    nome: "",
+    estado: "PR",
     erro: null,
     salvando: false,
   });
@@ -1011,20 +1115,28 @@ export function CadastroAdolescente({
     setErroReferencias(null);
 
     try {
-      const [faccoesRes, bairrosRes, tatuagensRes] = await Promise.all([
-        fetch("/api/faccoes"),
-        fetch("/api/bairros"),
-        fetch("/api/tatuagens"),
-      ]);
+      const [faccoesRes, bairrosRes, cidadesRes, tatuagensRes] =
+        await Promise.all([
+          fetch("/api/faccoes"),
+          fetch("/api/bairros"),
+          fetch("/api/cidades"),
+          fetch("/api/tatuagens"),
+        ]);
 
-      if (!faccoesRes.ok || !bairrosRes.ok || !tatuagensRes.ok) {
+      if (
+        !faccoesRes.ok ||
+        !bairrosRes.ok ||
+        !cidadesRes.ok ||
+        !tatuagensRes.ok
+      ) {
         throw new Error("Falha ao carregar dados auxiliares");
       }
 
-      const [faccoesPayload, bairrosPayload, tatuagensPayload] =
+      const [faccoesPayload, bairrosPayload, cidadesPayload, tatuagensPayload] =
         await Promise.all([
           faccoesRes.json(),
           bairrosRes.json(),
+          cidadesRes.json(),
           tatuagensRes.json(),
         ]);
 
@@ -1034,6 +1146,9 @@ export function CadastroAdolescente({
           : [],
         bairros: Array.isArray(bairrosPayload?.bairros)
           ? bairrosPayload.bairros
+          : [],
+        cidades: Array.isArray(cidadesPayload?.cidades)
+          ? cidadesPayload.cidades
           : [],
         tatuagens: Array.isArray(tatuagensPayload?.tatuagens)
           ? tatuagensPayload.tatuagens
@@ -1076,19 +1191,14 @@ export function CadastroAdolescente({
     [referencias.bairros]
   );
   const bairroSugestoes = useMemo(() => {
-    const normalizar = (valor: string) =>
-      valor
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .toLowerCase()
-        .trim();
-    const termo = normalizar(bairroBusca);
+    const termo = normalizarTexto(bairroBusca);
     if (!termo) return [];
     return bairrosDisponiveis
       .filter((bairro) => {
-        const nome = normalizar(bairro.nomeBairro);
-        const cidade = normalizar(bairro.cidade);
-        return nome.includes(termo) || cidade.includes(termo);
+        const nome = normalizarTexto(bairro.nomeBairro);
+        const cidade = normalizarTexto(bairro.cidade);
+        const estado = normalizarTexto(bairro.estado ?? "");
+        return nome.includes(termo) || cidade.includes(termo) || estado.includes(termo);
       })
       .slice(0, 20);
   }, [bairroBusca, bairrosDisponiveis]);
@@ -1206,7 +1316,7 @@ const selecionarAtoCatalogo = (ato: {
     setModalNovoBairro({
       aberto: true,
       nome: "",
-      cidade: "",
+      cidadeId: "",
       erro: null,
       salvando: false,
     });
@@ -1216,22 +1326,108 @@ const selecionarAtoCatalogo = (ato: {
     setModalNovoBairro({
       aberto: false,
       nome: "",
-      cidade: "",
+      cidadeId: "",
       erro: null,
       salvando: false,
     });
+  };
+
+  const abrirModalNovaCidade = () => {
+    setModalNovaCidade({
+      aberto: true,
+      nome: "",
+      estado: "PR",
+      erro: null,
+      salvando: false,
+    });
+  };
+
+  const fecharModalNovaCidade = () => {
+    setModalNovaCidade({
+      aberto: false,
+      nome: "",
+      estado: "PR",
+      erro: null,
+      salvando: false,
+    });
+  };
+
+  const salvarNovaCidade = async () => {
+    if (modalNovaCidade.salvando) return;
+    const nome = modalNovaCidade.nome.trim();
+    const estado = modalNovaCidade.estado.trim().toUpperCase();
+
+    if (nome.length < 2) {
+      setModalNovaCidade((prev) => ({
+        ...prev,
+        erro: "Informe o nome da cidade.",
+      }));
+      return;
+    }
+
+    setModalNovaCidade((prev) => ({ ...prev, salvando: true, erro: null }));
+    try {
+      const response = await fetch("/api/cidades", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nome, estado }),
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(payload?.erro ?? "Erro ao cadastrar cidade");
+      }
+
+      const novaCidade: CidadeCatalogo = {
+        id: payload.id,
+        nome: payload.nome ?? nome,
+        estado: payload.estado ?? estado,
+      };
+
+      setReferencias((prev) => ({
+        ...prev,
+        cidades: [...prev.cidades, novaCidade].sort((a, b) =>
+          a.nome.localeCompare(b.nome, "pt-BR")
+        ),
+      }));
+
+      setModalNovoBairro((prev) => ({
+        ...prev,
+        cidadeId: novaCidade.id,
+      }));
+
+      fecharModalNovaCidade();
+    } catch (error) {
+      setModalNovaCidade((prev) => ({
+        ...prev,
+        salvando: false,
+        erro:
+          error instanceof Error
+            ? error.message
+            : "Erro ao cadastrar cidade",
+      }));
+    }
   };
 
   const salvarNovoBairro = async () => {
     if (modalNovoBairro.salvando) return;
 
     const nome = modalNovoBairro.nome.trim();
-    const cidade = modalNovoBairro.cidade.trim();
+    const cidadeId = modalNovoBairro.cidadeId;
+    const cidadeSelecionada =
+      referencias.cidades.find((cidade) => cidade.id === cidadeId) ?? null;
 
-    if (nome.length < 2 || cidade.length < 2) {
+    if (nome.length < 2 || !cidadeId) {
       setModalNovoBairro((prev) => ({
         ...prev,
-        erro: "Informe nome e cidade com ao menos 2 caracteres.",
+        erro: "Informe nome e cidade.",
+      }));
+      return;
+    }
+
+    if (!cidadeSelecionada) {
+      setModalNovoBairro((prev) => ({
+        ...prev,
+        erro: "Selecione uma cidade valida.",
       }));
       return;
     }
@@ -1242,7 +1438,7 @@ const selecionarAtoCatalogo = (ato: {
       const response = await fetch("/api/bairros", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nomeBairro: nome, cidade }),
+        body: JSON.stringify({ nomeBairro: nome, cidadeId }),
       });
 
       const payload = await response.json().catch(() => null);
@@ -1254,7 +1450,9 @@ const selecionarAtoCatalogo = (ato: {
       const novoBairro: BairroCatalogo = {
         id: payload.id,
         nomeBairro: payload.nomeBairro ?? nome,
-        cidade: payload.cidade ?? cidade,
+        cidade: payload.cidade ?? cidadeSelecionada.nome,
+        cidadeId: payload.cidadeId ?? cidadeId,
+        estado: payload.estado ?? cidadeSelecionada.estado ?? null,
       };
 
       setReferencias((prev) => ({
@@ -1268,7 +1466,10 @@ const selecionarAtoCatalogo = (ato: {
         ...prev,
         bairroId: novoBairro.id,
       }));
-      setBairroBusca(`${novoBairro.nomeBairro} - ${novoBairro.cidade}`);
+      const sufixoEstado = novoBairro.estado ? ` - ${novoBairro.estado}` : "";
+      setBairroBusca(
+        `${novoBairro.nomeBairro} - ${novoBairro.cidade}${sufixoEstado}`
+      );
       setMostrarSugestoesBairro(false);
 
       fecharModalNovoBairro();
@@ -1287,7 +1488,7 @@ const selecionarAtoCatalogo = (ato: {
     setModalNovoBairro({
       aberto: false,
       nome: "",
-      cidade: "",
+      cidadeId: "",
       erro: null,
     salvando: false,
   });
@@ -1699,6 +1900,9 @@ const selecionarAtoCatalogo = (ato: {
           : undefined;
 
       const processoSanitizado = sanitize(atoInfracional.processo);
+      const observacoesComplementaresSanitizadas = sanitize(
+        atoInfracional.observacoesComplementares
+      );
       const gravidadeDescricaoSanitizada = sanitize(
         atoInfracional.gravidadeDescricao
       );
@@ -1772,6 +1976,7 @@ const selecionarAtoCatalogo = (ato: {
           atoInfracional.catalogoId?.trim() || undefined,
         atoInfracionalAno: anoValido,
         atoInfracionalProcesso: processoSanitizado,
+        atoInfracionalObservacoes: observacoesComplementaresSanitizadas,
         atoInfracionalGravidade: atoInfracional.gravidade,
         atoInfracionalGravidadeObs: gravidadeDescricaoSanitizada,
         numeroProcesso: processoSanitizado,
@@ -2452,6 +2657,24 @@ const selecionarAtoCatalogo = (ato: {
                   </div>
                 </div>
 
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Observacoes complementares
+                  </label>
+                  <textarea
+                    value={atoInfracional.observacoesComplementares}
+                    onChange={(e) =>
+                      setAtoInfracional({
+                        ...atoInfracional,
+                        observacoesComplementares: e.target.value,
+                      })
+                    }
+                    rows={2}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all resize-none"
+                    placeholder="Registre detalhes adicionais sobre o ato infracional atual."
+                  />
+                </div>
+
                 <div
                   className={`p-4 rounded-xl border-2 transition-all ${
                     atoInfracional.gravidade
@@ -2986,8 +3209,11 @@ const selecionarAtoCatalogo = (ato: {
                                   ...vinculacoes,
                                   bairroId: bairro.id,
                                 });
+                                const sufixoEstado = bairro.estado
+                                  ? ` - ${bairro.estado}`
+                                  : "";
                                 setBairroBusca(
-                                  `${bairro.nomeBairro} - ${bairro.cidade}`
+                                  `${bairro.nomeBairro} - ${bairro.cidade}${sufixoEstado}`
                                 );
                                 setMostrarSugestoesBairro(false);
                               }}
@@ -2998,6 +3224,7 @@ const selecionarAtoCatalogo = (ato: {
                               </span>
                               <span className="ml-2 text-xs text-slate-500">
                                 {bairro.cidade}
+                                {bairro.estado ? ` - ${bairro.estado}` : ""}
                               </span>
                             </button>
                           ))}
@@ -3288,6 +3515,7 @@ const selecionarAtoCatalogo = (ato: {
               <option key={aloj.id} value={aloj.id}>
                 {aloj.casa} - Aloj. {aloj.numero}
                 {aloj.ala ? ` (Ala ${aloj.ala})` : ""}
+                {aloj.atual ? " (Atual)" : ""}
               </option>
             ))}
           </select>
@@ -3891,19 +4119,33 @@ const selecionarAtoCatalogo = (ato: {
                 <label className="text-xs font-semibold uppercase text-slate-500">
                   Cidade
                 </label>
-                <input
-                  type="text"
-                  value={modalNovoBairro.cidade}
-                  onChange={(event) =>
-                    setModalNovoBairro((prev) => ({
-                      ...prev,
-                      cidade: event.target.value,
-                      erro: null,
-                    }))
-                  }
-                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:outline-none"
-                  placeholder="Ex.: Maringa"
-                />
+                <div className="mt-1 flex gap-2">
+                  <select
+                    value={modalNovoBairro.cidadeId}
+                    onChange={(event) =>
+                      setModalNovoBairro((prev) => ({
+                        ...prev,
+                        cidadeId: event.target.value,
+                        erro: null,
+                      }))
+                    }
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:outline-none"
+                  >
+                    <option value="">Selecione a cidade</option>
+                    {referencias.cidades.map((cidade) => (
+                      <option key={cidade.id} value={cidade.id}>
+                        {cidade.nome} - {cidade.estado}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={abrirModalNovaCidade}
+                    className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                  >
+                    Nova cidade
+                  </button>
+                </div>
               </div>
               {modalNovoBairro.erro && (
                 <p className="text-sm text-rose-600">{modalNovoBairro.erro}</p>
@@ -3926,6 +4168,83 @@ const selecionarAtoCatalogo = (ato: {
                 className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:opacity-60"
               >
                 {modalNovoBairro.salvando ? "Salvando..." : "Salvar bairro"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {modalNovaCidade.aberto && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <h3 className="text-lg font-semibold text-slate-900">
+              Cadastrar nova cidade
+            </h3>
+            <p className="text-sm text-slate-500">
+              Informe o nome da cidade e selecione o estado.
+            </p>
+
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="text-xs font-semibold uppercase text-slate-500">
+                  Nome da cidade
+                </label>
+                <input
+                  type="text"
+                  value={modalNovaCidade.nome}
+                  onChange={(event) =>
+                    setModalNovaCidade((prev) => ({
+                      ...prev,
+                      nome: event.target.value,
+                      erro: null,
+                    }))
+                  }
+                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:outline-none"
+                  placeholder="Ex.: Maringa"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold uppercase text-slate-500">
+                  Estado
+                </label>
+                <select
+                  value={modalNovaCidade.estado}
+                  onChange={(event) =>
+                    setModalNovaCidade((prev) => ({
+                      ...prev,
+                      estado: event.target.value,
+                      erro: null,
+                    }))
+                  }
+                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:outline-none"
+                >
+                  {ESTADOS_BRASIL.map((estado) => (
+                    <option key={estado.sigla} value={estado.sigla}>
+                      {estado.sigla} - {estado.nome}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {modalNovaCidade.erro && (
+                <p className="text-sm text-rose-600">{modalNovaCidade.erro}</p>
+              )}
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={fecharModalNovaCidade}
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100"
+                disabled={modalNovaCidade.salvando}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={salvarNovaCidade}
+                disabled={modalNovaCidade.salvando}
+                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:opacity-60"
+              >
+                {modalNovaCidade.salvando ? "Salvando..." : "Salvar cidade"}
               </button>
             </div>
           </div>

@@ -2,6 +2,8 @@ export type CatalogoBairro = {
   id: string;
   nome: string;
   cidade: string;
+  cidadeId?: string;
+  estado?: string | null;
   totalAdolescentes?: number;
 };
 
@@ -54,6 +56,7 @@ export type ImpactoConflitoExterno = {
       id: string;
       nome: string;
       cidade: string;
+      estado?: string | null;
     } | null;
     faccao?: {
       id: string;

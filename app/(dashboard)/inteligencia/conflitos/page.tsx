@@ -22,6 +22,8 @@ async function buscarCatalogoBairros(): Promise<CatalogoBairro[]> {
       id: true,
       nomeBairro: true,
       cidade: true,
+      cidadeId: true,
+      cidadeCatalogo: { select: { estado: true } },
       adolescentes: {
         where: { statusUnidade: "ATIVO" },
         select: { id: true },
@@ -34,6 +36,8 @@ async function buscarCatalogoBairros(): Promise<CatalogoBairro[]> {
     id: bairro.id,
     nome: bairro.nomeBairro,
     cidade: bairro.cidade,
+    cidadeId: bairro.cidadeId ?? undefined,
+    estado: bairro.cidadeCatalogo?.estado ?? null,
     totalAdolescentes: bairro.adolescentes.length,
   }));
 }

@@ -85,6 +85,7 @@ const createAdolescenteSchema = z.object({
   dataDesinternacao: z.string().optional().nullable(),
   numeroProcesso: z.string().optional().nullable(),
   atoInfracionalAtualId: z.string().uuid().optional().nullable(),
+  atoInfracionalObservacoes: z.string().optional().nullable(),
   statusUnidade: z
     .enum(["ATIVO", "TRANSFERIDO", "LIBERADO", "EVADIDO"])
     .default("ATIVO"),
@@ -518,6 +519,8 @@ export async function POST(request: NextRequest) {
       atoInfracionalAtualCatalogo: validated.atoInfracionalAtualId
         ? { connect: { id: validated.atoInfracionalAtualId } }
         : undefined,
+      atoInfracionalObservacoes:
+        sanitizeNullableString(validated.atoInfracionalObservacoes) ?? undefined,
       statusUnidade: statusCriado,
       faccao: validated.faccaoGrupoId
         ? { connect: { id: validated.faccaoGrupoId } }

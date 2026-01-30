@@ -163,7 +163,13 @@ export default function FormConflito({
               {opcoes.map((item) => (
                 <option key={item.id} value={item.id}>
                   {tipo === "BAIRRO"
-                    ? `${item.nome} — ${"cidade" in item ? item.cidade : ""}`
+                    ? (() => {
+                        const bairro = item as CatalogoBairro;
+                        const complemento = bairro.estado
+                          ? `${bairro.cidade} - ${bairro.estado}`
+                          : bairro.cidade;
+                        return `${bairro.nome} — ${complemento}`;
+                      })()
                     : item.nome}
                 </option>
               ))}
@@ -183,7 +189,13 @@ export default function FormConflito({
               {opcoes.map((item) => (
                 <option key={item.id} value={item.id}>
                   {tipo === "BAIRRO"
-                    ? `${item.nome} — ${"cidade" in item ? item.cidade : ""}`
+                    ? (() => {
+                        const bairro = item as CatalogoBairro;
+                        const complemento = bairro.estado
+                          ? `${bairro.cidade} - ${bairro.estado}`
+                          : bairro.cidade;
+                        return `${bairro.nome} — ${complemento}`;
+                      })()
                     : item.nome}
                 </option>
               ))}
