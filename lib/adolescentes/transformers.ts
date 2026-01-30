@@ -389,6 +389,7 @@ export function mapPrismaAdolescente(adolescente: any): Adolescente {
       gravidadeObs: registro.atoInfracionalGravidadeObs ?? null,
       catalogoId: registro.atoInfracionalCatalogoId ?? null,
       unidadeInternacao: registro.unidadeInternacao ?? null,
+      comarca: registro.unidadeInternacao ?? null,
       observacoes: registro.observacoes ?? null,
     })) ?? [];
 

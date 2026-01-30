@@ -260,8 +260,10 @@ export function CadastroAdolescente({
     gravidade: false,
     gravidadeDescricao: "",
     historico: [] as {
+      id?: string;
       descricao: string;
-      unidade: string;
+      comarca: string;
+      processo: string;
       ano: string;
       observacoes?: string;
       catalogoId?: string;
@@ -1266,6 +1268,8 @@ const selecionarAtoCatalogo = (ato: {
         ...prev,
         bairroId: novoBairro.id,
       }));
+      setBairroBusca(`${novoBairro.nomeBairro} - ${novoBairro.cidade}`);
+      setMostrarSugestoesBairro(false);
 
       fecharModalNovoBairro();
     } catch (error) {
@@ -1733,9 +1737,11 @@ const selecionarAtoCatalogo = (ato: {
                 : undefined;
 
             return {
+              id: item.id,
               descricao: descricaoSanitizada,
               ano: anoValido ?? null,
-              unidade: sanitize(item.unidade) ?? null,
+              processo: sanitize(item.processo) ?? null,
+              comarca: sanitize(item.comarca) ?? null,
               observacoes: sanitize(item.observacoes) ?? null,
               catalogoId: item.catalogoId,
             };
@@ -1843,12 +1849,39 @@ const selecionarAtoCatalogo = (ato: {
     }
   };
 
+  const handlePasteFoto = (event: React.ClipboardEvent<HTMLDivElement>) => {
+    const items = event.clipboardData?.items;
+    if (!items || items.length === 0) {
+      return;
+    }
+
+    const imagemItem = Array.from(items).find(
+      (item) => item.kind === "file" && item.type.startsWith("image/")
+    );
+
+    if (!imagemItem) {
+      return;
+    }
+
+    const file = imagemItem.getAsFile();
+    if (!file) {
+      return;
+    }
+
+    event.preventDefault();
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setFoto(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
   const adicionarHistoricoInfracional = () => {
     setAtoInfracional({
       ...atoInfracional,
       historico: [
         ...atoInfracional.historico,
-        { descricao: "", unidade: "", ano: "", observacoes: "" },
+        { descricao: "", comarca: "", processo: "", ano: "", observacoes: "" },
       ],
     });
   };
@@ -1857,6 +1890,31 @@ const selecionarAtoCatalogo = (ato: {
     setAtoInfracional({
       ...atoInfracional,
       historico: atoInfracional.historico.filter((_, i) => i !== index),
+    });
+  };
+
+  const iniciarEdicaoHistorico = (
+    item: AdolescenteHistoricoInfracionalItem
+  ) => {
+    setAtoInfracional((prev) => {
+      if (prev.historico.some((pendente) => pendente.id === item.id)) {
+        return prev;
+      }
+      return {
+        ...prev,
+        historico: [
+          ...prev.historico,
+          {
+            id: item.id,
+            descricao: item.descricao ?? "",
+            comarca: item.comarca ?? item.unidadeInternacao ?? "",
+            processo: item.processo ?? "",
+            ano: item.ano !== null && item.ano !== undefined ? String(item.ano) : "",
+            observacoes: item.observacoes ?? "",
+            catalogoId: item.catalogoId ?? undefined,
+          },
+        ],
+      };
     });
   };
 
@@ -1962,7 +2020,12 @@ const selecionarAtoCatalogo = (ato: {
               {/* Upload de Foto */}
               <div className="flex justify-center mb-6">
                 <div className="relative">
-                  <div className="w-32 h-32 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden border-4 border-indigo-200">
+                  <div
+                    className="w-32 h-32 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden border-4 border-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                    onPaste={handlePasteFoto}
+                    tabIndex={0}
+                    title="Clique e pressione Ctrl+V para colar uma foto"
+                  >
                     {foto ? (
                       <img
                         src={foto}
@@ -2479,14 +2542,29 @@ const selecionarAtoCatalogo = (ato: {
                             {item.descricao}
                           </p>
                           <p className="text-xs text-slate-500">
-                            Ano: {item.ano ?? "Nao informado"} • Unidade:{" "}
-                            {item.unidadeInternacao ?? "Nao informado"}
+                            Ano: {item.ano ?? "Nao informado"}
+                            {item.processo ? ` \u2022 Processo: ${item.processo}` : ""}
+                            {" \u2022 Comarca: "}
+                            {item.comarca ?? item.unidadeInternacao ?? "Nao informado"}
                           </p>
                           {item.observacoes ? (
                             <p className="text-xs text-slate-600 mt-1">
                               {item.observacoes}
                             </p>
                           ) : null}
+                          <div className="mt-3">
+                            <button
+                              type="button"
+                              onClick={() => iniciarEdicaoHistorico(item)}
+                              className="text-indigo-600 hover:text-indigo-700 text-xs font-semibold"
+                            >
+                              {atoInfracional.historico.some(
+                                (pendente) => pendente.id === item.id
+                              )
+                                ? "Em edicao"
+                                : "Editar"}
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -2508,7 +2586,7 @@ const selecionarAtoCatalogo = (ato: {
                         key={index}
                         className="p-4 bg-gray-50 rounded-lg border-2 border-gray-200"
                       >
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                           <div className="md:col-span-2">
                             <input
                               type="text"
@@ -2525,23 +2603,39 @@ const selecionarAtoCatalogo = (ato: {
                               className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-indigo-500 outline-none"
                             />
                           </div>
-                          <div>
+                          <div className="md:col-span-2">
                             <input
                               type="text"
-                              value={item.unidade}
+                              value={item.processo}
                               onChange={(e) => {
                                 const novo = [...atoInfracional.historico];
-                                novo[index].unidade = e.target.value;
+                                novo[index].processo = e.target.value;
                                 setAtoInfracional({
                                   ...atoInfracional,
                                   historico: novo,
                                 });
                               }}
-                              placeholder="Unidade"
+                              placeholder="Numero do processo"
                               className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-indigo-500 outline-none"
                             />
                           </div>
-                          <div>
+                          <div className="md:col-span-3">
+                            <input
+                              type="text"
+                              value={item.comarca}
+                              onChange={(e) => {
+                                const novo = [...atoInfracional.historico];
+                                novo[index].comarca = e.target.value;
+                                setAtoInfracional({
+                                  ...atoInfracional,
+                                  historico: novo,
+                                });
+                              }}
+                              placeholder="Comarca"
+                              className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-indigo-500 outline-none"
+                            />
+                          </div>
+                          <div className="md:col-span-1">
                             <input
                               type="text"
                               value={item.ano}
@@ -2557,7 +2651,7 @@ const selecionarAtoCatalogo = (ato: {
                               className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-indigo-500 outline-none"
                             />
                           </div>
-                          <div className="md:col-span-3">
+                          <div className="md:col-span-4">
                             <textarea
                               value={item.observacoes ?? ""}
                               onChange={(e) => {
@@ -2573,7 +2667,7 @@ const selecionarAtoCatalogo = (ato: {
                               className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-indigo-500 outline-none resize-none text-sm"
                             />
                           </div>
-                          <div className="md:col-span-2">
+                          <div className="md:col-span-4">
                             <button
                               type="button"
                               onClick={() => removerHistoricoInfracional(index)}

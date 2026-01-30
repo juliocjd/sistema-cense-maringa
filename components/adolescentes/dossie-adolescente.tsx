@@ -553,7 +553,7 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                 Alocação Atual
               </h2>
 
-              {adolescente.alojamentoAtualId && dadosAdicionais.alojamento ? (
+              {dadosAdicionais.alojamento ? (
                 <div className="bg-indigo-50 border-2 border-indigo-200 rounded-xl p-6">
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6 mb-4">
                     <div className="w-16 h-16 bg-indigo-600 rounded-xl flex items-center justify-center">
@@ -627,7 +627,7 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                             {item.descricao}
                           </h4>
                           <p className="text-sm text-gray-600">
-                            {item.unidade} • {item.ano}
+                            {item.comarca ?? item.unidadeInternacao ?? "-"} • {item.ano ?? "-"}{item.processo ? ` • Processo: ${item.processo}` : ""}
                           </p>
                         </div>
                       </div>
@@ -1063,3 +1063,4 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
     </div>
   );
 }
+

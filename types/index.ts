@@ -163,13 +163,17 @@ export interface AdolescenteHistoricoInfracionalItem {
   gravidade: boolean;
   gravidadeObs?: string | null;
   unidadeInternacao?: string | null;
+  comarca?: string | null;
   observacoes?: string | null;
   catalogoId?: string | null;
 }
 
 export interface AdolescenteHistoricoRegistroInput {
+  id?: string;
   descricao: string;
   ano?: number | string | null;
+  processo?: string | null;
+  comarca?: string | null;
   unidade?: string | null;
   observacoes?: string | null;
   catalogoId?: string | null;

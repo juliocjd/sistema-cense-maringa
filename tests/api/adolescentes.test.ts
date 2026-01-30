@@ -253,7 +253,7 @@ describe("API de adolescentes - historico infracional", () => {
     dataDesinternacao: null,
   };
 
-  it("usa nome da casa ao registrar historico automatico", async () => {
+  it("usa comarca padrao ao registrar historico automatico", async () => {
     mockedAuth.mockResolvedValue({ user: { id: "operador-3" } });
     operadorMock.findUnique.mockResolvedValue({ id: "operador-3" });
     adolescenteMock.findUnique.mockResolvedValue(baseExistente);
@@ -278,10 +278,10 @@ describe("API de adolescentes - historico infracional", () => {
     expect(txHistoricoMock.create).toHaveBeenCalledTimes(1);
     expect(
       txHistoricoMock.create.mock.calls[0][0].data.unidadeInternacao
-    ).toBe("Casa Azul");
+    ).toBe("Maringa");
   });
 
-  it('define "Cense de Maringa" quando adolescente nao possui casa registrada', async () => {
+  it('define "Maringa" quando adolescente nao possui casa registrada', async () => {
     mockedAuth.mockResolvedValue({ user: { id: "operador-4" } });
     operadorMock.findUnique.mockResolvedValue({ id: "operador-4" });
     adolescenteMock.findUnique.mockResolvedValue({
@@ -306,6 +306,6 @@ describe("API de adolescentes - historico infracional", () => {
     expect(txHistoricoMock.create).toHaveBeenCalledTimes(1);
     expect(
       txHistoricoMock.create.mock.calls[0][0].data.unidadeInternacao
-    ).toBe("Cense de Maringa");
+    ).toBe("Maringa");
   });
 });

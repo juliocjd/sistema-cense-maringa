@@ -53,10 +53,13 @@ const alertaEspecialSchema = z.object({
 const historicoRegistroSchema = z
   .array(
     z.object({
+      id: z.string().uuid().optional().nullable(),
       descricao: z
         .string()
         .min(3, "Descrição do histórico deve ter ao menos 3 caracteres"),
       ano: z.union([z.string(), z.number()]).optional().nullable(),
+      processo: z.string().optional().nullable(),
+      comarca: z.string().optional().nullable(),
       unidade: z.string().optional().nullable(),
       observacoes: z.string().optional().nullable(),
       catalogoId: z.string().uuid().optional().nullable(),
@@ -130,6 +133,7 @@ const toDateOrUndefined = (value?: string | null) => {
 };
 
 type HistoricoEntrada = {
+  id?: string | null;
   atoInfracionalDescricao: string;
   atoInfracionalAno: number | null;
   atoInfracionalProcesso: string | null;
@@ -143,8 +147,11 @@ type HistoricoEntrada = {
 
 const parseHistoricoPayload = (
   registros?: Array<{
+    id?: string | null;
     descricao: string;
     ano?: string | number | null;
+    processo?: string | null;
+    comarca?: string | null;
     unidade?: string | null;
     observacoes?: string | null;
   }>
@@ -172,12 +179,17 @@ const parseHistoricoPayload = (
         : null;
 
     const entrada: HistoricoEntrada = {
+      id: typeof (item as any).id === "string" ? (item as any).id : null,
       atoInfracionalDescricao: descricao,
       atoInfracionalAno: anoValido,
-      atoInfracionalProcesso: null,
+      atoInfracionalProcesso:
+        sanitizeNullableString((item as any).processo ?? undefined) ?? null,
       atoInfracionalGravidade: false,
       atoInfracionalGravidadeObs: null,
-      unidadeInternacao: sanitizeNullableString(item.unidade ?? undefined) ?? null,
+      unidadeInternacao:
+        sanitizeNullableString(
+          (item as any).comarca ?? item.unidade ?? undefined
+        ) ?? null,
       ano: anoValido,
       observacoes: sanitizeNullableString(item.observacoes ?? undefined) ?? null,
       catalogoId:
@@ -696,3 +708,4 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+

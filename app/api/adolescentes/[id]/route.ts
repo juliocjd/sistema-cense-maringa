@@ -34,10 +34,13 @@ import { registrarMovimentacao } from "@/lib/historico/movimentacao";
 const historicoRegistroSchema = z
   .array(
     z.object({
+      id: z.string().uuid().optional().nullable(),
       descricao: z
         .string()
         .min(3, "Descrição do histórico deve ter ao menos 3 caracteres"),
       ano: z.union([z.string(), z.number()]).optional().nullable(),
+      processo: z.string().optional().nullable(),
+      comarca: z.string().optional().nullable(),
       unidade: z.string().optional().nullable(),
       observacoes: z.string().optional().nullable(),
       catalogoId: z.string().uuid().optional().nullable(),
@@ -147,6 +150,7 @@ const toDateOrNull = (value?: string | null) => {
 };
 
 type HistoricoEntrada = {
+  id?: string | null;
   atoInfracionalDescricao: string;
   atoInfracionalAno: number | null;
   atoInfracionalProcesso: string | null;
@@ -160,8 +164,11 @@ type HistoricoEntrada = {
 
 const parseHistoricoPayload = (
   registros?: Array<{
+    id?: string | null;
     descricao: string;
     ano?: string | number | null;
+    processo?: string | null;
+    comarca?: string | null;
     unidade?: string | null;
     observacoes?: string | null;
   }>
@@ -189,12 +196,17 @@ const parseHistoricoPayload = (
         : null;
 
     const entrada: HistoricoEntrada = {
+      id: typeof (item as any).id === "string" ? (item as any).id : null,
       atoInfracionalDescricao: descricao,
       atoInfracionalAno: anoValido,
-      atoInfracionalProcesso: null,
+      atoInfracionalProcesso:
+        sanitizeNullableString((item as any).processo ?? undefined) ?? null,
       atoInfracionalGravidade: false,
       atoInfracionalGravidadeObs: null,
-      unidadeInternacao: sanitizeNullableString(item.unidade ?? undefined) ?? null,
+      unidadeInternacao:
+        sanitizeNullableString(
+          (item as any).comarca ?? item.unidade ?? undefined
+        ) ?? null,
       ano: anoValido,
       observacoes: sanitizeNullableString(item.observacoes ?? undefined) ?? null,
       catalogoId:
@@ -577,8 +589,8 @@ export async function PUT(
     const deveGerarHistorico =
       saiuDeAtivo && Boolean(atoAtualCatalogoId || atoAtualNome);
 
-    const unidadeHistoricoPadrao =
-      existente.alojamentoAtual?.casa?.nome ?? "Cense de Maringa";
+    const comarcaHistoricoPadrao =
+      process.env.COMARCA_PADRAO?.trim() || "Maringa";
 
     const historicoParaCriar: Prisma.AdolescenteHistoricoInfracionalUncheckedCreateInput | null =
       deveGerarHistorico
@@ -592,7 +604,7 @@ export async function PUT(
             atoInfracionalGravidade: existente.atoInfracionalGravidade ?? false,
             atoInfracionalGravidadeObs:
               existente.atoInfracionalGravidadeObs ?? null,
-            unidadeInternacao: unidadeHistoricoPadrao,
+            unidadeInternacao: comarcaHistoricoPadrao,
             ano: existente.atoInfracionalAno ?? new Date().getFullYear(),
             observacoes: `Status alterado de ${statusAtual} para ${novoStatus}`,
           }
@@ -932,6 +944,7 @@ export async function PUT(
         await tx.adolescenteHistoricoInfracional.findMany({
           where: { adolescenteId: id },
           select: {
+            id: true,
             atoInfracionalDescricao: true,
             atoInfracionalAno: true,
             atoInfracionalProcesso: true,
@@ -944,6 +957,9 @@ export async function PUT(
           },
         });
 
+      const historicoPorId = new Map(
+        historicoExistentes.map((registro) => [registro.id, registro])
+      );
       const historicoChaves = new Set(
         historicoExistentes.map((registroExistente) =>
           buildHistoricoKey(toHistoricoEntradaFromDb(registroExistente))
@@ -990,7 +1006,36 @@ export async function PUT(
         });
       }
 
-      for (const entrada of historicoNovos) {
+      const historicoParaAtualizar = historicoNovos.filter(
+        (entrada) => Boolean(entrada.id) && historicoPorId.has(entrada.id as string)
+      );
+      const historicoNovosParaCriar = historicoNovos.filter(
+        (entrada) => !entrada.id
+      );
+
+      for (const entrada of historicoParaAtualizar) {
+        const registroAtual = historicoPorId.get(entrada.id as string);
+        if (registroAtual) {
+          historicoChaves.delete(
+            buildHistoricoKey(toHistoricoEntradaFromDb(registroAtual))
+          );
+        }
+        await tx.adolescenteHistoricoInfracional.updateMany({
+          where: { id: entrada.id as string, adolescenteId: id },
+          data: {
+            atoInfracionalDescricao: entrada.atoInfracionalDescricao,
+            atoInfracionalAno: entrada.atoInfracionalAno,
+            atoInfracionalProcesso: entrada.atoInfracionalProcesso,
+            atoInfracionalCatalogoId: entrada.catalogoId ?? null,
+            unidadeInternacao: entrada.unidadeInternacao,
+            ano: entrada.ano,
+            observacoes: entrada.observacoes,
+          },
+        });
+        historicoChaves.add(buildHistoricoKey(entrada));
+      }
+
+      for (const entrada of historicoNovosParaCriar) {
         await registrarEntrada(entrada);
       }
 
@@ -1390,5 +1435,6 @@ export async function PUT(
     );
   }
 }
+
 
 
