@@ -95,6 +95,10 @@ export default function EditarAdolescentePage() {
       throw new Error(payload?.erro ?? "Erro ao atualizar adolescente.");
     }
 
+    if (payload) {
+      setAdolescente(payload as Adolescente);
+    }
+
     const pendentes = payload?.reativacaoPendentes;
     const alertasPendentes: Array<{
       id: string;
@@ -253,7 +257,7 @@ export default function EditarAdolescentePage() {
       <CadastroAdolescente
         modo="EDICAO"
         initialData={adolescente}
-        permitirAlocacaoAutomatica={false}
+        permitirAlocacaoAutomatica
         onSalvar={handleSalvar}
         onCancelar={handleCancelar}
       />

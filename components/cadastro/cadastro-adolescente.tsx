@@ -199,7 +199,8 @@ export function CadastroAdolescente({
         ),
       [user?.permissions]
     );
-    const podeSelecionarAlojamento =
+    const podeSelecionarAlojamento = podeAlterarAlojamento;
+    const podeGerarSugestoes =
       (permitirAlocacaoAutomatica ?? !ehEdicao) && podeAlterarAlojamento;
   const tituloPagina = ehEdicao
     ? "Editar adolescente"
@@ -656,7 +657,7 @@ export function CadastroAdolescente({
   }, [sugestoesOriginais, tipoInternacao]);
 
   const buscarSugestoesAlojamento = async () => {
-    if (!podeSelecionarAlojamento) {
+    if (!podeGerarSugestoes) {
       setErroSugestoes(
         "Sem permissao para selecionar alojamento para este perfil."
       );
@@ -1064,6 +1065,25 @@ export function CadastroAdolescente({
     [referencias.bairros]
   );
 
+  const faccaoSomenteHistorico = modo === "EDICAO";
+  const faccaoHistoricoAtivo = useMemo(() => {
+    if (faccaoHistorico.length === 0) return null;
+    return (
+      faccaoHistorico.find((item) => item.statusRegistro === "ATIVA") ??
+      faccaoHistorico[0]
+    );
+  }, [faccaoHistorico]);
+  const faccaoAtualNome =
+    faccaoHistoricoAtivo?.faccaoNome ??
+    faccoesDisponiveis.find((f) => f.id === vinculacoes.faccaoId)?.nome ??
+    "Sem faccao / nao informado";
+  const faccaoAtualFuncao =
+    faccaoHistoricoAtivo?.funcao ?? vinculacoes.faccaoFuncao ?? "";
+  const faccaoAtualOrigem =
+    faccaoHistoricoAtivo?.origemInformacao ?? vinculacoes.faccaoOrigem ?? "";
+  const faccaoAtualObs =
+    faccaoHistoricoAtivo?.observacao ?? vinculacoes.faccaoOrigemDetalhe ?? "";
+
 const selecionarAtoCatalogo = (ato: {
   id: string;
   nome: string;
@@ -1400,8 +1420,8 @@ const selecionarAtoCatalogo = (ato: {
   const abrirModalDeclaracaoFaccao = () => {
     setModalDeclaracaoFaccao({
       aberto: true,
-      faccaoId: vinculacoes.faccaoId,
-      funcao: vinculacoes.faccaoFuncao,
+      faccaoId: faccaoHistoricoAtivo?.faccaoId ?? vinculacoes.faccaoId,
+      funcao: faccaoHistoricoAtivo?.funcao ?? vinculacoes.faccaoFuncao,
       origem: (vinculacoes.faccaoOrigem || "NAO_INFORMADO") as
         | "CONFESSADA"
         | "OBSERVACAO"
@@ -1410,7 +1430,7 @@ const selecionarAtoCatalogo = (ato: {
         | "NAO_INFORMADO"
         | "",
       nivelConfianca: "NAO_AVALIADO",
-      observacao: vinculacoes.faccaoOrigemDetalhe,
+      observacao: faccaoHistoricoAtivo?.observacao ?? vinculacoes.faccaoOrigemDetalhe,
       fonte: "",
       salvando: false,
       erro: null,
@@ -1428,6 +1448,16 @@ const selecionarAtoCatalogo = (ato: {
 
   const salvarDeclaracaoFaccao = async () => {
     if (!initialData?.id || modalDeclaracaoFaccao.salvando) return;
+    if (
+      modalDeclaracaoFaccao.origem === "OBSERVACAO" &&
+      !modalDeclaracaoFaccao.observacao.trim()
+    ) {
+      setModalDeclaracaoFaccao((prev) => ({
+        ...prev,
+        erro: "Descreva como a informacao foi obtida para origem OBSERVACAO.",
+      }));
+      return;
+    }
     const payload: Record<string, any> = {
       faccaoGrupoId: modalDeclaracaoFaccao.faccaoId || null,
       faccaoFuncao: modalDeclaracaoFaccao.funcao || null,
@@ -1457,6 +1487,13 @@ const selecionarAtoCatalogo = (ato: {
         faccaoOrigemDetalhe: result.faccaoInformacaoDetalhe ?? "",
       }));
       setFaccaoHistorico(result.faccaoHistorico ?? []);
+      if (!Array.isArray(result.faccaoHistorico) || result.faccaoHistorico.length === 0) {
+        const response = await fetch(`/api/adolescentes/${initialData.id}`);
+        if (response.ok) {
+          const atualizado = await response.json();
+          setFaccaoHistorico(atualizado?.faccaoHistorico ?? []);
+        }
+      }
       fecharModalDeclaracaoFaccao();
     } catch (error: any) {
       console.error(error);
@@ -1583,6 +1620,7 @@ const selecionarAtoCatalogo = (ato: {
     }
 
     if (
+      !faccaoSomenteHistorico &&
       vinculacoes.faccaoOrigem === "OBSERVACAO" &&
       !vinculacoes.faccaoOrigemDetalhe.trim()
     ) {
@@ -1649,6 +1687,7 @@ const selecionarAtoCatalogo = (ato: {
         faccaoOrigemValor === "OBSERVACAO"
           ? sanitize(vinculacoes.faccaoOrigemDetalhe)
           : undefined;
+      const enviarFaccao = !faccaoSomenteHistorico;
       const historicoPayload: AdolescenteHistoricoRegistroInput[] =
         atoInfracional.historico
           .map((item): AdolescenteHistoricoRegistroInput | null => {
@@ -1726,16 +1765,20 @@ const selecionarAtoCatalogo = (ato: {
             observacoes: t.observacoes || "",
             significadoPessoal: t.significadoPessoal || "",
           })),
-        faccaoGrupoId: faccaoIdSanitizado,
-        faccaoFuncao:
-          faccaoIdSanitizado && faccaoFuncaoSanitizada
-            ? faccaoFuncaoSanitizada
-            : undefined,
-        faccaoInformacaoOrigem: faccaoOrigemValor,
-        faccaoInformacaoDetalhe:
-          faccaoOrigemValor === "OBSERVACAO"
-            ? faccaoOrigemDetalheSanitizada
-            : undefined,
+        ...(enviarFaccao
+          ? {
+              faccaoGrupoId: faccaoIdSanitizado,
+              faccaoFuncao:
+                faccaoIdSanitizado && faccaoFuncaoSanitizada
+                  ? faccaoFuncaoSanitizada
+                  : undefined,
+              faccaoInformacaoOrigem: faccaoOrigemValor,
+              faccaoInformacaoDetalhe:
+                faccaoOrigemValor === "OBSERVACAO"
+                  ? faccaoOrigemDetalheSanitizada
+                  : undefined,
+            }
+          : {}),
         bairroOrigemId: sanitize(vinculacoes.bairroId),
         riscoFuga: vinculacoes.riscoFuga,
         tecnicosReferenciaIds: tecnicosReferenciaIds,
@@ -1934,7 +1977,6 @@ const selecionarAtoCatalogo = (ato: {
                     placeholder="Ex: Joao da Silva Santos"
                   />
                 </div>
-
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Nome Social
@@ -1952,7 +1994,6 @@ const selecionarAtoCatalogo = (ato: {
                     placeholder="Ex: Joao"
                   />
                 </div>
-
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Vulgo / Apelido
@@ -2049,7 +2090,6 @@ const selecionarAtoCatalogo = (ato: {
                     </div>
                   )}
                 </div>
-
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Numero interno (1 a 86)
@@ -2534,6 +2574,7 @@ const selecionarAtoCatalogo = (ato: {
               </h2>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {!faccaoSomenteHistorico && (
                 <div>
                   <div className="mb-2 flex items-center justify-between">
                     <label className="block text-sm font-semibold text-gray-700">
@@ -2576,7 +2617,9 @@ const selecionarAtoCatalogo = (ato: {
                     ))}
                   </select>
                 </div>
+                )}
 
+              {!faccaoSomenteHistorico && (
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Funcao dentro da organizacao
@@ -2598,6 +2641,51 @@ const selecionarAtoCatalogo = (ato: {
                     Se conhecido, informe o papel desempenhado pelo adolescente dentro da faccao.
                   </p>
                 </div>
+              )}
+
+              {faccaoSomenteHistorico && (
+                <div className="md:col-span-2 rounded-xl border border-slate-200 bg-white p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-700">
+                        Facção / Grupo (somente leitura)
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        Alterações devem ser feitas via “Nova declaração”.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={abrirModalNovaFaccao}
+                      className="text-xs font-semibold text-indigo-600 hover:text-indigo-500"
+                    >
+                      + Nova facção
+                    </button>
+                  </div>
+                  <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-slate-700">
+                    <div>
+                      <span className="text-xs uppercase text-slate-500">Facção atual</span>
+                      <p className="font-semibold">{faccaoAtualNome}</p>
+                    </div>
+                    <div>
+                      <span className="text-xs uppercase text-slate-500">Origem</span>
+                      <p className="font-semibold">{faccaoAtualOrigem || "NAO INFORMADO"}</p>
+                    </div>
+                    <div>
+                      <span className="text-xs uppercase text-slate-500">Função</span>
+                      <p className="font-semibold">
+                        {faccaoAtualFuncao || "Nao informada"}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-xs uppercase text-slate-500">Observação</span>
+                      <p className="font-semibold">
+                        {faccaoAtualObs || "Sem observações"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
                 {initialData?.id && (
                   <div className="md:col-span-2 rounded-xl border border-slate-200 p-4 bg-slate-50">
@@ -2669,6 +2757,7 @@ const selecionarAtoCatalogo = (ato: {
                   </div>
                 )}
 
+                {!faccaoSomenteHistorico && (
                 <div className="md:col-span-2 space-y-2">
                   <label className="block text-sm font-semibold text-gray-700">
                     Origem da informacao sobre a faccao
@@ -2731,6 +2820,7 @@ const selecionarAtoCatalogo = (ato: {
                     </div>
                   )}
                 </div>
+                )}
 
                 <div>
                   <div className="mb-2 flex items-center justify-between">
@@ -2828,7 +2918,6 @@ const selecionarAtoCatalogo = (ato: {
                     </div>
                   )}
                 </div>
-
                 <div className="md:col-span-2 space-y-2">
                   <label className="block text-sm font-semibold text-gray-700">
                     Tecnicos de referencia
@@ -2936,7 +3025,7 @@ const selecionarAtoCatalogo = (ato: {
             <Bed className="text-indigo-600" />
             Alojamento
           </h2>
-          {!podeSelecionarAlojamento && (
+          {!podeAlterarAlojamento && (
             <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
               Seu perfil permite apenas visualizar alojamentos. Alteracoes estao bloqueadas.
             </div>
@@ -2970,11 +3059,11 @@ const selecionarAtoCatalogo = (ato: {
                         ? "border-indigo-500 bg-indigo-50 text-indigo-700 shadow-sm"
                         : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
                     } ${
-                      statusUnidade !== "ATIVO" || !podeSelecionarAlojamento
+                      statusUnidade !== "ATIVO" || !podeGerarSugestoes
                         ? "opacity-50 cursor-not-allowed"
                         : ""
                     }`}
-                    disabled={statusUnidade !== "ATIVO" || !podeSelecionarAlojamento}
+                    disabled={statusUnidade !== "ATIVO" || !podeGerarSugestoes}
                   >
                     <span className="block font-semibold">{opcao.label}</span>
                     <span className="text-xs text-slate-500">{opcao.dica}</span>
@@ -3006,7 +3095,7 @@ const selecionarAtoCatalogo = (ato: {
                 buscarSugestoesAlojamento();
               }}
               className="rounded-full border border-indigo-300 bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 disabled:opacity-60"
-              disabled={carregandoSugestoes || !tipoInternacao || !podeSelecionarAlojamento}
+              disabled={carregandoSugestoes || !tipoInternacao || !podeGerarSugestoes}
             >
               {carregandoSugestoes ? "Sugerindo..." : "Sugerir com base no risco"}
             </button>

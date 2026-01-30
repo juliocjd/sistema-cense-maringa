@@ -56,6 +56,9 @@ const mapOperadorPermissions = (operador: {
   const permissions = mergePermissions(
     hasDbRoles ? permissoesFromDb : fallbackPerms
   );
+  if (roles.includes("ADMIN") && !permissions.includes("*") && !permissions.includes("FULL_ACCESS")) {
+    permissions.push("FULL_ACCESS");
+  }
 
   return { roles, permissions };
 };
