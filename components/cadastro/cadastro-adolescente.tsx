@@ -509,7 +509,7 @@ export function CadastroAdolescente({
     });
     if (initialData.bairroOrigem) {
       setBairroBusca(
-        `${initialData.bairroOrigem.nomeBairro} - ${initialData.bairroOrigem.cidade}`
+        `${initialData.bairroOrigem.nome} - ${initialData.bairroOrigem.cidade}`
       );
     } else {
       setBairroBusca("");
