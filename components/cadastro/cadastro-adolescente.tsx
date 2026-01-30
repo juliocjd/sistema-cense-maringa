@@ -507,6 +507,13 @@ export function CadastroAdolescente({
       bairroId: initialData.bairroOrigemId ?? "",
       riscoFuga: (initialData.riscoFuga as RiscoFuga) ?? "BAIXO",
     });
+    if (initialData.bairroOrigem) {
+      setBairroBusca(
+        `${initialData.bairroOrigem.nomeBairro} - ${initialData.bairroOrigem.cidade}`
+      );
+    } else {
+      setBairroBusca("");
+    }
     setFaccaoHistorico(initialData.faccaoHistorico ?? []);
     setTecnicosReferenciaIds(
       Array.isArray(initialData.tecnicosReferencia)
@@ -994,6 +1001,8 @@ export function CadastroAdolescente({
   });
   const [carregandoReferencias, setCarregandoReferencias] = useState(true);
   const [erroReferencias, setErroReferencias] = useState<string | null>(null);
+  const [bairroBusca, setBairroBusca] = useState("");
+  const [mostrarSugestoesBairro, setMostrarSugestoesBairro] = useState(false);
 
   const carregarReferencias = async () => {
     setCarregandoReferencias(true);
@@ -1064,6 +1073,23 @@ export function CadastroAdolescente({
     () => referencias.bairros,
     [referencias.bairros]
   );
+  const bairroSugestoes = useMemo(() => {
+    const normalizar = (valor: string) =>
+      valor
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .trim();
+    const termo = normalizar(bairroBusca);
+    if (!termo) return [];
+    return bairrosDisponiveis
+      .filter((bairro) => {
+        const nome = normalizar(bairro.nomeBairro);
+        const cidade = normalizar(bairro.cidade);
+        return nome.includes(termo) || cidade.includes(termo);
+      })
+      .slice(0, 20);
+  }, [bairroBusca, bairrosDisponiveis]);
 
   const faccaoSomenteHistorico = modo === "EDICAO";
   const faccaoHistoricoAtivo = useMemo(() => {
@@ -2823,35 +2849,79 @@ const selecionarAtoCatalogo = (ato: {
                 )}
 
                 <div>
-                  <div className="mb-2 flex items-center justify-between">
-                    <label className="block text-sm font-semibold text-gray-700">
-                      Bairro de Origem
-                    </label>
-                    <button
-                      type="button"
-                      onClick={abrirModalNovoBairro}
-                      className="text-xs font-semibold text-indigo-600 hover:text-indigo-500"
-                    >
-                      + Novo bairro
-                    </button>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Bairro de Origem
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={bairroBusca}
+                      onFocus={() => setMostrarSugestoesBairro(true)}
+                      onChange={(e) => {
+                        setBairroBusca(e.target.value);
+                        setVinculacoes({
+                          ...vinculacoes,
+                          bairroId: "",
+                        });
+                        setMostrarSugestoesBairro(true);
+                      }}
+                      onBlur={() =>
+                        window.setTimeout(
+                          () => setMostrarSugestoesBairro(false),
+                          120
+                        )
+                      }
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
+                      placeholder="Digite para buscar bairro ou cidade"
+                    />
+                    {mostrarSugestoesBairro &&
+                      (bairroSugestoes.length > 0 ||
+                        bairroBusca.trim().length >= 2) && (
+                        <div className="absolute z-30 mt-1 max-h-52 w-full overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+                          {bairroSugestoes.length === 0 && (
+                            <p className="px-3 py-2 text-sm text-slate-500">
+                              Nenhum bairro encontrado para o termo informado.
+                            </p>
+                          )}
+                          {bairroSugestoes.map((bairro) => (
+                            <button
+                              key={bairro.id}
+                              type="button"
+                              onMouseDown={() => {
+                                setVinculacoes({
+                                  ...vinculacoes,
+                                  bairroId: bairro.id,
+                                });
+                                setBairroBusca(
+                                  `${bairro.nomeBairro} - ${bairro.cidade}`
+                                );
+                                setMostrarSugestoesBairro(false);
+                              }}
+                              className="w-full px-3 py-2 text-left hover:bg-indigo-50"
+                            >
+                              <span className="font-semibold text-slate-800">
+                                {bairro.nomeBairro}
+                              </span>
+                              <span className="ml-2 text-xs text-slate-500">
+                                {bairro.cidade}
+                              </span>
+                            </button>
+                          ))}
+                          <div className="border-t border-slate-100 bg-slate-50 px-3 py-2">
+                            <button
+                              type="button"
+                              onMouseDown={abrirModalNovoBairro}
+                              className="text-sm font-semibold text-indigo-700 hover:text-indigo-600"
+                            >
+                              Novo endereço
+                            </button>
+                          </div>
+                        </div>
+                      )}
                   </div>
-                  <select
-                    value={vinculacoes.bairroId}
-                    onChange={(e) =>
-                      setVinculacoes({
-                        ...vinculacoes,
-                        bairroId: e.target.value,
-                      })
-                    }
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
-                  >
-                    <option value="">Selecione...</option>
-                    {bairrosDisponiveis.map((bairro) => (
-                      <option key={bairro.id} value={bairro.id}>
-                        {bairro.nomeBairro} - {bairro.cidade}
-                      </option>
-                    ))}
-                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Comece a digitar para filtrar. Se nao encontrar, registre como novo endereco.
+                  </p>
                 </div>
 
                 <div>
