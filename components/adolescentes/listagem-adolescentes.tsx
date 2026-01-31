@@ -549,8 +549,16 @@ export function ListagemAdolescentes() {
                   <tr key={adolescente.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-4">
-                        <div className="h-12 w-12 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-semibold">
-                          {extraiIniciais(adolescente.nomeCompleto)}
+                        <div className="h-12 w-12 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-semibold overflow-hidden">
+                          {adolescente.fotoUrl ? (
+                            <img
+                              src={adolescente.fotoUrl}
+                              alt={adolescente.nomeCompleto}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            extraiIniciais(adolescente.nomeCompleto)
+                          )}
                         </div>
                         <div className="space-y-1">
                           <div className="flex items-center gap-2">
@@ -588,18 +596,6 @@ export function ListagemAdolescentes() {
                               {adolescente.faccaoFuncao && (
                                 <> - Funcao: {adolescente.faccaoFuncao}</>
                               )}
-                            </p>
-                          )}
-                          {adolescente.faccaoInformacaoOrigem && (
-                            <p className="text-[11px] uppercase tracking-wide text-gray-400">
-                              Origem da informacao:{" "}
-                              {adolescente.faccaoInformacaoOrigem === "CONFESSADA"
-                                ? "Confessada"
-                                : "Observacao"}
-                              {adolescente.faccaoInformacaoOrigem === "OBSERVACAO" &&
-                                adolescente.faccaoInformacaoDetalhe && (
-                                  <> — {adolescente.faccaoInformacaoDetalhe}</>
-                                )}
                             </p>
                           )}
                           {adolescente.bairroOrigem && (
@@ -712,3 +708,4 @@ export function ListagemAdolescentes() {
     </div>
   );
 }
+

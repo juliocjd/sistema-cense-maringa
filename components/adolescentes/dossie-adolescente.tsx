@@ -127,6 +127,15 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
     );
   };
 
+  const faccaoHistoricoAtual =
+    adolescente.faccaoHistorico?.find((item) => item.statusRegistro === "ATIVA") ??
+    adolescente.faccaoHistorico?.[0] ??
+    null;
+  const faccaoNomeAtual =
+    faccaoHistoricoAtual?.faccaoNome ?? adolescente.faccao?.nome ?? null;
+  const faccaoFuncaoAtual =
+    faccaoHistoricoAtual?.funcao ?? adolescente.faccaoFuncao ?? null;
+
   // Dados que virão da API (atualmente vazios até serem cadastrados)
   const dadosAdicionais: {
     alojamento: AdolescenteAlojamentoResumo | null;
@@ -140,7 +149,7 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
     alojamento: adolescente.alojamentoAtual ?? null,
     faccao: adolescente.faccao ?? null,
     bairro: adolescente.bairroOrigem ?? null,
-    historicoInfracional: [],
+    historicoInfracional: adolescente.historicoInfracional ?? [],
     tatuagens: (adolescente.tatuagens ?? []) as AdolescenteTatuagemResumo[],
     conflitos: [
       ...((adolescente.conflitosA ?? []) as Conflito[]),
@@ -490,7 +499,13 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                     <div className="flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-2">
                       <span className="text-gray-600">Facção/Grupo:</span>
                       <span className="font-semibold text-gray-800">
-                        {dadosAdicionais.faccao?.nome || "-"}
+                        {faccaoNomeAtual
+                          ? `${faccaoNomeAtual}${
+                              faccaoFuncaoAtual
+                                ? ` - Funcao: ${faccaoFuncaoAtual}`
+                                : ""
+                            }`
+                          : "-"}
                       </span>
                     </div>
                     <div className="flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-2">
@@ -534,7 +549,34 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                       </span>{" "}
                       {adolescente.atoInfracionalAno ?? "-"}
                     </div>
+                    {adolescente.atoInfracionalCatalogoGravidade && (
+                      <div>
+                        <span className="font-semibold text-gray-700">
+                          Gravidade (catálogo):
+                        </span>{" "}
+                        {adolescente.atoInfracionalCatalogoGravidade}
+                      </div>
+                    )}
+                    {typeof adolescente.atoInfracionalCatalogoViolencia ===
+                      "boolean" && (
+                      <div>
+                        <span className="font-semibold text-gray-700">
+                          Violência ou grave ameaça:
+                        </span>{" "}
+                        {adolescente.atoInfracionalCatalogoViolencia
+                          ? "Sim"
+                          : "Não"}
+                      </div>
+                    )}
                   </div>
+                  {adolescente.atoInfracionalObservacoes && (
+                    <div className="text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded-lg p-3">
+                      <p className="font-semibold">
+                        Observações complementares:
+                      </p>
+                      <p>{adolescente.atoInfracionalObservacoes}</p>
+                    </div>
+                  )}
                   {adolescente.atoInfracionalGravidadeObs && (
                     <div className="text-sm text-orange-700 bg-orange-50 border border-orange-200 rounded-lg p-3">
                       <p className="font-semibold">Repercussao / detalhes:</p>
@@ -623,12 +665,24 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
-                          <h4 className="font-semibold text-gray-800 mb-1">
-                            {item.descricao}
-                          </h4>
+                          <div className="flex flex-wrap items-center gap-2 mb-1">
+                            <h4 className="font-semibold text-gray-800">
+                              {item.descricao}
+                            </h4>
+                            {item.gravidade && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold rounded-full bg-orange-100 text-orange-700">
+                                Repercussão
+                              </span>
+                            )}
+                          </div>
                           <p className="text-sm text-gray-600">
                             {item.comarca ?? item.unidadeInternacao ?? "-"} • {item.ano ?? "-"}{item.processo ? ` • Processo: ${item.processo}` : ""}
                           </p>
+                          {item.observacoes && (
+                            <p className="text-xs text-gray-500 mt-2">
+                              Observações: {item.observacoes}
+                            </p>
+                          )}
                         </div>
                       </div>
                     </div>
