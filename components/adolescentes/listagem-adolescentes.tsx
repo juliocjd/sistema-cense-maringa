@@ -395,7 +395,7 @@ export function ListagemAdolescentes() {
                   setBusca(event.target.value);
                   setPaginaAtual(1);
                 }}
-                placeholder="Buscar por nome, SMS, processo ou numero interno..."
+                placeholder="Buscar por nome, SMS, processo ou número interno..."
                 className="w-full pl-9 md:pl-10 pr-4 py-2.5 md:py-3 text-sm md:text-base border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
               />
             </div>
@@ -558,7 +558,7 @@ export function ListagemAdolescentes() {
                               {adolescente.nomeCompleto}
                             </span>
                             {adolescente.riscoFuga && (
-                              <span className="text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-700 font-semibold uppercase">
+                              <span className="text-[6px] px-0.5 py-1 rounded-full bg-amber-100 text-amber-700 font-semibold uppercase">
                                 Risco fuga: {adolescente.riscoFuga}
                               </span>
                             )}

@@ -377,7 +377,7 @@ export default function PortariaPage() {
       }
     } catch (err) {
       console.error("Erro ao identificar visitante:", err);
-      setErro("Erro ao processar identificacao. Tente novamente.");
+      setErro("Erro ao processar identificação. Tente novamente.");
     } finally {
       setProcessando(false);
       if (origemIdentificacao === "facial") {
@@ -590,7 +590,7 @@ export default function PortariaPage() {
             <span className="sm:hidden">Portaria</span>
           </h1>
           <p className="text-gray-600 mt-2 text-sm md:text-base lg:text-lg">
-            Sistema de identificacao automatica de visitantes
+            Sistema de identificação automática de visitantes
           </p>
         </div>
 
@@ -627,9 +627,9 @@ export default function PortariaPage() {
                 </h2>
                 <p className="text-gray-600 mt-1 md:mt-2 text-sm md:text-base">
                   <span className="hidden sm:inline">
-                    Identificacao automatica via camera
+                    Identificação automática via câmera
                   </span>
-                  <span className="sm:hidden">Via camera</span>
+                  <span className="sm:hidden">Via câmera</span>
                 </p>
               </div>
             </button>
@@ -652,7 +652,7 @@ export default function PortariaPage() {
                 </h2>
                 <p className="text-gray-600 mt-1 md:mt-2 text-sm md:text-base">
                   <span className="hidden sm:inline">
-                    Identificacao rapida via QR Code
+                    Identificação rápida via QR Code
                   </span>
                   <span className="sm:hidden">Via QR</span>
                 </p>
@@ -696,7 +696,7 @@ export default function PortariaPage() {
                 </h2>
                 <p className="text-gray-600 mt-1 md:mt-2 text-sm md:text-base">
                   <span className="hidden sm:inline">
-                    Painel de controle e estatisticas
+                    Painel de controle e estatísticas
                   </span>
                   <span className="sm:hidden">Painel controle</span>
                 </p>
@@ -1060,7 +1060,7 @@ export default function PortariaPage() {
                       }}
                       className="px-4 md:px-6 py-2.5 md:py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors font-semibold shadow-md text-sm md:text-base"
                     >
-                      Nova Identificacao
+                      Nova Identificação
                     </button>
                   </div>
                 </div>

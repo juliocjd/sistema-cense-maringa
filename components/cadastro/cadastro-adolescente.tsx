@@ -216,12 +216,12 @@ export function CadastroAdolescente({
     : "Cadastro de Adolescente";
   const subtituloPagina = ehEdicao
     ? "Revise e atualize os dados cadastrados antes de salvar."
-    : "Preencha todas as informacoes necessarias para o dossie completo.";
+    : "Preencha todas as informações necessárias para o dossiê completo.";
   const textoBotaoSalvar = ehEdicao
-    ? "Salvar alteracoes"
+    ? "Salvar alterações"
     : "Salvar cadastro";
   const textoCancelarAcao = ehEdicao
-    ? "Cancelar edicao"
+    ? "Cancelar edição"
     : "Cancelar cadastro";
   const mensagemSucesso = ehEdicao
     ? "Adolescente atualizado com sucesso!"
@@ -450,7 +450,7 @@ export function CadastroAdolescente({
       const payload = await response.json().catch(() => null);
 
       if (!response.ok) {
-        throw new Error(payload?.erro ?? "Erro ao validar numero SMS");
+        throw new Error(payload?.erro ?? "Erro ao validar número SMS");
       }
 
       if (smsValidacaoRef.current !== requestId) {
@@ -468,7 +468,7 @@ export function CadastroAdolescente({
         return;
       }
       setSmsErroVerificacao(
-        error instanceof Error ? error.message : "Erro ao validar numero SMS"
+        error instanceof Error ? error.message : "Erro ao validar número SMS"
       );
       setSmsDuplicado(null);
       setSmsUltimoVerificado(null);
@@ -1638,7 +1638,7 @@ const selecionarAtoCatalogo = (ato: {
   const etapas = [
     { numero: 1, titulo: "Dados Pessoais", icone: User },
     { numero: 2, titulo: "Ato Infracional", icone: FileText },
-    { numero: 3, titulo: "Vinculacoes", icone: Users },
+    { numero: 3, titulo: "Vinculações", icone: Users },
     { numero: 4, titulo: "Alojamento", icone: Bed },
     { numero: 5, titulo: "Tatuagens", icone: Camera },
     { numero: 6, titulo: "Alertas", icone: AlertTriangle },
@@ -1768,13 +1768,13 @@ const selecionarAtoCatalogo = (ato: {
     }
 
     if (smsVerificando) {
-      mensagens.push("Aguarde a validacao do numero SMS.");
+      mensagens.push("Aguarde a validacao do número SMS.");
       etapaErro = Math.max(etapaErro, 1);
     }
 
     if (smsDuplicado) {
       mensagens.push(
-        `Numero SMS ja cadastrado para ${smsDuplicado.nomeCompleto}.`
+        `Número SMS ja cadastrado para ${smsDuplicado.nomeCompleto}.`
       );
       etapaErro = Math.max(etapaErro, 1);
     }
@@ -1835,7 +1835,7 @@ const selecionarAtoCatalogo = (ato: {
     if (statusUnidade === "ATIVO") {
       const numeroLimpo = dadosPessoais.numeroInterno.trim();
       if (!numeroLimpo) {
-        mensagens.push("Informe o numero interno (1 a 86) para adolescentes ativos.");
+        mensagens.push("Informe o número interno (1 a 86) para adolescentes ativos.");
         etapaErro = Math.max(etapaErro, 1);
       } else {
         const numeroValor = Number.parseInt(numeroLimpo, 10);
@@ -1844,7 +1844,7 @@ const selecionarAtoCatalogo = (ato: {
           numeroValor < 1 ||
           numeroValor > 86
         ) {
-          mensagens.push("Numero interno deve ser um valor de 1 a 86.");
+          mensagens.push("Número interno deve ser um valor de 1 a 86.");
           etapaErro = Math.max(etapaErro, 1);
         }
       }
@@ -2328,7 +2328,7 @@ const selecionarAtoCatalogo = (ato: {
 
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Numero SMS
+                    Número SMS
                   </label>
                   <input
                     type="text"
@@ -2357,7 +2357,7 @@ const selecionarAtoCatalogo = (ato: {
                   />
                   {smsVerificando && (
                     <p className="text-xs text-gray-500 mt-1">
-                      Verificando numero SMS...
+                      Verificando número SMS...
                     </p>
                   )}
                   {!smsVerificando && smsErroVerificacao && (
@@ -2368,7 +2368,7 @@ const selecionarAtoCatalogo = (ato: {
                   {!smsVerificando && smsDuplicado && (
                     <div className="mt-2 rounded-lg border border-rose-200 bg-rose-50 p-2 text-xs text-rose-700 flex flex-wrap items-center justify-between gap-2">
                       <span>
-                        Numero SMS ja cadastrado para{" "}
+                        Número SMS ja cadastrado para{" "}
                         {smsDuplicado.nomeCompleto}. Deseja abrir a ficha
                         existente?
                       </span>
@@ -2386,7 +2386,7 @@ const selecionarAtoCatalogo = (ato: {
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Numero interno (1 a 86)
+                    Número interno (1 a 86)
                   </label>
                   <input
                     type="number"
@@ -2409,7 +2409,7 @@ const selecionarAtoCatalogo = (ato: {
                   <p className="text-xs text-gray-500 mt-1">
                     {statusUnidade === "ATIVO"
                       ? "Obrigatorio para adolescentes ativos. Informe um numero entre 1 e 86."
-                      : "Numero interno reservado apenas para adolescentes com status ATIVO."}
+                      : "Número interno reservado apenas para adolescentes com status ATIVO."}
                   </p>
                 </div>
 
@@ -2432,7 +2432,7 @@ const selecionarAtoCatalogo = (ato: {
 
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Situacao na Unidade
+                    Situação na Unidade
                   </label>
                   <select
                     value={statusUnidade}
@@ -2569,7 +2569,7 @@ const selecionarAtoCatalogo = (ato: {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
                   <div>
                     <label className="block text-xs font-semibold text-slate-600 uppercase">
-                      Gravidade (catalogo)
+                      Gravidade (catálogo)
                     </label>
                     <input
                       disabled
@@ -2580,7 +2580,7 @@ const selecionarAtoCatalogo = (ato: {
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-slate-600 uppercase">
-                      Violencia ou grave ameaca (catalogo)
+                      Violencia ou grave ameaca (catálogo)
                     </label>
                     <input
                       disabled
@@ -2595,7 +2595,7 @@ const selecionarAtoCatalogo = (ato: {
                       readOnly
                     />
                     <p className="text-[11px] text-slate-500 mt-1">
-                      Campo abaixo “Ato com repercussao publica ou gravidade elevada” continua para a situação específica deste adolescente.
+                      Campo abaixo “Ato com repercussão pública ou gravidade elevada” continua para a situação específica deste adolescente.
                     </p>
                   </div>
                 </div>
@@ -2621,7 +2621,7 @@ const selecionarAtoCatalogo = (ato: {
                 <div className="grid gap-4 md:grid-cols-2">
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Numero do Processo
+                      Número do Processo
                     </label>
                     <input
                       type="text"
@@ -2659,7 +2659,7 @@ const selecionarAtoCatalogo = (ato: {
 
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Observacoes complementares
+                    Observações complementares
                   </label>
                   <textarea
                     value={atoInfracional.observacoesComplementares}
@@ -2701,7 +2701,7 @@ const selecionarAtoCatalogo = (ato: {
                         className="font-semibold text-gray-800 cursor-pointer flex items-center gap-2"
                       >
                         <AlertTriangle className="h-4 w-4 text-orange-500" />
-                        Ato com repercussao publica ou gravidade elevada
+                        Ato com repercussão pública ou gravidade elevada
                       </label>
                       <p className="text-sm text-gray-600">
                         Use esta opcao quando o fato tenha grande repercussao ou represente risco
@@ -2709,7 +2709,7 @@ const selecionarAtoCatalogo = (ato: {
                         em relatorios operacionais (ex.: justificativa de algema).
                       </p>
                       <p className="text-xs text-gray-500">
-                        Dica: revise tambem a etapa de alertas para garantir coerencia com esta marcacao.
+                        Dica: revise tambem a etapa de alertas para garantir coerência com esta marcacao.
                       </p>
                     </div>
                   </div>
@@ -2739,7 +2739,7 @@ const selecionarAtoCatalogo = (ato: {
               <div>
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-semibold text-gray-800">
-                    Historico Infracional
+                    Histórico Infracional
                   </h3>
                   <button
                     type="button"
@@ -2800,7 +2800,7 @@ const selecionarAtoCatalogo = (ato: {
                       size={48}
                       className="mx-auto mb-2 text-gray-400"
                     />
-                    <p>Nenhum historico pendente para adicionar</p>
+                    <p>Nenhum histórico pendente para adicionar</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -2838,7 +2838,7 @@ const selecionarAtoCatalogo = (ato: {
                                   historico: novo,
                                 });
                               }}
-                              placeholder="Numero do processo"
+                              placeholder="Número do processo"
                               className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-indigo-500 outline-none"
                             />
                           </div>
@@ -2886,7 +2886,7 @@ const selecionarAtoCatalogo = (ato: {
                                 });
                               }}
                               rows={2}
-                              placeholder="Observacoes complementares (opcional)"
+                              placeholder="Observações complementares (opcional)"
                               className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-indigo-500 outline-none resize-none text-sm"
                             />
                           </div>
@@ -2913,7 +2913,7 @@ const selecionarAtoCatalogo = (ato: {
             <div className="space-y-6">
               <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
                 <Users className="text-indigo-600" />
-                Vinculacoes
+                Vinculações
               </h2>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -3877,7 +3877,7 @@ const selecionarAtoCatalogo = (ato: {
         </div>
         <div>
           <label className="text-xs font-semibold uppercase text-slate-500">
-            Gravidade (catalogo)
+            Gravidade (catálogo)
           </label>
           <select
             value={modalNovoAto.gravidade}

@@ -383,13 +383,7 @@ export function DetalhesConflito({
                 </h3>
                 <div className="flex items-start gap-3">
                   {participante.fotoUrl ? (
-                    <a
-                      href={participante.fotoUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      title="Abrir foto em tamanho maior"
-                      className="shrink-0"
-                    >
+                    <div className="shrink-0">
                       <div className="h-10 w-10 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-sm font-semibold">
                         <img
                           src={participante.fotoUrl}
@@ -397,7 +391,7 @@ export function DetalhesConflito({
                           className="h-full w-full object-cover"
                         />
                       </div>
-                    </a>
+                    </div>
                   ) : (
                     <div
                       title="Sem foto cadastrada"

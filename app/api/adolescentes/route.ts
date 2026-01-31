@@ -74,10 +74,10 @@ const createAdolescenteSchema = z.object({
   fotoUrl: z.string().url().optional().nullable(),
   numeroSms: z.string().optional().nullable(),
   numeroInterno: z
-    .number({ invalid_type_error: "Numero interno deve ser numerico" })
-    .int("Numero interno deve ser inteiro")
-    .min(1, "Numero interno deve estar entre 1 e 86")
-    .max(86, "Numero interno deve estar entre 1 e 86")
+    .number({ invalid_type_error: "Número interno deve ser numerico" })
+    .int("Número interno deve ser inteiro")
+    .min(1, "Número interno deve estar entre 1 e 86")
+    .max(86, "Número interno deve estar entre 1 e 86")
     .optional()
     .nullable(),
   dataNascimento: z.string().optional().nullable(),
@@ -443,7 +443,7 @@ export async function POST(request: NextRequest) {
     if (statusCriado === "ATIVO") {
       if (numeroInternoInformado === undefined || numeroInternoInformado === null) {
         return NextResponse.json(
-          { erro: "Informe o numero interno (1 a 86) para adolescentes ativos" },
+          { erro: "Informe o número interno (1 a 86) para adolescentes ativos" },
           { status: 400 }
         );
       }
@@ -452,7 +452,7 @@ export async function POST(request: NextRequest) {
       numeroInternoInformado !== null
     ) {
       return NextResponse.json(
-        { erro: "Somente adolescentes ativos podem ter numero interno" },
+        { erro: "Somente adolescentes ativos podem ter número interno" },
         { status: 400 }
       );
     }
@@ -499,7 +499,7 @@ export async function POST(request: NextRequest) {
       if (existenteSms) {
         return NextResponse.json(
           {
-            erro: `Numero SMS ja cadastrado para ${existenteSms.nomeCompleto}.`,
+            erro: `Número SMS ja cadastrado para ${existenteSms.nomeCompleto}.`,
             adolescenteExistente: existenteSms,
           },
           { status: 409 }
@@ -698,7 +698,7 @@ export async function POST(request: NextRequest) {
     if (error instanceof NumeroInternoIndisponivelError) {
       return NextResponse.json(
         {
-          erro: `Numero interno ${error.numero} indisponivel. Atualmente atribuido a ${error.titular}.`,
+          erro: `Número interno ${error.numero} indisponivel. Atualmente atribuido a ${error.titular}.`,
         },
         { status: 409 }
       );

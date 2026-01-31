@@ -251,7 +251,7 @@ function AlertasPageContent() {
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Alertas Ativos</h1>
               <p className="text-gray-600">
-                Gerenciamento de alertas e notificacoes do sistema
+                Gerenciamento de alertas e notificações do sistema
               </p>
             </div>
           </div>
@@ -472,12 +472,12 @@ function AlertasPageContent() {
 
             <div className="rounded-2xl border border-gray-200 p-4 space-y-3">
               <p className="text-xs font-semibold uppercase text-gray-500">
-                Identificacao rapida
+                Identificação rapida
               </p>
               <div className="space-y-3">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Buscar por nome ou descricao
+                    Buscar por nome ou descrição
                   </label>
                   <div className="relative">
                     <Search
@@ -488,12 +488,12 @@ function AlertasPageContent() {
                       type="text"
                       value={busca}
                       onChange={(e) => setBusca(e.target.value)}
-                      placeholder="Nome, numero interno, SMS ou palavras-chave..."
+                      placeholder="Nome, número interno, SMS ou palavras-chave..."
                       className="w-full pl-10 pr-3 py-3 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none"
                     />
                   </div>
                   <p className="text-[11px] text-gray-500 mt-1">
-                    Pesquisa simultanea em nome, numero interno/SMS e descricao do alerta.
+                    Pesquisa simultânea em nome, número interno/SMS e descrição do alerta.
                   </p>
                 </div>
               </div>

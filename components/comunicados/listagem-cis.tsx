@@ -333,7 +333,7 @@ export function ListagemCIs({ comunicados }: ListagemCIsProps) {
                 type="text"
                 value={busca}
                 onChange={(e) => setBusca(e.target.value)}
-                placeholder="Buscar por nÃºmero, resumo, adolescente..."
+                placeholder="Buscar por número, resumo, adolescente..."
                 className="w-full pl-10 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
               />
             </div>

@@ -485,7 +485,7 @@ export default function GruposPage() {
               Adolescentes em grupo divergente da casa
             </h2>
             <p className="text-sm text-gray-600 mt-1">
-              Lista adolescentes que estao em grupos fora da casa atual.
+              Lista adolescentes que estão em grupos fora da casa atual.
             </p>
           </div>
           <span className="text-sm font-semibold text-gray-600">

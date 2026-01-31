@@ -121,7 +121,7 @@ export default function LoginForm() {
                 required
                 disabled={loading}
                 className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
-                placeholder="seu.email@cense.pr.gov.br"
+                placeholder="seu.email@seju.pr.gov.br"
                 autoComplete="email"
               />
             </div>

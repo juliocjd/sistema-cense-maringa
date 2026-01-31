@@ -217,7 +217,7 @@ export default function ConfiguracoesVisitasPage() {
           <div>
             <div className="flex items-center gap-2 mb-4">
               <Clock className="text-indigo-600" size={24} />
-              <h2 className="text-xl font-bold text-gray-900">Janelas de Identificacao</h2>
+              <h2 className="text-xl font-bold text-gray-900">Janelas de Identificação</h2>
             </div>
             <p className="text-gray-600 text-sm mb-4">
               Configure o intervalo em que os visitantes podem passar pela portaria antes de seguir para a area de seguranca.

@@ -1,14 +1,17 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   CheckCircle,
   Eye,
   Filter,
+  MapPin,
   Search,
   Shield,
+  Swords,
   Trash2,
   X,
 } from "lucide-react";
@@ -27,11 +30,13 @@ type FiltroStatus = "TODOS" | "ATIVO" | "INATIVO";
 interface PainelConflitosProps {
   conflitos: ConflitoExternoResumo[];
   impactoResumo: ImpactoConflitoPayload;
+  acoesHeader?: ReactNode;
 }
 
 export default function PainelConflitos({
   conflitos,
   impactoResumo,
+  acoesHeader,
 }: PainelConflitosProps) {
   const router = useRouter();
   const { user } = useAuth();
@@ -41,7 +46,8 @@ export default function PainelConflitos({
   );
   const [busca, setBusca] = useState("");
   const [tipoFiltro, setTipoFiltro] = useState<FiltroTipo>("TODOS");
-  const [statusFiltro, setStatusFiltro] = useState<FiltroStatus>("TODOS");
+  const [statusFiltro, setStatusFiltro] = useState<FiltroStatus>("ATIVO");
+  const [mostrarFiltros, setMostrarFiltros] = useState(false);
   const [estadoAcao, setEstadoAcao] = useState<Record<string, string>>({});
   const [impactoSelecionado, setImpactoSelecionado] =
     useState<ConflitoExternoResumo | null>(null);
@@ -116,194 +122,276 @@ export default function PainelConflitos({
     }
   };
 
-  const getTipoBadge = (tipo: ConflitoExternoResumo["tipo"]) => {
-    if (tipo === "BAIRRO") {
-      return "bg-amber-100 text-amber-800 border-amber-300";
-    }
-    return "bg-rose-100 text-rose-800 border-rose-300";
-  };
-
   const getStatusBadge = (status: string) => {
     if (status === "ATIVO") {
-      return "bg-red-100 text-red-700 border-red-300";
+      return (
+        <span className="px-3 py-1 bg-red-100 text-red-800 rounded-full text-xs font-bold border border-red-300 flex items-center gap-1">
+          <AlertTriangle size={12} />
+          ATIVO
+        </span>
+      );
     }
-    return "bg-emerald-100 text-emerald-700 border-emerald-300";
+    return (
+      <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-bold border border-green-300 flex items-center gap-1">
+        <CheckCircle size={12} />
+        ENCERRADO
+      </span>
+    );
+  };
+
+  const getTipoColor = (tipo: ConflitoExternoResumo["tipo"]) => {
+    const cores: Record<ConflitoExternoResumo["tipo"], string> = {
+      BAIRRO: "bg-orange-100 text-orange-800 border-orange-300",
+      FACCAO: "bg-red-100 text-red-800 border-red-300",
+    };
+    return cores[tipo] ?? "bg-gray-100 text-gray-800 border-gray-300";
+  };
+
+  const limparFiltros = () => {
+    setBusca("");
+    setTipoFiltro("TODOS");
+    setStatusFiltro("TODOS");
   };
 
   return (
     <>
-      <section className="space-y-4 md:space-y-5 rounded-2xl border border-slate-200 bg-white p-4 md:p-6 shadow-sm">
-      <header className="flex flex-col gap-3 md:gap-4 border-b border-slate-100 pb-3 md:pb-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-xs uppercase tracking-wide text-indigo-500">
-            Monitoramento preventivo
-          </p>
-          <h2 className="text-xl md:text-2xl font-bold text-slate-900">
-            Conflitos externos
-          </h2>
-          <p className="text-xs md:text-sm text-slate-500">
-            {stats.total} registros (ativo(s): {stats.ativos}) — territoriais:{" "}
-            {stats.territoriais}, faccionais: {stats.faccionais}
-          </p>
-        </div>
-        <div className="flex gap-2 text-xs">
-          <button
-            type="button"
-            onClick={() => {
-              setTipoFiltro("TODOS");
-              setStatusFiltro("TODOS");
-              setBusca("");
-            }}
-            className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-2.5 md:px-3 py-1 font-semibold text-slate-600"
-          >
-            <Filter className="w-3 h-3" />
-            Limpar filtros
-          </button>
-        </div>
-      </header>
-
-      <div className="grid gap-2 md:gap-3 sm:grid-cols-2 md:grid-cols-3">
-        <label className="relative flex items-center rounded-xl border border-slate-200 bg-slate-50 px-2.5 md:px-3 py-2 text-xs md:text-sm">
-          <Search className="mr-2 w-3.5 h-3.5 md:w-4 md:h-4 text-slate-400 flex-shrink-0" />
-          <input
-            type="text"
-            value={busca}
-            onChange={(event) => setBusca(event.target.value)}
-            placeholder="Buscar por bairro ou faccao"
-            className="w-full border-0 bg-transparent text-slate-700 placeholder:text-slate-400 focus:outline-none min-w-0"
-          />
-        </label>
-
-        <select
-          value={tipoFiltro}
-          onChange={(event) => setTipoFiltro(event.target.value as FiltroTipo)}
-          className="rounded-xl border border-slate-200 bg-white px-2.5 md:px-3 py-2 text-xs md:text-sm text-slate-700 focus:border-indigo-500 focus:outline-none"
-        >
-          <option value="TODOS">Todos os tipos</option>
-          <option value="BAIRRO">Territorial</option>
-          <option value="FACCAO">Faccao</option>
-        </select>
-
-        <select
-          value={statusFiltro}
-          onChange={(event) =>
-            setStatusFiltro(event.target.value as FiltroStatus)
-          }
-          className="rounded-xl border border-slate-200 bg-white px-2.5 md:px-3 py-2 text-xs md:text-sm text-slate-700 focus:border-indigo-500 focus:outline-none"
-        >
-          <option value="TODOS">Todos os status</option>
-          <option value="ATIVO">Ativo</option>
-          <option value="INATIVO">Encerrado</option>
-        </select>
-      </div>
-
-      {conflitosFiltrados.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 md:p-10 text-center text-xs md:text-sm text-slate-500">
-          Nenhum conflito encontrado para os filtros informados.
-        </div>
-      ) : (
-        <div className="space-y-3 md:space-y-4">
-          {conflitosFiltrados.map((conflito) => {
-            const impacto =
-              resumoImpacto.get(conflito.id) ?? undefined;
-            const dataCriacao =
-              conflito.criadoEm && !Number.isNaN(Date.parse(conflito.criadoEm))
-                ? new Date(conflito.criadoEm).toLocaleDateString("pt-BR")
-                : null;
-            return (
-              <div
-                key={conflito.id}
-                className="rounded-2xl border border-slate-200 p-3 md:p-4 shadow-sm"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2 md:gap-3">
-                  <div className="flex flex-wrap items-center gap-1.5 md:gap-2">
-                    <span
-                      className={`inline-flex items-center gap-1 rounded-full border px-2 md:px-3 py-1 text-xs font-semibold ${getTipoBadge(
-                        conflito.tipo
-                      )}`}
-                    >
-                      <Shield className="w-3 h-3" />
-                      {conflito.tipo === "BAIRRO"
-                        ? "Territorial"
-                        : "Faccao"}
-                    </span>
-                    <span
-                      className={`inline-flex items-center gap-1 rounded-full border px-2 md:px-3 py-1 text-xs font-semibold ${getStatusBadge(
-                        conflito.status
-                      )}`}
-                    >
-                      {conflito.status === "ATIVO" ? (
-                        <AlertTriangle className="w-3 h-3" />
-                      ) : (
-                        <CheckCircle className="w-3 h-3" />
-                      )}
-                      {conflito.status}
-                    </span>
-                  </div>
-                  {impacto !== undefined && impacto > 0 && (
-                    <span className="text-xs font-semibold text-slate-500">
-                      Impacto direto em {impacto} adolescente(s)
-                    </span>
-                  )}
-                </div>
-
-                <div className="mt-2 md:mt-3 space-y-1">
-                  <p className="text-base md:text-lg font-semibold text-slate-900">
-                    {conflito.origem.nome} → {conflito.destino.nome}
-                  </p>
-                  <p className="text-xs md:text-sm text-slate-500">
-                    {conflito.origem.complemento}
-                    {conflito.origem.complemento && conflito.destino.complemento
-                      ? " • "
-                      : ""}
-                    {conflito.destino.complemento}
-                  </p>
-                  <p className="text-xs text-slate-400">
-                    {dataCriacao
-                      ? `Registrado em ${dataCriacao}`
-                      : "Registro recente (sem data registrada)"}
-                  </p>
-                  {conflito.fonteInformacao && (
-                    <p className="text-xs text-slate-500">
-                      Fonte: {conflito.fonteInformacao}
-                    </p>
-                  )}
-                </div>
-
-                <div className="mt-3 md:mt-4 flex flex-wrap gap-2 md:gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setImpactoSelecionado(conflito)}
-                    className="inline-flex items-center gap-1 rounded-full border border-indigo-200 px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm font-semibold text-indigo-700 transition hover:bg-indigo-600 hover:text-white"
-                  >
-                    <Eye className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                    <span className="hidden sm:inline">Ver impactos</span>
-                    <span className="sm:hidden">Impactos</span>
-                  </button>
-                  {conflito.status === "ATIVO" && (
-                    <button
-                      type="button"
-                      onClick={() => encerrarConflito(conflito)}
-                      disabled={!podeGerenciar}
-                      className="inline-flex items-center gap-1 rounded-full border border-rose-200 px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm font-semibold text-rose-700 transition hover:bg-rose-600 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <Trash2 className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                      Encerrar
-                    </button>
-                  )}
-                  {estadoAcao[conflito.id] && (
-                    <span className="text-xs font-semibold text-slate-500">
-                      {estadoAcao[conflito.id]}
-                    </span>
-                  )}
-                </div>
+      <div className="space-y-6">
+        <div className="bg-white rounded-2xl shadow-lg p-6 border-b-4 border-red-600">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-800 mb-2 flex items-center gap-3">
+                <Swords className="text-red-600" size={36} />
+                Conflitos externos
+              </h1>
+              <p className="text-gray-600">
+                {conflitosFiltrados.length} conflito(s) encontrado(s)
+              </p>
+            </div>
+            {acoesHeader && (
+              <div className="flex flex-wrap gap-2">
+                {acoesHeader}
               </div>
-            );
-          })}
+            )}
+          </div>
         </div>
-      )}
-    </section>
-    {impactoSelecionado && (
+
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="bg-white rounded-xl shadow-lg p-4 border-l-4 border-gray-400">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600 mb-1">Total de Conflitos</p>
+                <p className="text-3xl font-bold text-gray-800">{stats.total}</p>
+              </div>
+              <Swords size={32} className="text-gray-400" />
+            </div>
+          </div>
+          <div className="bg-white rounded-xl shadow-lg p-4 border-l-4 border-red-500">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600 mb-1">Conflitos Ativos</p>
+                <p className="text-3xl font-bold text-red-600">{stats.ativos}</p>
+              </div>
+              <AlertTriangle size={32} className="text-red-500" />
+            </div>
+          </div>
+          <div className="bg-white rounded-xl shadow-lg p-4 border-l-4 border-orange-500">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600 mb-1">Territoriais</p>
+                <p className="text-3xl font-bold text-orange-600">{stats.territoriais}</p>
+              </div>
+              <MapPin size={32} className="text-orange-500" />
+            </div>
+          </div>
+          <div className="bg-white rounded-xl shadow-lg p-4 border-l-4 border-purple-500">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600 mb-1">Faccionais</p>
+                <p className="text-3xl font-bold text-purple-600">{stats.faccionais}</p>
+              </div>
+              <Shield size={32} className="text-purple-500" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl shadow-lg p-6">
+          <div className="flex flex-col md:flex-row gap-4 mb-4">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+              <input
+                type="text"
+                value={busca}
+                onChange={(event) => setBusca(event.target.value)}
+                placeholder="Buscar por bairro ou faccao..."
+                className="w-full pl-10 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none transition-all"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => setMostrarFiltros(!mostrarFiltros)}
+              className="flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-3 font-semibold text-sm text-gray-600 hover:border-red-500 hover:text-red-500 transition"
+            >
+              <Filter size={18} />
+              {mostrarFiltros ? "Ocultar filtros" : "Filtros"}
+            </button>
+            <button
+              type="button"
+              onClick={limparFiltros}
+              className="flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-3 font-semibold text-sm text-gray-600 hover:border-red-500 hover:text-red-500 transition"
+            >
+              <X size={18} />
+              Limpar
+            </button>
+          </div>
+
+          {mostrarFiltros && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <select
+                value={tipoFiltro}
+                onChange={(event) => setTipoFiltro(event.target.value as FiltroTipo)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-red-500 focus:ring-2 focus:ring-red-200"
+              >
+                <option value="TODOS">Todos os tipos</option>
+                <option value="BAIRRO">Territorial</option>
+                <option value="FACCAO">Faccao</option>
+              </select>
+              <select
+                value={statusFiltro}
+                onChange={(event) => setStatusFiltro(event.target.value as FiltroStatus)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-red-500 focus:ring-2 focus:ring-red-200"
+              >
+                <option value="TODOS">Todos os status</option>
+                <option value="ATIVO">Ativo</option>
+                <option value="INATIVO">Encerrado</option>
+              </select>
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-4">
+          {conflitosFiltrados.length === 0 ? (
+            <div className="bg-white rounded-2xl shadow-lg p-12 text-center">
+              <Swords size={64} className="mx-auto mb-4 text-gray-400" />
+              <p className="text-xl font-semibold text-gray-600 mb-2">
+                Nenhum conflito encontrado
+              </p>
+              <p className="text-gray-500">Tente ajustar os filtros ou busca</p>
+            </div>
+          ) : (
+            conflitosFiltrados.map((conflito) => {
+              const impacto = resumoImpacto.get(conflito.id) ?? undefined;
+              const dataCriacao =
+                conflito.criadoEm && !Number.isNaN(Date.parse(conflito.criadoEm))
+                  ? new Date(conflito.criadoEm).toLocaleDateString("pt-BR")
+                  : null;
+              const statusAtivo = conflito.status === "ATIVO";
+              const bordaStatus = statusAtivo
+                ? "border-red-500"
+                : "border-green-500";
+
+              return (
+                <div
+                  key={conflito.id}
+                  className={`bg-white rounded-xl shadow-lg p-6 border-l-4 hover:shadow-xl transition-all ${bordaStatus}`}
+                >
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`w-12 h-12 ${statusAtivo ? "bg-red-100" : "bg-green-100"} rounded-full flex items-center justify-center`}
+                      >
+                        {statusAtivo ? (
+                          <AlertTriangle size={24} className="text-red-600" />
+                        ) : (
+                          <CheckCircle size={24} className="text-green-600" />
+                        )}
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold text-gray-800">
+                          {conflito.origem.nome} x {conflito.destino.nome}
+                        </h3>
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                          <span
+                            className={`px-2 py-1 rounded text-xs font-bold border ${getTipoColor(
+                              conflito.tipo
+                            )}`}
+                          >
+                            {conflito.tipo === "BAIRRO" ? "Territorial" : "Faccao"}
+                          </span>
+                          {getStatusBadge(conflito.status)}
+                          {impacto !== undefined && impacto > 0 && (
+                            <span className="px-2 py-1 rounded text-xs font-semibold border border-indigo-200 bg-indigo-50 text-indigo-700">
+                              Impacto: {impacto}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setImpactoSelecionado(conflito)}
+                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2 font-semibold"
+                      >
+                        <Eye size={18} />
+                        Ver impactos
+                      </button>
+                      {conflito.status === "ATIVO" && (
+                        <button
+                          type="button"
+                          onClick={() => encerrarConflito(conflito)}
+                          disabled={!podeGerenciar}
+                          className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 font-semibold disabled:opacity-70 disabled:cursor-not-allowed"
+                        >
+                          <Trash2 size={18} />
+                          Encerrar
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                    <div className="bg-gray-50 rounded-lg p-3">
+                      <p className="text-xs text-gray-600">Origem</p>
+                      <p className="font-semibold text-gray-800">{conflito.origem.nome}</p>
+                      {conflito.origem.complemento && (
+                        <p className="text-sm text-gray-600">{conflito.origem.complemento}</p>
+                      )}
+                    </div>
+                    <div className="bg-gray-50 rounded-lg p-3">
+                      <p className="text-xs text-gray-600">Destino</p>
+                      <p className="font-semibold text-gray-800">{conflito.destino.nome}</p>
+                      {conflito.destino.complemento && (
+                        <p className="text-sm text-gray-600">{conflito.destino.complemento}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between text-sm flex-wrap gap-2">
+                    <div className="flex items-center gap-4 text-gray-600 flex-wrap">
+                      <span>
+                        <span className="font-semibold">Registrado:</span>{" "}
+                        {dataCriacao ?? "Nao informado"}
+                      </span>
+                      {conflito.fonteInformacao && (
+                        <span>
+                          <span className="font-semibold">Fonte:</span>{" "}
+                          {conflito.fonteInformacao}
+                        </span>
+                      )}
+                    </div>
+                    {estadoAcao[conflito.id] && (
+                      <span className="text-xs font-semibold text-gray-500">
+                        {estadoAcao[conflito.id]}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+      {impactoSelecionado && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-3 md:px-4 py-4 md:py-8">
           <div className="relative flex w-full max-w-4xl flex-col rounded-2xl bg-white p-3 md:p-4 lg:p-6 shadow-2xl">
             <div className="mb-3 md:mb-4 flex items-start md:items-center justify-between gap-2">

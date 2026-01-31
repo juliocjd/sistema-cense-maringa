@@ -10,12 +10,14 @@ import { hasPermission, PERMISSIONS } from "@/lib/auth/permissions";
 
 interface CatalogoFaccoesCardProps {
   faccoes: CatalogoFaccao[];
+  compact?: boolean;
 }
 
 const estadoInicial = { nome: "", descricao: "" };
 
 export default function CatalogoFaccoesCard({
   faccoes,
+  compact = false,
 }: CatalogoFaccoesCardProps) {
   const router = useRouter();
   const { user } = useAuth();
@@ -49,7 +51,7 @@ export default function CatalogoFaccoesCard({
       };
 
       if (!nomeFaccao) {
-        throw new Error("Informe o nome da faccao.");
+        throw new Error("Informe o nome da facção.");
       }
 
       const endpoint = editandoId
@@ -65,11 +67,11 @@ export default function CatalogoFaccoesCard({
 
       if (!resposta.ok) {
         const body = await resposta.json().catch(() => null);
-        throw new Error(body?.erro ?? "Erro ao salvar faccao");
+        throw new Error(body?.erro ?? "Erro ao salvar facção");
       }
 
       setMensagem(
-        editandoId ? "Faccao atualizada." : "Faccao cadastrada com sucesso."
+        editandoId ? "Facção atualizada." : "Facção cadastrada com sucesso."
       );
       setForm(estadoInicial);
       setEditandoId(null);
@@ -90,7 +92,7 @@ export default function CatalogoFaccoesCard({
   const remover = async (id: string) => {
     if (loading || !podeGerenciar) return;
     const confirmar = window.confirm(
-      "Remover a faccao selecionada? Essa opcao so e permitida quando nao ha adolescentes vinculados."
+      "Remover a facção selecionada? Essa opcao so e permitida quando nao ha adolescentes vinculados."
     );
     if (!confirmar) return;
 
@@ -101,7 +103,7 @@ export default function CatalogoFaccoesCard({
       const resposta = await fetch(`/api/faccoes/${id}`, { method: "DELETE" });
       if (!resposta.ok) {
         const body = await resposta.json().catch(() => null);
-        throw new Error(body?.erro ?? "Erro ao remover faccao");
+        throw new Error(body?.erro ?? "Erro ao remover facção");
       }
       router.refresh();
     } catch (error) {
@@ -111,18 +113,26 @@ export default function CatalogoFaccoesCard({
     }
   };
 
+  const containerClass = compact
+    ? "space-y-4"
+    : "rounded-2xl border border-slate-200 bg-white p-6 shadow-sm";
+  const headerClass = compact ? "mb-3" : "mb-4";
+  const titleClass = compact
+    ? "text-lg font-semibold text-slate-900"
+    : "text-xl font-semibold text-slate-900";
+
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <header className="mb-4">
+    <section className={containerClass}>
+      <header className={headerClass}>
         <p className="text-xs uppercase tracking-wide text-indigo-500">
-          Catalogo de faccoes monitoradas
+          Catálogo de facções monitoradas
         </p>
-        <h3 className="text-xl font-semibold text-slate-900">
-          {faccoes.length} faccao(oes) cadastradas
+        <h3 className={titleClass}>
+          {faccoes.length} Facções cadastradas
         </h3>
         {!podeGerenciar && (
           <p className="mt-2 text-xs font-semibold text-amber-700">
-            Acesso somente leitura: edicao de faccoes bloqueada.
+            Acesso somente leitura: edicao de facções bloqueada.
           </p>
         )}
       </header>
@@ -145,7 +155,7 @@ export default function CatalogoFaccoesCard({
         </div>
         <div>
           <label className="text-xs font-semibold uppercase text-slate-500">
-            Observacao
+            Observação
           </label>
           <textarea
             value={form.descricao}
@@ -167,7 +177,7 @@ export default function CatalogoFaccoesCard({
             disabled={loading || !podeGerenciar}
             className="flex-1 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            {editandoId ? "Salvar alteracoes" : "Cadastrar faccao"}
+            {editandoId ? "Salvar alteracoes" : "Cadastrar facção"}
           </button>
           {editandoId && (
             <button
@@ -186,7 +196,7 @@ export default function CatalogoFaccoesCard({
       <div className="mt-5 max-h-48 space-y-3 overflow-y-auto pr-1">
         {faccoes.length === 0 ? (
           <p className="text-sm text-slate-500">
-            Nenhuma faccao cadastrada no momento.
+            Nenhuma facção cadastrada no momento.
           </p>
         ) : (
           faccoes.map((faccao) => (
@@ -223,7 +233,7 @@ export default function CatalogoFaccoesCard({
                   }}
                   disabled={!podeGerenciar}
                   className="rounded-full border border-transparent p-1 hover:border-slate-200 hover:text-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="Editar faccao"
+                  title="Editar Facção"
                 >
                   <Pencil size={14} />
                 </button>
@@ -232,7 +242,7 @@ export default function CatalogoFaccoesCard({
                   onClick={() => remover(faccao.id)}
                   disabled={!podeGerenciar}
                   className="rounded-full border border-transparent p-1 hover:border-rose-200 hover:text-rose-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="Remover faccao"
+                  title="Remover Facção"
                 >
                   <Trash2 size={14} />
                 </button>

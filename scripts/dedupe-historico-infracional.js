@@ -61,7 +61,7 @@ async function main() {
   }
 
   if (duplicados.length === 0) {
-    console.log("Nenhum historico duplicado encontrado.");
+    console.log("Nenhum histórico duplicado encontrado.");
     return;
   }
 

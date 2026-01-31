@@ -119,17 +119,17 @@ export async function GET(request: NextRequest) {
     const workbook = XLSX.utils.book_new();
 
     const statsData = [
-      ["Relatorio de Visitas - CENSE Maringa"],
+      ["Relatório de Visitas - CENSE Maringa"],
       [descricaoPeriodo],
       [],
-      ["Estatisticas gerais"],
+      ["Estatísticas gerais"],
       ["Total de visitas", totalVisitas],
       ["Total de pessoas", totalPessoas],
-      ["Visitantes unicos", visitantesUnicos],
+      ["Visitantes únicos", visitantesUnicos],
       ["Adolescentes visitados", adolescentesVisitados],
       [],
-      ["Visitas por periodo"],
-      ["Manha", visitasPorPeriodo.MANHA],
+      ["Visitas por período"],
+      ["Manhã", visitasPorPeriodo.MANHA],
       ["Tarde", visitasPorPeriodo.TARDE],
       ["Especial", visitasPorPeriodo.ESPECIAL],
       [],
@@ -146,7 +146,7 @@ export async function GET(request: NextRequest) {
     ];
 
     const wsStats = XLSX.utils.aoa_to_sheet(statsData);
-    XLSX.utils.book_append_sheet(workbook, wsStats, "Estatisticas");
+    XLSX.utils.book_append_sheet(workbook, wsStats, "Estatísticas");
 
     const visitasData = visitas.map((visita) => ({
       Data: new Date(visita.dataHoraEntrada).toLocaleDateString("pt-BR"),
@@ -155,8 +155,8 @@ export async function GET(request: NextRequest) {
         minute: "2-digit",
       }),
       Visitante: visita.visitante.nomeCompleto,
-      "CPF Visitante": visita.visitante.cpf || "Nao informado",
-      "Telefone Visitante": visita.visitante.telefones?.[0] || "Nao informado",
+      "CPF Visitante": visita.visitante.cpf || "Não informado",
+      "Telefone Visitante": visita.visitante.telefones?.[0] || "Não informado",
       Adolescente: visita.adolescente.nomeCompleto || visita.adolescente.nomeSocial || "",
       Casa: visita.adolescente.alojamentoAtual?.casa
         ? visita.adolescente.alojamentoAtual.casa.nome ??
@@ -167,8 +167,8 @@ export async function GET(request: NextRequest) {
       Adultos: visita.quantidadeAdultos,
       Criancas: visita.quantidadeCriancas,
       "Total Pessoas": visita.quantidadeAdultos + visita.quantidadeCriancas,
-      "Alerta Faccao": visita.alertaFaccaoRival ? "SIM" : "NAO",
-      "Alerta Horario": visita.alertaHorario ? "SIM" : "NAO",
+      "Alerta Facçao": visita.alertaFaccaoRival ? "SIM" : "NAO",
+      "Alerta Horário": visita.alertaHorario ? "SIM" : "NAO",
       "Alerta Limite": visita.alertaLimiteVisitas ? "SIM" : "NAO",
       Observacoes: visita.observacoes || "",
     }));
@@ -201,8 +201,8 @@ export async function GET(request: NextRequest) {
       Casa: item.Casa,
       "Total Visitas": item["Total Visitas"],
       "Total Pessoas": item["Total Pessoas"],
-      "Visitantes unicos": item.Visitantes.size,
-      "Media pessoas/visita": (item["Total Pessoas"] / item["Total Visitas"]).toFixed(1),
+      "Visitantes únicos": item.Visitantes.size,
+      "Média pessoas/visita": (item["Total Pessoas"] / item["Total Visitas"]).toFixed(1),
     }));
 
     const wsAdolescentes = XLSX.utils.json_to_sheet(adolescentesData);
@@ -213,7 +213,7 @@ export async function GET(request: NextRequest) {
       if (!acc[key]) {
         acc[key] = {
           Visitante: visita.visitante.nomeCompleto,
-          CPF: visita.visitante.cpf || "Nao informado",
+          CPF: visita.visitante.cpf || "Não informado",
           "Total Visitas": 0,
           "Total Pessoas": 0,
           Adolescentes: new Set<string>(),
@@ -255,7 +255,7 @@ export async function GET(request: NextRequest) {
     console.error("Erro ao gerar Excel:", error);
     return NextResponse.json(
       {
-        error: "Erro ao gerar Excel do relatorio",
+        error: "Erro ao gerar Excel do relatório",
         detalhes: error instanceof Error ? error.message : "Erro desconhecido",
       },
       { status: 500 }

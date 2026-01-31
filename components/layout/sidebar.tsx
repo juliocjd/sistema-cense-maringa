@@ -13,6 +13,7 @@ import {
   FileText,
   LayoutDashboard,
   LogOut,
+  MapPin,
   Menu,
   PieChart,
   Settings,
@@ -108,10 +109,26 @@ export function Sidebar({
         ],
       },
       {
-        section: "Gestao",
+        section: "Cadastro",
+        items: podeVerConflitosExternos
+          ? [
+              { label: "Bairro/Cidade", href: "/cadastros/bairros", icon: MapPin },
+              { label: "Facções", href: "/cadastros/faccoes", icon: Shield },
+              { label: "Tatuagens", href: "/tatuagens", icon: Shield },
+              {
+                label: "Técnicos de Referência",
+                href: "/tecnicos",
+                icon: User,
+              },
+            ]
+          : [],
+      },
+      {
+        section: "Gestão",
         items: [
           { label: "Comunicados Internos", href: "/comunicados", icon: FileText },
           { label: "Conflitos Internos", href: "/conflitos", icon: Swords },
+          { label: "Alertas Ativos", href: "/alertas", icon: AlertTriangle },
           ...(podeVerConflitosExternos
             ? [
                 {
@@ -121,21 +138,14 @@ export function Sidebar({
                 },
               ]
             : []),
-          { label: "Alertas Ativos", href: "/alertas", icon: AlertTriangle },
           { label: "Grupos de Atividade", href: "/grupos", icon: UserCircle },
-          {
-            label: "Técnicos de Referência",
-            href: "/tecnicos",
-            icon: User,
-          },
-          { label: "Tatuagens", href: "/tatuagens", icon: Shield },
           { label: "Eventos Especiais", href: "/eventos", icon: Calendar },
         ],
       },
       {
         section: "Relatorios",
         items: [
-          { label: "Central de Relatorios", href: "/relatorios", icon: FileText },
+          { label: "Central de Relatórios", href: "/relatorios", icon: FileText },
           { label: "Analytics", href: "/analytics", icon: PieChart },
           ...(podeVerJustificativas
             ? [
@@ -159,7 +169,7 @@ export function Sidebar({
       {
         section: "Configuracoes",
         items: [
-          { label: "Usuarios & Permissoes", href: "/configuracoes/usuarios", icon: Settings },
+          { label: "Usuários & Permissões", href: "/configuracoes/usuarios", icon: Settings },
         ],
       },
     ]

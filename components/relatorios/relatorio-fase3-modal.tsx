@@ -275,7 +275,7 @@ export function RelatorioFase3ModalTrigger() {
       const observacoes =
         analise.avaliacao.observacoes.length > 0
           ? analise.avaliacao.observacoes
-          : ["Sem observacoes complementares"];
+          : ["Sem observações complementares"];
 
       // Calcula altura dinamica do bloco para que o fundo cubra ate Observacoes.
       doc.setFont("helvetica", "normal");

@@ -44,9 +44,9 @@ export async function GET(request: NextRequest) {
       adolescente: existente,
     });
   } catch (error) {
-    console.error("Erro ao validar numero SMS:", error);
+    console.error("Erro ao validar número SMS:", error);
     return NextResponse.json(
-      { erro: "Erro ao validar numero SMS" },
+      { erro: "Erro ao validar número SMS" },
       { status: 500 }
     );
   }

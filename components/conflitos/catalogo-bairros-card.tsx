@@ -12,12 +12,14 @@ import { ESTADOS_BRASIL } from "@/lib/geo/estados";
 
 interface CatalogoBairrosCardProps {
   bairros: CatalogoBairro[];
+  compact?: boolean;
 }
 
 const estadoInicial = { nome: "", cidadeId: "" };
 
 export default function CatalogoBairrosCard({
   bairros,
+  compact = false,
 }: CatalogoBairrosCardProps) {
   const router = useRouter();
   const { user } = useAuth();
@@ -213,7 +215,7 @@ export default function CatalogoBairrosCard({
   const remover = async (id: string) => {
     if (loading || !podeGerenciar) return;
     const confirmar = window.confirm(
-      "Confirma a exclusao deste bairro? Essa operacao so e permitida quando nao ha vinculacoes ativas."
+      "Confirma a exclusão deste bairro? Essa operacao só é permitida quando nao ha vinculações ativas."
     );
     if (!confirmar) return;
 
@@ -236,14 +238,22 @@ export default function CatalogoBairrosCard({
     }
   };
 
+  const containerClass = compact
+    ? "space-y-4"
+    : "rounded-2xl border border-slate-200 bg-white p-6 shadow-sm";
+  const headerClass = compact ? "mb-3" : "mb-4";
+  const titleClass = compact
+    ? "text-lg font-semibold text-slate-900"
+    : "text-xl font-semibold text-slate-900";
+
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <header className="mb-4">
+    <section className={containerClass}>
+      <header className={headerClass}>
         <p className="text-xs uppercase tracking-wide text-indigo-500">
-          Catalogo de bairros monitorados
+          Catálogo de bairros monitorados
         </p>
-        <h3 className="text-xl font-semibold text-slate-900">
-          Regioes mapeadas ({bairros.length}) • {totalCidades} cidades
+        <h3 className={titleClass}>
+          Regiões mapeadas ({bairros.length}) • {totalCidades} cidades
         </h3>
         {!podeGerenciar && (
           <p className="mt-2 text-xs font-semibold text-amber-700">

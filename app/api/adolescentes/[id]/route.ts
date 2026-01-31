@@ -81,10 +81,10 @@ const updateAdolescenteSchema = z.object({
   numeroInterno: z
     .union([
       z
-        .number({ invalid_type_error: "Numero interno deve ser numerico" })
-        .int("Numero interno deve ser inteiro")
-        .min(1, "Numero interno deve estar entre 1 e 86")
-        .max(86, "Numero interno deve estar entre 1 e 86"),
+        .number({ invalid_type_error: "Número interno deve ser numerico" })
+        .int("Número interno deve ser inteiro")
+        .min(1, "Número interno deve estar entre 1 e 86")
+        .max(86, "Número interno deve estar entre 1 e 86"),
       z.null(),
   ])
     .optional(),
@@ -408,7 +408,7 @@ export async function PUT(
       if (existenteSms) {
         return NextResponse.json(
           {
-            erro: `Numero SMS ja cadastrado para ${existenteSms.nomeCompleto}.`,
+            erro: `Número SMS ja cadastrado para ${existenteSms.nomeCompleto}.`,
             adolescenteExistente: existenteSms,
           },
           { status: 409 }
@@ -541,7 +541,7 @@ export async function PUT(
       return NextResponse.json(
         {
           erro:
-            "Nao e permitido remover o numero interno enquanto o adolescente estiver ATIVO. Informe um novo numero ou altere o status.",
+            "Nao e permitido remover o número interno enquanto o adolescente estiver ATIVO. Informe um novo numero ou altere o status.",
         },
         { status: 400 }
       );
@@ -553,7 +553,7 @@ export async function PUT(
       novoStatus !== "ATIVO"
     ) {
       return NextResponse.json(
-        { erro: "Somente adolescentes ativos podem ter numero interno" },
+        { erro: "Somente adolescentes ativos podem ter número interno" },
         { status: 400 }
       );
     }
@@ -651,7 +651,7 @@ export async function PUT(
         return NextResponse.json(
           {
             erro:
-              "Informe o numero interno (1 a 86) para adolescentes com status ATIVO.",
+              "Informe o número interno (1 a 86) para adolescentes com status ATIVO.",
           },
           { status: 400 }
         );
@@ -1457,7 +1457,7 @@ export async function PUT(
     if (error instanceof NumeroInternoIndisponivelError) {
       return NextResponse.json(
         {
-          erro: `Numero interno ${error.numero} indisponivel. Atualmente atribuido a ${error.titular}.`,
+          erro: `Número interno ${error.numero} indisponivel. Atualmente atribuido a ${error.titular}.`,
         },
         { status: 409 }
       );

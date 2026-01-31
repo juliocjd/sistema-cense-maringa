@@ -522,7 +522,7 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                   <div className="grid gap-4 md:grid-cols-2 text-sm text-gray-600">
                     <div>
                       <span className="font-semibold text-gray-700">
-                        Numero do processo:
+                        Número do processo:
                       </span>{" "}
                       {adolescente.atoInfracionalProcesso ||
                         adolescente.numeroProcesso ||

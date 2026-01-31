@@ -314,11 +314,11 @@ export async function POST(request: NextRequest) {
     if (horarioDiferente) {
       const descricaoJanela =
         periodoAutorizado === "MANHA"
-          ? `Identificacao ${config.janelaIdentificacaoManhaInicio}-${config.janelaIdentificacaoManhaFim} | Permanencia ${config.horarioManhaInicio}-${config.horarioManhaFim}`
-          : `Identificacao ${config.janelaIdentificacaoTardeInicio}-${config.janelaIdentificacaoTardeFim} | Permanencia ${config.horarioTardeInicio}-${config.horarioTardeFim}`;
+          ? `Identificação ${config.janelaIdentificacaoManhaInicio}-${config.janelaIdentificacaoManhaFim} | Permanencia ${config.horarioManhaInicio}-${config.horarioManhaFim}`
+          : `Identificação ${config.janelaIdentificacaoTardeInicio}-${config.janelaIdentificacaoTardeFim} | Permanencia ${config.horarioTardeInicio}-${config.horarioTardeFim}`;
       alertas.push({
         tipo: "HORARIO",
-        mensagem: `Visita fora do periodo autorizado (${periodoAutorizado}). Janelas previstas: ${descricaoJanela}. Realizado: ${periodoRealizado}`,
+        mensagem: `Visita fora do período autorizado (${periodoAutorizado}). Janelas previstas: ${descricaoJanela}. Realizado: ${periodoRealizado}`,
         nivel: justificativaHorario ? "BAIXO" : "MEDIO",
       });
     }
