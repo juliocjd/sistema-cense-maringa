@@ -2478,9 +2478,27 @@ const selecionarAtoCatalogo = (ato: {
               </h2>
 
       <div className="space-y-2">
-        <label className="block text-sm font-semibold text-gray-700">
-          Ato Infracional Atual
-        </label>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <label className="block text-sm font-semibold text-gray-700">
+            Ato Infracional Atual
+          </label>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={abrirModalNovoAto}
+              className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+            >
+              Cadastrar novo ato
+            </button>
+            <button
+              type="button"
+              onClick={abrirGestaoAtos}
+              className="rounded-lg border border-indigo-200 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50"
+            >
+              Gerenciar Atos Infracionais
+            </button>
+          </div>
+        </div>
         <div className="relative">
                   <input
                     type="text"
@@ -2594,26 +2612,7 @@ const selecionarAtoCatalogo = (ato: {
                       className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700"
                       readOnly
                     />
-                    <p className="text-[11px] text-slate-500 mt-1">
-                      Campo abaixo “Ato com repercussão pública ou gravidade elevada” continua para a situação específica deste adolescente.
-                    </p>
                   </div>
-                </div>
-                <div className="flex justify-end">
-                  <button
-                    type="button"
-                    onClick={abrirModalNovoAto}
-                    className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
-                  >
-                    Cadastrar novo ato
-                  </button>
-                  <button
-                    type="button"
-                    onClick={abrirGestaoAtos}
-                    className="ml-2 rounded-lg border border-indigo-200 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50"
-                  >
-                    Gerenciar Atos Infracionais
-                  </button>
                 </div>
               </div>
 
@@ -4478,7 +4477,6 @@ const selecionarAtoCatalogo = (ato: {
     </div>
   );
 }
-
 
 
 
