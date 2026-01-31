@@ -2584,36 +2584,14 @@ const selecionarAtoCatalogo = (ato: {
                     Gravidade catalogo: {atoInfracional.gravidadeCatalogo}
                   </p>
                 )}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 uppercase">
-                      Gravidade (catálogo)
-                    </label>
-                    <input
-                      disabled
-                      value={atoInfracional.gravidadeCatalogo || "—"}
-                      className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700"
-                      readOnly
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 uppercase">
-                      Violencia ou grave ameaca (catálogo)
-                    </label>
-                    <input
-                      disabled
-                      value={
-                        atoInfracional.violenciaCatalogo === null
-                          ? "—"
-                          : atoInfracional.violenciaCatalogo
-                            ? "Sim"
-                            : "Não"
-                      }
-                      className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700"
-                      readOnly
-                    />
-                  </div>
-                </div>
+                <p className="text-xs font-semibold text-slate-600">
+                  Violencia ou grave ameaca (catálogo):{" "}
+                  {atoInfracional.violenciaCatalogo === null
+                    ? "—"
+                    : atoInfracional.violenciaCatalogo
+                      ? "Sim"
+                      : "Não"}
+                </p>
               </div>
 
               <div className="space-y-4">
@@ -4477,7 +4455,6 @@ const selecionarAtoCatalogo = (ato: {
     </div>
   );
 }
-
 
 
 
