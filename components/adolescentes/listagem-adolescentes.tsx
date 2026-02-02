@@ -95,7 +95,13 @@ const aplicaFiltroAlertas = (aluno: Adolescente, filtro: AlertaFiltro) => {
 };
 
 const normalizaTexto = (valor?: string | null) =>
-  typeof valor === "string" ? valor.trim().toLowerCase() : "";
+  typeof valor === "string"
+    ? valor
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim()
+        .toLowerCase()
+    : "";
 
 const extraiIniciais = (nome: string) =>
   nome

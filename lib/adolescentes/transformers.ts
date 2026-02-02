@@ -18,12 +18,18 @@ export const INCLUDE_ADOLESCENTE_DEFAULT: any = {
     include: {
       faccao: true,
       criadoPor: { select: { id: true, nomeCompleto: true } },
+      informanteAdolescente: {
+        select: { id: true, nomeCompleto: true, numeroSms: true },
+      },
     },
   },
   faccaoHistorico: {
     include: {
       faccao: true,
       criadoPor: { select: { id: true, nomeCompleto: true } },
+      informanteAdolescente: {
+        select: { id: true, nomeCompleto: true, numeroSms: true },
+      },
     },
     orderBy: { criadoEm: "desc" },
   },
@@ -469,6 +475,13 @@ export function mapPrismaAdolescente(adolescente: any): Adolescente {
       statusRegistro: item.statusRegistro,
       observacao: item.observacao ?? null,
       fonte: item.fonte ?? null,
+      informante: item.informanteAdolescente
+        ? {
+            id: item.informanteAdolescente.id,
+            nome: item.informanteAdolescente.nomeCompleto,
+            numeroSms: item.informanteAdolescente.numeroSms ?? null,
+          }
+        : null,
       criadoEm: formatDate(item.criadoEm),
       criadoPor: item.criadoPor
         ? { id: item.criadoPor.id, nome: item.criadoPor.nomeCompleto }

@@ -7,7 +7,13 @@ export type StatusUnidade = "ATIVO" | "TRANSFERIDO" | "LIBERADO" | "EVADIDO";
 export type StatusManutencao = "LIVRE" | "INTERDITADO";
 export type Ala = "A" | "B" | null;
 export type RiscoFuga = "BAIXO" | "MEDIO" | "ALTO";
-export type FaccaoInformacaoOrigem = "CONFESSADA" | "OBSERVACAO";
+export type FaccaoInformacaoOrigem =
+  | "CONFESSADA"
+  | "OBSERVACAO"
+  | "INTELIGENCIA"
+  | "TERCEIROS"
+  | "NAO_INFORMADO"
+  | "OUTRO_INTERNO";
 
 export interface CasaResumo {
   id: string;
@@ -282,6 +288,7 @@ export interface AdolescenteFaccaoHistoricoItem {
   statusRegistro: string;
   observacao?: string | null;
   fonte?: string | null;
+  informante?: { id: string; nome: string; numeroSms?: string | null } | null;
   criadoEm: string;
   criadoPor?: { id: string; nome: string } | null;
 }

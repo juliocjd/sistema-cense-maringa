@@ -21,6 +21,7 @@ type AdolescenteResumo = {
   numeroSms: string;
   fotoUrl?: string | null;
   ladoConflito?: "LADO_1" | "LADO_2" | null;
+  status?: string | null;
 };
 
 type ConflitoResumo = {
@@ -60,6 +61,13 @@ type ComunicadoInterno = {
 interface ListagemCIsProps {
   comunicados: ComunicadoInterno[];
 }
+
+const normalizarTexto = (valor?: string | null) =>
+  (valor ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
 
 const obterLadosConflito = (ci: ComunicadoInterno) => {
   if (
@@ -156,6 +164,20 @@ const obterLadosConflito = (ci: ComunicadoInterno) => {
   };
 };
 
+const isAtivoStatus = (status?: string | null) =>
+  (status ?? "ATIVO").toUpperCase() === "ATIVO";
+
+const deveOcultarConflito = (ci: ComunicadoInterno) => {
+  if (ci.tipoCi !== "CONFLITO") return false;
+  const lados = obterLadosConflito(ci);
+  if (!lados) return false;
+  const lado1Ativos = lados.lado1.some((p) => isAtivoStatus(p.status));
+  const lado2Ativos = lados.lado2.some((p) => isAtivoStatus(p.status));
+  if (lados.lado1.length > 0 && !lado1Ativos) return true;
+  if (lados.lado2.length > 0 && !lado2Ativos) return true;
+  return false;
+};
+
 export function ListagemCIs({ comunicados }: ListagemCIsProps) {
   const [busca, setBusca] = useState("");
   const [filtroTipo, setFiltroTipo] = useState<string>("TODOS");
@@ -164,19 +186,24 @@ export function ListagemCIs({ comunicados }: ListagemCIsProps) {
 
   // Filtrar CIs
   const cisFiltrados = comunicados.filter((ci) => {
+    const termoBusca = normalizarTexto(busca);
     const matchBusca =
-      busca === "" ||
+      termoBusca === "" ||
       ci.numero.toString().includes(busca) ||
-      ci.resumoCi.toLowerCase().includes(busca.toLowerCase()) ||
+      normalizarTexto(ci.resumoCi).includes(termoBusca) ||
       ci.adolescentes.some(
         (a) =>
-          a.nome.toLowerCase().includes(busca.toLowerCase()) ||
+          normalizarTexto(a.nome).includes(termoBusca) ||
           a.numeroSms.includes(busca)
       );
 
     const matchTipo = filtroTipo === "TODOS" || ci.tipoCi === filtroTipo;
 
     const matchAno = filtroAno === "TODOS" || ci.ano.toString() === filtroAno;
+
+    if (deveOcultarConflito(ci)) {
+      return false;
+    }
 
     return matchBusca && matchTipo && matchAno;
   });
@@ -545,11 +572,29 @@ export function ListagemCIs({ comunicados }: ListagemCIsProps) {
                               </p>
                             ) : (
                                 <div className="space-y-2">
-                                  {lista.map((participante) => (
+                                  {lista.map((participante) => {
+                                    const statusNormalizado =
+                                      participante.status?.toUpperCase() ?? "ATIVO";
+                                    const inativo = statusNormalizado !== "ATIVO";
+                                    const statusLabel =
+                                      statusNormalizado === "TRANSFERIDO"
+                                        ? "Transferido"
+                                        : statusNormalizado === "LIBERADO"
+                                        ? "Liberado"
+                                        : statusNormalizado === "EVADIDO"
+                                        ? "Evadido"
+                                        : statusNormalizado === "ATIVO"
+                                        ? "Ativo"
+                                        : statusNormalizado;
+                                    return (
                                     <Link
                                       key={participante.id}
                                       href={`/adolescentes/${participante.id}`}
-                                      className="block rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm hover:bg-indigo-100"
+                                      className={`block rounded-lg border px-3 py-2 text-sm hover:bg-indigo-100 ${
+                                        inativo
+                                          ? "border-slate-200 bg-slate-50"
+                                          : "border-indigo-200 bg-white"
+                                      }`}
                                     >
                                       <div className="flex items-center gap-3">
                                         {participante.fotoUrl ? (
@@ -568,17 +613,25 @@ export function ListagemCIs({ comunicados }: ListagemCIsProps) {
                                             {participante.nome?.trim().charAt(0) ?? "?"}
                                           </div>
                                         )}
-                                        <div>
-                                          <p className="font-semibold text-gray-800">
-                                            {participante.nome}
-                                          </p>
+                                        <div className="flex-1">
+                                          <div className="flex items-center justify-between gap-2">
+                                            <p className="font-semibold text-gray-800">
+                                              {participante.nome}
+                                            </p>
+                                            {inativo && (
+                                              <span className="text-[11px] font-semibold text-slate-500">
+                                                Status: {statusLabel}
+                                              </span>
+                                            )}
+                                          </div>
                                           <p className="text-xs text-gray-500">
                                             SMS: {participante.numeroSms}
                                           </p>
                                         </div>
                                       </div>
                                     </Link>
-                                  ))}
+                                  );
+                                })}
                                 </div>
                               )}
                             </div>
@@ -586,11 +639,29 @@ export function ListagemCIs({ comunicados }: ListagemCIsProps) {
                         </div>
                       ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                          {ci.adolescentes.map((adolescente) => (
+                          {ci.adolescentes.map((adolescente) => {
+                            const statusNormalizado =
+                              adolescente.status?.toUpperCase() ?? "ATIVO";
+                            const inativo = statusNormalizado !== "ATIVO";
+                            const statusLabel =
+                              statusNormalizado === "TRANSFERIDO"
+                                ? "Transferido"
+                                : statusNormalizado === "LIBERADO"
+                                ? "Liberado"
+                                : statusNormalizado === "EVADIDO"
+                                ? "Evadido"
+                                : statusNormalizado === "ATIVO"
+                                ? "Ativo"
+                                : statusNormalizado;
+                            return (
                             <Link
                               key={adolescente.id}
                               href={`/adolescentes/${adolescente.id}`}
-                              className="rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm hover:bg-indigo-100"
+                              className={`rounded-lg border px-3 py-2 text-sm hover:bg-indigo-100 ${
+                                inativo
+                                  ? "border-slate-200 bg-slate-50"
+                                  : "border-indigo-200 bg-white"
+                              }`}
                             >
                               <div className="flex items-center gap-3">
                                 {adolescente.fotoUrl ? (
@@ -609,17 +680,25 @@ export function ListagemCIs({ comunicados }: ListagemCIsProps) {
                                     {adolescente.nome?.trim().charAt(0) ?? "?"}
                                   </div>
                                 )}
-                                <div>
-                                  <p className="font-semibold text-gray-800">
-                                    {adolescente.nome}
-                                  </p>
+                                <div className="flex-1">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <p className="font-semibold text-gray-800">
+                                      {adolescente.nome}
+                                    </p>
+                                    {inativo && (
+                                      <span className="text-[11px] font-semibold text-slate-500">
+                                        Status: {statusLabel}
+                                      </span>
+                                    )}
+                                  </div>
                                   <p className="text-xs text-gray-500">
                                     SMS: {adolescente.numeroSms}
                                   </p>
                                 </div>
                               </div>
                             </Link>
-                          ))}
+                            );
+                          })}
                         </div>
                       )}
                     </div>

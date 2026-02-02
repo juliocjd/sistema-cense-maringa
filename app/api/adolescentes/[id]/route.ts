@@ -56,7 +56,14 @@ const ALERTA_ESPECIAL_ENUM = z.enum(
 );
 const ALERTA_NIVEL_ENUM = z.enum(ALERTA_NIVEL_RISCO_VARIADIC);
 
-const FACCAO_ORIGEM_ENUM = z.enum(["CONFESSADA", "OBSERVACAO"]);
+const FACCAO_ORIGEM_ENUM = z.enum([
+  "CONFESSADA",
+  "OBSERVACAO",
+  "INTELIGENCIA",
+  "TERCEIROS",
+  "NAO_INFORMADO",
+  "OUTRO_INTERNO",
+]);
 
 const alertaEspecialSchema = z.object({
   tipo: ALERTA_ESPECIAL_ENUM,
@@ -103,6 +110,7 @@ const updateAdolescenteSchema = z.object({
   faccaoFuncao: z.string().optional().nullable(),
   faccaoInformacaoOrigem: FACCAO_ORIGEM_ENUM.optional().nullable(),
   faccaoInformacaoDetalhe: z.string().optional().nullable(),
+  faccaoInformanteAdolescenteId: z.string().uuid().optional().nullable(),
   bairroOrigemId: z.string().uuid().optional().nullable(),
   riscoFuga: z.enum(["BAIXO", "MEDIO", "ALTO"]).optional().nullable(),
   alertaRiscoSuicidio: z.boolean().optional(),
@@ -444,7 +452,18 @@ export async function PUT(
       null;
 
     const origemInformacaoAtual =
-      (existente.faccaoInformacaoOrigem as "CONFESSADA" | "OBSERVACAO" | null) ?? null;
+      (existente.faccaoInformacaoOrigem as
+        | "CONFESSADA"
+        | "OBSERVACAO"
+        | "INTELIGENCIA"
+        | "TERCEIROS"
+        | "NAO_INFORMADO"
+        | "OUTRO_INTERNO"
+        | null) ?? null;
+    const informanteAtual =
+      existente.faccaoVinculoAtual?.informanteAdolescenteId ??
+      existente.faccaoVinculoAtual?.informanteAdolescente?.id ??
+      null;
     const detalheInformacaoAtual = existente.faccaoInformacaoDetalhe ?? null;
     const origemInformacaoDestino =
       validated.faccaoInformacaoOrigem !== undefined
@@ -458,6 +477,10 @@ export async function PUT(
       detalheInformacaoValidada !== undefined
         ? detalheInformacaoValidada
         : detalheInformacaoAtual ?? null;
+    const informanteDestino =
+      validated.faccaoInformanteAdolescenteId !== undefined
+        ? validated.faccaoInformanteAdolescenteId
+        : informanteAtual;
     const faccaoDestinoId =
       validated.faccaoGrupoId !== undefined
         ? validated.faccaoGrupoId
@@ -482,6 +505,25 @@ export async function PUT(
         {
           erro:
             "Descreva como a informacao de faccao foi obtida quando a origem for observacao.",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (origemInformacaoDestino === "OUTRO_INTERNO" && !informanteDestino) {
+      return NextResponse.json(
+        {
+          erro:
+            "Selecione o adolescente informante quando a origem for Outro interno.",
+        },
+        { status: 400 }
+      );
+    }
+    if (origemInformacaoDestino === "OUTRO_INTERNO" && informanteDestino === id) {
+      return NextResponse.json(
+        {
+          erro:
+            "O informante nao pode ser o mesmo adolescente do registro.",
         },
         { status: 400 }
       );
@@ -834,7 +876,10 @@ export async function PUT(
     if (validated.faccaoInformacaoOrigem !== undefined) {
       data.faccaoInformacaoOrigem = validated.faccaoInformacaoOrigem ?? null;
       camposAlterados.push("faccaoInformacaoOrigem");
-      if (validated.faccaoInformacaoOrigem !== "OBSERVACAO") {
+      if (
+        validated.faccaoInformacaoOrigem !== "OBSERVACAO" &&
+        validated.faccaoInformacaoOrigem !== "OUTRO_INTERNO"
+      ) {
         data.faccaoInformacaoDetalhe = null;
         camposAlterados.push("faccaoInformacaoDetalhe");
       }
@@ -842,7 +887,8 @@ export async function PUT(
 
     if (validated.faccaoInformacaoDetalhe !== undefined) {
       data.faccaoInformacaoDetalhe =
-        origemInformacaoDestino === "OBSERVACAO"
+        origemInformacaoDestino === "OBSERVACAO" ||
+        origemInformacaoDestino === "OUTRO_INTERNO"
           ? detalheInformacaoDestino
           : null;
       camposAlterados.push("faccaoInformacaoDetalhe");
@@ -969,6 +1015,10 @@ export async function PUT(
             nivelConfianca: null,
             statusRegistro: "ATIVA",
             observacao: detalheInformacaoDestino ?? null,
+            informanteAdolescenteId:
+              origemInformacaoDestino === "OUTRO_INTERNO"
+                ? informanteDestino ?? null
+                : null,
             criadoPorId: operadorId ?? null,
           },
         });

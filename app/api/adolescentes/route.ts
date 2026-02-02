@@ -42,7 +42,14 @@ const ALERTA_ESPECIAL_ENUM = z.enum(
   ]
 );
 const ALERTA_NIVEL_ENUM = z.enum(ALERTA_NIVEL_RISCO_VARIADIC);
-const FACCAO_ORIGEM_ENUM = z.enum(["CONFESSADA", "OBSERVACAO"]);
+const FACCAO_ORIGEM_ENUM = z.enum([
+  "CONFESSADA",
+  "OBSERVACAO",
+  "INTELIGENCIA",
+  "TERCEIROS",
+  "NAO_INFORMADO",
+  "OUTRO_INTERNO",
+]);
 
 const alertaEspecialSchema = z.object({
   tipo: ALERTA_ESPECIAL_ENUM,
@@ -93,6 +100,7 @@ const createAdolescenteSchema = z.object({
   faccaoFuncao: z.string().optional().nullable(),
   faccaoInformacaoOrigem: FACCAO_ORIGEM_ENUM.optional().nullable(),
   faccaoInformacaoDetalhe: z.string().optional().nullable(),
+  faccaoInformanteAdolescenteId: z.string().uuid().optional().nullable(),
   bairroOrigemId: z.string().uuid().optional().nullable(),
   riscoFuga: z.enum(["BAIXO", "MEDIO", "ALTO"]).optional().nullable(),
   alertaRiscoSuicidio: z.boolean().default(false),
@@ -463,7 +471,7 @@ export async function POST(request: NextRequest) {
     );
     const faccaoOrigemInfo = validated.faccaoInformacaoOrigem ?? undefined;
     const faccaoOrigemDetalheSanitizado =
-      faccaoOrigemInfo === "OBSERVACAO"
+      faccaoOrigemInfo === "OBSERVACAO" || faccaoOrigemInfo === "OUTRO_INTERNO"
         ? sanitizeNullableString(validated.faccaoInformacaoDetalhe ?? undefined)
         : undefined;
     const origemFaccaoNormalizada =
@@ -481,6 +489,18 @@ export async function POST(request: NextRequest) {
         {
           erro:
             "Descreva como a informacao de faccao foi obtida quando a origem for observacao.",
+        },
+        { status: 400 }
+      );
+    }
+    if (
+      faccaoOrigemInfo === "OUTRO_INTERNO" &&
+      !validated.faccaoInformanteAdolescenteId
+    ) {
+      return NextResponse.json(
+        {
+          erro:
+            "Selecione o adolescente informante quando a origem for Outro interno.",
         },
         { status: 400 }
       );
@@ -595,6 +615,10 @@ export async function POST(request: NextRequest) {
             nivelConfianca: null,
             statusRegistro: "ATIVA",
             observacao: faccaoOrigemDetalheSanitizado ?? null,
+            informanteAdolescenteId:
+              faccaoOrigemInfo === "OUTRO_INTERNO"
+                ? validated.faccaoInformanteAdolescenteId ?? null
+                : null,
             criadoPorId: operadorId ?? null,
           },
         });
@@ -711,4 +735,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-

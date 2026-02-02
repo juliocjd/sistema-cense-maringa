@@ -111,6 +111,37 @@ type SugestaoApi = {
   ambientais: string[];
 };
 
+type DiagnosticoCasaApi = {
+  casaId: string;
+  casaNome: string;
+  casaNumero: number;
+  totalAlojamentos: number;
+  livres: number;
+  ocupados: number;
+  interditados: number;
+  bloqueadosVigilancia: number;
+  exigeVigilanciaFrontal: boolean;
+  alojamentos: Array<{
+    id: string;
+    numero: string;
+    ala: string | null;
+    status: "LIVRE" | "OCUPADO" | "INTERDITADO" | "BLOQUEADO_VIGILANCIA";
+    ocupantes?: Array<{
+      id: string;
+      nome: string;
+      numeroSms?: string | null;
+    }>;
+    motivos?: string[];
+    risco?: {
+      nivel: number;
+      rotulo: string;
+      descricao: string;
+      alertas: string[];
+      ambientais: string[];
+    };
+  }>;
+};
+
 type MotivoAmbientalDetalhado = {
   original: string;
   exibicao: string;
@@ -387,6 +418,11 @@ export default function ModalAlojamentoDetalhes({
   const [sugestoes, setSugestoes] = useState<SugestaoApi[]>([]);
   const [carregandoSugestoes, setCarregandoSugestoes] = useState(false);
   const [erroSugestoes, setErroSugestoes] = useState<string | null>(null);
+  const [diagnosticoCasa, setDiagnosticoCasa] =
+    useState<DiagnosticoCasaApi | null>(null);
+  const [diagnosticoAberto, setDiagnosticoAberto] = useState(false);
+  const [diagnosticoLoading, setDiagnosticoLoading] = useState(false);
+  const [diagnosticoErro, setDiagnosticoErro] = useState<string | null>(null);
   const [mostrarBreakdownRisco, setMostrarBreakdownRisco] = useState(false);
   const [desinternandoLocal, setDesinternandoLocal] = useState(false);
 
@@ -400,6 +436,10 @@ export default function ModalAlojamentoDetalhes({
     setTransferenciaJustificativa("");
     setTransferenciaErro(null);
     setTransferindo(false);
+    setDiagnosticoCasa(null);
+    setDiagnosticoErro(null);
+    setDiagnosticoLoading(false);
+    setDiagnosticoAberto(false);
   };
 
   const resetarFluxoInterdicao = () => {
@@ -470,6 +510,10 @@ export default function ModalAlojamentoDetalhes({
     setSugestoes([]);
     setErroSugestoes(null);
     setCarregandoSugestoes(false);
+    setDiagnosticoCasa(null);
+    setDiagnosticoErro(null);
+    setDiagnosticoLoading(false);
+    setDiagnosticoAberto(false);
   }, [ocupante?.id, abaAtiva]);
 
   // Auto-verify risk when alojamento is selected for transfer
@@ -1260,9 +1304,16 @@ const motivosAmbientaisDetalhados = useMemo<MotivoAmbientalDetalhado[]>(() => {
     if (!ocupante) return;
     setCarregandoSugestoes(true);
     setErroSugestoes(null);
+    setDiagnosticoCasa(null);
+    setDiagnosticoErro(null);
+    setDiagnosticoAberto(false);
     try {
+      const limite =
+        transferenciaCasaId && casas.length > 0
+          ? Math.max(casas.length, 3)
+          : 3;
       const response = await fetch(
-        `/api/alocar/sugestoes?adolescenteId=${ocupante.id}`
+        `/api/alocar/sugestoes?adolescenteId=${ocupante.id}&limite=${limite}`
       );
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
@@ -1303,6 +1354,34 @@ const motivosAmbientaisDetalhados = useMemo<MotivoAmbientalDetalhado[]>(() => {
     setErroSugestoes(null);
   };
 
+  const abrirDiagnosticoCasa = async () => {
+    if (!ocupante || !transferenciaCasaId) {
+      return;
+    }
+    setDiagnosticoLoading(true);
+    setDiagnosticoErro(null);
+    try {
+      const response = await fetch(
+        `/api/alocar/sugestoes?adolescenteId=${ocupante.id}&casaId=${transferenciaCasaId}&diagnostico=1`
+      );
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(payload?.erro ?? "Falha ao buscar diagnostico");
+      }
+      if (!payload?.diagnostico) {
+        throw new Error("Diagnostico indisponivel para esta casa.");
+      }
+      setDiagnosticoCasa(payload.diagnostico as DiagnosticoCasaApi);
+      setDiagnosticoAberto(true);
+    } catch (error) {
+      const msg =
+        error instanceof Error ? error.message : "Falha ao buscar diagnostico";
+      setDiagnosticoErro(msg);
+    } finally {
+      setDiagnosticoLoading(false);
+    }
+  };
+
   const colorClass = (() => {
     if (statusInterditado) {
       return "border-gray-300 bg-gray-50 text-gray-600";
@@ -1327,7 +1406,8 @@ const motivosAmbientaisDetalhados = useMemo<MotivoAmbientalDetalhado[]>(() => {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 py-8">
+    <>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 py-8">
       <div className="w-full max-w-5xl rounded-2xl bg-white shadow-2xl">
         <div className="border-b border-slate-200 px-6 py-4 flex flex-col gap-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1441,27 +1521,25 @@ const motivosAmbientaisDetalhados = useMemo<MotivoAmbientalDetalhado[]>(() => {
               {ocupante && (
                 <div className="self-start sm:self-center shrink-0">
                   {ocupante.fotoUrl ? (
-                    <a
-                      href={ocupante.fotoUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      title="Abrir foto em tamanho maior"
+                    <Link
+                      href={`/adolescentes/${ocupante.id}`}
+                      title="Abrir cadastro do adolescente"
+                      className="h-16 w-16 rounded-2xl border border-slate-200 bg-slate-100 shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-lg font-semibold hover:ring-2 hover:ring-indigo-300"
                     >
-                      <div className="h-16 w-16 rounded-2xl border border-slate-200 bg-slate-100 shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-lg font-semibold">
-                        <img
-                          src={ocupante.fotoUrl}
-                          alt={ocupante.nomeCompleto}
-                          className="h-full w-full object-cover"
-                        />
-                      </div>
-                    </a>
+                      <img
+                        src={ocupante.fotoUrl}
+                        alt={ocupante.nomeCompleto}
+                        className="h-full w-full object-cover"
+                      />
+                    </Link>
                   ) : (
-                    <div
-                      title="Sem foto cadastrada"
-                      className="h-16 w-16 rounded-2xl border border-slate-200 bg-slate-100 shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-lg font-semibold"
+                    <Link
+                      href={`/adolescentes/${ocupante.id}`}
+                      title="Abrir cadastro do adolescente"
+                      className="h-16 w-16 rounded-2xl border border-slate-200 bg-slate-100 shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-lg font-semibold hover:ring-2 hover:ring-indigo-300"
                     >
                       {ocupante.nomeCompleto?.charAt(0) ?? "?"}
-                    </div>
+                    </Link>
                   )}
                 </div>
               )}
@@ -2031,9 +2109,26 @@ const motivosAmbientaisDetalhados = useMemo<MotivoAmbientalDetalhado[]>(() => {
                       {carregandoSugestoes ? "Calculando..." : "Sugerir destino"}
                     </button>
                     {erroSugestoes && (
-                      <span className="text-xs text-rose-600">
-                        {erroSugestoes}
-                      </span>
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-rose-600">
+                        <span>{erroSugestoes}</span>
+                        {transferenciaCasaId && (
+                          <button
+                            type="button"
+                            onClick={abrirDiagnosticoCasa}
+                            className="text-indigo-600 hover:text-indigo-700 font-semibold underline decoration-dotted"
+                            disabled={diagnosticoLoading}
+                          >
+                            {diagnosticoLoading
+                              ? "Carregando motivos..."
+                              : "Ver motivos técnicos"}
+                          </button>
+                        )}
+                        {diagnosticoErro && (
+                          <span className="text-rose-500">
+                            {diagnosticoErro}
+                          </span>
+                        )}
+                      </div>
                     )}
                   </div>
                   <div className="grid gap-3 md:grid-cols-2">
@@ -2041,14 +2136,18 @@ const motivosAmbientaisDetalhados = useMemo<MotivoAmbientalDetalhado[]>(() => {
                       <label className="text-xs font-semibold uppercase text-slate-500">
                         Casa destino
                       </label>
-                      <select
-                        value={transferenciaCasaId}
-                        onChange={(event) => {
-                          setTransferenciaCasaId(event.target.value);
-                          setTransferenciaAlojamentoId("");
-                          setTransferenciaVerificacao(null);
-                          setTransferenciaErro(null);
-                        }}
+                        <select
+                          value={transferenciaCasaId}
+                          onChange={(event) => {
+                            setTransferenciaCasaId(event.target.value);
+                            setTransferenciaAlojamentoId("");
+                            setTransferenciaVerificacao(null);
+                            setTransferenciaErro(null);
+                            setDiagnosticoCasa(null);
+                            setDiagnosticoErro(null);
+                            setDiagnosticoLoading(false);
+                            setDiagnosticoAberto(false);
+                          }}
                         className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:outline-none"
                       >
                         <option value="">Selecione...</option>
@@ -2417,5 +2516,151 @@ const motivosAmbientaisDetalhados = useMemo<MotivoAmbientalDetalhado[]>(() => {
         </div>
       </div>
     </div>
+    {diagnosticoAberto && diagnosticoCasa && (
+      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 px-4 py-8">
+        <div className="w-full max-w-3xl rounded-2xl bg-white shadow-2xl">
+          <div className="border-b border-slate-200 px-5 py-4 flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs uppercase tracking-widest text-indigo-500">
+                Diagnostico tecnico • {diagnosticoCasa.casaNome}
+              </p>
+              <h3 className="text-lg font-semibold text-slate-900">
+                Motivos detalhados para a casa selecionada
+              </h3>
+            </div>
+            <button
+              onClick={() => setDiagnosticoAberto(false)}
+              className="rounded-full p-2 text-slate-500 hover:bg-slate-100"
+              aria-label="Fechar diagnostico"
+            >
+              <X size={18} />
+            </button>
+          </div>
+          <div className="max-h-[75vh] overflow-y-auto px-5 py-4 space-y-4">
+            <div className="flex flex-wrap gap-2 text-xs">
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 font-semibold text-slate-600">
+                Total: {diagnosticoCasa.totalAlojamentos}
+              </span>
+              <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 font-semibold text-emerald-700">
+                Livres: {diagnosticoCasa.livres}
+              </span>
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 font-semibold text-slate-600">
+                Ocupados: {diagnosticoCasa.ocupados}
+              </span>
+              <span className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 font-semibold text-rose-700">
+                Interditados: {diagnosticoCasa.interditados}
+              </span>
+              {diagnosticoCasa.exigeVigilanciaFrontal && (
+                <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 font-semibold text-amber-700">
+                  Protocolo suicidio ativo
+                </span>
+              )}
+              {diagnosticoCasa.bloqueadosVigilancia > 0 && (
+                <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 font-semibold text-amber-700">
+                  Bloqueados por vigilancia: {diagnosticoCasa.bloqueadosVigilancia}
+                </span>
+              )}
+            </div>
+
+            <div className="space-y-3">
+              {diagnosticoCasa.alojamentos.map((alojamento) => {
+                const statusLabel =
+                  alojamento.status === "LIVRE"
+                    ? "Livre"
+                    : alojamento.status === "OCUPADO"
+                    ? "Ocupado"
+                    : alojamento.status === "INTERDITADO"
+                    ? "Interditado"
+                    : "Sem vigilancia frontal";
+                const statusClass =
+                  alojamento.status === "LIVRE"
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                    : alojamento.status === "OCUPADO"
+                    ? "bg-slate-50 text-slate-600 border-slate-200"
+                    : alojamento.status === "INTERDITADO"
+                    ? "bg-rose-50 text-rose-700 border-rose-200"
+                    : "bg-amber-50 text-amber-700 border-amber-200";
+
+                return (
+                  <div
+                    key={alojamento.id}
+                    className="rounded-xl border border-slate-200 bg-white p-3"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="font-semibold text-slate-900">
+                        Aloj. {alojamento.numero}
+                        {alojamento.ala ? ` • Ala ${alojamento.ala}` : ""}
+                      </div>
+                      <span
+                        className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${statusClass}`}
+                      >
+                        {statusLabel}
+                      </span>
+                    </div>
+
+                    {alojamento.status === "OCUPADO" &&
+                      alojamento.ocupantes?.length && (
+                        <p className="mt-2 text-xs text-slate-600">
+                          Ocupado por:{" "}
+                          {alojamento.ocupantes
+                            .map((oc) =>
+                              oc.numeroSms
+                                ? `${oc.nome} (SMS ${oc.numeroSms})`
+                                : oc.nome
+                            )
+                            .join(", ")}
+                        </p>
+                      )}
+
+                    {alojamento.status !== "LIVRE" &&
+                      alojamento.motivos?.length && (
+                        <ul className="mt-2 list-disc pl-5 text-xs text-slate-600 space-y-1">
+                          {alojamento.motivos.map((motivo, idx) => (
+                            <li key={`${alojamento.id}-motivo-${idx}`}>
+                              {motivo}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+
+                    {alojamento.status === "LIVRE" && alojamento.risco && (
+                      <div className="mt-2 space-y-2">
+                        <div className="text-xs text-slate-700">
+                          <span className="font-semibold">Risco:</span>{" "}
+                          {alojamento.risco.rotulo} • Nível{" "}
+                          {alojamento.risco.nivel}
+                        </div>
+                        <p className="text-xs text-slate-500">
+                          {alojamento.risco.descricao}
+                        </p>
+                        {alojamento.risco.alertas.length > 0 && (
+                          <ul className="list-disc pl-5 text-xs text-rose-600 space-y-1">
+                            {alojamento.risco.alertas.map((alerta, idx) => (
+                              <li key={`${alojamento.id}-alerta-${idx}`}>
+                                {alerta}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        {alojamento.risco.ambientais.length > 0 && (
+                          <ul className="list-disc pl-5 text-xs text-amber-600 space-y-1">
+                            {alojamento.risco.ambientais.map((alerta, idx) => (
+                              <li key={`${alojamento.id}-ambiental-${idx}`}>
+                                {alerta}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }

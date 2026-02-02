@@ -321,6 +321,7 @@ model Adolescente {
   justificativasAlgema       JustificativaAlgema[]
   solicitacoesTransf         SolicitacaoTransferencia[]
   faccaoHistorico            AdolescenteFaccaoHistorico[]      @relation("AdolescenteFaccaoHistorico")
+  faccaoInformacoesPrestadas AdolescenteFaccaoHistorico[]      @relation("FaccaoInformante")
   visitasRegistro            VisitaRegistro[]
 
   @@map("adolescentes")
@@ -337,6 +338,8 @@ model AdolescenteFaccaoHistorico {
   statusRegistro    String     @default("ATIVA") @map("status_registro") // ATIVA, CONTESTADA, REVOGADA
   observacao        String?    @map("observacao")
   fonte             String?    @map("fonte")
+  informanteAdolescenteId String?    @db.Text @map("informante_adolescente_id")
+  informanteAdolescente   Adolescente? @relation("FaccaoInformante", fields: [informanteAdolescenteId], references: [id])
   criadoEm          DateTime   @default(now()) @map("criado_em")
   criadoPorId       String?    @db.Uuid @map("criado_por_id")
   criadoPor         Operador?  @relation("OperadorCriadorFaccaoHistorico", fields: [criadoPorId], references: [id])

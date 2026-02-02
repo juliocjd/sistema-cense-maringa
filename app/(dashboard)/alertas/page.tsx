@@ -72,6 +72,13 @@ function AlertasPageContent() {
   // Modal
   const [modalNovoAberto, setModalNovoAberto] = useState(false);
 
+  const normalizarTexto = (valor?: string | null) =>
+    (valor ?? "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim();
+
   useEffect(() => {
     carregarCasas();
   }, []);
@@ -209,11 +216,11 @@ function AlertasPageContent() {
   const alertasFiltrados = alertas.filter((alerta) => {
     if (!busca) return true;
 
-    const termoBusca = busca.toLowerCase();
-    const nomeCompleto = alerta.adolescente?.nomeCompleto?.toLowerCase() || "";
-    const nomeSocial = alerta.adolescente?.nomeSocial?.toLowerCase() || "";
+    const termoBusca = normalizarTexto(busca);
+    const nomeCompleto = normalizarTexto(alerta.adolescente?.nomeCompleto);
+    const nomeSocial = normalizarTexto(alerta.adolescente?.nomeSocial);
     const numeroSms = alerta.adolescente?.numeroSms || "";
-    const descricao = alerta.descricaoAlerta?.toLowerCase() || "";
+    const descricao = normalizarTexto(alerta.descricaoAlerta);
     const numeroInternoRaw =
       alerta.adolescente && "numeroInterno" in alerta.adolescente
         ? (alerta.adolescente as any).numeroInterno

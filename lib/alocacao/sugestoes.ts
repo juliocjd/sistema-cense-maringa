@@ -49,6 +49,39 @@ export interface SugestaoAlojamento {
   ambientais: string[];
 }
 
+export type DiagnosticoAlojamento = {
+  id: string;
+  numero: string;
+  ala: string | null;
+  status: "LIVRE" | "OCUPADO" | "INTERDITADO" | "BLOQUEADO_VIGILANCIA";
+  ocupantes?: Array<{
+    id: string;
+    nome: string;
+    numeroSms?: string | null;
+  }>;
+  motivos?: string[];
+  risco?: {
+    nivel: number;
+    rotulo: string;
+    descricao: string;
+    alertas: string[];
+    ambientais: string[];
+  };
+};
+
+export type DiagnosticoCasa = {
+  casaId: string;
+  casaNome: string;
+  casaNumero: number;
+  totalAlojamentos: number;
+  livres: number;
+  ocupados: number;
+  interditados: number;
+  bloqueadosVigilancia: number;
+  exigeVigilanciaFrontal: boolean;
+  alojamentos: DiagnosticoAlojamento[];
+};
+
 interface SugestaoParams {
   adolescenteId?: string;
   bairroId?: string | null;
@@ -623,5 +656,172 @@ export async function gerarSugestoesParaAlocacao({
       nome: adolescenteAvaliado.nomeCompleto,
     },
     sugestoes: selecionados.slice(0, limite),
+  };
+}
+
+export async function gerarDiagnosticoCasaParaAlocacao({
+  adolescenteId,
+  casaId,
+  bairroId,
+  faccaoId,
+}: SugestaoParams & { casaId: string }) {
+  let adolescente: AdolescenteComConflitos | null = adolescenteId
+    ? await carregarAdolescenteParaSugestoes(adolescenteId)
+    : null;
+
+  if (adolescenteId && !adolescente) {
+    throw new Error("Adolescente nao encontrado");
+  }
+
+  const bairroParaAnalise = bairroId ?? adolescente?.bairroOrigemId ?? null;
+  const faccaoParaAnalise = faccaoId ?? adolescente?.faccaoGrupoId ?? null;
+
+  if (!adolescente && !bairroParaAnalise && !faccaoParaAnalise) {
+    throw new Error(
+      "Informe adolescenteId ou pelo menos bairroId/faccaoId para diagnostico."
+    );
+  }
+
+  if (!adolescente) {
+    adolescente = criarCandidatoFallback(
+      adolescenteId,
+      "Adolescente em cadastro",
+      bairroParaAnalise,
+      faccaoParaAnalise
+    );
+  }
+
+  if (!adolescente) {
+    throw new Error("Nao foi possivel determinar dados do adolescente");
+  }
+
+  const adolescenteAvaliado = adolescente;
+  const casas = await carregarCasasComAlojamentos();
+  const casaSelecionada = casas.find((casa) => casa.id === casaId);
+
+  if (!casaSelecionada) {
+    throw new Error("Casa nao encontrada para diagnostico");
+  }
+
+  const mapaAlojamentos = construirMapaAlojamentos(casas);
+  const mapaBairros =
+    bairroParaAnalise && bairroParaAnalise !== ""
+      ? await montarMapaBairrosConflitantes(bairroParaAnalise)
+      : new Map<string, BairroConflitoInfo>();
+  const mapaFaccoes =
+    faccaoParaAnalise && faccaoParaAnalise !== ""
+      ? await montarMapaFaccoesConflitantes(faccaoParaAnalise)
+      : new Map<string, FaccaoConflitoInfo>();
+  const conflitosExternos = construirImpactosExternos(
+    adolescenteAvaliado,
+    bairroParaAnalise,
+    faccaoParaAnalise,
+    mapaBairros,
+    mapaFaccoes
+  );
+
+  const exigeVigilancia = alertaSuicidioExigeMonitoramento(
+    adolescenteAvaliado.alertaRiscoSuicidio ?? false,
+    adolescenteAvaliado.alertaRiscoSuicidioNivel
+  );
+
+  let livres = 0;
+  let ocupados = 0;
+  let interditados = 0;
+  let bloqueadosVigilancia = 0;
+
+  const alojamentos: DiagnosticoAlojamento[] = casaSelecionada.alojamentos.map(
+    (alojamento) => {
+      if (alojamento.statusManutencao !== "LIVRE") {
+        interditados += 1;
+        return {
+          id: alojamento.id,
+          numero: alojamento.numeroAlojamento,
+          ala: alojamento.ala,
+          status: "INTERDITADO",
+          motivos: ["Alojamento interditado para uso."],
+        };
+      }
+
+      if (alojamento.adolescentes.length > 0) {
+        ocupados += 1;
+        return {
+          id: alojamento.id,
+          numero: alojamento.numeroAlojamento,
+          ala: alojamento.ala,
+          status: "OCUPADO",
+          ocupantes: alojamento.adolescentes.map((ado) => ({
+            id: ado.id,
+            nome: ado.nomeCompleto ?? "Sem nome",
+            numeroSms: ado.numeroSms ?? null,
+          })),
+          motivos: ["Alojamento ocupado."],
+        };
+      }
+
+      if (exigeVigilancia) {
+        const vigilado = avaliarVigilanciaFrontal(
+          alojamento,
+          mapaAlojamentos
+        );
+        if (!vigilado.valido) {
+          bloqueadosVigilancia += 1;
+          return {
+            id: alojamento.id,
+            numero: alojamento.numeroAlojamento,
+            ala: alojamento.ala,
+            status: "BLOQUEADO_VIGILANCIA",
+            motivos: [vigilado.motivo ?? "Sem vigilancia frontal valida."],
+          };
+        }
+      }
+
+      livres += 1;
+      const avaliacao = avaliarCandidato(
+        casaSelecionada,
+        alojamento,
+        adolescenteAvaliado,
+        conflitosExternos
+      );
+
+      if (exigeVigilancia) {
+        const vigilado = avaliarVigilanciaFrontal(
+          alojamento,
+          mapaAlojamentos
+        );
+        if (vigilado.avisos?.length) {
+          const combinado = new Set(avaliacao.alertas);
+          vigilado.avisos.forEach((aviso) => combinado.add(aviso));
+          avaliacao.alertas = Array.from(combinado);
+        }
+      }
+
+      return {
+        id: alojamento.id,
+        numero: alojamento.numeroAlojamento,
+        ala: alojamento.ala,
+        status: "LIVRE",
+        risco: {
+          nivel: avaliacao.nivel,
+          rotulo: avaliacao.rotulo,
+          descricao: avaliacao.descricao,
+          alertas: avaliacao.alertas,
+          ambientais: avaliacao.ambientais,
+        },
+      };
+    }
+  );
+
+  return {
+    casaId: casaSelecionada.id,
+    casaNome: casaSelecionada.nome,
+    casaNumero: casaSelecionada.numero ?? 0,
+    totalAlojamentos: casaSelecionada.alojamentos.length,
+    livres,
+    ocupados,
+    interditados,
+    bloqueadosVigilancia,
+    exigeVigilanciaFrontal: exigeVigilancia,
+    alojamentos,
   };
 }

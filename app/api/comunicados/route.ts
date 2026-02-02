@@ -136,13 +136,6 @@ export async function GET(request: NextRequest) {
     const where: any = {
       suspensoPorStatus: false,
       desativadoEm: null,
-      adolescentes: {
-        some: {
-          adolescente: {
-            statusUnidade: "ATIVO",
-          },
-        },
-      },
     };
 
     if (tipo) {
@@ -166,6 +159,7 @@ export async function GET(request: NextRequest) {
                   nomeCompleto: true,
                   numeroSms: true,
                   fotoUrl: true,
+                  statusUnidade: true,
                 },
               },
             },
@@ -260,6 +254,7 @@ export async function GET(request: NextRequest) {
           nome: link.adolescente.nomeCompleto,
           numeroSms: link.adolescente.numeroSms,
           fotoUrl: link.adolescente.fotoUrl ?? null,
+          status: link.adolescente.statusUnidade ?? null,
           ladoConflito: link.ladoConflito as "LADO_1" | "LADO_2" | null,
         })),
       conflitos: ci.conflitos.map((conflito) => ({

@@ -61,6 +61,12 @@ export function ListagemConflitos({
   incluirInativos = false,
   onToggleInativos,
 }: ListagemConflitosProps) {
+  const normalizarTexto = (valor?: string | null) =>
+    (valor ?? "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim();
   const [busca, setBusca] = useState("");
   const [filtroStatus, setFiltroStatus] = useState<string>("TODOS");
   const [filtroTipo, setFiltroTipo] = useState<string>("TODOS");
@@ -78,7 +84,7 @@ export function ListagemConflitos({
   };
 
   const conflitosFiltrados = useMemo(() => {
-    const termo = busca.toLowerCase();
+    const termo = normalizarTexto(busca);
     return conflitos.filter((conflito) => {
       const ladosAtivos = conflito.ativosPorLado ?? {
         "Lado 1": 0,
@@ -94,7 +100,7 @@ export function ListagemConflitos({
         termo === "" ||
         conflito.participantes.some(
           (participante) =>
-            participante.nome.toLowerCase().includes(termo) ||
+            normalizarTexto(participante.nome).includes(termo) ||
             participante.numeroSms.includes(busca)
         );
 

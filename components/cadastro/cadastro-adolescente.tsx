@@ -17,6 +17,7 @@ import {
   Lock,
   Activity,
   Bed,
+  X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type {
@@ -110,6 +111,37 @@ type SugestaoAlojamentoCadastro = {
   ambientais: string[];
 };
 
+type DiagnosticoCasaApi = {
+  casaId: string;
+  casaNome: string;
+  casaNumero: number;
+  totalAlojamentos: number;
+  livres: number;
+  ocupados: number;
+  interditados: number;
+  bloqueadosVigilancia: number;
+  exigeVigilanciaFrontal: boolean;
+  alojamentos: Array<{
+    id: string;
+    numero: string;
+    ala: string | null;
+    status: "LIVRE" | "OCUPADO" | "INTERDITADO" | "BLOQUEADO_VIGILANCIA";
+    ocupantes?: Array<{
+      id: string;
+      nome: string;
+      numeroSms?: string | null;
+    }>;
+    motivos?: string[];
+    risco?: {
+      nivel: number;
+      rotulo: string;
+      descricao: string;
+      alertas: string[];
+      ambientais: string[];
+    };
+  }>;
+};
+
 type ResultadoFiltroSugestoes = {
   lista: SugestaoAlojamentoCadastro[];
   aviso: string | null;
@@ -123,7 +155,8 @@ type SmsDuplicadoInfo = {
 
 const aplicarFiltroSugestoes = (
   sugestoes: SugestaoAlojamentoCadastro[],
-  tipo: TipoInternacao | null
+  tipo: TipoInternacao | null,
+  casaPreferenciaId?: string | null
 ): ResultadoFiltroSugestoes => {
   if (sugestoes.length === 0) {
     return { lista: [], aviso: null };
@@ -144,6 +177,16 @@ const aplicarFiltroSugestoes = (
       }
       return false;
     });
+  }
+
+  if (casaPreferenciaId) {
+    filtradas = filtradas.filter((item) => item.casaId === casaPreferenciaId);
+    if (filtradas.length === 0) {
+      return {
+        lista: [],
+        aviso: "Nenhum alojamento recomendado para a casa selecionada.",
+      };
+    }
   }
 
   if (filtradas.length === 0) {
@@ -198,10 +241,18 @@ export function CadastroAdolescente({
   modo = "CADASTRO",
   permitirAlocacaoAutomatica,
   }: CadastroAdolescenteProps) {
-    const ehEdicao = modo === "EDICAO";
-    const { user } = useAuth();
-    const podeAlterarAlojamento = useMemo(
-      () =>
+  const ehEdicao = modo === "EDICAO";
+  const { user } = useAuth();
+  const isAdmin = useMemo(() => {
+    const cargo = user?.cargo ?? "";
+    const roles = user?.roles ?? [];
+    return (
+      cargo.toUpperCase() === "ADMIN" ||
+      roles.some((role) => role.toUpperCase() === "ADMIN")
+    );
+  }, [user]);
+  const podeAlterarAlojamento = useMemo(
+    () =>
         hasPermission(
           user?.permissions,
           PERMISSIONS.ADOLESCENTES_EDIT_ALOJAMENTO
@@ -286,7 +337,14 @@ export function CadastroAdolescente({
   const [vinculacoes, setVinculacoes] = useState({
     faccaoId: "",
     faccaoFuncao: "",
-    faccaoOrigem: "" as "" | "CONFESSADA" | "OBSERVACAO",
+    faccaoOrigem: "" as
+      | ""
+      | "CONFESSADA"
+      | "OBSERVACAO"
+      | "INTELIGENCIA"
+      | "TERCEIROS"
+      | "NAO_INFORMADO"
+      | "OUTRO_INTERNO",
     faccaoOrigemDetalhe: "",
     bairroId: "",
     riscoFuga: "BAIXO" as RiscoFuga,
@@ -298,10 +356,20 @@ export function CadastroAdolescente({
     aberto: boolean;
     faccaoId: string;
     funcao: string;
-    origem: "" | "CONFESSADA" | "OBSERVACAO" | "INTELIGENCIA" | "TERCEIROS" | "NAO_INFORMADO";
+    origem:
+      | ""
+      | "CONFESSADA"
+      | "OBSERVACAO"
+      | "INTELIGENCIA"
+      | "TERCEIROS"
+      | "NAO_INFORMADO"
+      | "OUTRO_INTERNO";
     nivelConfianca: "" | "BAIXO" | "MEDIO" | "ALTO" | "NAO_AVALIADO";
     observacao: string;
     fonte: string;
+    informanteId: string;
+    informanteNome: string;
+    informanteSms: string;
     salvando: boolean;
     erro: string | null;
   }>({
@@ -312,9 +380,19 @@ export function CadastroAdolescente({
     nivelConfianca: "NAO_AVALIADO",
     observacao: "",
     fonte: "",
+    informanteId: "",
+    informanteNome: "",
+    informanteSms: "",
     salvando: false,
     erro: null,
   });
+  const [informanteBusca, setInformanteBusca] = useState("");
+  const [informanteSugestoes, setInformanteSugestoes] = useState<
+    Array<{ id: string; nome: string; numeroSms: string | null }>
+  >([]);
+  const [mostrandoInformanteSugestoes, setMostrandoInformanteSugestoes] =
+    useState(false);
+  const [buscandoInformante, setBuscandoInformante] = useState(false);
   const [riscoFugaOrigemInfo, setRiscoFugaOrigemInfo] = useState<
     Adolescente["riscoFugaOrigem"] | null
   >(null);
@@ -637,6 +715,10 @@ export function CadastroAdolescente({
     string | null
   >(null);
   const [tipoInternacao, setTipoInternacao] = useState<TipoInternacao | null>(null);
+  const [casasCatalogo, setCasasCatalogo] = useState<
+    { id: string; nome: string; numero: number }[]
+  >([]);
+  const [casaPreferenciaId, setCasaPreferenciaId] = useState("");
   const [sugestoesOriginais, setSugestoesOriginais] = useState<
     SugestaoAlojamentoCadastro[]
   >([]);
@@ -646,6 +728,11 @@ export function CadastroAdolescente({
   const [carregandoSugestoes, setCarregandoSugestoes] = useState(false);
   const [erroSugestoes, setErroSugestoes] = useState<string | null>(null);
   const [avisoSugestoes, setAvisoSugestoes] = useState<string | null>(null);
+  const [diagnosticoCasa, setDiagnosticoCasa] =
+    useState<DiagnosticoCasaApi | null>(null);
+  const [diagnosticoAberto, setDiagnosticoAberto] = useState(false);
+  const [diagnosticoLoading, setDiagnosticoLoading] = useState(false);
+  const [diagnosticoErro, setDiagnosticoErro] = useState<string | null>(null);
 
   useEffect(() => {
     const carregarAlojamentosLivres = async () => {
@@ -694,25 +781,76 @@ export function CadastroAdolescente({
   }, [ehEdicao, initialData?.alojamentoAtualId, initialData?.alojamentoAtual]);
 
   useEffect(() => {
+    const carregarCasas = async () => {
+      try {
+        const response = await fetch("/api/casas");
+        if (!response.ok) {
+          throw new Error("Falha ao carregar casas");
+        }
+        const payload = await response.json();
+        const lista = Array.isArray(payload?.casas)
+          ? payload.casas.map((casa: any) => ({
+              id: casa.id,
+              nome: casa.nome,
+              numero:
+                typeof casa.numero === "number"
+                  ? casa.numero
+                  : Number(casa.numero ?? 0),
+            }))
+          : [];
+        setCasasCatalogo(lista);
+      } catch {
+        setCasasCatalogo([]);
+      }
+    };
+    carregarCasas();
+  }, []);
+
+  useEffect(() => {
     setSugestoesOriginais([]);
     setSugestoesAlojamento([]);
     setErroSugestoes(null);
     setAvisoSugestoes(null);
+    setDiagnosticoCasa(null);
+    setDiagnosticoErro(null);
+    setDiagnosticoAberto(false);
+    setDiagnosticoLoading(false);
   }, [vinculacoes.bairroId, vinculacoes.faccaoId]);
+
+  useEffect(() => {
+    if (tipoInternacao !== "DEFINITIVA") {
+      setCasaPreferenciaId("");
+      setDiagnosticoCasa(null);
+      setDiagnosticoErro(null);
+      setDiagnosticoAberto(false);
+      setDiagnosticoLoading(false);
+    }
+  }, [tipoInternacao]);
 
   useEffect(() => {
     if (sugestoesOriginais.length === 0) {
       setSugestoesAlojamento([]);
       setAvisoSugestoes(null);
+      if (erroSugestoes === "Nenhum alojamento recomendado para a casa selecionada.") {
+        setErroSugestoes(null);
+      }
       return;
     }
     const { lista, aviso } = aplicarFiltroSugestoes(
       sugestoesOriginais,
-      tipoInternacao
+      tipoInternacao,
+      casaPreferenciaId || null
     );
     setSugestoesAlojamento(lista);
     setAvisoSugestoes(aviso);
-  }, [sugestoesOriginais, tipoInternacao]);
+    if (casaPreferenciaId && lista.length === 0) {
+      setErroSugestoes("Nenhum alojamento recomendado para a casa selecionada.");
+    } else if (
+      erroSugestoes === "Nenhum alojamento recomendado para a casa selecionada."
+    ) {
+      setErroSugestoes(null);
+    }
+  }, [sugestoesOriginais, tipoInternacao, casaPreferenciaId, erroSugestoes]);
 
   const buscarSugestoesAlojamento = async () => {
     if (!podeGerarSugestoes) {
@@ -738,13 +876,22 @@ export function CadastroAdolescente({
     setCarregandoSugestoes(true);
     setErroSugestoes(null);
     setAvisoSugestoes(null);
+    setDiagnosticoCasa(null);
+    setDiagnosticoErro(null);
+    setDiagnosticoAberto(false);
+    setDiagnosticoLoading(false);
     try {
+      const limiteSugestoes = casaPreferenciaId
+        ? Math.max(casasCatalogo.length, 3)
+        : 3;
       const response = await fetch("/api/alocar/sugestoes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          adolescenteId: initialData?.id ?? undefined,
           bairroId: vinculacoes.bairroId || null,
           faccaoId: vinculacoes.faccaoId || null,
+          limite: limiteSugestoes,
         }),
       });
 
@@ -790,6 +937,99 @@ export function CadastroAdolescente({
       setSugestoesAlojamento([]);
     } finally {
       setCarregandoSugestoes(false);
+    }
+  };
+
+  useEffect(() => {
+    if (
+      !modalDeclaracaoFaccao.aberto ||
+      modalDeclaracaoFaccao.origem !== "OUTRO_INTERNO"
+    ) {
+      setInformanteSugestoes([]);
+      setMostrandoInformanteSugestoes(false);
+      setBuscandoInformante(false);
+      return;
+    }
+    const termo = informanteBusca.trim();
+    if (termo.length < 2) {
+      setInformanteSugestoes([]);
+      return;
+    }
+    let ativo = true;
+    setBuscandoInformante(true);
+    const carregar = async () => {
+      try {
+        const response = await fetch(
+          `/api/adolescentes?busca=${encodeURIComponent(termo)}&limit=20`
+        );
+        if (!response.ok) {
+          throw new Error("Falha ao buscar adolescentes");
+        }
+        const payload = await response.json().catch(() => null);
+        if (!ativo) return;
+        const lista = Array.isArray(payload?.data)
+          ? payload.data
+              .map((item: any) => ({
+                id: item.id,
+                nome: item.nomeCompleto,
+                numeroSms: item.numeroSms ?? null,
+              }))
+              .filter((item: any) => item.id !== initialData?.id)
+          : [];
+        setInformanteSugestoes(lista);
+        setMostrandoInformanteSugestoes(true);
+      } catch {
+        if (ativo) {
+          setInformanteSugestoes([]);
+        }
+      } finally {
+        if (ativo) {
+          setBuscandoInformante(false);
+        }
+      }
+    };
+    carregar();
+    return () => {
+      ativo = false;
+    };
+  }, [
+    informanteBusca,
+    modalDeclaracaoFaccao.aberto,
+    modalDeclaracaoFaccao.origem,
+    initialData?.id,
+  ]);
+
+  const abrirDiagnosticoCasa = async () => {
+    if (!casaPreferenciaId) return;
+    setDiagnosticoLoading(true);
+    setDiagnosticoErro(null);
+    try {
+      const response = await fetch("/api/alocar/sugestoes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          adolescenteId: initialData?.id ?? undefined,
+          bairroId: vinculacoes.bairroId || null,
+          faccaoId: vinculacoes.faccaoId || null,
+          casaId: casaPreferenciaId,
+          diagnostico: true,
+        }),
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(payload?.erro ?? "Falha ao buscar diagnostico");
+      }
+      if (!payload?.diagnostico) {
+        throw new Error("Diagnostico indisponivel para esta casa.");
+      }
+      setDiagnosticoCasa(payload.diagnostico as DiagnosticoCasaApi);
+      setDiagnosticoAberto(true);
+    } catch (error) {
+      const msg =
+        error instanceof Error ? error.message : "Falha ao buscar diagnostico";
+      setDiagnosticoErro(msg);
+    } finally {
+      setDiagnosticoLoading(false);
     }
   };
 
@@ -1659,13 +1899,20 @@ const selecionarAtoCatalogo = (ato: {
         | "INTELIGENCIA"
         | "TERCEIROS"
         | "NAO_INFORMADO"
+        | "OUTRO_INTERNO"
         | "",
       nivelConfianca: "NAO_AVALIADO",
       observacao: faccaoHistoricoAtivo?.observacao ?? vinculacoes.faccaoOrigemDetalhe,
       fonte: "",
+      informanteId: "",
+      informanteNome: "",
+      informanteSms: "",
       salvando: false,
       erro: null,
     });
+    setInformanteBusca("");
+    setInformanteSugestoes([]);
+    setMostrandoInformanteSugestoes(false);
   };
 
   const fecharModalDeclaracaoFaccao = () => {
@@ -1689,11 +1936,26 @@ const selecionarAtoCatalogo = (ato: {
       }));
       return;
     }
+    if (
+      modalDeclaracaoFaccao.origem === "OUTRO_INTERNO" &&
+      !modalDeclaracaoFaccao.informanteId
+    ) {
+      setModalDeclaracaoFaccao((prev) => ({
+        ...prev,
+        erro:
+          "Selecione o adolescente informante quando a origem for Outro interno.",
+      }));
+      return;
+    }
     const payload: Record<string, any> = {
       faccaoGrupoId: modalDeclaracaoFaccao.faccaoId || null,
       faccaoFuncao: modalDeclaracaoFaccao.funcao || null,
       faccaoInformacaoOrigem: modalDeclaracaoFaccao.origem || "NAO_INFORMADO",
       faccaoInformacaoDetalhe: modalDeclaracaoFaccao.observacao || null,
+      faccaoInformanteAdolescenteId:
+        modalDeclaracaoFaccao.origem === "OUTRO_INTERNO"
+          ? modalDeclaracaoFaccao.informanteId
+          : null,
     };
     setModalDeclaracaoFaccao((prev) => ({ ...prev, salvando: true, erro: null }));
     try {
@@ -1714,7 +1976,11 @@ const selecionarAtoCatalogo = (ato: {
         faccaoOrigem: (result.faccaoInformacaoOrigem ?? "") as
           | ""
           | "CONFESSADA"
-          | "OBSERVACAO",
+          | "OBSERVACAO"
+          | "INTELIGENCIA"
+          | "TERCEIROS"
+          | "NAO_INFORMADO"
+          | "OUTRO_INTERNO",
         faccaoOrigemDetalhe: result.faccaoInformacaoDetalhe ?? "",
       }));
       setFaccaoHistorico(result.faccaoHistorico ?? []);
@@ -1918,7 +2184,8 @@ const selecionarAtoCatalogo = (ato: {
           ? undefined
           : vinculacoes.faccaoOrigem;
       const faccaoOrigemDetalheSanitizada =
-        faccaoOrigemValor === "OBSERVACAO"
+        faccaoOrigemValor === "OBSERVACAO" ||
+        faccaoOrigemValor === "OUTRO_INTERNO"
           ? sanitize(vinculacoes.faccaoOrigemDetalhe)
           : undefined;
       const enviarFaccao = !faccaoSomenteHistorico;
@@ -2011,7 +2278,8 @@ const selecionarAtoCatalogo = (ato: {
                   : undefined,
               faccaoInformacaoOrigem: faccaoOrigemValor,
               faccaoInformacaoDetalhe:
-                faccaoOrigemValor === "OBSERVACAO"
+                faccaoOrigemValor === "OBSERVACAO" ||
+                faccaoOrigemValor === "OUTRO_INTERNO"
                   ? faccaoOrigemDetalheSanitizada
                   : undefined,
             }
@@ -3066,6 +3334,20 @@ const selecionarAtoCatalogo = (ato: {
                               Obs: {h.observacao}
                             </p>
                           )}
+                          {h.origemInformacao === "OUTRO_INTERNO" && (
+                            <p className="mt-1 text-[11px] text-slate-600">
+                              Informante:{" "}
+                              {isAdmin
+                                ? h.informante?.nome
+                                  ? `${h.informante.nome}${
+                                      h.informante.numeroSms
+                                        ? ` (SMS ${h.informante.numeroSms})`
+                                        : ""
+                                    }`
+                                  : "Não informado"
+                                : "Acesso restrito"}
+                            </p>
+                          )}
                           {h.criadoPor && (
                             <p className="mt-1 text-[10px] text-slate-500">
                               Registrado por {h.criadoPor.nome}
@@ -3439,17 +3721,46 @@ const selecionarAtoCatalogo = (ato: {
                 );
               })}
             </div>
-            {!tipoInternacao && (
-              <p className="mt-1 text-xs text-slate-500">
-                Escolha o tipo de internacao para aplicar as regras de sugestao
-                automaticamente.
-              </p>
-            )}
-          </div>
+          {!tipoInternacao && (
+            <p className="mt-1 text-xs text-slate-500">
+              Escolha o tipo de internacao para aplicar as regras de sugestao
+              automaticamente.
+            </p>
+          )}
+        </div>
 
-          <div className="flex flex-wrap items-center gap-3 mb-2">
+        {tipoInternacao === "DEFINITIVA" && (
+          <div className="mb-4">
             <label className="text-sm font-semibold text-gray-700">
-              Alojamento preferencial
+              Casa de preferencia (opcional)
+            </label>
+            <select
+              value={casaPreferenciaId}
+              onChange={(event) => {
+                setCasaPreferenciaId(event.target.value);
+                setDiagnosticoCasa(null);
+                setDiagnosticoErro(null);
+                setDiagnosticoAberto(false);
+              }}
+              className="mt-1 w-full rounded-lg border-2 border-gray-300 px-4 py-2 text-sm text-gray-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+              disabled={!podeGerarSugestoes}
+            >
+              <option value="">Sem preferencia</option>
+              {casasCatalogo.map((casa) => (
+                <option key={casa.id} value={casa.id}>
+                  {casa.nome} (Casa {String(casa.numero).padStart(2, "0")})
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-slate-500">
+              Se informado, as sugestoes serao filtradas para esta casa.
+            </p>
+          </div>
+        )}
+
+        <div className="flex flex-wrap items-center gap-3 mb-2">
+          <label className="text-sm font-semibold text-gray-700">
+            Alojamento preferencial
             </label>
             <button
               type="button"
@@ -3474,31 +3785,27 @@ const selecionarAtoCatalogo = (ato: {
             )}
           </div>
 
-          <select
-            value={alojamentoSelecionado ?? ""}
-            onChange={(e) => {
-              if (statusUnidade !== "ATIVO") return;
-              setAlojamentoSelecionado(e.target.value ? e.target.value : null);
-            }}
-            disabled={statusUnidade !== "ATIVO" || !podeSelecionarAlojamento}
-            className={`w-full px-4 py-3 border-2 rounded-lg outline-none transition-all ${
-              statusUnidade === "ATIVO"
-                ? "border-gray-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-                : "border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed"
-            }`}
-          >
-            <option value="">Nenhum (sem alocacao automatica)</option>
-            {alojamentosLivres.map((aloj) => (
-              <option key={aloj.id} value={aloj.id}>
-                {aloj.casa} - Aloj. {aloj.numero}
-                {aloj.ala ? ` (Ala ${aloj.ala})` : ""}
-                {aloj.atual ? " (Atual)" : ""}
-              </option>
-            ))}
-          </select>
-
-          {erroSugestoes && (
-            <p className="mt-1 text-xs text-rose-600">{erroSugestoes}</p>
+        {erroSugestoes && (
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-rose-600">
+              <span>{erroSugestoes}</span>
+              {erroSugestoes ===
+                "Nenhum alojamento recomendado para a casa selecionada." &&
+                casaPreferenciaId && (
+                  <button
+                    type="button"
+                    onClick={abrirDiagnosticoCasa}
+                    className="text-indigo-600 hover:text-indigo-700 font-semibold underline decoration-dotted"
+                    disabled={diagnosticoLoading}
+                  >
+                    {diagnosticoLoading
+                      ? "Carregando motivos..."
+                      : "Ver motivos técnicos"}
+                  </button>
+                )}
+              {diagnosticoErro && (
+                <span className="text-rose-500">{diagnosticoErro}</span>
+              )}
+            </div>
           )}
           {avisoSugestoes && (
             <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
@@ -3549,6 +3856,33 @@ const selecionarAtoCatalogo = (ato: {
               ))}
             </div>
           )}
+
+          <p className="text-xs text-slate-500">
+            Selecione o alojamento atual do adolescente ou escolha o destino para
+            alocacao automatica.
+          </p>
+          <select
+            value={alojamentoSelecionado ?? ""}
+            onChange={(e) => {
+              if (statusUnidade !== "ATIVO") return;
+              setAlojamentoSelecionado(e.target.value ? e.target.value : null);
+            }}
+            disabled={statusUnidade !== "ATIVO" || !podeSelecionarAlojamento}
+            className={`w-full px-4 py-3 border-2 rounded-lg outline-none transition-all ${
+              statusUnidade === "ATIVO"
+                ? "border-gray-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+                : "border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed"
+            }`}
+          >
+            <option value="">Nenhum (sem alocacao automatica)</option>
+            {alojamentosLivres.map((aloj) => (
+              <option key={aloj.id} value={aloj.id}>
+                {aloj.casa} - Aloj. {aloj.numero}
+                {aloj.ala ? ` (Ala ${aloj.ala})` : ""}
+                {aloj.atual ? " (Atual)" : ""}
+              </option>
+            ))}
+          </select>
 
           <p className="text-xs text-gray-500 mt-2">
             A selecao sera usada para acionar /api/alocar automaticamente apos salvar.
@@ -3746,6 +4080,152 @@ const selecionarAtoCatalogo = (ato: {
           </div>
         </div>
       </div>
+      {diagnosticoAberto && diagnosticoCasa && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 py-6">
+          <div className="w-full max-w-3xl rounded-2xl bg-white shadow-2xl">
+            <div className="border-b border-slate-200 px-5 py-4 flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs uppercase tracking-widest text-indigo-500">
+                  Diagnostico tecnico • {diagnosticoCasa.casaNome}
+                </p>
+                <h3 className="text-lg font-semibold text-slate-900">
+                  Motivos detalhados para a casa selecionada
+                </h3>
+              </div>
+              <button
+                onClick={() => setDiagnosticoAberto(false)}
+                className="rounded-full p-2 text-slate-500 hover:bg-slate-100"
+                aria-label="Fechar diagnostico"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="max-h-[75vh] overflow-y-auto px-5 py-4 space-y-4">
+              <div className="flex flex-wrap gap-2 text-xs">
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 font-semibold text-slate-600">
+                  Total: {diagnosticoCasa.totalAlojamentos}
+                </span>
+                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 font-semibold text-emerald-700">
+                  Livres: {diagnosticoCasa.livres}
+                </span>
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 font-semibold text-slate-600">
+                  Ocupados: {diagnosticoCasa.ocupados}
+                </span>
+                <span className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 font-semibold text-rose-700">
+                  Interditados: {diagnosticoCasa.interditados}
+                </span>
+                {diagnosticoCasa.exigeVigilanciaFrontal && (
+                  <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 font-semibold text-amber-700">
+                    Protocolo suicidio ativo
+                  </span>
+                )}
+                {diagnosticoCasa.bloqueadosVigilancia > 0 && (
+                  <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 font-semibold text-amber-700">
+                    Bloqueados por vigilancia:{" "}
+                    {diagnosticoCasa.bloqueadosVigilancia}
+                  </span>
+                )}
+              </div>
+
+              <div className="space-y-3">
+                {diagnosticoCasa.alojamentos.map((alojamento) => {
+                  const statusLabel =
+                    alojamento.status === "LIVRE"
+                      ? "Livre"
+                      : alojamento.status === "OCUPADO"
+                      ? "Ocupado"
+                      : alojamento.status === "INTERDITADO"
+                      ? "Interditado"
+                      : "Sem vigilancia frontal";
+                  const statusClass =
+                    alojamento.status === "LIVRE"
+                      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                      : alojamento.status === "OCUPADO"
+                      ? "bg-slate-50 text-slate-600 border-slate-200"
+                      : alojamento.status === "INTERDITADO"
+                      ? "bg-rose-50 text-rose-700 border-rose-200"
+                      : "bg-amber-50 text-amber-700 border-amber-200";
+
+                  return (
+                    <div
+                      key={alojamento.id}
+                      className="rounded-xl border border-slate-200 bg-white p-3"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="font-semibold text-slate-900">
+                          Aloj. {alojamento.numero}
+                          {alojamento.ala ? ` • Ala ${alojamento.ala}` : ""}
+                        </div>
+                        <span
+                          className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${statusClass}`}
+                        >
+                          {statusLabel}
+                        </span>
+                      </div>
+
+                      {alojamento.status === "OCUPADO" &&
+                        alojamento.ocupantes?.length && (
+                          <p className="mt-2 text-xs text-slate-600">
+                            Ocupado por:{" "}
+                            {alojamento.ocupantes
+                              .map((oc) =>
+                                oc.numeroSms
+                                  ? `${oc.nome} (SMS ${oc.numeroSms})`
+                                  : oc.nome
+                              )
+                              .join(", ")}
+                          </p>
+                        )}
+
+                      {alojamento.status !== "LIVRE" &&
+                        alojamento.motivos?.length && (
+                          <ul className="mt-2 list-disc pl-5 text-xs text-slate-600 space-y-1">
+                            {alojamento.motivos.map((motivo, idx) => (
+                              <li key={`${alojamento.id}-motivo-${idx}`}>
+                                {motivo}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+
+                      {alojamento.status === "LIVRE" && alojamento.risco && (
+                        <div className="mt-2 space-y-2">
+                          <div className="text-xs text-slate-700">
+                            <span className="font-semibold">Risco:</span>{" "}
+                            {alojamento.risco.rotulo} • Nível{" "}
+                            {alojamento.risco.nivel}
+                          </div>
+                          <p className="text-xs text-slate-500">
+                            {alojamento.risco.descricao}
+                          </p>
+                          {alojamento.risco.alertas.length > 0 && (
+                            <ul className="list-disc pl-5 text-xs text-rose-600 space-y-1">
+                              {alojamento.risco.alertas.map((alerta, idx) => (
+                                <li key={`${alojamento.id}-alerta-${idx}`}>
+                                  {alerta}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                          {alojamento.risco.ambientais.length > 0 && (
+                            <ul className="list-disc pl-5 text-xs text-amber-600 space-y-1">
+                              {alojamento.risco.ambientais.map((alerta, idx) => (
+                                <li key={`${alojamento.id}-ambiental-${idx}`}>
+                                  {alerta}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {modalAlertaEspecial.aberto && modalAlertaEspecial.tipo && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
           <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
@@ -4283,12 +4763,21 @@ const selecionarAtoCatalogo = (ato: {
                   </label>
                   <select
                     value={modalDeclaracaoFaccao.origem}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      const valor = e.target.value as any;
                       setModalDeclaracaoFaccao((prev) => ({
                         ...prev,
-                        origem: e.target.value as any,
-                      }))
-                    }
+                        origem: valor,
+                        informanteId: valor === "OUTRO_INTERNO" ? prev.informanteId : "",
+                        informanteNome: valor === "OUTRO_INTERNO" ? prev.informanteNome : "",
+                        informanteSms: valor === "OUTRO_INTERNO" ? prev.informanteSms : "",
+                      }));
+                      if (valor !== "OUTRO_INTERNO") {
+                        setInformanteBusca("");
+                        setInformanteSugestoes([]);
+                        setMostrandoInformanteSugestoes(false);
+                      }
+                    }}
                     className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:outline-none"
                   >
                     <option value="NAO_INFORMADO">Não informado</option>
@@ -4296,6 +4785,7 @@ const selecionarAtoCatalogo = (ato: {
                     <option value="OBSERVACAO">Observação / inteligência</option>
                     <option value="INTELIGENCIA">Inteligência formal</option>
                     <option value="TERCEIROS">Relato de terceiros</option>
+                    <option value="OUTRO_INTERNO">Outro interno</option>
                   </select>
                 </div>
                 <div>
@@ -4336,6 +4826,88 @@ const selecionarAtoCatalogo = (ato: {
                   placeholder="Detalhe a narrativa, contexto, quem presenciou, etc."
                 />
               </div>
+              {modalDeclaracaoFaccao.origem === "OUTRO_INTERNO" && (
+                <div>
+                  <label className="text-xs font-semibold uppercase text-slate-500">
+                    Adolescente informante
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={informanteBusca}
+                      onChange={(e) => {
+                        const valor = e.target.value;
+                        setInformanteBusca(valor);
+                        setModalDeclaracaoFaccao((prev) => ({
+                          ...prev,
+                          informanteId: "",
+                          informanteNome: "",
+                          informanteSms: "",
+                        }));
+                        setMostrandoInformanteSugestoes(true);
+                      }}
+                      onFocus={() => setMostrandoInformanteSugestoes(true)}
+                      onBlur={() =>
+                        window.setTimeout(
+                          () => setMostrandoInformanteSugestoes(false),
+                          120
+                        )
+                      }
+                      className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:outline-none"
+                      placeholder="Digite nome ou SMS do informante"
+                    />
+                    {buscandoInformante && (
+                      <Loader2 className="absolute right-3 top-3 h-4 w-4 animate-spin text-indigo-500" />
+                    )}
+                    {mostrandoInformanteSugestoes &&
+                      informanteBusca.trim().length >= 2 && (
+                        <div className="absolute z-30 mt-1 max-h-48 w-full overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+                          {informanteSugestoes.length === 0 && (
+                            <p className="px-3 py-2 text-xs text-slate-500">
+                              {buscandoInformante
+                                ? "Buscando..."
+                                : "Nenhum adolescente encontrado."}
+                            </p>
+                          )}
+                          {informanteSugestoes.map((item) => (
+                            <button
+                              type="button"
+                              key={item.id}
+                              onMouseDown={() => {
+                                setModalDeclaracaoFaccao((prev) => ({
+                                  ...prev,
+                                  informanteId: item.id,
+                                  informanteNome: item.nome,
+                                  informanteSms: item.numeroSms ?? "",
+                                }));
+                                setInformanteBusca(item.nome);
+                                setMostrandoInformanteSugestoes(false);
+                              }}
+                              className="flex w-full flex-col px-3 py-2 text-left text-xs hover:bg-indigo-50"
+                            >
+                              <span className="font-semibold text-slate-800">
+                                {item.nome}
+                              </span>
+                              {item.numeroSms && (
+                                <span className="text-[10px] text-slate-500">
+                                  SMS {item.numeroSms}
+                                </span>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                  </div>
+                  {modalDeclaracaoFaccao.informanteId && (
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      Selecionado: {modalDeclaracaoFaccao.informanteNome}
+                      {modalDeclaracaoFaccao.informanteSms
+                        ? ` (SMS ${modalDeclaracaoFaccao.informanteSms})`
+                        : ""}
+                    </p>
+                  )}
+                </div>
+              )}
               <div>
                 <label className="text-xs font-semibold uppercase text-slate-500">
                   Fonte / documento (opcional)
@@ -4455,12 +5027,3 @@ const selecionarAtoCatalogo = (ato: {
     </div>
   );
 }
-
-
-
-
-
-
-
-
-

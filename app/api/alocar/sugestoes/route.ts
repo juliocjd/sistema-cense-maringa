@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { gerarSugestoesParaAlocacao } from "@/lib/alocacao/sugestoes";
+import {
+  gerarDiagnosticoCasaParaAlocacao,
+  gerarSugestoesParaAlocacao,
+} from "@/lib/alocacao/sugestoes";
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const adolescenteId = searchParams.get("adolescenteId");
   const limite = Number(searchParams.get("limite") ?? 3);
+  const casaId = searchParams.get("casaId") ?? undefined;
+  const diagnostico = searchParams.get("diagnostico") === "1";
 
   if (!adolescenteId) {
     return NextResponse.json(
@@ -20,7 +25,18 @@ export async function GET(request: NextRequest) {
       limite: Number.isFinite(limite) && limite > 0 ? limite : 3,
     });
 
-    return NextResponse.json(resultado);
+    const diagnosticoCasa =
+      diagnostico && casaId
+        ? await gerarDiagnosticoCasaParaAlocacao({
+            adolescenteId,
+            casaId,
+          })
+        : null;
+
+    return NextResponse.json({
+      ...resultado,
+      diagnostico: diagnosticoCasa,
+    });
   } catch (error) {
     console.error("Erro ao gerar sugestoes de alocacao:", error);
     return NextResponse.json(
@@ -56,7 +72,20 @@ export async function POST(request: NextRequest) {
           : 3,
     });
 
-    return NextResponse.json(resultado);
+    const diagnosticoCasa =
+      body?.diagnostico && body?.casaId
+        ? await gerarDiagnosticoCasaParaAlocacao({
+            adolescenteId: body.adolescenteId ?? undefined,
+            bairroId: body.bairroId ?? null,
+            faccaoId: body.faccaoId ?? null,
+            casaId: body.casaId,
+          })
+        : null;
+
+    return NextResponse.json({
+      ...resultado,
+      diagnostico: diagnosticoCasa,
+    });
   } catch (error) {
     console.error("Erro ao gerar sugestoes de alocacao:", error);
     return NextResponse.json(
