@@ -119,6 +119,12 @@ const updateAdolescenteSchema = z.object({
   alertaSaudeDetalhes: z.string().optional().nullable(),
   alojamentoAtualId: z.string().uuid().optional().nullable(),
   faseInternacaoAtualId: z.string().uuid().optional().nullable(),
+  tatuagens: z.array(z.object({
+    catalogoId: z.string().uuid(),
+    localCorpo: z.string().optional().nullable(),
+    observacoes: z.string().optional().nullable(),
+    significadoPessoal: z.string().optional().nullable(),
+  })).optional(),
   historicoInfracional: historicoRegistroSchema,
   tecnicosReferenciaIds: z.array(z.string().uuid()).optional(),
   alertasEspeciais: z.array(alertaEspecialSchema).optional(),
@@ -970,6 +976,10 @@ export async function PUT(
       camposAlterados.push("historicoInfracional");
     }
 
+    if (validated.tatuagens !== undefined) {
+      camposAlterados.push("tatuagens");
+    }
+
     if (camposAlterados.length === 0) {
       return NextResponse.json(
         { mensagem: "Nenhuma alteracao aplicada" },
@@ -996,6 +1006,27 @@ export async function PUT(
         where: { id },
         data,
       });
+
+      if (validated.tatuagens !== undefined) {
+        await tx.adolescenteTatuagem.deleteMany({
+          where: { adolescenteId: id },
+        });
+        if (validated.tatuagens.length > 0) {
+          await tx.adolescenteTatuagem.createMany({
+            data: validated.tatuagens.map((tat) => ({
+              adolescenteId: id,
+              tatuagemCatalogoId: tat.catalogoId,
+              localCorpo:
+                sanitizeNullableString(tat.localCorpo ?? undefined) ?? null,
+              observacoes:
+                sanitizeNullableString(tat.observacoes ?? undefined) ?? null,
+              significadoPessoal:
+                sanitizeNullableString(tat.significadoPessoal ?? undefined) ??
+                null,
+            })),
+          });
+        }
+      }
 
       if (mudouFaccao) {
         // Inativar vínculo atual

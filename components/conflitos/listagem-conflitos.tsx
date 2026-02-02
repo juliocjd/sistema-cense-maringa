@@ -397,6 +397,17 @@ export function ListagemConflitos({
               : participantes.filter(
                   (p) => (p.statusUnidade ?? "").toUpperCase() === "ATIVO"
                 );
+            const ladosConflito = participantesVisiveis.reduce(
+              (acc, participante) => {
+                const lado = participante.lado === "Lado 2" ? "Lado 2" : "Lado 1";
+                acc[lado].push(participante);
+                return acc;
+              },
+              {
+                "Lado 1": [] as Participante[],
+                "Lado 2": [] as Participante[],
+              }
+            );
             const primeiro = participantesVisiveis[0];
             const demais = participantesVisiveis.slice(1);
             const semParticipantes = participantesVisiveis.length === 0;
@@ -467,48 +478,96 @@ export function ListagemConflitos({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                    {participantesVisiveis.map((participante) => (
-                      <div key={participante.id} className="bg-gray-50 rounded-lg p-3">
-                        <div className="flex items-center justify-between mb-1">
-                          <p className="text-xs text-gray-600">Participante</p>
-                          {participante.lado && (
-                            <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold uppercase text-red-700 tracking-wide">
-                              {participante.lado}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-3">
-                          {participante.fotoUrl ? (
-                            <div className="shrink-0">
-                              <div className="h-9 w-9 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-sm font-semibold">
-                                <img
-                                  src={participante.fotoUrl}
-                                  alt={participante.nome}
-                                  className="h-full w-full object-cover"
-                                />
-                              </div>
-                            </div>
-                          ) : (
-                            <div
-                              title="Sem foto cadastrada"
-                              className="h-9 w-9 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-sm font-semibold shrink-0"
-                            >
-                              {participante.nome?.trim().charAt(0) ?? "?"}
-                            </div>
-                          )}
-                          <div>
-                            <p className="font-semibold text-gray-800">{participante.nome}</p>
-                            <p className="text-sm text-gray-600">
-                              SMS: {participante.numeroSms}
-                              {participante.alojamento && (
-                                <> - {participante.alojamento}</>
-                              )}
-                            </p>
-                          </div>
-                        </div>
+                <div className="grid gap-4 md:grid-cols-2 mb-4">
+                  {([
+                    { titulo: "Lado 1", lista: ladosConflito["Lado 1"] },
+                    { titulo: "Lado 2", lista: ladosConflito["Lado 2"] },
+                  ] as const).map(({ titulo, lista }) => (
+                    <div
+                      key={titulo}
+                      className="rounded-2xl border border-indigo-100 bg-indigo-50/70 p-3"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-sm font-semibold text-gray-800">
+                          {titulo}
+                        </p>
+                        <span className="text-[11px] font-semibold text-gray-500">
+                          {lista.length} participante(s)
+                        </span>
                       </div>
-                    ))}
+                      {lista.length === 0 ? (
+                        <p className="text-xs text-gray-500">
+                          Nenhum adolescente neste lado.
+                        </p>
+                      ) : (
+                        <div className="space-y-2">
+                          {lista.map((participante) => {
+                            const statusNormalizado =
+                              participante.statusUnidade?.toUpperCase() ?? "ATIVO";
+                            const inativo = statusNormalizado !== "ATIVO";
+                            const statusLabel =
+                              statusNormalizado === "TRANSFERIDO"
+                                ? "Transferido"
+                                : statusNormalizado === "LIBERADO"
+                                ? "Liberado"
+                                : statusNormalizado === "EVADIDO"
+                                ? "Evadido"
+                                : statusNormalizado === "ATIVO"
+                                ? "Ativo"
+                                : statusNormalizado;
+                            return (
+                              <Link
+                                key={participante.id}
+                                href={`/adolescentes/${participante.id}`}
+                                className={`block rounded-lg border px-3 py-2 text-sm hover:bg-indigo-100 ${
+                                  inativo
+                                    ? "border-slate-200 bg-slate-50"
+                                    : "border-indigo-200 bg-white"
+                                }`}
+                              >
+                                <div className="flex items-center gap-3">
+                                  {participante.fotoUrl ? (
+                                    <div className="h-8 w-8 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-xs font-semibold shrink-0">
+                                      <img
+                                        src={participante.fotoUrl}
+                                        alt={participante.nome}
+                                        className="h-full w-full object-cover"
+                                      />
+                                    </div>
+                                  ) : (
+                                    <div
+                                      title="Sem foto cadastrada"
+                                      className="h-8 w-8 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-xs font-semibold shrink-0"
+                                    >
+                                      {participante.nome?.trim().charAt(0) ?? "?"}
+                                    </div>
+                                  )}
+                                  <div className="flex-1">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <p className="font-semibold text-gray-800">
+                                        {participante.nome}
+                                      </p>
+                                      {inativo && (
+                                        <span className="text-[11px] font-semibold text-slate-500">
+                                          Status: {statusLabel}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="text-xs text-gray-500">
+                                      SMS: {participante.numeroSms}
+                                      {participante.alojamento && (
+                                        <> - {participante.alojamento}</>
+                                      )}
+                                    </p>
+                                  </div>
+                                </div>
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
 
                 <div className="flex items-center justify-between text-sm flex-wrap gap-2">

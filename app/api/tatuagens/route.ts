@@ -24,7 +24,7 @@ const createSchema = z.object({
     .enum(allowedNiveis)
     .optional()
     .nullable(),
-  localizacao: z.string().max(60).optional().nullable(),
+  faccoesAssociadas: z.array(z.string().uuid()).optional(),
 });
 
 const ensureString = (value: unknown): string => {
@@ -35,6 +35,13 @@ const ensureString = (value: unknown): string => {
 
 const getIp = (req: NextRequest) =>
   req.headers.get("x-forwarded-for") ?? "unknown";
+
+const runTransaction = async <T>(fn: (tx: typeof prisma) => Promise<T>) => {
+  if (typeof (prisma as any).$transaction === "function") {
+    return (prisma as any).$transaction(fn);
+  }
+  return fn(prisma);
+};
 
 export async function GET(request: NextRequest) {
   try {
@@ -69,13 +76,22 @@ export async function GET(request: NextRequest) {
 
     const tatuagens = await prisma.tatuagemCatalogo.findMany({
       where,
-        select: {
-          id: true,
-          nomeSimbolo: true,
-          significadoAssociado: true,
-          nivelRisco: true,
-          localizacao: true,
-          _count: incluirTotal
+      select: {
+        id: true,
+        nomeSimbolo: true,
+        significadoAssociado: true,
+        nivelRisco: true,
+        faccoesAssociadas: {
+          include: {
+            faccao: {
+              select: {
+                id: true,
+                nomeFaccao: true,
+              },
+            },
+          },
+        },
+        _count: incluirTotal
           ? {
               select: { adolescentesTatuagens: true },
             }
@@ -91,10 +107,13 @@ export async function GET(request: NextRequest) {
         nomeSimbolo: tatuagem.nomeSimbolo,
         significadoAssociado: tatuagem.significadoAssociado,
         nivelRisco: tatuagem.nivelRisco,
-        localizacao: tatuagem.localizacao,
         totalUso: incluirTotal
           ? tatuagem._count?.adolescentesTatuagens ?? 0
           : undefined,
+        faccoesAssociadas: (tatuagem.faccoesAssociadas ?? []).map((item) => ({
+          id: item.faccao.id,
+          nomeFaccao: item.faccao.nomeFaccao,
+        })),
       })),
     });
   } catch (error) {
@@ -151,7 +170,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { nomeSimbolo, significadoAssociado, nivelRisco, localizacao } =
+    const {
+      nomeSimbolo,
+      significadoAssociado,
+      nivelRisco,
+      faccoesAssociadas,
+    } =
       parsedBody.data;
 
     const existente = await prisma.tatuagemCatalogo.findUnique({
@@ -166,13 +190,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const tatuagem = await prisma.tatuagemCatalogo.create({
-      data: {
-        nomeSimbolo,
-        significadoAssociado: significadoAssociado ?? null,
-        nivelRisco: nivelRisco ?? null,
-        localizacao: localizacao ?? null,
-      },
+    const faccoesIds = Array.isArray(faccoesAssociadas)
+      ? Array.from(new Set(faccoesAssociadas))
+      : [];
+
+    const tatuagem = await runTransaction(async (tx) => {
+      const criada = await tx.tatuagemCatalogo.create({
+        data: {
+          nomeSimbolo,
+          significadoAssociado: significadoAssociado ?? null,
+          nivelRisco: nivelRisco ?? null,
+        },
+      });
+
+      if (faccoesIds.length > 0) {
+        await tx.tatuagemCatalogoFaccao.createMany({
+          data: faccoesIds.map((faccaoId) => ({
+            tatuagemCatalogoId: criada.id,
+            faccaoId,
+          })),
+          skipDuplicates: true,
+        });
+      }
+
+      return criada;
     });
 
     await prisma.logAuditoria.create({
@@ -184,6 +225,7 @@ export async function POST(request: NextRequest) {
         detalhesAlteracao: {
           nomeSimbolo: tatuagem.nomeSimbolo,
           nivelRisco: tatuagem.nivelRisco,
+          faccoesAssociadas: faccoesIds,
         },
         ipOrigem: getIp(request),
       },

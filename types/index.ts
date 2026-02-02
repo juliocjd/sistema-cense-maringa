@@ -167,6 +167,10 @@ export interface TatuagemCatalogo {
   significadoAssociado?: string | null;
   nivelRisco?: string | null;
   totalUso?: number;
+  faccoesAssociadas?: Array<{
+    id: string;
+    nomeFaccao: string;
+  }>;
 }
 
 export interface AdolescenteHistoricoInfracionalItem {

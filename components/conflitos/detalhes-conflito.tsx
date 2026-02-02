@@ -350,8 +350,10 @@ export function DetalhesConflito({
                 {oc.ci?.resumo && (
                   <p className="text-sm text-gray-800 font-medium">{oc.ci.resumo}</p>
                 )}
-                {oc.descricao && (
-                  <p className="text-sm text-gray-600 whitespace-pre-line">{oc.descricao}</p>
+                {oc.descricao && !oc.ci?.resumo && (
+                  <p className="text-sm text-gray-600 whitespace-pre-line">
+                    {oc.descricao}
+                  </p>
                 )}
               </div>
             ))}

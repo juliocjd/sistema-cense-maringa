@@ -438,6 +438,24 @@ export async function GET(
       ];
     }
 
+    // Remover duplicidade de CI quando o conflito tem múltiplos pares no grupo
+    if (ocorrenciasLista.length > 1) {
+      const mapa = new Map<string, (typeof ocorrenciasLista)[number]>();
+      ocorrenciasLista.forEach((oc) => {
+        const chave = oc.ci?.id ? `ci:${oc.ci.id}` : `oc:${oc.id}`;
+        const existente = mapa.get(chave);
+        if (
+          !existente ||
+          new Date(oc.criadoEm).getTime() > new Date(existente.criadoEm).getTime()
+        ) {
+          mapa.set(chave, oc);
+        }
+      });
+      ocorrenciasLista = Array.from(mapa.values()).sort(
+        (a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime()
+      );
+    }
+
     const totalOcorrenciasVisiveis = ocorrenciasLista.length;
 
     const ultimaOcorrenciaEm =

@@ -13,7 +13,10 @@ interface Tatuagem {
   significadoAssociado: string | null;
   nivelRisco: NivelRisco;
   totalUso?: number;
-  localizacao?: string | null;
+  faccoesAssociadas?: Array<{
+    id: string;
+    nomeFaccao: string;
+  }>;
 }
 
 interface TatuagemResponse {
@@ -200,9 +203,6 @@ export default function TatuagensPage() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
                       Nível de Risco
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
-                      Localização
-                    </th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-slate-700 uppercase tracking-wider">
                       Ações
                     </th>
@@ -232,13 +232,6 @@ export default function TatuagensPage() {
                           {getNivelRiscoLabel(tatuagem.nivelRisco)}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm text-slate-600">
-                        {tatuagem.localizacao || (
-                          <span className="italic text-slate-400">Não informado</span>
-                        )}
-                      </span>
-                    </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right">
                         <div className="flex items-center justify-end gap-2">
                           <button
@@ -292,3 +285,4 @@ export default function TatuagensPage() {
     </div>
   );
 }
+

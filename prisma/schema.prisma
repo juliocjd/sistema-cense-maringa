@@ -168,6 +168,7 @@ model Faccao {
   declaracoes      AdolescenteFaccaoHistorico[] @relation("DeclaracaoFaccao")
   conflitosFaccaoA FaccaoConflito[] @relation("FaccaoA")
   conflitosFaccaoB FaccaoConflito[] @relation("FaccaoB")
+  tatuagensAssociadas TatuagemCatalogoFaccao[]
 
   @@map("faccoes")
 }
@@ -247,10 +248,21 @@ model TatuagemCatalogo {
   nomeSimbolo           String                @unique @map("nome_simbolo")
   significadoAssociado  String?               @map("significado_associado")
   nivelRisco            String?               @map("nivel_risco")
-  localizacao           String?               @map("localizacao") @db.VarChar(60)
   adolescentesTatuagens AdolescenteTatuagem[]
+  faccoesAssociadas     TatuagemCatalogoFaccao[]
 
   @@map("tatuagens_catalogo")
+}
+
+model TatuagemCatalogoFaccao {
+  id                 String           @id @default(uuid())
+  tatuagemCatalogoId String           @map("tatuagem_catalogo_id")
+  faccaoId           String           @map("faccao_id")
+  tatuagemCatalogo   TatuagemCatalogo @relation(fields: [tatuagemCatalogoId], references: [id], onDelete: Cascade)
+  faccao             Faccao           @relation(fields: [faccaoId], references: [id], onDelete: Cascade)
+
+  @@unique([tatuagemCatalogoId, faccaoId])
+  @@map("tatuagens_catalogo_faccoes")
 }
 
 model FaseInternacao {

@@ -111,9 +111,9 @@ const createAdolescenteSchema = z.object({
   faseInternacaoAtualId: z.string().uuid().optional().nullable(),
   tatuagens: z.array(z.object({
     catalogoId: z.string().uuid(),
-    localCorpo: z.string().min(1),
-    observacoes: z.string().optional(),
-    significadoPessoal: z.string().optional(),
+    localCorpo: z.string().optional().nullable(),
+    observacoes: z.string().optional().nullable(),
+    significadoPessoal: z.string().optional().nullable(),
   })).optional().default([]),
   historicoInfracional: historicoRegistroSchema,
   tecnicosReferenciaIds: z.array(z.string().uuid()).optional().default([]),
@@ -633,9 +633,10 @@ export async function POST(request: NextRequest) {
           data: validated.tatuagens.map((tat) => ({
             adolescenteId: base.id,
             tatuagemCatalogoId: tat.catalogoId,
-            localCorpo: tat.localCorpo,
-            observacoes: tat.observacoes || null,
-            significadoPessoal: tat.significadoPessoal || null,
+            localCorpo: sanitizeNullableString(tat.localCorpo ?? undefined) ?? null,
+            observacoes: sanitizeNullableString(tat.observacoes ?? undefined) ?? null,
+            significadoPessoal:
+              sanitizeNullableString(tat.significadoPessoal ?? undefined) ?? null,
           })),
         });
       }

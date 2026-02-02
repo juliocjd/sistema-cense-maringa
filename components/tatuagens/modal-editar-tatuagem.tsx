@@ -10,7 +10,10 @@ interface Tatuagem {
   nomeSimbolo: string;
   significadoAssociado: string | null;
   nivelRisco: NivelRisco;
-  localizacao?: string | null;
+  faccoesAssociadas?: Array<{
+    id: string;
+    nomeFaccao: string;
+  }>;
 }
 
 interface ModalEditarTatuagemProps {
@@ -19,6 +22,11 @@ interface ModalEditarTatuagemProps {
   onClose: () => void;
   onSuccess: () => void;
 }
+
+type FaccaoItem = {
+  id: string;
+  nomeFaccao: string;
+};
 
 export default function ModalEditarTatuagem({
   isOpen,
@@ -29,7 +37,8 @@ export default function ModalEditarTatuagem({
   const [nomeSimbolo, setNomeSimbolo] = useState("");
   const [significadoAssociado, setSignificadoAssociado] = useState("");
   const [nivelRisco, setNivelRisco] = useState<NivelRisco>(null);
-  const [localizacao, setLocalizacao] = useState("");
+  const [faccoesDisponiveis, setFaccoesDisponiveis] = useState<FaccaoItem[]>([]);
+  const [faccoesSelecionadas, setFaccoesSelecionadas] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -38,10 +47,32 @@ export default function ModalEditarTatuagem({
       setNomeSimbolo(tatuagem.nomeSimbolo);
       setSignificadoAssociado(tatuagem.significadoAssociado || "");
       setNivelRisco(tatuagem.nivelRisco);
-      setLocalizacao(tatuagem.localizacao || "");
-      setLocalizacao(tatuagem.localizacao || "");
+      setFaccoesSelecionadas(
+        Array.isArray(tatuagem.faccoesAssociadas)
+          ? tatuagem.faccoesAssociadas.map((item) => item.id)
+          : []
+      );
     }
   }, [tatuagem]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const carregarFaccoes = async () => {
+      try {
+        const response = await fetch("/api/faccoes");
+        if (!response.ok) {
+          return;
+        }
+        const data = await response.json();
+        setFaccoesDisponiveis(
+          Array.isArray(data?.faccoes) ? data.faccoes : []
+        );
+      } catch {
+        setFaccoesDisponiveis([]);
+      }
+    };
+    carregarFaccoes();
+  }, [isOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,7 +95,7 @@ export default function ModalEditarTatuagem({
           nomeSimbolo: nomeSimbolo.trim(),
           significadoAssociado: significadoAssociado.trim() || null,
           nivelRisco: nivelRisco || null,
-          localizacao: localizacao.trim() || null,
+          faccoesAssociadas: faccoesSelecionadas,
         }),
       });
 
@@ -86,7 +117,7 @@ export default function ModalEditarTatuagem({
   const handleClose = () => {
     if (!loading) {
       setErro(null);
-      setLocalizacao("");
+      setFaccoesSelecionadas([]);
       onClose();
     }
   };
@@ -238,24 +269,51 @@ export default function ModalEditarTatuagem({
               Classifique o nível de risco associado a esta tatuagem no contexto institucional
             </p>
           </div>
-
-          <div>
+                    <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">
-              Local onde se encontra
+              Facções possivelmente associadas
             </label>
-            <input
-              type="text"
-              value={localizacao}
-              onChange={(e) => setLocalizacao(e.target.value)}
-              placeholder="Ex: Braço direito, Costas, Peito..."
-              maxLength={60}
-              disabled={loading}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-slate-100 disabled:text-slate-500"
-            />
-            <p className="mt-1 text-xs text-slate-500">Máximo de 60 caracteres</p>
+            {faccoesDisponiveis.length === 0 ? (
+              <p className="text-sm text-slate-500">
+                Nenhuma facção cadastrada.
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {faccoesDisponiveis.map((faccao) => {
+                  const selecionada = faccoesSelecionadas.includes(faccao.id);
+                  return (
+                    <label
+                      key={faccao.id}
+                      className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm ${
+                        selecionada
+                          ? "border-indigo-300 bg-indigo-50"
+                          : "border-slate-200 bg-white"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selecionada}
+                        onChange={() => {
+                          setFaccoesSelecionadas((prev) =>
+                            prev.includes(faccao.id)
+                              ? prev.filter((id) => id !== faccao.id)
+                              : [...prev, faccao.id]
+                          );
+                        }}
+                        className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <span className="text-slate-700">{faccao.nomeFaccao}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+            <p className="mt-2 text-xs text-slate-500">
+              Associações servem apenas como alerta informativo no cadastro do
+              adolescente.
+            </p>
           </div>
-
-          {/* Ações */}
+{/* Ações */}
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200">
             <button
               type="button"
@@ -281,3 +339,5 @@ export default function ModalEditarTatuagem({
     </div>
   );
 }
+
+

@@ -14,7 +14,7 @@ const updateSchema = z
     nomeSimbolo: z.string().min(2).optional(),
     significadoAssociado: z.string().max(1000).optional().nullable(),
     nivelRisco: z.enum(allowedNiveis).optional().nullable(),
-    localizacao: z.string().max(60).optional().nullable(),
+    faccoesAssociadas: z.array(z.string().uuid()).optional(),
   })
   .refine(
     (value) => Object.keys(value).length > 0,
@@ -29,6 +29,13 @@ const ensureString = (value: unknown): string => {
 
 const getIp = (req: NextRequest) =>
   req.headers.get("x-forwarded-for") ?? "unknown";
+
+const runTransaction = async <T>(fn: (tx: typeof prisma) => Promise<T>) => {
+  if (typeof (prisma as any).$transaction === "function") {
+    return (prisma as any).$transaction(fn);
+  }
+  return fn(prisma);
+};
 
 export async function GET(
   request: NextRequest,
@@ -49,6 +56,16 @@ export async function GET(
     const tatuagem = await prisma.tatuagemCatalogo.findUnique({
       where: { id: parsedParams.data.id },
       include: {
+        faccoesAssociadas: {
+          include: {
+            faccao: {
+              select: {
+                id: true,
+                nomeFaccao: true,
+              },
+            },
+          },
+        },
         adolescentesTatuagens: incluirAdolescentes
           ? {
               include: {
@@ -115,8 +132,11 @@ export async function GET(
       nomeSimbolo: tatuagem.nomeSimbolo,
       significadoAssociado: tatuagem.significadoAssociado,
       nivelRisco: tatuagem.nivelRisco,
-      localizacao: tatuagem.localizacao,
       totalUso: tatuagem._count?.adolescentesTatuagens ?? usos.length,
+      faccoesAssociadas: (tatuagem.faccoesAssociadas ?? []).map((item) => ({
+        id: item.faccao.id,
+        nomeFaccao: item.faccao.nomeFaccao,
+      })),
       adolescentes:
         incluirAdolescentes
           ? usos.map((uso) => ({
@@ -235,25 +255,45 @@ export async function PUT(
       }
     }
 
-    const tatuagemAtualizada = await prisma.tatuagemCatalogo.update({
-      where: { id: tatuagemId },
-      data: {
-        ...(parsedBody.data.nomeSimbolo
-          ? { nomeSimbolo: parsedBody.data.nomeSimbolo }
-          : {}),
-        ...(parsedBody.data.significadoAssociado !== undefined
-          ? {
-              significadoAssociado:
-                parsedBody.data.significadoAssociado ?? null,
-            }
-          : {}),
-        ...(parsedBody.data.nivelRisco !== undefined
-          ? { nivelRisco: parsedBody.data.nivelRisco ?? null }
-          : {}),
-        ...(parsedBody.data.localizacao !== undefined
-          ? { localizacao: parsedBody.data.localizacao ?? null }
-          : {}),
-      },
+    const faccoesIds = Array.isArray(parsedBody.data.faccoesAssociadas)
+      ? Array.from(new Set(parsedBody.data.faccoesAssociadas))
+      : null;
+
+    const tatuagemAtualizada = await runTransaction(async (tx) => {
+      const atualizada = await tx.tatuagemCatalogo.update({
+        where: { id: tatuagemId },
+        data: {
+          ...(parsedBody.data.nomeSimbolo
+            ? { nomeSimbolo: parsedBody.data.nomeSimbolo }
+            : {}),
+          ...(parsedBody.data.significadoAssociado !== undefined
+            ? {
+                significadoAssociado:
+                  parsedBody.data.significadoAssociado ?? null,
+              }
+            : {}),
+          ...(parsedBody.data.nivelRisco !== undefined
+            ? { nivelRisco: parsedBody.data.nivelRisco ?? null }
+            : {}),
+        },
+      });
+
+      if (faccoesIds) {
+        await tx.tatuagemCatalogoFaccao.deleteMany({
+          where: { tatuagemCatalogoId: tatuagemId },
+        });
+        if (faccoesIds.length > 0) {
+          await tx.tatuagemCatalogoFaccao.createMany({
+            data: faccoesIds.map((faccaoId) => ({
+              tatuagemCatalogoId: tatuagemId,
+              faccaoId,
+            })),
+            skipDuplicates: true,
+          });
+        }
+      }
+
+      return atualizada;
     });
 
     await prisma.logAuditoria.create({
@@ -262,7 +302,10 @@ export async function PUT(
         acao: "TATUAGEM_ATUALIZAR",
         tabelaAfetada: "tatuagens_catalogo",
         registroIdAfetado: tatuagemAtualizada.id,
-        detalhesAlteracao: parsedBody.data,
+        detalhesAlteracao: {
+          ...parsedBody.data,
+          faccoesAssociadas: faccoesIds ?? undefined,
+        },
         ipOrigem: getIp(request),
       },
     });

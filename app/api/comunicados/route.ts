@@ -539,14 +539,11 @@ export async function POST(request: NextRequest) {
               adolescenteBId: true,
             },
           });
-
-          const grupoMap = new Map<string, string>();
-          conflitosAnteriores.forEach((c) => {
-            const chave = buildPairKey(c.adolescenteAId, c.adolescenteBId);
-            if (!grupoMap.has(chave)) {
-              grupoMap.set(chave, c.registroGrupoId ?? c.id);
-            }
-          });
+          const grupoBase =
+            conflitosAnteriores.length > 0
+              ? conflitosAnteriores[0].registroGrupoId ??
+                conflitosAnteriores[0].id
+              : ci.id;
 
           const agora = new Date();
 
@@ -556,7 +553,15 @@ export async function POST(request: NextRequest) {
 
             if (ativosMap.has(chave)) {
               const conflitoId = ativosMap.get(chave)!;
-            const ocorrencia = await tx.conflitoOcorrencia.create({
+              if (grupoBase) {
+                await tx.conflito.update({
+                  where: { id: conflitoId },
+                  data: {
+                    registroGrupoId: grupoBase,
+                  },
+                });
+              }
+              const ocorrencia = await tx.conflitoOcorrencia.create({
               data: {
                 conflitoId,
                 ciId: ci.id,
@@ -587,7 +592,6 @@ export async function POST(request: NextRequest) {
                 });
               }
             } else {
-              const registroGrupoId = grupoMap.get(chave) ?? undefined;
               const conflito = await tx.conflito.create({
                 data: {
                   adolescenteAId: aId,
@@ -596,7 +600,7 @@ export async function POST(request: NextRequest) {
                   status: "ATIVO",
                   ciOrigemId: ci.id,
                   descricao: null,
-                  registroGrupoId,
+                  registroGrupoId: grupoBase,
                   totalOcorrencias: 1,
                   ultimaOcorrenciaEm: agora,
                 },

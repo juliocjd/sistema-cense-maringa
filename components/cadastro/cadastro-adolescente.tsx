@@ -1835,6 +1835,35 @@ const selecionarAtoCatalogo = (ato: {
     [referencias.tatuagens]
   );
 
+  const alertasFaccaoPorTatuagem = useMemo(() => {
+    if (!Array.isArray(tatuagens) || tatuagens.length === 0) {
+      return [];
+    }
+    const catalogoMap = new Map(
+      referencias.tatuagens.map((item) => [item.id, item])
+    );
+    const vistos = new Set<string>();
+    const alertas: Array<{ tatuagem: string; faccao: string }> = [];
+
+    tatuagens.forEach((item) => {
+      const catalogo = item.catalogoId ? catalogoMap.get(item.catalogoId) : null;
+      if (!catalogo || !Array.isArray(catalogo.faccoesAssociadas)) {
+        return;
+      }
+      catalogo.faccoesAssociadas.forEach((faccao) => {
+        const chave = `${catalogo.id}-${faccao.id}`;
+        if (vistos.has(chave)) return;
+        vistos.add(chave);
+        alertas.push({
+          tatuagem: catalogo.nomeSimbolo,
+          faccao: faccao.nomeFaccao,
+        });
+      });
+    });
+
+    return alertas;
+  }, [tatuagens, referencias.tatuagens]);
+
   if (carregandoReferencias) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -3160,6 +3189,23 @@ const selecionarAtoCatalogo = (ato: {
                 <Users className="text-indigo-600" />
                 Vinculações
               </h2>
+
+              {alertasFaccaoPorTatuagem.length > 0 && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                  <p className="text-sm font-semibold text-amber-800">
+                    Possível vínculo faccional
+                  </p>
+                  <ul className="mt-2 space-y-1 text-sm text-amber-800">
+                    {alertasFaccaoPorTatuagem.map((item, index) => (
+                      <li key={`${item.tatuagem}-${item.faccao}-${index}`}>
+                        Possível vínculo faccional, já que o adolescente tem a
+                        tatuagem {item.tatuagem}, que normalmente é vinculada à
+                        facção {item.faccao}.
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {!faccaoSomenteHistorico && (
