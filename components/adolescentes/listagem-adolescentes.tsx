@@ -3,31 +3,21 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  Activity,
-  AlertTriangle,
   ChevronLeft,
   ChevronRight,
   Download,
   Edit,
   Eye,
   Filter,
-  Lock,
   MapPin,
   Search,
   UserPlus,
-  Flame,
 } from "lucide-react";
 import type { Adolescente } from "@/types";
 import { useAuth } from "@/hooks/useAuth";
 import { hasPermission, PERMISSIONS } from "@/lib/auth/permissions";
 
 type StatusFiltro = "TODOS" | "ATIVO" | "TRANSFERIDO" | "LIBERADO" | "EVADIDO";
-type AlertaFiltro =
-  | "TODOS"
-  | "RISCO_SUICIDIO"
-  | "PERFIL_MAPEADO"
-  | "SAUDE"
-  | "COM_ALERTAS";
 
 const STATUS_OPTIONS: Array<{ label: string; value: StatusFiltro }> = [
   { label: "Todos", value: "TODOS" },
@@ -35,14 +25,6 @@ const STATUS_OPTIONS: Array<{ label: string; value: StatusFiltro }> = [
   { label: "Transferido", value: "TRANSFERIDO" },
   { label: "Liberado", value: "LIBERADO" },
   { label: "Evadido", value: "EVADIDO" },
-];
-
-const ALERTA_OPTIONS: Array<{ label: string; value: AlertaFiltro }> = [
-  { label: "Todos", value: "TODOS" },
-  { label: "Risco suicidio", value: "RISCO_SUICIDIO" },
-  { label: "Perfil mapeado", value: "PERFIL_MAPEADO" },
-  { label: "Saude confidencial", value: "SAUDE" },
-  { label: "Qualquer alerta ativo", value: "COM_ALERTAS" },
 ];
 
 const ITENS_POR_PAGINA = 10;
@@ -74,26 +56,6 @@ const STATUS_BADGES: Record<
   },
 };
 
-const temAlertas = (adolescente: Adolescente) =>
-  adolescente.alertaRiscoSuicidio ||
-  adolescente.alertaPerfilMapeado ||
-  adolescente.alertaSaudeConfidencial;
-
-const aplicaFiltroAlertas = (aluno: Adolescente, filtro: AlertaFiltro) => {
-  switch (filtro) {
-    case "RISCO_SUICIDIO":
-      return aluno.alertaRiscoSuicidio;
-    case "PERFIL_MAPEADO":
-      return aluno.alertaPerfilMapeado;
-    case "SAUDE":
-      return aluno.alertaSaudeConfidencial;
-    case "COM_ALERTAS":
-      return temAlertas(aluno);
-    default:
-      return true;
-  }
-};
-
 const normalizaTexto = (valor?: string | null) =>
   typeof valor === "string"
     ? valor
@@ -119,50 +81,6 @@ const getStatusBadge = (status: StatusFiltro) => {
     >
       {badge.texto}
     </span>
-  );
-};
-
-const renderAlertas = (adolescente: Adolescente) => {
-  if (!temAlertas(adolescente)) {
-    return (
-      <span className="inline-flex items-center gap-2 text-sm text-gray-500">
-        Nenhum alerta ativo
-      </span>
-    );
-  }
-
-  return (
-    <div className="flex flex-wrap gap-2">
-      {adolescente.atoInfracionalGravidade && (
-        <span
-          title={
-            adolescente.atoInfracionalGravidadeObs ?? "Gravidade do ato infracional atual"
-          }
-          className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-amber-100 text-amber-700 text-xs font-semibold"
-        >
-          <Flame size={14} />
-          Gravidade do ato
-        </span>
-      )}
-      {adolescente.alertaRiscoSuicidio && (
-        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-orange-100 text-orange-700 text-xs font-semibold">
-          <AlertTriangle size={14} />
-          Risco suicidio
-        </span>
-      )}
-      {adolescente.alertaPerfilMapeado && (
-        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-purple-100 text-purple-700 text-xs font-semibold">
-          <Lock size={14} />
-          Perfil mapeado
-        </span>
-      )}
-      {adolescente.alertaSaudeConfidencial && (
-        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-rose-100 text-rose-700 text-xs font-semibold">
-          <Activity size={14} />
-          Saude confidencial
-        </span>
-      )}
-    </div>
   );
 };
 
@@ -211,7 +129,7 @@ export function ListagemAdolescentes() {
       setCarregando(true);
       setErroCarregamento(null);
       const resposta = await fetch(
-        `/api/adolescentes?limit=${API_LIST_LIMIT}`,
+        `/api/adolescentes?limit=${API_LIST_LIMIT}&modo=lista`,
         { cache: "no-store" }
       );
       if (!resposta.ok) {
@@ -238,8 +156,6 @@ export function ListagemAdolescentes() {
   const [busca, setBusca] = useState("");
   const [filtroStatus, setFiltroStatus] =
     useState<StatusFiltro>("ATIVO");
-  const [filtroAlertas, setFiltroAlertas] =
-    useState<AlertaFiltro>("TODOS");
   const [paginaAtual, setPaginaAtual] = useState(1);
   const [mostrarFiltrosAvancados, setMostrarFiltrosAvancados] =
     useState(false);
@@ -261,8 +177,6 @@ export function ListagemAdolescentes() {
         termo.length === 0 ||
         normalizaTexto(adolescente.nomeCompleto).includes(termo) ||
         normalizaTexto(adolescente.nomeSocial).includes(termo) ||
-        (adolescente.numeroSms ?? "").includes(busca.trim()) ||
-        normalizaTexto(adolescente.numeroProcesso).includes(termo) ||
         (!Number.isNaN(numeroBusca) &&
           adolescente.numeroInterno === numeroBusca);
 
@@ -270,14 +184,9 @@ export function ListagemAdolescentes() {
         statusEfetivo === "TODOS" ||
         adolescente.statusUnidade === statusEfetivo;
 
-      const matchAlertas = aplicaFiltroAlertas(
-        adolescente,
-        filtroAlertas
-      );
-
-      return matchBusca && matchStatus && matchAlertas;
+      return matchBusca && matchStatus;
     });
-  }, [adolescentes, busca, filtroStatus, filtroAlertas]);
+  }, [adolescentes, busca, filtroStatus]);
 
   const totalPaginas = Math.max(
     1,
@@ -321,7 +230,6 @@ export function ListagemAdolescentes() {
 
   const limparFiltros = () => {
     setBusca("");
-    setFiltroAlertas("TODOS");
     setMostrarFiltrosAvancados(false);
     setMostrarTodosStatus(false);
     setFiltroStatus("ATIVO");
@@ -487,30 +395,6 @@ export function ListagemAdolescentes() {
                 </p>
               )}
             </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Alertas ativos
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                {ALERTA_OPTIONS.map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => {
-                      setFiltroAlertas(option.value);
-                      setPaginaAtual(1);
-                    }}
-                    className={`px-3 py-2 rounded-lg border text-sm font-semibold transition-colors ${
-                      filtroAlertas === option.value
-                        ? "border-indigo-500 bg-indigo-50 text-indigo-700"
-                        : "border-gray-300 text-gray-600 hover:border-indigo-300 hover:text-indigo-600"
-                    }`}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </div>
           </div>
         )}
       </section>
@@ -524,16 +408,10 @@ export function ListagemAdolescentes() {
                   Adolescente
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Contatos
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                   Alojamento
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                   Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Alertas
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
                   Acoes
@@ -544,7 +422,7 @@ export function ListagemAdolescentes() {
               {paginados.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={4}
                     className="px-6 py-12 text-center text-gray-500"
                   >
                     Nenhum adolescente encontrado com os filtros atuais.
@@ -613,29 +491,12 @@ export function ListagemAdolescentes() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      <div className="space-y-1">
-                        <span className="block">
-                          <span className="font-semibold text-gray-500">
-                            SMS:
-                          </span>{" "}
-                          {adolescente.numeroSms || "-"}
-                        </span>
-                        <span className="block">
-                          <span className="font-semibold text-gray-500">
-                            Processo:
-                          </span>{" "}
-                          {adolescente.numeroProcesso || "-"}
-                        </span>
-                      </div>
-                    </td>
                     <td className="px-6 py-4">{renderAlojamento(adolescente)}</td>
                     <td className="px-6 py-4">
                       {getStatusBadge(
                         (adolescente.statusUnidade as StatusFiltro) ?? "ATIVO"
                       )}
                     </td>
-                    <td className="px-6 py-4">{renderAlertas(adolescente)}</td>
                     <td className="px-6 py-4">
                       <div className="flex justify-end gap-2">
                         <Link

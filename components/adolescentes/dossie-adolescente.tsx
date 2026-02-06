@@ -46,12 +46,12 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
       setHistoricoErro(null);
       try {
         const response = await fetch(
-          `/api/adolescentes/${adolescente.id}/historico-movimentacao?take=50`
+          `/api/adolescentes/${adolescente.id}/historico-movimentacao?take=50`,
         );
         const payload = await response.json();
         if (!response.ok) {
           throw new Error(
-            payload?.erro || "Erro ao carregar histórico de movimentação."
+            payload?.erro || "Erro ao carregar histórico de movimentação.",
           );
         }
         if (!ativo) {
@@ -65,7 +65,7 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
         setHistoricoErro(
           error instanceof Error
             ? error.message
-            : "Erro ao carregar histórico."
+            : "Erro ao carregar histórico.",
         );
         setHistoricoMovimentacao([]);
       } finally {
@@ -83,7 +83,12 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
 
   const abas = [
     { id: "geral", label: "Informações Gerais", icone: User },
-    { id: "alocacao", label: "Alocação Atual", icone: MapPin, habilitada: podeVerAlocacao },
+    {
+      id: "alocacao",
+      label: "Alocação Atual",
+      icone: MapPin,
+      habilitada: podeVerAlocacao,
+    },
     { id: "infracional", label: "Histórico Infracional", icone: FileText },
     { id: "alertas", label: "Alertas", icone: AlertTriangle },
     { id: "tatuagens", label: "Tatuagens", icone: Camera },
@@ -128,7 +133,9 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
   };
 
   const faccaoHistoricoAtual =
-    adolescente.faccaoHistorico?.find((item) => item.statusRegistro === "ATIVA") ??
+    adolescente.faccaoHistorico?.find(
+      (item) => item.statusRegistro === "ATIVA",
+    ) ??
     adolescente.faccaoHistorico?.[0] ??
     null;
   const faccaoNomeAtual =
@@ -167,7 +174,7 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
   };
 
   const obterDescricaoCasa = (
-    alojamento: AdolescenteAlojamentoResumo | null
+    alojamento: AdolescenteAlojamentoResumo | null,
   ) => {
     const casa = alojamento?.casa;
     if (!casa) {
@@ -193,7 +200,10 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
 
   const formatarLocalizacaoHistorico = (
     casa?: { nome?: string | null; numero?: number | string | null } | null,
-    alojamento?: { numeroAlojamento?: string | null; ala?: string | null } | null
+    alojamento?: {
+      numeroAlojamento?: string | null;
+      ala?: string | null;
+    } | null,
   ) => {
     const partes: string[] = [];
     if (casa) {
@@ -214,15 +224,15 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
   };
 
   const gerarDescricaoMovimentacao = (
-    registro: HistoricoMovimentacaoRegistro
+    registro: HistoricoMovimentacaoRegistro,
   ) => {
     const origem = formatarLocalizacaoHistorico(
       registro.origemCasa,
-      registro.origemAlojamento
+      registro.origemAlojamento,
     );
     const destino = formatarLocalizacaoHistorico(
       registro.destinoCasa,
-      registro.destinoAlojamento
+      registro.destinoAlojamento,
     );
 
     if (registro.origemCasa || registro.origemAlojamento) {
@@ -314,9 +324,9 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                   <p className="text-xs text-gray-500">
                     Desde{" "}
                     {adolescente.dataDesinternacao
-                      ? new Date(adolescente.dataDesinternacao).toLocaleDateString(
-                          "pt-BR"
-                        )
+                      ? new Date(
+                          adolescente.dataDesinternacao,
+                        ).toLocaleDateString("pt-BR")
                       : "-"}
                   </p>
                 )}
@@ -335,7 +345,7 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                 <p className="font-bold text-gray-800">
                   {adolescente.dataNascimento
                     ? new Date(adolescente.dataNascimento).toLocaleDateString(
-                        "pt-BR"
+                        "pt-BR",
                       )
                     : "-"}
                 </p>
@@ -345,7 +355,7 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                 <p className="font-bold text-gray-800">
                   {adolescente.dataEntrada
                     ? new Date(adolescente.dataEntrada).toLocaleDateString(
-                        "pt-BR"
+                        "pt-BR",
                       )
                     : "-"}
                 </p>
@@ -449,7 +459,7 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                       <span className="font-semibold text-gray-800">
                         {adolescente.dataNascimento
                           ? new Date(
-                              adolescente.dataNascimento
+                              adolescente.dataNascimento,
                             ).toLocaleDateString("pt-BR")
                           : "-"}
                       </span>
@@ -479,7 +489,7 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                       <span className="font-semibold text-gray-800">
                         {adolescente.dataEntrada
                           ? new Date(
-                              adolescente.dataEntrada
+                              adolescente.dataEntrada,
                             ).toLocaleDateString("pt-BR")
                           : "-"}
                       </span>
@@ -606,7 +616,7 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                         {obterDescricaoCasa(dadosAdicionais.alojamento)} -
                         Alojamento{" "}
                         {obterNumeroAlojamento(
-                          dadosAdicionais.alojamento.numero
+                          dadosAdicionais.alojamento.numero,
                         )}
                       </h3>
                       {dadosAdicionais.alojamento.ala && (
@@ -676,7 +686,11 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                             )}
                           </div>
                           <p className="text-sm text-gray-600">
-                            {item.comarca ?? item.unidadeInternacao ?? "-"} • {item.ano ?? "-"}{item.processo ? ` • Processo: ${item.processo}` : ""}
+                            {item.comarca ?? item.unidadeInternacao ?? "-"} •{" "}
+                            {item.ano ?? "-"}
+                            {item.processo
+                              ? ` • Processo: ${item.processo}`
+                              : ""}
                           </p>
                           {item.observacoes && (
                             <p className="text-xs text-gray-500 mt-2">
@@ -771,7 +785,7 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                               {alerta.criadoEm && (
                                 <span className="text-[10px] text-slate-500">
                                   {new Date(alerta.criadoEm).toLocaleDateString(
-                                    "pt-BR"
+                                    "pt-BR",
                                   )}
                                 </span>
                               )}
@@ -891,52 +905,55 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {dadosAdicionais.tatuagens.map(
                     (tatuagem: AdolescenteTatuagemResumo) => (
-                    <div
-                      key={tatuagem.id}
-                      className="bg-gray-50 rounded-lg p-4 border-2 border-gray-200"
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="bg-indigo-100 rounded-lg p-3">
-                          <Camera size={24} className="text-indigo-600" />
-                        </div>
-                        <div className="flex-1">
-                          <h4 className="font-bold text-gray-800 mb-1">
-                            {tatuagem.simbolo}
-                          </h4>
-                          <p className="text-sm text-gray-600 mb-2">
-                            <span className="font-semibold">Local:</span>{" "}
-                            {tatuagem.localCorpo || "Nao informado"}
-                          </p>
-                          <p className="text-sm text-gray-600 mb-2">
-                            <span className="font-semibold">Significado:</span>{" "}
-                            {tatuagem.significado || "Nao informado"}
-                          </p>
-                          <p className="text-sm text-gray-600 mb-2">
-                            <span className="font-semibold">
-                              Auto-declaração do Adolescente:
-                            </span>{" "}
-                            {tatuagem.significadoPessoal || "Nao informado"}
-                          </p>
-                          <p className="text-sm text-gray-600 mb-2">
-                            <span className="font-semibold">
-                              Vinculo com faccao:
-                            </span>{" "}
-                            {tatuagem.faccoesAssociadas &&
-                            tatuagem.faccoesAssociadas.length > 0
-                              ? tatuagem.faccoesAssociadas
-                                  .map((faccao) => faccao.nomeFaccao)
-                                  .join(", ")
-                              : "Nao informado"}
-                          </p>
-                          {tatuagem.observacoes && (
-                            <p className="text-xs text-gray-500 bg-gray-100 rounded p-2">
-                              {tatuagem.observacoes}
+                      <div
+                        key={tatuagem.id}
+                        className="bg-gray-50 rounded-lg p-4 border-2 border-gray-200"
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="bg-indigo-100 rounded-lg p-3">
+                            <Camera size={24} className="text-indigo-600" />
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="font-bold text-gray-800 mb-1">
+                              {tatuagem.simbolo}
+                            </h4>
+                            <p className="text-sm text-gray-600 mb-2">
+                              <span className="font-semibold">Local:</span>{" "}
+                              {tatuagem.localCorpo || "Nao informado"}
                             </p>
-                          )}
+                            <p className="text-sm text-gray-600 mb-2">
+                              <span className="font-semibold">
+                                Significado:
+                              </span>{" "}
+                              {tatuagem.significado || "Nao informado"}
+                            </p>
+                            <p className="text-sm text-gray-600 mb-2">
+                              <span className="font-semibold">
+                                Auto-declaração do Adolescente:
+                              </span>{" "}
+                              {tatuagem.significadoPessoal || "Nao informado"}
+                            </p>
+                            <p className="text-sm text-gray-600 mb-2">
+                              <span className="font-semibold">
+                                Vinculo com facção:
+                              </span>{" "}
+                              {tatuagem.faccoesAssociadas &&
+                              tatuagem.faccoesAssociadas.length > 0
+                                ? tatuagem.faccoesAssociadas
+                                    .map((faccao) => faccao.nomeFaccao)
+                                    .join(", ")
+                                : "Nao informado"}
+                            </p>
+                            {tatuagem.observacoes && (
+                              <p className="text-xs text-gray-500 bg-gray-100 rounded p-2">
+                                {tatuagem.observacoes}
+                              </p>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    ),
+                  )}
                 </div>
               ) : (
                 <div className="text-center py-12 text-gray-500">
@@ -969,7 +986,9 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-2">
                             <h4 className="font-bold text-gray-800">
-                              Conflito com {conflito.adversario?.nomeCompleto || "Não identificado"}
+                              Conflito com{" "}
+                              {conflito.adversario?.nomeCompleto ||
+                                "Não identificado"}
                             </h4>
                             <span
                               className={`px-2 py-1 rounded-full text-xs font-bold ${
@@ -978,59 +997,69 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                                   : "bg-green-200 text-green-800"
                               }`}
                             >
-                          {conflito.status}
-                        </span>
-                      </div>
-                      {conflito.tipoConflito && (
-                        <p className="text-sm text-gray-600 mb-1">
-                          <span className="font-semibold">Tipo:</span>{" "}
-                          {conflito.tipoConflito}
-                        </p>
-                      )}
-                      <p className="text-sm text-gray-600 mb-1">
-                        <span className="font-semibold">Ocorrências:</span>{" "}
-                        {conflito.totalOcorrencias ?? 0}
-                        {conflito.ultimaOcorrenciaEm && (
-                          <>
-                            {" "}
-                            · última em{" "}
-                            {new Date(conflito.ultimaOcorrenciaEm).toLocaleDateString("pt-BR")}
-                          </>
-                        )}
-                      </p>
-                      {conflito.ocorrencias && conflito.ocorrencias.length > 0 && (
-                        <div className="mt-2 space-y-1">
-                          {conflito.ocorrencias.slice(0, 3).map((oc) => (
-                            <div key={oc.id} className="text-xs text-gray-700">
-                              <span className="font-semibold">
-                                {new Date(oc.criadoEm ?? "").toLocaleDateString("pt-BR")}:
-                              </span>{" "}
-                              {oc.ci
-                                ? `CI ${oc.ci.numero}/${oc.ci.ano}${
-                                    oc.ci.tipo ? ` (${oc.ci.tipo})` : ""
-                                  }`
-                                : "Ocorrência"}
-                              {oc.ci?.resumo && ` — ${oc.ci.resumo}`}
-                            </div>
-                          ))}
-                          {conflito.ocorrencias.length > 3 && (
-                            <div className="text-xs text-indigo-600">
-                              +{conflito.ocorrencias.length - 3} ocorrências —{" "}
-                              <Link
-                                href={`/conflitos/${conflito.id}`}
-                                className="underline font-semibold"
-                              >
-                                ver todas
-                              </Link>
-                            </div>
+                              {conflito.status}
+                            </span>
+                          </div>
+                          {conflito.tipoConflito && (
+                            <p className="text-sm text-gray-600 mb-1">
+                              <span className="font-semibold">Tipo:</span>{" "}
+                              {conflito.tipoConflito}
+                            </p>
                           )}
+                          <p className="text-sm text-gray-600 mb-1">
+                            <span className="font-semibold">Ocorrências:</span>{" "}
+                            {conflito.totalOcorrencias ?? 0}
+                            {conflito.ultimaOcorrenciaEm && (
+                              <>
+                                {" "}
+                                · última em{" "}
+                                {new Date(
+                                  conflito.ultimaOcorrenciaEm,
+                                ).toLocaleDateString("pt-BR")}
+                              </>
+                            )}
+                          </p>
+                          {conflito.ocorrencias &&
+                            conflito.ocorrencias.length > 0 && (
+                              <div className="mt-2 space-y-1">
+                                {conflito.ocorrencias.slice(0, 3).map((oc) => (
+                                  <div
+                                    key={oc.id}
+                                    className="text-xs text-gray-700"
+                                  >
+                                    <span className="font-semibold">
+                                      {new Date(
+                                        oc.criadoEm ?? "",
+                                      ).toLocaleDateString("pt-BR")}
+                                      :
+                                    </span>{" "}
+                                    {oc.ci
+                                      ? `CI ${oc.ci.numero}/${oc.ci.ano}${
+                                          oc.ci.tipo ? ` (${oc.ci.tipo})` : ""
+                                        }`
+                                      : "Ocorrência"}
+                                    {oc.ci?.resumo && ` — ${oc.ci.resumo}`}
+                                  </div>
+                                ))}
+                                {conflito.ocorrencias.length > 3 && (
+                                  <div className="text-xs text-indigo-600">
+                                    +{conflito.ocorrencias.length - 3}{" "}
+                                    ocorrências —{" "}
+                                    <Link
+                                      href={`/conflitos/${conflito.id}`}
+                                      className="underline font-semibold"
+                                    >
+                                      ver todas
+                                    </Link>
+                                  </div>
+                                )}
+                              </div>
+                            )}
                         </div>
-                      )}
-                    </div>
-                    <Link
-                      href={`/conflitos/${conflito.id}`}
-                      className="text-sm font-semibold text-indigo-600 hover:text-indigo-800 underline underline-offset-4"
-                    >
+                        <Link
+                          href={`/conflitos/${conflito.id}`}
+                          className="text-sm font-semibold text-indigo-600 hover:text-indigo-800 underline underline-offset-4"
+                        >
                           Abrir conflito
                         </Link>
                       </div>
@@ -1055,22 +1084,23 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                 <div className="space-y-3">
                   {dadosAdicionais.grupos.map(
                     (grupo: AdolescenteGrupoResumo) => (
-                    <div
-                      key={grupo.id}
-                      className="bg-indigo-50 rounded-lg p-4 border-2 border-indigo-200"
-                    >
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                        <div>
-                          <h4 className="font-bold text-gray-800 text-lg">
-                            {grupo.nome}
-                          </h4>
+                      <div
+                        key={grupo.id}
+                        className="bg-indigo-50 rounded-lg p-4 border-2 border-indigo-200"
+                      >
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                          <div>
+                            <h4 className="font-bold text-gray-800 text-lg">
+                              {grupo.nome}
+                            </h4>
+                          </div>
+                          <span className="bg-green-200 text-green-800 px-3 py-1 rounded-full text-xs font-bold">
+                            ATIVO
+                          </span>
                         </div>
-                        <span className="bg-green-200 text-green-800 px-3 py-1 rounded-full text-xs font-bold">
-                          ATIVO
-                        </span>
                       </div>
-                    </div>
-                  ))}
+                    ),
+                  )}
                 </div>
               ) : (
                 <div className="text-center py-12 text-gray-500">
@@ -1101,74 +1131,86 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                 </div>
               )}
 
-              {!historicoLoading && !historicoErro && historicoMovimentacao.length === 0 && (
-                <div className="text-center py-12 text-gray-500">
-                  <History size={48} className="mx-auto mb-2 text-gray-400" />
-                  <p>Nenhum registro de histórico disponível</p>
-                  <p className="text-sm mt-2">
-                    O histórico de movimentações será registrado conforme as
-                    ações forem realizadas
-                  </p>
-                </div>
-              )}
+              {!historicoLoading &&
+                !historicoErro &&
+                historicoMovimentacao.length === 0 && (
+                  <div className="text-center py-12 text-gray-500">
+                    <History size={48} className="mx-auto mb-2 text-gray-400" />
+                    <p>Nenhum registro de histórico disponível</p>
+                    <p className="text-sm mt-2">
+                      O histórico de movimentações será registrado conforme as
+                      ações forem realizadas
+                    </p>
+                  </div>
+                )}
 
-              {!historicoLoading && !historicoErro && historicoMovimentacao.length > 0 && (
-                <div className="relative">
-                  <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-gray-300"></div>
-                  <div className="space-y-6">
-                    {historicoMovimentacao.map((registro) => (
-                      <div
-                        key={registro.id}
-                        className="relative flex items-start gap-4 ml-12"
-                      >
-                        <div className="absolute -left-9 w-4 h-4 bg-indigo-600 rounded-full border-4 border-white"></div>
-                        <div className="flex-1 bg-gray-50 rounded-lg p-4 border border-gray-200">
-                          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between mb-2">
-                            <span className="bg-indigo-100 text-indigo-800 px-2 py-1 rounded text-xs font-bold">
-                              {registro.tipo}
-                            </span>
-                            <span className="text-xs text-gray-500">
-                              {new Date(
-                                registro.registradoEm ?? registro.criadoEm
-                              ).toLocaleString("pt-BR")}
-                            </span>
-                          </div>
-                          <p className="text-gray-800 mb-1">
-                            {registro.descricao ||
-                              gerarDescricaoMovimentacao(registro)}
-                          </p>
-                          <div className="text-xs text-gray-600 space-y-1">
-                            {registro.origemCasa || registro.origemAlojamento ? (
-                              <p>
-                                <span className="font-semibold text-gray-700">Origem:</span>{" "}
-                                {formatarLocalizacaoHistorico(
-                                  registro.origemCasa,
-                                  registro.origemAlojamento
-                                )}
-                              </p>
-                            ) : null}
-                            {registro.destinoCasa || registro.destinoAlojamento ? (
-                              <p>
-                                <span className="font-semibold text-gray-700">Destino:</span>{" "}
-                                {formatarLocalizacaoHistorico(
-                                  registro.destinoCasa,
-                                  registro.destinoAlojamento
-                                )}
-                              </p>
-                            ) : null}
-                            {registro.operador && (
-                              <p>
-                                <span className="font-semibold text-gray-700">Operador:</span>{" "}
-                                {registro.operador.nomeCompleto}
-                              </p>
-                            )}
+              {!historicoLoading &&
+                !historicoErro &&
+                historicoMovimentacao.length > 0 && (
+                  <div className="relative">
+                    <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-gray-300"></div>
+                    <div className="space-y-6">
+                      {historicoMovimentacao.map((registro) => (
+                        <div
+                          key={registro.id}
+                          className="relative flex items-start gap-4 ml-12"
+                        >
+                          <div className="absolute -left-9 w-4 h-4 bg-indigo-600 rounded-full border-4 border-white"></div>
+                          <div className="flex-1 bg-gray-50 rounded-lg p-4 border border-gray-200">
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between mb-2">
+                              <span className="bg-indigo-100 text-indigo-800 px-2 py-1 rounded text-xs font-bold">
+                                {registro.tipo}
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                {new Date(
+                                  registro.registradoEm ?? registro.criadoEm,
+                                ).toLocaleString("pt-BR")}
+                              </span>
+                            </div>
+                            <p className="text-gray-800 mb-1">
+                              {registro.descricao ||
+                                gerarDescricaoMovimentacao(registro)}
+                            </p>
+                            <div className="text-xs text-gray-600 space-y-1">
+                              {registro.origemCasa ||
+                              registro.origemAlojamento ? (
+                                <p>
+                                  <span className="font-semibold text-gray-700">
+                                    Origem:
+                                  </span>{" "}
+                                  {formatarLocalizacaoHistorico(
+                                    registro.origemCasa,
+                                    registro.origemAlojamento,
+                                  )}
+                                </p>
+                              ) : null}
+                              {registro.destinoCasa ||
+                              registro.destinoAlojamento ? (
+                                <p>
+                                  <span className="font-semibold text-gray-700">
+                                    Destino:
+                                  </span>{" "}
+                                  {formatarLocalizacaoHistorico(
+                                    registro.destinoCasa,
+                                    registro.destinoAlojamento,
+                                  )}
+                                </p>
+                              ) : null}
+                              {registro.operador && (
+                                <p>
+                                  <span className="font-semibold text-gray-700">
+                                    Operador:
+                                  </span>{" "}
+                                  {registro.operador.nomeCompleto}
+                                </p>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
             </div>
           )}
         </div>
@@ -1176,4 +1218,3 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
     </div>
   );
 }
-

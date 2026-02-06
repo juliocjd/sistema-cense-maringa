@@ -231,6 +231,47 @@ export const INCLUDE_ADOLESCENTE_DEFAULT: any = {
   },
 } satisfies Prisma.AdolescenteInclude;
 
+// Minimal select for listagens (avoid heavy relations and extra fields).
+export const SELECT_ADOLESCENTE_LISTA = {
+  id: true,
+  nomeCompleto: true,
+  nomeSocial: true,
+  vulgo: true,
+  fotoUrl: true,
+  numeroInterno: true,
+  riscoFuga: true,
+  statusUnidade: true,
+  faccaoFuncao: true,
+  alojamentoAtual: {
+    select: {
+      id: true,
+      numeroAlojamento: true,
+      ala: true,
+      casa: {
+        select: {
+          id: true,
+          nome: true,
+          numero: true,
+        },
+      },
+    },
+  },
+  faccao: {
+    select: {
+      id: true,
+      nomeFaccao: true,
+    },
+  },
+  bairroOrigem: {
+    select: {
+      id: true,
+      nomeBairro: true,
+      cidade: true,
+      cidadeCatalogo: { select: { estado: true } },
+    },
+  },
+} satisfies Prisma.AdolescenteSelect;
+
 // Lighter include for map/estrutura views (avoid heavy relations).
 export const INCLUDE_ADOLESCENTE_MAPA = {
   alojamentoAtual: {

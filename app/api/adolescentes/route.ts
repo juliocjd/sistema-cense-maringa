@@ -9,6 +9,7 @@ import { hasPermission, PERMISSIONS } from "@/lib/auth/permissions";
 import { resolveUserPermissions } from "@/lib/auth/resolve-permissions";
 import {
   INCLUDE_ADOLESCENTE_DEFAULT,
+  SELECT_ADOLESCENTE_LISTA,
   mapPrismaAdolescente,
 } from "@/lib/adolescentes/transformers";
 import {
@@ -374,20 +375,24 @@ export async function GET(
     const { searchParams } = new URL(request.url);
     const where = buildWhere(searchParams);
     const { page, limit } = parsePagination(searchParams);
+    const modo = searchParams.get("modo");
+    const modoLista = modo === "lista" || modo === "resumo";
 
     const [records, total] = await Promise.all([
       prisma.adolescente.findMany({
         where,
         skip: (page - 1) * limit,
         take: limit,
-        include: INCLUDE_ADOLESCENTE_DEFAULT,
+        ...(modoLista
+          ? { select: SELECT_ADOLESCENTE_LISTA }
+          : { include: INCLUDE_ADOLESCENTE_DEFAULT }),
         orderBy: { nomeCompleto: "asc" },
       }),
       prisma.adolescente.count({ where }),
     ]);
 
     const alertasPendentesMap = new Map<string, number>();
-    if (records.length > 0) {
+    if (!modoLista && records.length > 0) {
       const pendentes = await prisma.alertaAtivo.groupBy({
         by: ["adolescenteId"],
         where: {
