@@ -25,6 +25,8 @@ import type {
   AdolescenteCadastroPayload,
   AdolescenteHistoricoInfracionalItem,
   AdolescenteHistoricoRegistroInput,
+  AdolescenteAtoInfracionalVinculoItem,
+  AdolescenteAtoInfracionalVinculoAdolescente,
   AdolescenteFaccaoHistoricoItem,
   FaccaoCatalogo,
   BairroCatalogo,
@@ -67,22 +69,27 @@ const ALERTAS_ESPECIAIS_UI: Record<
 > = {
   RISCO_SUICIDIO: {
     titulo: "Risco de suicidio",
-    descricao: "Adolescente apresenta historico ou comportamento de risco para autolesao.",
-    destaque: "Priorizar alojamentos 1, 6, 7 ou 10 e garantir monitoramento constante.",
+    descricao:
+      "Adolescente apresenta historico ou comportamento de risco para autolesao.",
+    destaque:
+      "Priorizar alojamentos 1, 6, 7 ou 10 e garantir monitoramento constante.",
     corClasse: "border-orange-200 bg-orange-50",
     Icone: AlertTriangle,
   },
   PERFIL_MAPEADO: {
     titulo: "Perfil mapeado (protecao)",
     descricao: "Ato infracional que necessita sigilo e protecao especial.",
-    destaque: "Informa aos demais modulos que este perfil requer tratamento reservado.",
+    destaque:
+      "Informa aos demais modulos que este perfil requer tratamento reservado.",
     corClasse: "border-purple-200 bg-purple-50",
     Icone: Lock,
   },
   SAUDE_CONFIDENCIAL: {
     titulo: "Alerta de saude confidencial",
-    descricao: "Condicao de saude que requer atencao e acompanhamento diferenciado.",
-    destaque: "Utilize este campo para orientar equipes de plantao sobre cuidados especificos.",
+    descricao:
+      "Condicao de saude que requer atencao e acompanhamento diferenciado.",
+    destaque:
+      "Utilize este campo para orientar equipes de plantao sobre cuidados especificos.",
     corClasse: "border-blue-200 bg-blue-50",
     Icone: Activity,
     fullWidth: true,
@@ -156,7 +163,7 @@ type SmsDuplicadoInfo = {
 const aplicarFiltroSugestoes = (
   sugestoes: SugestaoAlojamentoCadastro[],
   tipo: TipoInternacao | null,
-  casaPreferenciaId?: string | null
+  casaPreferenciaId?: string | null,
 ): ResultadoFiltroSugestoes => {
   if (sugestoes.length === 0) {
     return { lista: [], aviso: null };
@@ -226,7 +233,7 @@ const normalizarTexto = (valor: string) =>
 interface CadastroAdolescenteProps {
   onSalvar: (
     adolescente: AdolescenteCadastroPayload,
-    alojamentoId?: string
+    alojamentoId?: string,
   ) => Promise<void>;
   onCancelar: () => void;
   initialData?: Adolescente | null;
@@ -240,7 +247,7 @@ export function CadastroAdolescente({
   initialData,
   modo = "CADASTRO",
   permitirAlocacaoAutomatica,
-  }: CadastroAdolescenteProps) {
+}: CadastroAdolescenteProps) {
   const ehEdicao = modo === "EDICAO";
   const { user } = useAuth();
   const isAdmin = useMemo(() => {
@@ -253,27 +260,23 @@ export function CadastroAdolescente({
   }, [user]);
   const podeAlterarAlojamento = useMemo(
     () =>
-        hasPermission(
-          user?.permissions,
-          PERMISSIONS.ADOLESCENTES_EDIT_ALOJAMENTO
-        ),
-      [user?.permissions]
-    );
-    const podeSelecionarAlojamento = podeAlterarAlojamento;
-    const podeGerarSugestoes =
-      (permitirAlocacaoAutomatica ?? !ehEdicao) && podeAlterarAlojamento;
+      hasPermission(
+        user?.permissions,
+        PERMISSIONS.ADOLESCENTES_EDIT_ALOJAMENTO,
+      ),
+    [user?.permissions],
+  );
+  const podeSelecionarAlojamento = podeAlterarAlojamento;
+  const podeGerarSugestoes =
+    (permitirAlocacaoAutomatica ?? !ehEdicao) && podeAlterarAlojamento;
   const tituloPagina = ehEdicao
     ? "Editar adolescente"
     : "Cadastro de Adolescente";
   const subtituloPagina = ehEdicao
     ? "Revise e atualize os dados cadastrados antes de salvar."
     : "Preencha todas as informações necessárias para o dossiê completo.";
-  const textoBotaoSalvar = ehEdicao
-    ? "Salvar alterações"
-    : "Salvar cadastro";
-  const textoCancelarAcao = ehEdicao
-    ? "Cancelar edição"
-    : "Cancelar cadastro";
+  const textoBotaoSalvar = ehEdicao ? "Salvar alterações" : "Salvar cadastro";
+  const textoCancelarAcao = ehEdicao ? "Cancelar edição" : "Cancelar cadastro";
   const mensagemSucesso = ehEdicao
     ? "Adolescente atualizado com sucesso!"
     : "Adolescente cadastrado com sucesso!";
@@ -283,19 +286,18 @@ export function CadastroAdolescente({
   const [etapaAtual, setEtapaAtual] = useState(1);
   const [loading, setLoading] = useState(false);
   const [errosFormulario, setErrosFormulario] = useState<string[]>([]);
-  const [statusUnidade, setStatusUnidade] =
-    useState<StatusUnidade>("ATIVO");
+  const [statusUnidade, setStatusUnidade] = useState<StatusUnidade>("ATIVO");
   const [dataStatus, setDataStatus] = useState("");
   const router = useRouter();
   const [smsDuplicado, setSmsDuplicado] = useState<SmsDuplicadoInfo | null>(
-    null
+    null,
   );
   const [smsVerificando, setSmsVerificando] = useState(false);
   const [smsUltimoVerificado, setSmsUltimoVerificado] = useState<string | null>(
-    null
+    null,
   );
   const [smsErroVerificacao, setSmsErroVerificacao] = useState<string | null>(
-    null
+    null,
   );
   const smsValidacaoRef = useRef(0);
 
@@ -333,6 +335,25 @@ export function CadastroAdolescente({
   const [historicoExistente, setHistoricoExistente] = useState<
     AdolescenteHistoricoInfracionalItem[]
   >([]);
+  const [atoInfracionalVinculos, setAtoInfracionalVinculos] = useState<
+    AdolescenteAtoInfracionalVinculoItem[]
+  >([]);
+  const [vinculoDescricao, setVinculoDescricao] = useState("");
+  const [vinculoBusca, setVinculoBusca] = useState("");
+  const [vinculoSugestoes, setVinculoSugestoes] = useState<
+    AdolescenteAtoInfracionalVinculoAdolescente[]
+  >([]);
+  const [mostrandoSugestoesVinculo, setMostrandoSugestoesVinculo] =
+    useState(false);
+  const [buscandoVinculo, setBuscandoVinculo] = useState(false);
+  const [vinculoSelecionados, setVinculoSelecionados] = useState<
+    AdolescenteAtoInfracionalVinculoAdolescente[]
+  >([]);
+  const [vinculoEmEdicao, setVinculoEmEdicao] =
+    useState<AdolescenteAtoInfracionalVinculoItem | null>(null);
+  const [vinculoEmEdicaoId, setVinculoEmEdicaoId] = useState<string | null>(
+    null,
+  );
 
   const [vinculacoes, setVinculacoes] = useState({
     faccaoId: "",
@@ -398,9 +419,16 @@ export function CadastroAdolescente({
   >(null);
   const temFaccaoSelecionada = Boolean(vinculacoes.faccaoId);
 
-  const [tecnicosReferenciaIds, setTecnicosReferenciaIds] = useState<string[]>([]);
+  const [tecnicosReferenciaIds, setTecnicosReferenciaIds] = useState<string[]>(
+    [],
+  );
   const [tecnicosDisponiveis, setTecnicosDisponiveis] = useState<
-    Array<{ id: string; nome: string; atividade?: string | null; email: string }>
+    Array<{
+      id: string;
+      nome: string;
+      atividade?: string | null;
+      email: string;
+    }>
   >([]);
   const [carregandoTecnicos, setCarregandoTecnicos] = useState(false);
   const [erroTecnicos, setErroTecnicos] = useState<string | null>(null);
@@ -411,12 +439,19 @@ export function CadastroAdolescente({
       (tec) =>
         tec.nome.toLowerCase().includes(termo) ||
         (tec.email ?? "").toLowerCase().includes(termo) ||
-        (tec.atividade ?? "").toLowerCase().includes(termo)
+        (tec.atividade ?? "").toLowerCase().includes(termo),
     );
   }, [buscaTecnico, tecnicosDisponiveis]);
+  const podeAdicionarVinculo =
+    vinculoDescricao.trim().length >= 3 && vinculoSelecionados.length > 0;
 
   const [tatuagens, setTatuagens] = useState<
-    { catalogoId: string; localCorpo: string; observacoes: string; significadoPessoal: string }[]
+    {
+      catalogoId: string;
+      localCorpo: string;
+      observacoes: string;
+      significadoPessoal: string;
+    }[]
   >([]);
 
   const [alertasEspeciais, setAlertasEspeciais] =
@@ -461,7 +496,7 @@ export function CadastroAdolescente({
 
   const handleToggleAlertaEspecial = (
     tipo: AlertaEspecialTipo,
-    ativar: boolean
+    ativar: boolean,
   ) => {
     if (ativar) {
       abrirModalAlertaEspecial(tipo);
@@ -483,6 +518,11 @@ export function CadastroAdolescente({
       return "";
     }
     return data.toISOString().split("T")[0];
+  };
+
+  const obterStatusLabel = (status?: StatusUnidade | null) => {
+    if (!status) return "Nao informado";
+    return STATUS_OPCOES.find((opcao) => opcao.value === status)?.label ?? status;
   };
 
   const limparValidacaoSms = () => {
@@ -523,7 +563,7 @@ export function CadastroAdolescente({
         params.set("ignorarId", initialData.id);
       }
       const response = await fetch(
-        `/api/adolescentes/validar-sms?${params.toString()}`
+        `/api/adolescentes/validar-sms?${params.toString()}`,
       );
       const payload = await response.json().catch(() => null);
 
@@ -546,7 +586,7 @@ export function CadastroAdolescente({
         return;
       }
       setSmsErroVerificacao(
-        error instanceof Error ? error.message : "Erro ao validar número SMS"
+        error instanceof Error ? error.message : "Erro ao validar número SMS",
       );
       setSmsDuplicado(null);
       setSmsUltimoVerificado(null);
@@ -576,36 +616,42 @@ export function CadastroAdolescente({
     setDataStatus(
       initialData.statusUnidade && initialData.statusUnidade !== "ATIVO"
         ? formatarDataInput(initialData.dataDesinternacao)
-        : ""
+        : "",
     );
 
-  setAtoInfracional({
-    catalogoId: initialData.atoInfracionalAtualId ?? "",
-    descricao: initialData.atoInfracionalAtual ?? "",
-    gravidadeCatalogo: initialData.atoInfracionalCatalogoGravidade ?? "",
-    violenciaCatalogo:
-      initialData.atoInfracionalCatalogoViolencia ?? null,
-    ano: initialData.atoInfracionalAno
-      ? String(initialData.atoInfracionalAno)
-      : "",
+    setAtoInfracional({
+      catalogoId: initialData.atoInfracionalAtualId ?? "",
+      descricao: initialData.atoInfracionalAtual ?? "",
+      gravidadeCatalogo: initialData.atoInfracionalCatalogoGravidade ?? "",
+      violenciaCatalogo: initialData.atoInfracionalCatalogoViolencia ?? null,
+      ano: initialData.atoInfracionalAno
+        ? String(initialData.atoInfracionalAno)
+        : "",
       processo:
-        initialData.atoInfracionalProcesso ??
-        initialData.numeroProcesso ??
-        "",
-      observacoesComplementares:
-        initialData.atoInfracionalObservacoes ?? "",
+        initialData.atoInfracionalProcesso ?? initialData.numeroProcesso ?? "",
+      observacoesComplementares: initialData.atoInfracionalObservacoes ?? "",
       gravidade: initialData.atoInfracionalGravidade ?? false,
       gravidadeDescricao: initialData.atoInfracionalGravidadeObs ?? "",
       historico: [],
     });
     setHistoricoExistente(initialData.historicoInfracional ?? []);
+    setAtoInfracionalVinculos(
+      (initialData.atoInfracionalVinculos ?? []).map((vinculo) => ({
+        ...vinculo,
+        adolescentes: (vinculo.adolescentes ?? []).filter(
+          (adolescente) => adolescente.id !== initialData.id,
+        ),
+      })),
+    );
 
     setVinculacoes({
       faccaoId: initialData.faccaoGrupoId ?? "",
       faccaoFuncao: initialData.faccaoFuncao ?? "",
       faccaoOrigem:
         (initialData.faccaoInformacaoOrigem as
-          "" | "CONFESSADA" | "OBSERVACAO") ?? "",
+          | ""
+          | "CONFESSADA"
+          | "OBSERVACAO") ?? "",
       faccaoOrigemDetalhe: initialData.faccaoInformacaoDetalhe ?? "",
       bairroId: initialData.bairroOrigemId ?? "",
       riscoFuga: (initialData.riscoFuga as RiscoFuga) ?? "BAIXO",
@@ -615,7 +661,7 @@ export function CadastroAdolescente({
         ? ` - ${initialData.bairroOrigem.estado}`
         : "";
       setBairroBusca(
-        `${initialData.bairroOrigem.nome} - ${initialData.bairroOrigem.cidade}${estado}`
+        `${initialData.bairroOrigem.nome} - ${initialData.bairroOrigem.cidade}${estado}`,
       );
     } else {
       setBairroBusca("");
@@ -624,17 +670,16 @@ export function CadastroAdolescente({
     setTecnicosReferenciaIds(
       Array.isArray(initialData.tecnicosReferencia)
         ? initialData.tecnicosReferencia.map((tec) => tec.id)
-        : []
+        : [],
     );
     setRiscoFugaOrigemInfo(initialData.riscoFugaOrigem ?? null);
 
     const descricaoEspecial = (tipo: AlertaEspecialTipo) => {
       return (
-        initialData.alertasEspeciais?.find(
-          (alerta) => alerta.tipo === tipo
-        )?.descricao ??
+        initialData.alertasEspeciais?.find((alerta) => alerta.tipo === tipo)
+          ?.descricao ??
         (tipo === "SAUDE_CONFIDENCIAL"
-          ? initialData.alertaSaudeDetalhes ?? ""
+          ? (initialData.alertaSaudeDetalhes ?? "")
           : "")
       );
     };
@@ -661,7 +706,7 @@ export function CadastroAdolescente({
         localCorpo: t.localCorpo ?? "",
         observacoes: t.observacoes ?? "",
         significadoPessoal: t.significadoPessoal ?? "",
-      })) ?? []
+      })) ?? [],
     );
     setAlojamentoSelecionado(initialData.alojamentoAtualId ?? null);
   }, [initialData]);
@@ -683,9 +728,7 @@ export function CadastroAdolescente({
       } catch (error) {
         if (!ativo) return;
         setErroTecnicos(
-          error instanceof Error
-            ? error.message
-            : "Erro ao carregar tecnicos"
+          error instanceof Error ? error.message : "Erro ao carregar tecnicos",
         );
       } finally {
         if (ativo) {
@@ -709,12 +752,20 @@ export function CadastroAdolescente({
   }, [statusUnidade]);
 
   const [alojamentosLivres, setAlojamentosLivres] = useState<
-    { id: string; casa: string; numero: string; ala: string | null; atual?: boolean }[]
+    {
+      id: string;
+      casa: string;
+      numero: string;
+      ala: string | null;
+      atual?: boolean;
+    }[]
   >([]);
   const [alojamentoSelecionado, setAlojamentoSelecionado] = useState<
     string | null
   >(null);
-  const [tipoInternacao, setTipoInternacao] = useState<TipoInternacao | null>(null);
+  const [tipoInternacao, setTipoInternacao] = useState<TipoInternacao | null>(
+    null,
+  );
   const [casasCatalogo, setCasasCatalogo] = useState<
     { id: string; nome: string; numero: number }[]
   >([]);
@@ -755,10 +806,8 @@ export function CadastroAdolescente({
           initialData.alojamentoAtual &&
           !lista.some((item: any) => item.id === initialData.alojamentoAtualId)
         ) {
-          const casaNome =
-            initialData.alojamentoAtual.casa?.nome ?? "Casa";
-          const casaNumero =
-            initialData.alojamentoAtual.casa?.numero ?? "-";
+          const casaNome = initialData.alojamentoAtual.casa?.nome ?? "Casa";
+          const casaNumero = initialData.alojamentoAtual.casa?.numero ?? "-";
           lista = [
             ...lista,
             {
@@ -831,7 +880,10 @@ export function CadastroAdolescente({
     if (sugestoesOriginais.length === 0) {
       setSugestoesAlojamento([]);
       setAvisoSugestoes(null);
-      if (erroSugestoes === "Nenhum alojamento recomendado para a casa selecionada.") {
+      if (
+        erroSugestoes ===
+        "Nenhum alojamento recomendado para a casa selecionada."
+      ) {
         setErroSugestoes(null);
       }
       return;
@@ -839,12 +891,14 @@ export function CadastroAdolescente({
     const { lista, aviso } = aplicarFiltroSugestoes(
       sugestoesOriginais,
       tipoInternacao,
-      casaPreferenciaId || null
+      casaPreferenciaId || null,
     );
     setSugestoesAlojamento(lista);
     setAvisoSugestoes(aviso);
     if (casaPreferenciaId && lista.length === 0) {
-      setErroSugestoes("Nenhum alojamento recomendado para a casa selecionada.");
+      setErroSugestoes(
+        "Nenhum alojamento recomendado para a casa selecionada.",
+      );
     } else if (
       erroSugestoes === "Nenhum alojamento recomendado para a casa selecionada."
     ) {
@@ -855,20 +909,20 @@ export function CadastroAdolescente({
   const buscarSugestoesAlojamento = async () => {
     if (!podeGerarSugestoes) {
       setErroSugestoes(
-        "Sem permissao para selecionar alojamento para este perfil."
+        "Sem permissao para selecionar alojamento para este perfil.",
       );
       return;
     }
     if (!vinculacoes.bairroId && !vinculacoes.faccaoId) {
       setErroSugestoes(
-        "Informe o bairro ou a faccao antes de solicitar sugestoes."
+        "Informe o bairro ou a faccao antes de solicitar sugestoes.",
       );
       return;
     }
 
     if (!tipoInternacao) {
       setErroSugestoes(
-        "Selecione o tipo de internacao antes de sugerir um alojamento."
+        "Selecione o tipo de internacao antes de sugerir um alojamento.",
       );
       return;
     }
@@ -901,9 +955,7 @@ export function CadastroAdolescente({
       }
 
       const payload = await response.json();
-      const lista = Array.isArray(payload?.sugestoes)
-        ? payload.sugestoes
-        : [];
+      const lista = Array.isArray(payload?.sugestoes) ? payload.sugestoes : [];
       const normalizadas: SugestaoAlojamentoCadastro[] = lista.map(
         (item: any) => ({
           alojamentoId: item.alojamentoId,
@@ -920,12 +972,14 @@ export function CadastroAdolescente({
           descricao: item.descricao,
           alertas: Array.isArray(item.alertas) ? item.alertas : [],
           ambientais: Array.isArray(item.ambientais) ? item.ambientais : [],
-        })
+        }),
       );
 
       setSugestoesOriginais(normalizadas);
       if (normalizadas.length === 0) {
-        setErroSugestoes("Nenhum alojamento disponivel para os filtros atuais.");
+        setErroSugestoes(
+          "Nenhum alojamento disponivel para os filtros atuais.",
+        );
       }
     } catch (error) {
       const msg =
@@ -960,7 +1014,7 @@ export function CadastroAdolescente({
     const carregar = async () => {
       try {
         const response = await fetch(
-          `/api/adolescentes?busca=${encodeURIComponent(termo)}&limit=20`
+          `/api/adolescentes?busca=${encodeURIComponent(termo)}&limit=20`,
         );
         if (!response.ok) {
           throw new Error("Falha ao buscar adolescentes");
@@ -998,6 +1052,63 @@ export function CadastroAdolescente({
     modalDeclaracaoFaccao.origem,
     initialData?.id,
   ]);
+
+  useEffect(() => {
+    const termo = vinculoBusca.trim();
+    if (termo.length < 2) {
+      setVinculoSugestoes([]);
+      setMostrandoSugestoesVinculo(false);
+      setBuscandoVinculo(false);
+      return;
+    }
+
+    let ativo = true;
+    setBuscandoVinculo(true);
+    const carregar = async () => {
+      try {
+        const response = await fetch(
+          `/api/adolescentes?busca=${encodeURIComponent(termo)}&limit=20`,
+        );
+        if (!response.ok) {
+          throw new Error("Falha ao buscar adolescentes");
+        }
+        const payload = await response.json().catch(() => null);
+        if (!ativo) return;
+        const lista = Array.isArray(payload?.data)
+          ? payload.data
+              .map((item: any) => ({
+                id: item.id,
+                nomeCompleto: item.nomeCompleto,
+                numeroSms: item.numeroSms ?? null,
+                fotoUrl: item.fotoUrl ?? null,
+                statusUnidade: item.statusUnidade ?? undefined,
+              }))
+              .filter(
+                (item: any) =>
+                  item.id !== initialData?.id &&
+                  !vinculoSelecionados.some(
+                    (selecionado) => selecionado.id === item.id,
+                  ),
+              )
+          : [];
+        setVinculoSugestoes(lista);
+        setMostrandoSugestoesVinculo(true);
+      } catch {
+        if (ativo) {
+          setVinculoSugestoes([]);
+        }
+      } finally {
+        if (ativo) {
+          setBuscandoVinculo(false);
+        }
+      }
+    };
+
+    carregar();
+    return () => {
+      ativo = false;
+    };
+  }, [vinculoBusca, vinculoSelecionados, initialData?.id]);
 
   const abrirDiagnosticoCasa = async () => {
     if (!casaPreferenciaId) return;
@@ -1128,7 +1239,7 @@ export function CadastroAdolescente({
       setBuscandoAto(true);
       try {
         const response = await fetch(
-          `/api/atos-infracionais?busca=${encodeURIComponent(termo)}`
+          `/api/atos-infracionais?busca=${encodeURIComponent(termo)}`,
         );
         let lista: Array<{
           id: string;
@@ -1160,7 +1271,7 @@ export function CadastroAdolescente({
           if (base.length > 0 && termoNormalizado) {
             lista = base
               .filter((ato) =>
-                normalizarTexto(ato.nome).includes(termoNormalizado)
+                normalizarTexto(ato.nome).includes(termoNormalizado),
               )
               .slice(0, 20);
           }
@@ -1185,7 +1296,9 @@ export function CadastroAdolescente({
       if (termo && termo.trim().length >= 1) {
         params.set("busca", termo.trim());
       }
-      const response = await fetch(`/api/atos-infracionais?${params.toString()}`);
+      const response = await fetch(
+        `/api/atos-infracionais?${params.toString()}`,
+      );
       if (!response.ok) {
         throw new Error("Falha ao carregar atos infracionais");
       }
@@ -1223,12 +1336,12 @@ export function CadastroAdolescente({
   const atualizarCampoGestao = (
     id: string,
     campo: "nome" | "gravidade" | "violenciaOuGraveAmeaca" | "ativo",
-    valor: any
+    valor: any,
   ) => {
     setGestaoAtos((prev) => ({
       ...prev,
       itens: prev.itens.map((item) =>
-        item.id === id ? { ...item, [campo]: valor } : item
+        item.id === id ? { ...item, [campo]: valor } : item,
       ),
     }));
   };
@@ -1267,7 +1380,7 @@ export function CadastroAdolescente({
                   payload.violenciaOuGraveAmeaca ?? i.violenciaOuGraveAmeaca,
                 ativo: payload.ativo ?? i.ativo,
               }
-            : i
+            : i,
         ),
       }));
       // Atualiza sugestões locais caso o item seja usado
@@ -1282,8 +1395,8 @@ export function CadastroAdolescente({
                   payload.violenciaOuGraveAmeaca ?? s.violenciaOuGraveAmeaca,
                 ativo: payload.ativo ?? s.ativo,
               }
-            : s
-        )
+            : s,
+        ),
       );
       // Se o ato selecionado no formulário for este, reflita imediatamente
       setAtoInfracional((prev) =>
@@ -1295,7 +1408,7 @@ export function CadastroAdolescente({
               violenciaCatalogo:
                 payload.violenciaOuGraveAmeaca ?? prev.violenciaCatalogo,
             }
-          : prev
+          : prev,
       );
     } catch (error: any) {
       console.error(error);
@@ -1399,7 +1512,7 @@ export function CadastroAdolescente({
       setErroReferencias(
         error instanceof Error
           ? error.message
-          : "Erro ao carregar dados auxiliares"
+          : "Erro ao carregar dados auxiliares",
       );
     } finally {
       setCarregandoReferencias(false);
@@ -1423,12 +1536,12 @@ export function CadastroAdolescente({
         total: faccao.totalAdolescentes ?? undefined,
       })),
     ],
-    [referencias.faccoes]
+    [referencias.faccoes],
   );
 
   const bairrosDisponiveis = useMemo(
     () => referencias.bairros,
-    [referencias.bairros]
+    [referencias.bairros],
   );
   const bairroSugestoes = useMemo(() => {
     const termo = normalizarTexto(bairroBusca);
@@ -1438,7 +1551,11 @@ export function CadastroAdolescente({
         const nome = normalizarTexto(bairro.nomeBairro);
         const cidade = normalizarTexto(bairro.cidade);
         const estado = normalizarTexto(bairro.estado ?? "");
-        return nome.includes(termo) || cidade.includes(termo) || estado.includes(termo);
+        return (
+          nome.includes(termo) ||
+          cidade.includes(termo) ||
+          estado.includes(termo)
+        );
       })
       .slice(0, 20);
   }, [bairroBusca, bairrosDisponiveis]);
@@ -1462,22 +1579,22 @@ export function CadastroAdolescente({
   const faccaoAtualObs =
     faccaoHistoricoAtivo?.observacao ?? vinculacoes.faccaoOrigemDetalhe ?? "";
 
-const selecionarAtoCatalogo = (ato: {
-  id: string;
-  nome: string;
-  gravidade?: string | null;
-  violenciaOuGraveAmeaca?: boolean | null;
-}) => {
-  setAtoInfracional((prev) => ({
-    ...prev,
-    catalogoId: ato.id,
-    descricao: ato.nome,
-    gravidadeCatalogo: ato.gravidade ?? "",
-    violenciaCatalogo:
-      ato.violenciaOuGraveAmeaca ?? prev.violenciaCatalogo ?? null,
-  }));
-  setMostrarSugestoesAto(false);
-};
+  const selecionarAtoCatalogo = (ato: {
+    id: string;
+    nome: string;
+    gravidade?: string | null;
+    violenciaOuGraveAmeaca?: boolean | null;
+  }) => {
+    setAtoInfracional((prev) => ({
+      ...prev,
+      catalogoId: ato.id,
+      descricao: ato.nome,
+      gravidadeCatalogo: ato.gravidade ?? "",
+      violenciaCatalogo:
+        ato.violenciaOuGraveAmeaca ?? prev.violenciaCatalogo ?? null,
+    }));
+    setMostrarSugestoesAto(false);
+  };
 
   const abrirModalNovoAto = () => {
     setModalNovoAto({
@@ -1505,7 +1622,10 @@ const selecionarAtoCatalogo = (ato: {
     if (modalNovoAto.salvando) return;
     const nome = modalNovoAto.nome.trim();
     if (nome.length < 3) {
-      setModalNovoAto((prev) => ({ ...prev, erro: "Informe um nome com pelo menos 3 caracteres." }));
+      setModalNovoAto((prev) => ({
+        ...prev,
+        erro: "Informe um nome com pelo menos 3 caracteres.",
+      }));
       return;
     }
     setModalNovoAto((prev) => ({ ...prev, salvando: true, erro: null }));
@@ -1536,8 +1656,7 @@ const selecionarAtoCatalogo = (ato: {
         nome: payload.nome as string,
         ativo: payload.ativo !== false,
         gravidade: payload.gravidade ?? null,
-        violenciaOuGraveAmeaca:
-          payload.violenciaOuGraveAmeaca ?? false,
+        violenciaOuGraveAmeaca: payload.violenciaOuGraveAmeaca ?? false,
       };
       setAtoSugestoes((prev) => [novo, ...prev]);
       selecionarAtoCatalogo(novo);
@@ -1626,7 +1745,7 @@ const selecionarAtoCatalogo = (ato: {
       setReferencias((prev) => ({
         ...prev,
         cidades: [...prev.cidades, novaCidade].sort((a, b) =>
-          a.nome.localeCompare(b.nome, "pt-BR")
+          a.nome.localeCompare(b.nome, "pt-BR"),
         ),
       }));
 
@@ -1641,9 +1760,7 @@ const selecionarAtoCatalogo = (ato: {
         ...prev,
         salvando: false,
         erro:
-          error instanceof Error
-            ? error.message
-            : "Erro ao cadastrar cidade",
+          error instanceof Error ? error.message : "Erro ao cadastrar cidade",
       }));
     }
   };
@@ -1698,7 +1815,7 @@ const selecionarAtoCatalogo = (ato: {
       setReferencias((prev) => ({
         ...prev,
         bairros: [...prev.bairros, novoBairro].sort((a, b) =>
-          a.nomeBairro.localeCompare(b.nomeBairro, "pt-BR")
+          a.nomeBairro.localeCompare(b.nomeBairro, "pt-BR"),
         ),
       }));
 
@@ -1708,7 +1825,7 @@ const selecionarAtoCatalogo = (ato: {
       }));
       const sufixoEstado = novoBairro.estado ? ` - ${novoBairro.estado}` : "";
       setBairroBusca(
-        `${novoBairro.nomeBairro} - ${novoBairro.cidade}${sufixoEstado}`
+        `${novoBairro.nomeBairro} - ${novoBairro.cidade}${sufixoEstado}`,
       );
       setMostrarSugestoesBairro(false);
 
@@ -1730,9 +1847,9 @@ const selecionarAtoCatalogo = (ato: {
       nome: "",
       cidadeId: "",
       erro: null,
-    salvando: false,
-  });
-};
+      salvando: false,
+    });
+  };
 
   const abrirModalNovaFaccao = () => {
     setModalNovaFaccao({
@@ -1793,7 +1910,7 @@ const selecionarAtoCatalogo = (ato: {
       setReferencias((prev) => ({
         ...prev,
         faccoes: [...prev.faccoes, novaFaccao].sort((a, b) =>
-          a.nomeFaccao.localeCompare(b.nomeFaccao, "pt-BR")
+          a.nomeFaccao.localeCompare(b.nomeFaccao, "pt-BR"),
         ),
       }));
 
@@ -1832,7 +1949,7 @@ const selecionarAtoCatalogo = (ato: {
         significado: item.significadoAssociado ?? "Significado nao informado",
         nivel: item.nivelRisco ?? "DESCONHECIDO",
       })),
-    [referencias.tatuagens]
+    [referencias.tatuagens],
   );
 
   const alertasFaccaoPorTatuagem = useMemo(() => {
@@ -1840,13 +1957,15 @@ const selecionarAtoCatalogo = (ato: {
       return [];
     }
     const catalogoMap = new Map(
-      referencias.tatuagens.map((item) => [item.id, item])
+      referencias.tatuagens.map((item) => [item.id, item]),
     );
     const vistos = new Set<string>();
     const alertas: Array<{ tatuagem: string; faccao: string }> = [];
 
     tatuagens.forEach((item) => {
-      const catalogo = item.catalogoId ? catalogoMap.get(item.catalogoId) : null;
+      const catalogo = item.catalogoId
+        ? catalogoMap.get(item.catalogoId)
+        : null;
       if (!catalogo || !Array.isArray(catalogo.faccoesAssociadas)) {
         return;
       }
@@ -1931,7 +2050,8 @@ const selecionarAtoCatalogo = (ato: {
         | "OUTRO_INTERNO"
         | "",
       nivelConfianca: "NAO_AVALIADO",
-      observacao: faccaoHistoricoAtivo?.observacao ?? vinculacoes.faccaoOrigemDetalhe,
+      observacao:
+        faccaoHistoricoAtivo?.observacao ?? vinculacoes.faccaoOrigemDetalhe,
       fonte: "",
       informanteId: "",
       informanteNome: "",
@@ -1971,8 +2091,7 @@ const selecionarAtoCatalogo = (ato: {
     ) {
       setModalDeclaracaoFaccao((prev) => ({
         ...prev,
-        erro:
-          "Selecione o adolescente informante quando a origem for Outro interno.",
+        erro: "Selecione o adolescente informante quando a origem for Outro interno.",
       }));
       return;
     }
@@ -1986,7 +2105,11 @@ const selecionarAtoCatalogo = (ato: {
           ? modalDeclaracaoFaccao.informanteId
           : null,
     };
-    setModalDeclaracaoFaccao((prev) => ({ ...prev, salvando: true, erro: null }));
+    setModalDeclaracaoFaccao((prev) => ({
+      ...prev,
+      salvando: true,
+      erro: null,
+    }));
     try {
       const response = await fetch(`/api/adolescentes/${initialData.id}`, {
         method: "PUT",
@@ -1995,7 +2118,9 @@ const selecionarAtoCatalogo = (ato: {
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(result?.erro ?? "Nao foi possivel registrar declaracao");
+        throw new Error(
+          result?.erro ?? "Nao foi possivel registrar declaracao",
+        );
       }
       // atualiza estados locais
       setVinculacoes((prev) => ({
@@ -2013,7 +2138,10 @@ const selecionarAtoCatalogo = (ato: {
         faccaoOrigemDetalhe: result.faccaoInformacaoDetalhe ?? "",
       }));
       setFaccaoHistorico(result.faccaoHistorico ?? []);
-      if (!Array.isArray(result.faccaoHistorico) || result.faccaoHistorico.length === 0) {
+      if (
+        !Array.isArray(result.faccaoHistorico) ||
+        result.faccaoHistorico.length === 0
+      ) {
         const response = await fetch(`/api/adolescentes/${initialData.id}`);
         if (response.ok) {
           const atualizado = await response.json();
@@ -2069,7 +2197,7 @@ const selecionarAtoCatalogo = (ato: {
 
     if (smsDuplicado) {
       mensagens.push(
-        `Número SMS ja cadastrado para ${smsDuplicado.nomeCompleto}.`
+        `Número SMS ja cadastrado para ${smsDuplicado.nomeCompleto}.`,
       );
       etapaErro = Math.max(etapaErro, 1);
     }
@@ -2095,12 +2223,16 @@ const selecionarAtoCatalogo = (ato: {
     const atoSelecionadoId = atoInfracional.catalogoId?.trim() ?? "";
     if (statusUnidade === "ATIVO") {
       if (!atoSelecionadoId) {
-        mensagens.push("Selecione o ato infracional atual a partir do catalogo.");
+        mensagens.push(
+          "Selecione o ato infracional atual a partir do catalogo.",
+        );
         etapaErro = Math.max(etapaErro, 2);
       }
     } else if (descricaoAto || atoSelecionadoId) {
       if (!atoSelecionadoId) {
-        mensagens.push("Selecione o ato infracional atual a partir do catalogo.");
+        mensagens.push(
+          "Selecione o ato infracional atual a partir do catalogo.",
+        );
         etapaErro = Math.max(etapaErro, 2);
       }
     }
@@ -2117,12 +2249,9 @@ const selecionarAtoCatalogo = (ato: {
       }
     }
 
-    if (
-      atoInfracional.gravidade &&
-      !atoInfracional.gravidadeDescricao.trim()
-    ) {
+    if (atoInfracional.gravidade && !atoInfracional.gravidadeDescricao.trim()) {
       mensagens.push(
-        "Detalhe a repercussao ou gravidade quando o indicador estiver marcado."
+        "Detalhe a repercussao ou gravidade quando o indicador estiver marcado.",
       );
       etapaErro = Math.max(etapaErro, 2);
     }
@@ -2130,15 +2259,13 @@ const selecionarAtoCatalogo = (ato: {
     if (statusUnidade === "ATIVO") {
       const numeroLimpo = dadosPessoais.numeroInterno.trim();
       if (!numeroLimpo) {
-        mensagens.push("Informe o número interno (1 a 86) para adolescentes ativos.");
+        mensagens.push(
+          "Informe o número interno (1 a 86) para adolescentes ativos.",
+        );
         etapaErro = Math.max(etapaErro, 1);
       } else {
         const numeroValor = Number.parseInt(numeroLimpo, 10);
-        if (
-          Number.isNaN(numeroValor) ||
-          numeroValor < 1 ||
-          numeroValor > 86
-        ) {
+        if (Number.isNaN(numeroValor) || numeroValor < 1 || numeroValor > 86) {
           mensagens.push("Número interno deve ser um valor de 1 a 86.");
           etapaErro = Math.max(etapaErro, 1);
         }
@@ -2151,7 +2278,7 @@ const selecionarAtoCatalogo = (ato: {
       !vinculacoes.faccaoOrigemDetalhe.trim()
     ) {
       mensagens.push(
-        "Explique como a informacao de faccao foi obtida quando a origem for observacao."
+        "Explique como a informacao de faccao foi obtida quando a origem for observacao.",
       );
       etapaErro = Math.max(etapaErro, 3);
     }
@@ -2196,10 +2323,10 @@ const selecionarAtoCatalogo = (ato: {
 
       const processoSanitizado = sanitize(atoInfracional.processo);
       const observacoesComplementaresSanitizadas = sanitize(
-        atoInfracional.observacoesComplementares
+        atoInfracional.observacoesComplementares,
       );
       const gravidadeDescricaoSanitizada = sanitize(
-        atoInfracional.gravidadeDescricao
+        atoInfracional.gravidadeDescricao,
       );
       const numeroInternoSanitizado =
         statusUnidade === "ATIVO"
@@ -2247,11 +2374,11 @@ const selecionarAtoCatalogo = (ato: {
             };
           })
           .filter(
-            (item): item is AdolescenteHistoricoRegistroInput => item !== null
+            (item): item is AdolescenteHistoricoRegistroInput => item !== null,
           );
 
       const alertasEspeciaisSelecionados = ALERTAS_ESPECIAIS_ORDEM.filter(
-        (tipo) => alertasEspeciais[tipo]?.ativo
+        (tipo) => alertasEspeciais[tipo]?.ativo,
       ).map((tipo) => ({
         tipo,
         descricao:
@@ -2268,8 +2395,7 @@ const selecionarAtoCatalogo = (ato: {
           ? Number.parseInt(numeroInternoSanitizado, 10)
           : undefined,
         dataEntrada: sanitize(dadosPessoais.dataEntrada),
-        atoInfracionalAtualId:
-          atoInfracional.catalogoId?.trim() || undefined,
+        atoInfracionalAtualId: atoInfracional.catalogoId?.trim() || undefined,
         atoInfracionalAno: anoValido,
         atoInfracionalProcesso: processoSanitizado,
         atoInfracionalObservacoes: observacoesComplementaresSanitizadas,
@@ -2281,15 +2407,12 @@ const selecionarAtoCatalogo = (ato: {
         alertaPerfilMapeado: alertasEspeciais.PERFIL_MAPEADO.ativo,
         alertaSaudeConfidencial: alertasEspeciais.SAUDE_CONFIDENCIAL.ativo,
         alertaSaudeDetalhes:
-          sanitizeOrNull(
-            alertasEspeciais.SAUDE_CONFIDENCIAL.descricao ?? ""
-          ) ?? undefined,
+          sanitizeOrNull(alertasEspeciais.SAUDE_CONFIDENCIAL.descricao ?? "") ??
+          undefined,
         alertasEspeciais: alertasEspeciaisSelecionados,
         statusUnidade,
         dataDesinternacao:
-          statusUnidade === "ATIVO"
-            ? undefined
-            : sanitize(dataStatus),
+          statusUnidade === "ATIVO" ? undefined : sanitize(dataStatus),
         tatuagens: tatuagens
           .filter((t) => t.catalogoId && t.localCorpo)
           .map((t) => ({
@@ -2322,8 +2445,32 @@ const selecionarAtoCatalogo = (ato: {
         adolescente.historicoInfracional = historicoPayload;
       }
 
+      const vinculosPayload = atoInfracionalVinculos
+        .map((vinculo) => {
+          const descricao = vinculo.descricao?.trim();
+          if (!descricao) return null;
+          const ids = Array.from(
+            new Set(
+              (vinculo.adolescentes ?? [])
+                .map((item) => item.id)
+                .filter((id) => id && id !== initialData?.id),
+            ),
+          );
+          if (ids.length === 0) return null;
+          return {
+            id: vinculo.id,
+            descricao,
+            adolescentesIds: ids,
+          };
+        })
+        .filter(
+          (item): item is NonNullable<typeof item> => item !== null,
+        );
+
+      adolescente.atoInfracionalVinculos = vinculosPayload;
+
       const destinoAlojamento = podeSelecionarAlojamento
-        ? alojamentoSelecionado ?? undefined
+        ? (alojamentoSelecionado ?? undefined)
         : undefined;
 
       await onSalvar(adolescente, destinoAlojamento);
@@ -2331,9 +2478,7 @@ const selecionarAtoCatalogo = (ato: {
     } catch (error) {
       console.error("Erro ao salvar:", error);
       const mensagemDetalhada =
-        error instanceof Error && error.message
-          ? error.message
-          : mensagemErro;
+        error instanceof Error && error.message ? error.message : mensagemErro;
       alert(mensagemDetalhada);
     } finally {
       setLoading(false);
@@ -2358,7 +2503,7 @@ const selecionarAtoCatalogo = (ato: {
     }
 
     const imagemItem = Array.from(items).find(
-      (item) => item.kind === "file" && item.type.startsWith("image/")
+      (item) => item.kind === "file" && item.type.startsWith("image/"),
     );
 
     if (!imagemItem) {
@@ -2395,8 +2540,60 @@ const selecionarAtoCatalogo = (ato: {
     });
   };
 
+  const limparFormularioVinculo = (reporEdicao: boolean = true) => {
+    if (reporEdicao && vinculoEmEdicao) {
+      setAtoInfracionalVinculos((prev) => [...prev, vinculoEmEdicao]);
+    }
+    setVinculoDescricao("");
+    setVinculoBusca("");
+    setVinculoSugestoes([]);
+    setVinculoSelecionados([]);
+    setMostrandoSugestoesVinculo(false);
+    setBuscandoVinculo(false);
+    setVinculoEmEdicaoId(null);
+    setVinculoEmEdicao(null);
+  };
+
+  const adicionarVinculoInfracional = () => {
+    const descricao = vinculoDescricao.trim();
+    if (!descricao || vinculoSelecionados.length === 0) {
+      return;
+    }
+    const adolescentes = Array.from(
+      new Map(vinculoSelecionados.map((item) => [item.id, item])).values(),
+    );
+    setAtoInfracionalVinculos((prev) => [
+      ...prev,
+      {
+        id: vinculoEmEdicaoId ?? undefined,
+        descricao,
+        adolescentes,
+      },
+    ]);
+    limparFormularioVinculo(false);
+  };
+
+  const iniciarEdicaoVinculoInfracional = (
+    vinculo: AdolescenteAtoInfracionalVinculoItem,
+    index: number,
+  ) => {
+    setVinculoEmEdicaoId(vinculo.id ?? null);
+    setVinculoEmEdicao(vinculo);
+    setVinculoDescricao(vinculo.descricao ?? "");
+    setVinculoSelecionados(vinculo.adolescentes ?? []);
+    setAtoInfracionalVinculos((prev) =>
+      prev.filter((_, i) => i !== index),
+    );
+  };
+
+  const removerVinculoInfracional = (index: number) => {
+    setAtoInfracionalVinculos((prev) =>
+      prev.filter((_, i) => i !== index),
+    );
+  };
+
   const iniciarEdicaoHistorico = (
-    item: AdolescenteHistoricoInfracionalItem
+    item: AdolescenteHistoricoInfracionalItem,
   ) => {
     setAtoInfracional((prev) => {
       if (prev.historico.some((pendente) => pendente.id === item.id)) {
@@ -2411,7 +2608,10 @@ const selecionarAtoCatalogo = (ato: {
             descricao: item.descricao ?? "",
             comarca: item.comarca ?? item.unidadeInternacao ?? "",
             processo: item.processo ?? "",
-            ano: item.ano !== null && item.ano !== undefined ? String(item.ano) : "",
+            ano:
+              item.ano !== null && item.ano !== undefined
+                ? String(item.ano)
+                : "",
             observacoes: item.observacoes ?? "",
             catalogoId: item.catalogoId ?? undefined,
           },
@@ -2423,7 +2623,12 @@ const selecionarAtoCatalogo = (ato: {
   const adicionarTatuagem = () => {
     setTatuagens([
       ...tatuagens,
-      { catalogoId: "", localCorpo: "", observacoes: "", significadoPessoal: "" },
+      {
+        catalogoId: "",
+        localCorpo: "",
+        observacoes: "",
+        significadoPessoal: "",
+      },
     ]);
   };
 
@@ -2460,8 +2665,8 @@ const selecionarAtoCatalogo = (ato: {
                           etapa.numero === etapaAtual
                             ? "bg-indigo-600 text-white scale-110"
                             : etapa.numero < etapaAtual
-                            ? "bg-green-500 text-white"
-                            : "bg-gray-200 text-gray-500"
+                              ? "bg-green-500 text-white"
+                              : "bg-gray-200 text-gray-500"
                         }`}
                       >
                         {etapa.numero < etapaAtual ? (
@@ -2475,8 +2680,8 @@ const selecionarAtoCatalogo = (ato: {
                           etapa.numero === etapaAtual
                             ? "text-indigo-600"
                             : etapa.numero < etapaAtual
-                            ? "text-green-500"
-                            : "text-gray-500"
+                              ? "text-green-500"
+                              : "text-gray-500"
                         }`}
                       >
                         {etapa.titulo}
@@ -2485,7 +2690,9 @@ const selecionarAtoCatalogo = (ato: {
                     {index < etapas.length - 1 && (
                       <div
                         className={`h-1 hidden sm:flex flex-1 mx-2 rounded transition-all ${
-                          etapa.numero < etapaAtual ? "bg-green-500" : "bg-gray-200"
+                          etapa.numero < etapaAtual
+                            ? "bg-green-500"
+                            : "bg-gray-200"
                         }`}
                       />
                     )}
@@ -2602,7 +2809,8 @@ const selecionarAtoCatalogo = (ato: {
                     placeholder="Ex: Juninho do Centro"
                   />
                   <p className="text-xs text-gray-500 mt-1">
-                    Utilize este campo para registrar apelidos mencionados em investigacoes ou relatos.
+                    Utilize este campo para registrar apelidos mencionados em
+                    investigacoes ou relatos.
                   </p>
                 </div>
 
@@ -2758,14 +2966,14 @@ const selecionarAtoCatalogo = (ato: {
                       className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
                     />
                     <p className="text-xs text-gray-500 mt-1">
-                      Utilize esta data para registrar liberacao, transferencia ou evasao.
+                      Utilize esta data para registrar liberacao, transferencia
+                      ou evasao.
                     </p>
                   </div>
                 )}
               </div>
             </div>
           )}
-
           {/* ETAPA 2: Ato Infracional */}
           {etapaAtual === 2 && (
             <div className="space-y-6">
@@ -2774,29 +2982,29 @@ const selecionarAtoCatalogo = (ato: {
                 Ato Infracional
               </h2>
 
-      <div className="space-y-2">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <label className="block text-sm font-semibold text-gray-700">
-            Ato Infracional Atual
-          </label>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={abrirModalNovoAto}
-              className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
-            >
-              Cadastrar novo ato
-            </button>
-            <button
-              type="button"
-              onClick={abrirGestaoAtos}
-              className="rounded-lg border border-indigo-200 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50"
-            >
-              Gerenciar Atos Infracionais
-            </button>
-          </div>
-        </div>
-        <div className="relative">
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <label className="block text-sm font-semibold text-gray-700">
+                    Ato Infracional Atual
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={abrirModalNovoAto}
+                      className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                    >
+                      Cadastrar novo ato
+                    </button>
+                    <button
+                      type="button"
+                      onClick={abrirGestaoAtos}
+                      className="rounded-lg border border-indigo-200 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50"
+                    >
+                      Gerenciar Atos Infracionais
+                    </button>
+                  </div>
+                </div>
+                <div className="relative">
                   <input
                     type="text"
                     value={atoInfracional.descricao}
@@ -2812,11 +3020,14 @@ const selecionarAtoCatalogo = (ato: {
                       setMostrarSugestoesAto(true);
                     }}
                     onBlur={() =>
-                      window.setTimeout(() => setMostrarSugestoesAto(false), 120)
+                      window.setTimeout(
+                        () => setMostrarSugestoesAto(false),
+                        120,
+                      )
                     }
-            className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
-            placeholder="Digite para buscar no catalogo"
-          />
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
+                    placeholder="Digite para buscar no catalogo"
+                  />
                   {buscandoAto && (
                     <Loader2 className="absolute right-3 top-3 h-5 w-5 animate-spin text-indigo-500" />
                   )}
@@ -2873,8 +3084,8 @@ const selecionarAtoCatalogo = (ato: {
                     )}
                 </div>
                 <p className="text-xs text-gray-500">
-                  Digite para buscar e selecione um ato do catalogo. Se nao encontrar,
-                  cadastre um novo.
+                  Digite para buscar e selecione um ato do catalogo. Se nao
+                  encontrar, cadastre um novo.
                 </p>
                 {atoInfracional.gravidadeCatalogo && (
                   <p className="text-xs font-semibold text-slate-600">
@@ -2889,6 +3100,238 @@ const selecionarAtoCatalogo = (ato: {
                       ? "Sim"
                       : "Não"}
                 </p>
+              </div>
+
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-800">
+                      Vinculos no mesmo ato infracional
+                    </h3>
+                    <p className="text-[11px] text-slate-500">
+                      Registre outros adolescentes envolvidos no mesmo ato
+                      infracional. O alerta de alocacao aparece apenas quando
+                      estiverem na mesma ala.
+                    </p>
+                  </div>
+                  <span className="text-[11px] font-semibold text-slate-500">
+                    {atoInfracionalVinculos.length} registrado(s)
+                  </span>
+                </div>
+
+                <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                      Descricao do vinculo
+                    </label>
+                    <textarea
+                      value={vinculoDescricao}
+                      onChange={(e) => setVinculoDescricao(e.target.value)}
+                      rows={2}
+                      className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all resize-none"
+                      placeholder="Ex: Ocorrencia conjunta registrada no mesmo boletim."
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                      Adolescentes envolvidos
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={vinculoBusca}
+                        onFocus={() => setMostrandoSugestoesVinculo(true)}
+                        onChange={(e) => setVinculoBusca(e.target.value)}
+                        onBlur={() =>
+                          window.setTimeout(
+                            () => setMostrandoSugestoesVinculo(false),
+                            120,
+                          )
+                        }
+                        className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
+                        placeholder="Busque pelo nome ou SMS"
+                      />
+                      {buscandoVinculo && (
+                        <Loader2 className="absolute right-3 top-2.5 h-4 w-4 animate-spin text-indigo-500" />
+                      )}
+                      {mostrandoSugestoesVinculo &&
+                        vinculoBusca.trim().length >= 2 && (
+                          <div className="absolute z-30 mt-1 max-h-52 w-full overflow-auto rounded-md border border-slate-200 bg-white shadow-lg">
+                            {vinculoSugestoes.length === 0 && (
+                              <p className="px-3 py-2 text-sm text-slate-500">
+                                {buscandoVinculo
+                                  ? "Buscando..."
+                                  : "Nenhum adolescente encontrado."}
+                              </p>
+                            )}
+                            {vinculoSugestoes.map((item) => (
+                              <button
+                                type="button"
+                                key={item.id}
+                                onMouseDown={() => {
+                                  setVinculoSelecionados((prev) => [
+                                    ...prev,
+                                    item,
+                                  ]);
+                                  setVinculoBusca("");
+                                  setMostrandoSugestoesVinculo(false);
+                                }}
+                                className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-indigo-50"
+                              >
+                                <span className="h-8 w-8 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-[10px] font-semibold">
+                                  {item.fotoUrl ? (
+                                    <img
+                                      src={item.fotoUrl}
+                                      alt={item.nomeCompleto}
+                                      className="h-full w-full object-cover"
+                                    />
+                                  ) : (
+                                    item.nomeCompleto?.trim().charAt(0) ?? "?"
+                                  )}
+                                </span>
+                                <span className="flex flex-col">
+                                  <span className="text-sm font-semibold text-slate-800">
+                                    {item.nomeCompleto}
+                                  </span>
+                                  <span className="text-[11px] text-slate-500">
+                                    {item.numeroSms
+                                      ? `SMS ${item.numeroSms}`
+                                      : "SMS nao informado"}{" "}
+                                    • {obterStatusLabel(item.statusUnidade)}
+                                  </span>
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                    </div>
+                    {vinculoSelecionados.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {vinculoSelecionados.map((item) => (
+                          <span
+                            key={item.id}
+                            className="inline-flex items-center gap-2 rounded-full bg-indigo-50 px-2.5 py-1 text-[11px] font-semibold text-indigo-700"
+                          >
+                            <span className="h-5 w-5 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-[9px] font-semibold text-slate-500">
+                              {item.fotoUrl ? (
+                                <img
+                                  src={item.fotoUrl}
+                                  alt={item.nomeCompleto}
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : (
+                                item.nomeCompleto?.trim().charAt(0) ?? "?"
+                              )}
+                            </span>
+                            <span className="max-w-[140px] truncate">
+                              {item.nomeCompleto}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setVinculoSelecionados((prev) =>
+                                  prev.filter(
+                                    (selecionado) => selecionado.id !== item.id,
+                                  ),
+                                )
+                              }
+                              className="text-indigo-400 hover:text-indigo-600"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={adicionarVinculoInfracional}
+                    disabled={!podeAdicionarVinculo}
+                    className="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300"
+                  >
+                    {vinculoEmEdicaoId ? "Salvar vinculo" : "Adicionar vinculo"}
+                  </button>
+                  {vinculoEmEdicaoId && (
+                    <button
+                      type="button"
+                      onClick={() => limparFormularioVinculo()}
+                      className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                    >
+                      Cancelar edicao
+                    </button>
+                  )}
+                </div>
+
+                {atoInfracionalVinculos.length === 0 ? (
+                  <div className="mt-3 rounded-md border border-dashed border-slate-200 bg-white px-3 py-2 text-center text-[11px] text-slate-500">
+                    Nenhum vinculo infracional registrado.
+                  </div>
+                ) : (
+                  <div className="mt-3 space-y-2">
+                    {atoInfracionalVinculos.map((vinculo, index) => (
+                      <div
+                        key={`${vinculo.id ?? "novo"}-${index}`}
+                        className="rounded-md border border-slate-200 bg-white p-3"
+                      >
+                        <p className="text-xs font-semibold text-slate-800">
+                          {vinculo.descricao}
+                        </p>
+                        <ul className="mt-2 space-y-1 text-[11px] text-slate-600">
+                          {(vinculo.adolescentes ?? []).map((adolescente) => (
+                            <li
+                              key={adolescente.id}
+                              className="flex items-center gap-2"
+                            >
+                              <span className="h-5 w-5 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-[9px] font-semibold text-slate-500">
+                                {adolescente.fotoUrl ? (
+                                  <img
+                                    src={adolescente.fotoUrl}
+                                    alt={adolescente.nomeCompleto}
+                                    className="h-full w-full object-cover"
+                                  />
+                                ) : (
+                                  adolescente.nomeCompleto
+                                    ?.trim()
+                                    .charAt(0) ?? "?"
+                                )}
+                              </span>
+                              <span>
+                                {adolescente.nomeCompleto}
+                                {adolescente.numeroSms
+                                  ? ` (SMS ${adolescente.numeroSms})`
+                                  : ""}{" "}
+                                • {obterStatusLabel(adolescente.statusUnidade)}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                        <div className="mt-2 flex items-center gap-4">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              iniciarEdicaoVinculoInfracional(vinculo, index)
+                            }
+                            className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-700"
+                          >
+                            Editar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removerVinculoInfracional(index)}
+                            className="text-[11px] font-semibold text-red-600 hover:text-red-700"
+                          >
+                            Remover
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="space-y-4">
@@ -2978,12 +3421,14 @@ const selecionarAtoCatalogo = (ato: {
                         Ato com repercussão pública ou gravidade elevada
                       </label>
                       <p className="text-sm text-gray-600">
-                        Use esta opcao quando o fato tenha grande repercussao ou represente risco
-                        excepcional. Caso o indicador esteja marcado a descricao detalhada sera destacada
-                        em relatorios operacionais (ex.: justificativa de algema).
+                        Use esta opcao quando o fato tenha grande repercussao ou
+                        represente risco excepcional. Caso o indicador esteja
+                        marcado a descricao detalhada sera destacada em
+                        relatorios operacionais (ex.: justificativa de algema).
                       </p>
                       <p className="text-xs text-gray-500">
-                        Dica: revise tambem a etapa de alertas para garantir coerência com esta marcacao.
+                        Dica: revise tambem a etapa de alertas para garantir
+                        coerência com esta marcacao.
                       </p>
                     </div>
                   </div>
@@ -3040,9 +3485,13 @@ const selecionarAtoCatalogo = (ato: {
                           </p>
                           <p className="text-xs text-slate-500">
                             Ano: {item.ano ?? "Nao informado"}
-                            {item.processo ? ` \u2022 Processo: ${item.processo}` : ""}
+                            {item.processo
+                              ? ` \u2022 Processo: ${item.processo}`
+                              : ""}
                             {" \u2022 Comarca: "}
-                            {item.comarca ?? item.unidadeInternacao ?? "Nao informado"}
+                            {item.comarca ??
+                              item.unidadeInternacao ??
+                              "Nao informado"}
                           </p>
                           {item.observacoes ? (
                             <p className="text-xs text-slate-600 mt-1">
@@ -3056,7 +3505,7 @@ const selecionarAtoCatalogo = (ato: {
                               className="text-indigo-600 hover:text-indigo-700 text-xs font-semibold"
                             >
                               {atoInfracional.historico.some(
-                                (pendente) => pendente.id === item.id
+                                (pendente) => pendente.id === item.id,
                               )
                                 ? "Em edicao"
                                 : "Editar"}
@@ -3181,7 +3630,6 @@ const selecionarAtoCatalogo = (ato: {
               </div>
             </div>
           )}
-
           {/* ETAPA 3: Vinculacoes */}
           {etapaAtual === 3 && (
             <div className="space-y-6">
@@ -3209,117 +3657,128 @@ const selecionarAtoCatalogo = (ato: {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {!faccaoSomenteHistorico && (
-                <div>
-                  <div className="mb-2 flex items-center justify-between">
-                    <label className="block text-sm font-semibold text-gray-700">
-                      Faccao / Grupo
-                    </label>
-                    <button
-                      type="button"
-                      onClick={abrirModalNovaFaccao}
-                      className="text-xs font-semibold text-indigo-600 hover:text-indigo-500"
-                    >
-                      + Nova faccao
-                    </button>
-                  </div>
-                  <select
-                    value={vinculacoes.faccaoId}
-                    onChange={(e) => {
-                      const novoValor = e.target.value;
-                      setVinculacoes((prev) => ({
-                        ...prev,
-                        faccaoId: novoValor,
-                        faccaoFuncao: novoValor ? prev.faccaoFuncao : "",
-                        faccaoOrigem: novoValor ? prev.faccaoOrigem : "",
-                        faccaoOrigemDetalhe: novoValor
-                          ? prev.faccaoOrigemDetalhe
-                          : "",
-                      }));
-                    }}
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
-                  >
-                    {faccoesDisponiveis.map((faccao) => (
-                      <option
-                        key={faccao.id || "sem-faccao"}
-                        value={faccao.id}
+                  <div>
+                    <div className="mb-2 flex items-center justify-between">
+                      <label className="block text-sm font-semibold text-gray-700">
+                        Faccao / Grupo
+                      </label>
+                      <button
+                        type="button"
+                        onClick={abrirModalNovaFaccao}
+                        className="text-xs font-semibold text-indigo-600 hover:text-indigo-500"
                       >
-                        {faccao.nome}
-                        {typeof faccao.total === "number"
-                          ? ` - ${faccao.total} adolescentes`
-                          : ""}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                        + Nova faccao
+                      </button>
+                    </div>
+                    <select
+                      value={vinculacoes.faccaoId}
+                      onChange={(e) => {
+                        const novoValor = e.target.value;
+                        setVinculacoes((prev) => ({
+                          ...prev,
+                          faccaoId: novoValor,
+                          faccaoFuncao: novoValor ? prev.faccaoFuncao : "",
+                          faccaoOrigem: novoValor ? prev.faccaoOrigem : "",
+                          faccaoOrigemDetalhe: novoValor
+                            ? prev.faccaoOrigemDetalhe
+                            : "",
+                        }));
+                      }}
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
+                    >
+                      {faccoesDisponiveis.map((faccao) => (
+                        <option
+                          key={faccao.id || "sem-faccao"}
+                          value={faccao.id}
+                        >
+                          {faccao.nome}
+                          {typeof faccao.total === "number"
+                            ? ` - ${faccao.total} adolescentes`
+                            : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 )}
 
-              {!faccaoSomenteHistorico && (
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Funcao dentro da organizacao
-                </label>
-                <input
-                    type="text"
-                    value={vinculacoes.faccaoFuncao}
-                    onChange={(e) =>
-                      setVinculacoes({
-                        ...vinculacoes,
-                        faccaoFuncao: e.target.value,
-                      })
-                    }
-                    disabled={!temFaccaoSelecionada}
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all disabled:bg-gray-100 disabled:text-gray-500"
-                    placeholder="Ex: Vigia, recrutador, sem funcao definida"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Se conhecido, informe o papel desempenhado pelo adolescente dentro da faccao.
-                  </p>
-                </div>
-              )}
+                {!faccaoSomenteHistorico && (
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Funcao dentro da organizacao
+                    </label>
+                    <input
+                      type="text"
+                      value={vinculacoes.faccaoFuncao}
+                      onChange={(e) =>
+                        setVinculacoes({
+                          ...vinculacoes,
+                          faccaoFuncao: e.target.value,
+                        })
+                      }
+                      disabled={!temFaccaoSelecionada}
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all disabled:bg-gray-100 disabled:text-gray-500"
+                      placeholder="Ex: Vigia, recrutador, sem funcao definida"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Se conhecido, informe o papel desempenhado pelo
+                      adolescente dentro da faccao.
+                    </p>
+                  </div>
+                )}
 
-              {faccaoSomenteHistorico && (
-                <div className="md:col-span-2 rounded-xl border border-slate-200 bg-white p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-semibold text-slate-700">
-                        Facção / Grupo (somente leitura)
-                      </p>
-                      <p className="text-xs text-slate-500">
-                        Alterações devem ser feitas via “Nova declaração”.
-                      </p>
+                {faccaoSomenteHistorico && (
+                  <div className="md:col-span-2 rounded-xl border border-slate-200 bg-white p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-700">
+                          Facção / Grupo (somente leitura)
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          Alterações devem ser feitas via “Nova declaração”.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={abrirModalNovaFaccao}
+                        className="text-xs font-semibold text-indigo-600 hover:text-indigo-500"
+                      >
+                        + Nova facção
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={abrirModalNovaFaccao}
-                      className="text-xs font-semibold text-indigo-600 hover:text-indigo-500"
-                    >
-                      + Nova facção
-                    </button>
+                    <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-slate-700">
+                      <div>
+                        <span className="text-xs uppercase text-slate-500">
+                          Facção atual
+                        </span>
+                        <p className="font-semibold">{faccaoAtualNome}</p>
+                      </div>
+                      <div>
+                        <span className="text-xs uppercase text-slate-500">
+                          Origem
+                        </span>
+                        <p className="font-semibold">
+                          {faccaoAtualOrigem || "NAO INFORMADO"}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-xs uppercase text-slate-500">
+                          Função
+                        </span>
+                        <p className="font-semibold">
+                          {faccaoAtualFuncao || "Nao informada"}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-xs uppercase text-slate-500">
+                          Observação
+                        </span>
+                        <p className="font-semibold">
+                          {faccaoAtualObs || "Sem observações"}
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                  <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-slate-700">
-                    <div>
-                      <span className="text-xs uppercase text-slate-500">Facção atual</span>
-                      <p className="font-semibold">{faccaoAtualNome}</p>
-                    </div>
-                    <div>
-                      <span className="text-xs uppercase text-slate-500">Origem</span>
-                      <p className="font-semibold">{faccaoAtualOrigem || "NAO INFORMADO"}</p>
-                    </div>
-                    <div>
-                      <span className="text-xs uppercase text-slate-500">Função</span>
-                      <p className="font-semibold">
-                        {faccaoAtualFuncao || "Nao informada"}
-                      </p>
-                    </div>
-                    <div>
-                      <span className="text-xs uppercase text-slate-500">Observação</span>
-                      <p className="font-semibold">
-                        {faccaoAtualObs || "Sem observações"}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
+                )}
 
                 {initialData?.id && (
                   <div className="md:col-span-2 rounded-xl border border-slate-200 p-4 bg-slate-50">
@@ -3329,7 +3788,8 @@ const selecionarAtoCatalogo = (ato: {
                           Histórico de facção
                         </p>
                         <p className="text-xs text-slate-500">
-                          A declaração atual fica ativa; anteriores permanecem registradas.
+                          A declaração atual fica ativa; anteriores permanecem
+                          registradas.
                         </p>
                       </div>
                       <button
@@ -3406,68 +3866,78 @@ const selecionarAtoCatalogo = (ato: {
                 )}
 
                 {!faccaoSomenteHistorico && (
-                <div className="md:col-span-2 space-y-2">
-                  <label className="block text-sm font-semibold text-gray-700">
-                    Origem da informacao sobre a faccao
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    {[
-                      { label: "Nao informado", value: "" },
-                      { label: "Confessada pelo adolescente", value: "CONFESSADA" },
-                      { label: "Observacao/Inteligencia", value: "OBSERVACAO" },
-                    ].map((opcao) => {
-                      const ativo = vinculacoes.faccaoOrigem === opcao.value;
-                      return (
-                        <button
-                          key={opcao.value || "sem-origem"}
-                          type="button"
-                          disabled={!temFaccaoSelecionada}
-                          onClick={() =>
-                            setVinculacoes((prev) => ({
-                              ...prev,
-                              faccaoOrigem: opcao.value as "" | "CONFESSADA" | "OBSERVACAO",
-                              faccaoOrigemDetalhe:
-                                opcao.value === "OBSERVACAO"
-                                  ? prev.faccaoOrigemDetalhe
-                                  : "",
-                            }))
-                          }
-                          className={`px-4 py-2 rounded-full border text-xs font-semibold transition ${
-                            ativo
-                              ? "border-indigo-500 bg-indigo-50 text-indigo-700"
-                              : "border-gray-300 text-gray-600 hover:border-indigo-300 hover:text-indigo-600"
-                          } ${!temFaccaoSelecionada ? "opacity-60 cursor-not-allowed" : ""}`}
-                        >
-                          {opcao.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <p className="text-xs text-gray-500">
-                    {temFaccaoSelecionada
-                      ? "Registre se o vinculo foi relatado pelo adolescente ou identificado pela equipe."
-                      : "Campos de origem ficam habilitados ao selecionar uma faccao."}
-                  </p>
-                  {temFaccaoSelecionada && vinculacoes.faccaoOrigem === "OBSERVACAO" && (
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-600 mb-1">
-                        Descreva como essa informacao foi obtida
-                      </label>
-                      <textarea
-                        value={vinculacoes.faccaoOrigemDetalhe}
-                        onChange={(e) =>
-                          setVinculacoes({
-                            ...vinculacoes,
-                            faccaoOrigemDetalhe: e.target.value,
-                          })
-                        }
-                        rows={3}
-                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all text-sm"
-                        placeholder="Ex: Confirmado por registro de inteligencia, relato de tecnico, observacao de tatuagem..."
-                      />
+                  <div className="md:col-span-2 space-y-2">
+                    <label className="block text-sm font-semibold text-gray-700">
+                      Origem da informacao sobre a faccao
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        { label: "Nao informado", value: "" },
+                        {
+                          label: "Confessada pelo adolescente",
+                          value: "CONFESSADA",
+                        },
+                        {
+                          label: "Observacao/Inteligencia",
+                          value: "OBSERVACAO",
+                        },
+                      ].map((opcao) => {
+                        const ativo = vinculacoes.faccaoOrigem === opcao.value;
+                        return (
+                          <button
+                            key={opcao.value || "sem-origem"}
+                            type="button"
+                            disabled={!temFaccaoSelecionada}
+                            onClick={() =>
+                              setVinculacoes((prev) => ({
+                                ...prev,
+                                faccaoOrigem: opcao.value as
+                                  | ""
+                                  | "CONFESSADA"
+                                  | "OBSERVACAO",
+                                faccaoOrigemDetalhe:
+                                  opcao.value === "OBSERVACAO"
+                                    ? prev.faccaoOrigemDetalhe
+                                    : "",
+                              }))
+                            }
+                            className={`px-4 py-2 rounded-full border text-xs font-semibold transition ${
+                              ativo
+                                ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+                                : "border-gray-300 text-gray-600 hover:border-indigo-300 hover:text-indigo-600"
+                            } ${!temFaccaoSelecionada ? "opacity-60 cursor-not-allowed" : ""}`}
+                          >
+                            {opcao.label}
+                          </button>
+                        );
+                      })}
                     </div>
-                  )}
-                </div>
+                    <p className="text-xs text-gray-500">
+                      {temFaccaoSelecionada
+                        ? "Registre se o vinculo foi relatado pelo adolescente ou identificado pela equipe."
+                        : "Campos de origem ficam habilitados ao selecionar uma faccao."}
+                    </p>
+                    {temFaccaoSelecionada &&
+                      vinculacoes.faccaoOrigem === "OBSERVACAO" && (
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1">
+                            Descreva como essa informacao foi obtida
+                          </label>
+                          <textarea
+                            value={vinculacoes.faccaoOrigemDetalhe}
+                            onChange={(e) =>
+                              setVinculacoes({
+                                ...vinculacoes,
+                                faccaoOrigemDetalhe: e.target.value,
+                              })
+                            }
+                            rows={3}
+                            className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all text-sm"
+                            placeholder="Ex: Confirmado por registro de inteligencia, relato de tecnico, observacao de tatuagem..."
+                          />
+                        </div>
+                      )}
+                  </div>
                 )}
 
                 <div>
@@ -3490,7 +3960,7 @@ const selecionarAtoCatalogo = (ato: {
                       onBlur={() =>
                         window.setTimeout(
                           () => setMostrarSugestoesBairro(false),
-                          120
+                          120,
                         )
                       }
                       className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
@@ -3518,7 +3988,7 @@ const selecionarAtoCatalogo = (ato: {
                                   ? ` - ${bairro.estado}`
                                   : "";
                                 setBairroBusca(
-                                  `${bairro.nomeBairro} - ${bairro.cidade}${sufixoEstado}`
+                                  `${bairro.nomeBairro} - ${bairro.cidade}${sufixoEstado}`,
                                 );
                                 setMostrarSugestoesBairro(false);
                               }}
@@ -3546,7 +4016,8 @@ const selecionarAtoCatalogo = (ato: {
                       )}
                   </div>
                   <p className="text-xs text-gray-500 mt-1">
-                    Comece a digitar para filtrar. Se nao encontrar, registre como novo endereco.
+                    Comece a digitar para filtrar. Se nao encontrar, registre
+                    como novo endereco.
                   </p>
                 </div>
 
@@ -3581,7 +4052,7 @@ const selecionarAtoCatalogo = (ato: {
                         <p className="mt-1 text-[11px] text-rose-600">
                           Registrado em{" "}
                           {new Date(
-                            riscoFugaOrigemInfo.registradoEm
+                            riscoFugaOrigemInfo.registradoEm,
                           ).toLocaleString("pt-BR")}
                         </p>
                       )}
@@ -3591,8 +4062,8 @@ const selecionarAtoCatalogo = (ato: {
                           {riscoFugaOrigemInfo.referenciaTipo === "CI"
                             ? "Comunicado Interno"
                             : riscoFugaOrigemInfo.referenciaTipo === "ALERTA"
-                            ? "Alerta interno"
-                            : riscoFugaOrigemInfo.referenciaTipo}
+                              ? "Alerta interno"
+                              : riscoFugaOrigemInfo.referenciaTipo}
                         </p>
                       )}
                       {riscoFugaOrigemInfo.referenciaTipo === "CI" &&
@@ -3635,14 +4106,18 @@ const selecionarAtoCatalogo = (ato: {
 
                     <div className="max-h-52 overflow-y-auto space-y-2">
                       {carregandoTecnicos ? (
-                        <p className="text-sm text-gray-500">Carregando tecnicos...</p>
+                        <p className="text-sm text-gray-500">
+                          Carregando tecnicos...
+                        </p>
                       ) : tecnicosFiltrados.length === 0 ? (
                         <p className="text-sm text-gray-500">
                           Nenhum tecnico encontrado para a busca.
                         </p>
                       ) : (
                         tecnicosFiltrados.map((tecnico) => {
-                          const selecionado = tecnicosReferenciaIds.includes(tecnico.id);
+                          const selecionado = tecnicosReferenciaIds.includes(
+                            tecnico.id,
+                          );
                           return (
                             <button
                               type="button"
@@ -3651,7 +4126,7 @@ const selecionarAtoCatalogo = (ato: {
                                 setTecnicosReferenciaIds((prev) =>
                                   selecionado
                                     ? prev.filter((id) => id !== tecnico.id)
-                                    : [...prev, tecnico.id]
+                                    : [...prev, tecnico.id],
                                 );
                               }}
                               className={`w-full text-left rounded-lg border-2 px-3 py-2 transition ${
@@ -3662,7 +4137,9 @@ const selecionarAtoCatalogo = (ato: {
                             >
                               <div className="flex items-center justify-between gap-2">
                                 <div>
-                                  <p className="font-semibold">{tecnico.nome}</p>
+                                  <p className="font-semibold">
+                                    {tecnico.nome}
+                                  </p>
                                   <p className="text-xs text-gray-600">
                                     {tecnico.atividade || "Atividade n/d"}
                                   </p>
@@ -3685,7 +4162,9 @@ const selecionarAtoCatalogo = (ato: {
                     {tecnicosReferenciaIds.length > 0 && (
                       <div className="flex flex-wrap gap-2">
                         {tecnicosReferenciaIds
-                          .map((id) => tecnicosDisponiveis.find((t) => t.id === id))
+                          .map((id) =>
+                            tecnicosDisponiveis.find((t) => t.id === id),
+                          )
                           .filter(Boolean)
                           .map((tec) => (
                             <button
@@ -3693,7 +4172,7 @@ const selecionarAtoCatalogo = (ato: {
                               type="button"
                               onClick={() =>
                                 setTecnicosReferenciaIds((prev) =>
-                                  prev.filter((id) => id !== tec!.id)
+                                  prev.filter((id) => id !== tec!.id),
                                 )
                               }
                               className="inline-flex items-center gap-2 bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full text-xs font-semibold border border-indigo-200 hover:bg-indigo-200"
@@ -3705,252 +4184,278 @@ const selecionarAtoCatalogo = (ato: {
                       </div>
                     )}
                     {erroTecnicos && (
-                      <p className="text-xs text-red-600 mt-1">{erroTecnicos}</p>
+                      <p className="text-xs text-red-600 mt-1">
+                        {erroTecnicos}
+                      </p>
                     )}
                   </div>
                 </div>
-
-          </div>
-        </div>
-      )}
-
-      {/* ETAPA 4: Alojamento */}
-      {etapaAtual === 4 && (
-        <div className="space-y-6">
-          <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
-            <Bed className="text-indigo-600" />
-            Alojamento
-          </h2>
-          {!podeAlterarAlojamento && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-              Seu perfil permite apenas visualizar alojamentos. Alteracoes estao bloqueadas.
+              </div>
             </div>
           )}
-
-          <div className="mb-4">
-            <p className="text-sm font-semibold text-gray-700 mb-2">
-              Tipo de internacao
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {[
-                {
-                  label: "Provisoria",
-                  value: "PROVISORIA" as TipoInternacao,
-                  dica: "Prioriza Casa 01",
-                },
-                {
-                  label: "Definitiva",
-                  value: "DEFINITIVA" as TipoInternacao,
-                  dica: "Casas 02-07 (Casa 08 apenas segura)",
-                },
-              ].map((opcao) => {
-                const ativo = tipoInternacao === opcao.value;
-                return (
-                  <button
-                    key={opcao.value}
-                    type="button"
-                    onClick={() => setTipoInternacao(opcao.value)}
-                  className={`flex-1 min-w-[140px] rounded-xl border px-4 py-2 text-left text-sm transition ${
-                      ativo
-                        ? "border-indigo-500 bg-indigo-50 text-indigo-700 shadow-sm"
-                        : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
-                    } ${
-                      statusUnidade !== "ATIVO" || !podeGerarSugestoes
-                        ? "opacity-50 cursor-not-allowed"
-                        : ""
-                    }`}
-                    disabled={statusUnidade !== "ATIVO" || !podeGerarSugestoes}
-                  >
-                    <span className="block font-semibold">{opcao.label}</span>
-                    <span className="text-xs text-slate-500">{opcao.dica}</span>
-                  </button>
-                );
-              })}
-            </div>
-          {!tipoInternacao && (
-            <p className="mt-1 text-xs text-slate-500">
-              Escolha o tipo de internacao para aplicar as regras de sugestao
-              automaticamente.
-            </p>
-          )}
-        </div>
-
-        {tipoInternacao === "DEFINITIVA" && (
-          <div className="mb-4">
-            <label className="text-sm font-semibold text-gray-700">
-              Casa de preferencia (opcional)
-            </label>
-            <select
-              value={casaPreferenciaId}
-              onChange={(event) => {
-                setCasaPreferenciaId(event.target.value);
-                setDiagnosticoCasa(null);
-                setDiagnosticoErro(null);
-                setDiagnosticoAberto(false);
-              }}
-              className="mt-1 w-full rounded-lg border-2 border-gray-300 px-4 py-2 text-sm text-gray-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-              disabled={!podeGerarSugestoes}
-            >
-              <option value="">Sem preferencia</option>
-              {casasCatalogo.map((casa) => (
-                <option key={casa.id} value={casa.id}>
-                  {casa.nome} (Casa {String(casa.numero).padStart(2, "0")})
-                </option>
-              ))}
-            </select>
-            <p className="mt-1 text-xs text-slate-500">
-              Se informado, as sugestoes serao filtradas para esta casa.
-            </p>
-          </div>
-        )}
-
-        <div className="flex flex-wrap items-center gap-3 mb-2">
-          <label className="text-sm font-semibold text-gray-700">
-            Alojamento preferencial
-            </label>
-            <button
-              type="button"
-              onClick={() => {
-                if (!vinculacoes.bairroId && !vinculacoes.faccaoId) {
-                  setErroSugestoes(
-                    "Informe bairro ou faccao antes de gerar sugestoes."
-                  );
-                  return;
-                }
-                buscarSugestoesAlojamento();
-              }}
-              className="rounded-full border border-indigo-300 bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 disabled:opacity-60"
-              disabled={carregandoSugestoes || !tipoInternacao || !podeGerarSugestoes}
-            >
-              {carregandoSugestoes ? "Sugerindo..." : "Sugerir com base no risco"}
-            </button>
-            {!vinculacoes.bairroId && !vinculacoes.faccaoId && (
-              <span className="text-[11px] text-slate-500">
-                Informe bairro ou faccao para liberar as sugestoes.
-              </span>
-            )}
-          </div>
-
-        {erroSugestoes && (
-          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-rose-600">
-              <span>{erroSugestoes}</span>
-              {erroSugestoes ===
-                "Nenhum alojamento recomendado para a casa selecionada." &&
-                casaPreferenciaId && (
-                  <button
-                    type="button"
-                    onClick={abrirDiagnosticoCasa}
-                    className="text-indigo-600 hover:text-indigo-700 font-semibold underline decoration-dotted"
-                    disabled={diagnosticoLoading}
-                  >
-                    {diagnosticoLoading
-                      ? "Carregando motivos..."
-                      : "Ver motivos técnicos"}
-                  </button>
-                )}
-              {diagnosticoErro && (
-                <span className="text-rose-500">{diagnosticoErro}</span>
+          {/* ETAPA 4: Alojamento */}
+          {etapaAtual === 4 && (
+            <div className="space-y-6">
+              <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+                <Bed className="text-indigo-600" />
+                Alojamento
+              </h2>
+              {!podeAlterarAlojamento && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                  Seu perfil permite apenas visualizar alojamentos. Alteracoes
+                  estao bloqueadas.
+                </div>
               )}
-            </div>
-          )}
-          {avisoSugestoes && (
-            <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-              {avisoSugestoes}
-            </div>
-          )}
 
-          {sugestoesAlojamento.length > 0 && (
-            <div className="mt-3 space-y-2">
-              {sugestoesAlojamento.map((sugestao) => (
-                <div
-                  key={sugestao.alojamentoId}
-                  className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700"
+              <div className="mb-4">
+                <p className="text-sm font-semibold text-gray-700 mb-2">
+                  Tipo de internacao
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    {
+                      label: "Provisoria",
+                      value: "PROVISORIA" as TipoInternacao,
+                      dica: "Prioriza Casa 01",
+                    },
+                    {
+                      label: "Definitiva",
+                      value: "DEFINITIVA" as TipoInternacao,
+                      dica: "Casas 02-07 (Casa 08 apenas segura)",
+                    },
+                  ].map((opcao) => {
+                    const ativo = tipoInternacao === opcao.value;
+                    return (
+                      <button
+                        key={opcao.value}
+                        type="button"
+                        onClick={() => setTipoInternacao(opcao.value)}
+                        className={`flex-1 min-w-[140px] rounded-xl border px-4 py-2 text-left text-sm transition ${
+                          ativo
+                            ? "border-indigo-500 bg-indigo-50 text-indigo-700 shadow-sm"
+                            : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                        } ${
+                          statusUnidade !== "ATIVO" || !podeGerarSugestoes
+                            ? "opacity-50 cursor-not-allowed"
+                            : ""
+                        }`}
+                        disabled={
+                          statusUnidade !== "ATIVO" || !podeGerarSugestoes
+                        }
+                      >
+                        <span className="block font-semibold">
+                          {opcao.label}
+                        </span>
+                        <span className="text-xs text-slate-500">
+                          {opcao.dica}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {!tipoInternacao && (
+                  <p className="mt-1 text-xs text-slate-500">
+                    Escolha o tipo de internacao para aplicar as regras de
+                    sugestao automaticamente.
+                  </p>
+                )}
+              </div>
+
+              {tipoInternacao === "DEFINITIVA" && (
+                <div className="mb-4">
+                  <label className="text-sm font-semibold text-gray-700">
+                    Casa de preferencia (opcional)
+                  </label>
+                  <select
+                    value={casaPreferenciaId}
+                    onChange={(event) => {
+                      setCasaPreferenciaId(event.target.value);
+                      setDiagnosticoCasa(null);
+                      setDiagnosticoErro(null);
+                      setDiagnosticoAberto(false);
+                    }}
+                    className="mt-1 w-full rounded-lg border-2 border-gray-300 px-4 py-2 text-sm text-gray-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+                    disabled={!podeGerarSugestoes}
+                  >
+                    <option value="">Sem preferencia</option>
+                    {casasCatalogo.map((casa) => (
+                      <option key={casa.id} value={casa.id}>
+                        {casa.nome} (Casa {String(casa.numero).padStart(2, "0")}
+                        )
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Se informado, as sugestoes serao filtradas para esta casa.
+                  </p>
+                </div>
+              )}
+
+              <div className="flex flex-wrap items-center gap-3 mb-2">
+                <label className="text-sm font-semibold text-gray-700">
+                  Alojamento preferencial
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!vinculacoes.bairroId && !vinculacoes.faccaoId) {
+                      setErroSugestoes(
+                        "Informe bairro ou faccao antes de gerar sugestoes.",
+                      );
+                      return;
+                    }
+                    buscarSugestoesAlojamento();
+                  }}
+                  className="rounded-full border border-indigo-300 bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 disabled:opacity-60"
+                  disabled={
+                    carregandoSugestoes ||
+                    !tipoInternacao ||
+                    !podeGerarSugestoes
+                  }
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <div>
-                      <p className="font-semibold text-slate-900">
-                        {sugestao.casaNome} - Aloj. {sugestao.numero}
-                        {sugestao.ala ? ` (Ala ${sugestao.ala})` : ""}
-                      </p>
-                      <p className="text-[11px] text-slate-500">{sugestao.rotulo}</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setAlojamentoSelecionado(sugestao.alojamentoId)}
-                      disabled={!podeSelecionarAlojamento}
-                      className="rounded-full border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-60 disabled:cursor-not-allowed"
-                    >
-                      Usar
-                    </button>
-                  </div>
-                  <p className="mt-1">{sugestao.descricao}</p>
-                  {sugestao.alertas.length > 0 && (
-                    <ul className="mt-1 list-disc pl-4 text-rose-600 space-y-0.5">
-                      {sugestao.alertas.map((alerta, index) => (
-                        <li key={`alerta-${sugestao.alojamentoId}-${index}`}>{alerta}</li>
-                      ))}
-                    </ul>
-                  )}
-                  {sugestao.ambientais.length > 0 && (
-                    <ul className="mt-1 list-disc pl-4 text-amber-600 space-y-0.5">
-                      {sugestao.ambientais.map((motivo, index) => (
-                        <li key={`ambiental-${sugestao.alojamentoId}-${index}`}>{motivo}</li>
-                      ))}
-                    </ul>
+                  {carregandoSugestoes
+                    ? "Sugerindo..."
+                    : "Sugerir com base no risco"}
+                </button>
+                {!vinculacoes.bairroId && !vinculacoes.faccaoId && (
+                  <span className="text-[11px] text-slate-500">
+                    Informe bairro ou faccao para liberar as sugestoes.
+                  </span>
+                )}
+              </div>
+
+              {erroSugestoes && (
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-rose-600">
+                  <span>{erroSugestoes}</span>
+                  {erroSugestoes ===
+                    "Nenhum alojamento recomendado para a casa selecionada." &&
+                    casaPreferenciaId && (
+                      <button
+                        type="button"
+                        onClick={abrirDiagnosticoCasa}
+                        className="text-indigo-600 hover:text-indigo-700 font-semibold underline decoration-dotted"
+                        disabled={diagnosticoLoading}
+                      >
+                        {diagnosticoLoading
+                          ? "Carregando motivos..."
+                          : "Ver motivos técnicos"}
+                      </button>
+                    )}
+                  {diagnosticoErro && (
+                    <span className="text-rose-500">{diagnosticoErro}</span>
                   )}
                 </div>
-              ))}
+              )}
+              {avisoSugestoes && (
+                <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                  {avisoSugestoes}
+                </div>
+              )}
+
+              {sugestoesAlojamento.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  {sugestoesAlojamento.map((sugestao) => (
+                    <div
+                      key={sugestao.alojamentoId}
+                      className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div>
+                          <p className="font-semibold text-slate-900">
+                            {sugestao.casaNome} - Aloj. {sugestao.numero}
+                            {sugestao.ala ? ` (Ala ${sugestao.ala})` : ""}
+                          </p>
+                          <p className="text-[11px] text-slate-500">
+                            {sugestao.rotulo}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setAlojamentoSelecionado(sugestao.alojamentoId)
+                          }
+                          disabled={!podeSelecionarAlojamento}
+                          className="rounded-full border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                          Usar
+                        </button>
+                      </div>
+                      <p className="mt-1">{sugestao.descricao}</p>
+                      {sugestao.alertas.length > 0 && (
+                        <ul className="mt-1 list-disc pl-4 text-rose-600 space-y-0.5">
+                          {sugestao.alertas.map((alerta, index) => (
+                            <li
+                              key={`alerta-${sugestao.alojamentoId}-${index}`}
+                            >
+                              {alerta}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      {sugestao.ambientais.length > 0 && (
+                        <ul className="mt-1 list-disc pl-4 text-amber-600 space-y-0.5">
+                          {sugestao.ambientais.map((motivo, index) => (
+                            <li
+                              key={`ambiental-${sugestao.alojamentoId}-${index}`}
+                            >
+                              {motivo}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <p className="text-xs text-slate-500">
+                Selecione o alojamento atual do adolescente ou escolha o destino
+                para alocacao automatica.
+              </p>
+              <select
+                value={alojamentoSelecionado ?? ""}
+                onChange={(e) => {
+                  if (statusUnidade !== "ATIVO") return;
+                  setAlojamentoSelecionado(
+                    e.target.value ? e.target.value : null,
+                  );
+                }}
+                disabled={
+                  statusUnidade !== "ATIVO" || !podeSelecionarAlojamento
+                }
+                className={`w-full px-4 py-3 border-2 rounded-lg outline-none transition-all ${
+                  statusUnidade === "ATIVO"
+                    ? "border-gray-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+                    : "border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed"
+                }`}
+              >
+                <option value="">Nenhum (sem alocacao automatica)</option>
+                {alojamentosLivres.map((aloj) => (
+                  <option key={aloj.id} value={aloj.id}>
+                    {aloj.casa} - Aloj. {aloj.numero}
+                    {aloj.ala ? ` (Ala ${aloj.ala})` : ""}
+                    {aloj.atual ? " (Atual)" : ""}
+                  </option>
+                ))}
+              </select>
+
+              <p className="text-xs text-gray-500 mt-2">
+                A selecao sera usada para acionar /api/alocar automaticamente
+                apos salvar.
+              </p>
             </div>
           )}
-
-          <p className="text-xs text-slate-500">
-            Selecione o alojamento atual do adolescente ou escolha o destino para
-            alocacao automatica.
-          </p>
-          <select
-            value={alojamentoSelecionado ?? ""}
-            onChange={(e) => {
-              if (statusUnidade !== "ATIVO") return;
-              setAlojamentoSelecionado(e.target.value ? e.target.value : null);
-            }}
-            disabled={statusUnidade !== "ATIVO" || !podeSelecionarAlojamento}
-            className={`w-full px-4 py-3 border-2 rounded-lg outline-none transition-all ${
-              statusUnidade === "ATIVO"
-                ? "border-gray-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-                : "border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed"
-            }`}
-          >
-            <option value="">Nenhum (sem alocacao automatica)</option>
-            {alojamentosLivres.map((aloj) => (
-              <option key={aloj.id} value={aloj.id}>
-                {aloj.casa} - Aloj. {aloj.numero}
-                {aloj.ala ? ` (Ala ${aloj.ala})` : ""}
-                {aloj.atual ? " (Atual)" : ""}
-              </option>
-            ))}
-          </select>
-
-          <p className="text-xs text-gray-500 mt-2">
-            A selecao sera usada para acionar /api/alocar automaticamente apos salvar.
-          </p>
-        </div>
-      )}
-
-      {/* ETAPA 5: Tatuagens */}
-      {etapaAtual === 5 && (
+          {/* ETAPA 5: Tatuagens */}
+          {etapaAtual === 5 && (
             <div className="space-y-6">
               <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
                 <Camera className="text-indigo-600" />
                 Tatuagens
               </h2>
 
-              <SeletorTatuagens
-                tatuagens={tatuagens}
-                onChange={setTatuagens}
-              />
+              <SeletorTatuagens tatuagens={tatuagens} onChange={setTatuagens} />
             </div>
           )}
-
           {/* ETAPA 6: Alertas */}
           {etapaAtual === 6 && (
             <div className="space-y-6">
@@ -3958,6 +4463,46 @@ const selecionarAtoCatalogo = (ato: {
                 <AlertTriangle className="text-indigo-600" />
                 Alertas Especiais
               </h2>
+
+              {Array.isArray(initialData?.alertasAtivos) &&
+                initialData.alertasAtivos.length > 0 && (
+                  <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <p className="text-sm font-semibold text-slate-700 mb-3">
+                      Alertas ativos registrados
+                    </p>
+                    <div className="space-y-2">
+                      {initialData.alertasAtivos.map((alerta) => (
+                        <div
+                          key={alerta.id}
+                          className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700"
+                        >
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-semibold uppercase text-slate-700">
+                              {alerta.tipo ?? "Alerta"}
+                            </span>
+                            {alerta.nivelRisco && (
+                              <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold uppercase text-indigo-700">
+                                {alerta.nivelRisco}
+                              </span>
+                            )}
+                            {alerta.criadoEm && (
+                              <span className="text-[10px] text-slate-500">
+                                {new Date(alerta.criadoEm).toLocaleDateString(
+                                  "pt-BR",
+                                )}
+                              </span>
+                            )}
+                          </div>
+                          {alerta.descricao && (
+                            <p className="mt-2 text-xs text-slate-600">
+                              {alerta.descricao}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
               {atoInfracional.gravidade && (
                 <div className="rounded-2xl border-2 border-orange-300 bg-orange-50 p-4 space-y-2">
@@ -3987,7 +4532,8 @@ const selecionarAtoCatalogo = (ato: {
                     </div>
                   </div>
                   <p className="text-xs text-orange-700">
-                    Considere ativar alertas de perfil protegido ou emitir comunicados internos quando necessario.
+                    Considere ativar alertas de perfil protegido ou emitir
+                    comunicados internos quando necessario.
                   </p>
                 </div>
               )}
@@ -4067,7 +4613,8 @@ const selecionarAtoCatalogo = (ato: {
                 })}
               </div>
             </div>
-          )}          {/* Botoes de Navegacao */}
+          )}{" "}
+          {/* Botoes de Navegacao */}
           <div className="mt-8 pt-6 border-t-2 border-gray-200 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <button
               type="button"
@@ -4113,7 +4660,6 @@ const selecionarAtoCatalogo = (ato: {
               </button>
             )}
           </div>
-
           {/* Botao Cancelar */}
           <div className="mt-4 text-center">
             <button
@@ -4179,18 +4725,18 @@ const selecionarAtoCatalogo = (ato: {
                     alojamento.status === "LIVRE"
                       ? "Livre"
                       : alojamento.status === "OCUPADO"
-                      ? "Ocupado"
-                      : alojamento.status === "INTERDITADO"
-                      ? "Interditado"
-                      : "Sem vigilancia frontal";
+                        ? "Ocupado"
+                        : alojamento.status === "INTERDITADO"
+                          ? "Interditado"
+                          : "Sem vigilancia frontal";
                   const statusClass =
                     alojamento.status === "LIVRE"
                       ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                       : alojamento.status === "OCUPADO"
-                      ? "bg-slate-50 text-slate-600 border-slate-200"
-                      : alojamento.status === "INTERDITADO"
-                      ? "bg-rose-50 text-rose-700 border-rose-200"
-                      : "bg-amber-50 text-amber-700 border-amber-200";
+                        ? "bg-slate-50 text-slate-600 border-slate-200"
+                        : alojamento.status === "INTERDITADO"
+                          ? "bg-rose-50 text-rose-700 border-rose-200"
+                          : "bg-amber-50 text-amber-700 border-amber-200";
 
                   return (
                     <div
@@ -4217,7 +4763,7 @@ const selecionarAtoCatalogo = (ato: {
                               .map((oc) =>
                                 oc.numeroSms
                                   ? `${oc.nome} (SMS ${oc.numeroSms})`
-                                  : oc.nome
+                                  : oc.nome,
                               )
                               .join(", ")}
                           </p>
@@ -4255,11 +4801,13 @@ const selecionarAtoCatalogo = (ato: {
                           )}
                           {alojamento.risco.ambientais.length > 0 && (
                             <ul className="list-disc pl-5 text-xs text-amber-600 space-y-1">
-                              {alojamento.risco.ambientais.map((alerta, idx) => (
-                                <li key={`${alojamento.id}-ambiental-${idx}`}>
-                                  {alerta}
-                                </li>
-                              ))}
+                              {alojamento.risco.ambientais.map(
+                                (alerta, idx) => (
+                                  <li key={`${alojamento.id}-ambiental-${idx}`}>
+                                    {alerta}
+                                  </li>
+                                ),
+                              )}
                             </ul>
                           )}
                         </div>
@@ -4287,9 +4835,7 @@ const selecionarAtoCatalogo = (ato: {
                       <h3 className="text-lg font-semibold text-slate-900">
                         {info.titulo}
                       </h3>
-                      <p className="text-sm text-slate-600">
-                        {info.descricao}
-                      </p>
+                      <p className="text-sm text-slate-600">{info.descricao}</p>
                     </div>
                   </div>
 
@@ -4355,11 +4901,11 @@ const selecionarAtoCatalogo = (ato: {
               Utilize este cadastro para manter o catalogo padronizado.
             </p>
 
-      <div className="mt-4 space-y-3">
-        <div>
-          <label className="text-xs font-semibold uppercase text-slate-500">
-            Nome do ato infracional
-          </label>
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="text-xs font-semibold uppercase text-slate-500">
+                  Nome do ato infracional
+                </label>
                 <input
                   type="text"
                   value={modalNovoAto.nome}
@@ -4374,51 +4920,51 @@ const selecionarAtoCatalogo = (ato: {
                   placeholder="Ex.: Roubo qualificado (art. 157, paragrafo 2)"
                 />
               </div>
-          {modalNovoAto.erro && (
-            <p className="text-sm text-rose-600">{modalNovoAto.erro}</p>
-          )}
-        </div>
-        <div>
-          <label className="text-xs font-semibold uppercase text-slate-500">
-            Gravidade (catálogo)
-          </label>
-          <select
-            value={modalNovoAto.gravidade}
-            onChange={(event) =>
-              setModalNovoAto((prev) => ({
-                ...prev,
-                gravidade: event.target.value,
-              }))
-            }
-            className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:outline-none"
-          >
-            <option value="">Selecione</option>
-            <option value="LEVE">Leve</option>
-            <option value="MEDIO">Medio</option>
-            <option value="GRAVE">Grave</option>
-            <option value="HEDIONDO">Hediondo</option>
-          </select>
-        </div>
-        <div className="flex items-center gap-2">
-          <input
-            id="novo-ato-violencia"
-            type="checkbox"
-            className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-            checked={modalNovoAto.violenciaOuGraveAmeaca}
-            onChange={(event) =>
-              setModalNovoAto((prev) => ({
-                ...prev,
-                violenciaOuGraveAmeaca: event.target.checked,
-              }))
-            }
-          />
-          <label
-            htmlFor="novo-ato-violencia"
-            className="text-sm font-semibold text-slate-700"
-          >
-            Violencia ou grave ameaca
-          </label>
-        </div>
+              {modalNovoAto.erro && (
+                <p className="text-sm text-rose-600">{modalNovoAto.erro}</p>
+              )}
+            </div>
+            <div>
+              <label className="text-xs font-semibold uppercase text-slate-500">
+                Gravidade (catálogo)
+              </label>
+              <select
+                value={modalNovoAto.gravidade}
+                onChange={(event) =>
+                  setModalNovoAto((prev) => ({
+                    ...prev,
+                    gravidade: event.target.value,
+                  }))
+                }
+                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:outline-none"
+              >
+                <option value="">Selecione</option>
+                <option value="LEVE">Leve</option>
+                <option value="MEDIO">Medio</option>
+                <option value="GRAVE">Grave</option>
+                <option value="HEDIONDO">Hediondo</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                id="novo-ato-violencia"
+                type="checkbox"
+                className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                checked={modalNovoAto.violenciaOuGraveAmeaca}
+                onChange={(event) =>
+                  setModalNovoAto((prev) => ({
+                    ...prev,
+                    violenciaOuGraveAmeaca: event.target.checked,
+                  }))
+                }
+              />
+              <label
+                htmlFor="novo-ato-violencia"
+                className="text-sm font-semibold text-slate-700"
+              >
+                Violencia ou grave ameaca
+              </label>
+            </div>
 
             <div className="mt-6 flex justify-end gap-3">
               <button
@@ -4450,7 +4996,8 @@ const selecionarAtoCatalogo = (ato: {
                   Gerenciar atos infracionais
                 </h3>
                 <p className="text-sm text-slate-500">
-                  Edite nome, gravidade, violência/grave ameaça ou ative/desative sem sair do cadastro.
+                  Edite nome, gravidade, violência/grave ameaça ou
+                  ative/desative sem sair do cadastro.
                 </p>
               </div>
               <button
@@ -4487,35 +5034,56 @@ const selecionarAtoCatalogo = (ato: {
               <table className="min-w-full divide-y divide-slate-100 text-sm">
                 <thead className="bg-slate-50">
                   <tr>
-                    <th className="px-3 py-2 text-left font-semibold text-slate-600">Nome</th>
-                    <th className="px-3 py-2 text-left font-semibold text-slate-600">Gravidade</th>
-                    <th className="px-3 py-2 text-left font-semibold text-slate-600">Violência?</th>
-                    <th className="px-3 py-2 text-left font-semibold text-slate-600">Ativo</th>
+                    <th className="px-3 py-2 text-left font-semibold text-slate-600">
+                      Nome
+                    </th>
+                    <th className="px-3 py-2 text-left font-semibold text-slate-600">
+                      Gravidade
+                    </th>
+                    <th className="px-3 py-2 text-left font-semibold text-slate-600">
+                      Violência?
+                    </th>
+                    <th className="px-3 py-2 text-left font-semibold text-slate-600">
+                      Ativo
+                    </th>
                     <th className="px-3 py-2"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {gestaoAtos.carregando && (
                     <tr>
-                      <td colSpan={5} className="px-3 py-4 text-center text-slate-500">
+                      <td
+                        colSpan={5}
+                        className="px-3 py-4 text-center text-slate-500"
+                      >
                         Carregando...
                       </td>
                     </tr>
                   )}
                   {!gestaoAtos.carregando && gestaoAtos.itens.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="px-3 py-4 text-center text-slate-500">
+                      <td
+                        colSpan={5}
+                        className="px-3 py-4 text-center text-slate-500"
+                      >
                         Nenhum ato encontrado.
                       </td>
                     </tr>
                   )}
                   {gestaoAtos.itens.map((item) => (
-                    <tr key={item.id} className={!item.ativo ? "bg-amber-50" : ""}>
+                    <tr
+                      key={item.id}
+                      className={!item.ativo ? "bg-amber-50" : ""}
+                    >
                       <td className="px-3 py-2 align-top">
                         <input
                           value={item.nome}
                           onChange={(e) =>
-                            atualizarCampoGestao(item.id, "nome", e.target.value)
+                            atualizarCampoGestao(
+                              item.id,
+                              "nome",
+                              e.target.value,
+                            )
                           }
                           className="w-full rounded border border-slate-200 px-2 py-1 text-sm"
                         />
@@ -4527,7 +5095,7 @@ const selecionarAtoCatalogo = (ato: {
                             atualizarCampoGestao(
                               item.id,
                               "gravidade",
-                              e.target.value || null
+                              e.target.value || null,
                             )
                           }
                           className="w-full rounded border border-slate-200 px-2 py-1 text-sm"
@@ -4548,7 +5116,7 @@ const selecionarAtoCatalogo = (ato: {
                               atualizarCampoGestao(
                                 item.id,
                                 "violenciaOuGraveAmeaca",
-                                e.target.checked
+                                e.target.checked,
                               )
                             }
                           />
@@ -4561,7 +5129,11 @@ const selecionarAtoCatalogo = (ato: {
                             type="checkbox"
                             checked={item.ativo}
                             onChange={(e) =>
-                              atualizarCampoGestao(item.id, "ativo", e.target.checked)
+                              atualizarCampoGestao(
+                                item.id,
+                                "ativo",
+                                e.target.checked,
+                              )
                             }
                           />
                           Ativo
@@ -4574,7 +5146,9 @@ const selecionarAtoCatalogo = (ato: {
                           disabled={gestaoAtos.salvandoId === item.id}
                           className="rounded bg-indigo-600 px-3 py-1 text-xs font-semibold text-white hover:bg-indigo-500 disabled:opacity-60"
                         >
-                          {gestaoAtos.salvandoId === item.id ? "Salvando..." : "Salvar"}
+                          {gestaoAtos.salvandoId === item.id
+                            ? "Salvando..."
+                            : "Salvar"}
                         </button>
                       </td>
                     </tr>
@@ -4814,9 +5388,12 @@ const selecionarAtoCatalogo = (ato: {
                       setModalDeclaracaoFaccao((prev) => ({
                         ...prev,
                         origem: valor,
-                        informanteId: valor === "OUTRO_INTERNO" ? prev.informanteId : "",
-                        informanteNome: valor === "OUTRO_INTERNO" ? prev.informanteNome : "",
-                        informanteSms: valor === "OUTRO_INTERNO" ? prev.informanteSms : "",
+                        informanteId:
+                          valor === "OUTRO_INTERNO" ? prev.informanteId : "",
+                        informanteNome:
+                          valor === "OUTRO_INTERNO" ? prev.informanteNome : "",
+                        informanteSms:
+                          valor === "OUTRO_INTERNO" ? prev.informanteSms : "",
                       }));
                       if (valor !== "OUTRO_INTERNO") {
                         setInformanteBusca("");
@@ -4828,7 +5405,9 @@ const selecionarAtoCatalogo = (ato: {
                   >
                     <option value="NAO_INFORMADO">Não informado</option>
                     <option value="CONFESSADA">Confessada</option>
-                    <option value="OBSERVACAO">Observação / inteligência</option>
+                    <option value="OBSERVACAO">
+                      Observação / inteligência
+                    </option>
                     <option value="INTELIGENCIA">Inteligência formal</option>
                     <option value="TERCEIROS">Relato de terceiros</option>
                     <option value="OUTRO_INTERNO">Outro interno</option>
@@ -4896,7 +5475,7 @@ const selecionarAtoCatalogo = (ato: {
                       onBlur={() =>
                         window.setTimeout(
                           () => setMostrandoInformanteSugestoes(false),
-                          120
+                          120,
                         )
                       }
                       className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:outline-none"
@@ -4972,7 +5551,9 @@ const selecionarAtoCatalogo = (ato: {
                 />
               </div>
               {modalDeclaracaoFaccao.erro && (
-                <p className="text-sm text-rose-600">{modalDeclaracaoFaccao.erro}</p>
+                <p className="text-sm text-rose-600">
+                  {modalDeclaracaoFaccao.erro}
+                </p>
               )}
             </div>
 
@@ -4991,7 +5572,9 @@ const selecionarAtoCatalogo = (ato: {
                 disabled={modalDeclaracaoFaccao.salvando}
                 className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-60"
               >
-                {modalDeclaracaoFaccao.salvando ? "Salvando..." : "Salvar declaração"}
+                {modalDeclaracaoFaccao.salvando
+                  ? "Salvando..."
+                  : "Salvar declaração"}
               </button>
             </div>
           </div>
@@ -5041,7 +5624,7 @@ const selecionarAtoCatalogo = (ato: {
                   }
                   rows={3}
                   className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:outline-none resize-none"
-                  placeholder="Contexto ou observacoes adicionais"
+                  placeholder="Contexto ou observações adicionais"
                 />
               </div>
               {modalNovaFaccao.erro && (

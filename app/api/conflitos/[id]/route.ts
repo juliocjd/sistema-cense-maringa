@@ -52,6 +52,7 @@ const coletarParticipantes = (
         fotoUrl: string | null;
         alojamentoAtual: ReturnType<typeof formatarAlojamento>;
         lado?: string;
+        statusUnidade?: string | null;
       }
     >();
 
@@ -64,6 +65,7 @@ const coletarParticipantes = (
           nomeCompleto: dados.nomeCompleto ?? dados.nomeSocial ?? "",
           numeroSms: dados.numeroSms ?? "",
           fotoUrl: dados.fotoUrl ?? null,
+          statusUnidade: dados.statusUnidade ?? null,
           alojamentoAtual: formatarAlojamento(dados.alojamentoAtual),
           lado: ladoToken ? LADO_LABELS[ladoToken] : undefined,
         });
@@ -304,6 +306,7 @@ export async function GET(
               nomeSocial: true,
               numeroSms: true,
               fotoUrl: true,
+              statusUnidade: true,
               alojamentoAtual: {
                 include: { casa: true },
               },
@@ -316,6 +319,7 @@ export async function GET(
               nomeSocial: true,
               numeroSms: true,
               fotoUrl: true,
+              statusUnidade: true,
               alojamentoAtual: {
                 include: { casa: true },
               },

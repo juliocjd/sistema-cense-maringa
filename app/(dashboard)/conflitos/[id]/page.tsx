@@ -11,6 +11,7 @@ type Participante = {
   fotoUrl?: string | null;
   alojamento?: string | null;
   lado?: string | null;
+  statusUnidade?: string | null;
 };
 
 type Conflito = {
@@ -59,6 +60,7 @@ type ApiParticipante = {
   numeroSms?: string | null;
   fotoUrl?: string | null;
   alojamento?: string | null;
+  statusUnidade?: string | null;
   alojamentoAtual?: {
     descricao?: string | null;
     casa?: string | null;
@@ -141,7 +143,7 @@ const formatarAlojamento = (
         casa?: string | null;
         numero?: string | number | null;
         ala?: string | null;
-      }
+      },
 ) => {
   if (!alojamento) return undefined;
   if (typeof alojamento === "string") return alojamento;
@@ -161,10 +163,13 @@ const mapearParticipante = (dados: ApiParticipante): Participante => ({
   fotoUrl: dados.fotoUrl ?? null,
   alojamento: formatarAlojamento(dados.alojamento ?? dados.alojamentoAtual),
   lado: dados.lado ?? null,
+  statusUnidade: dados.statusUnidade ?? null,
 });
 
 const normalizarConflito = (dados: ApiConflito): Conflito => {
-  const statusBruto = ((dados.statusGrupo ?? dados.status) as string | undefined)?.toUpperCase();
+  const statusBruto = (
+    (dados.statusGrupo ?? dados.status) as string | undefined
+  )?.toUpperCase();
   const statusNormalizado: "ATIVO" | "RESOLVIDO" =
     statusBruto === "RESOLVIDO" ? "RESOLVIDO" : "ATIVO";
 
@@ -197,7 +202,7 @@ const normalizarConflito = (dados: ApiConflito): Conflito => {
     criadoEm: dados.dataRegistro,
     resolvidoEm:
       statusNormalizado === "RESOLVIDO"
-        ? dados.dataResolucao ?? undefined
+        ? (dados.dataResolucao ?? undefined)
         : undefined,
     totalOcorrencias: dados.totalOcorrencias ?? 0,
     ultimaOcorrenciaEm: dados.ultimaOcorrenciaEm ?? undefined,
@@ -211,8 +216,7 @@ const normalizarConflito = (dados: ApiConflito): Conflito => {
             numero: oc.ci.numero,
             ano: oc.ci.ano,
             tipo: (oc.ci as any).tipo ?? (oc.ci as any).tipoCI ?? null,
-            resumo:
-              (oc.ci as any).resumo ?? (oc.ci as any).resumoCI ?? null,
+            resumo: (oc.ci as any).resumo ?? (oc.ci as any).resumoCI ?? null,
             dataFato: oc.ci.dataFato ?? null,
           }
         : null,
@@ -221,7 +225,7 @@ const normalizarConflito = (dados: ApiConflito): Conflito => {
       mapearParticipante({
         ...p,
         alojamentoAtual: p.alojamentoAtual,
-      })
+      }),
     ),
     adolescenteA: mapearParticipante(dados.adolescenteA),
     adolescenteB: mapearParticipante(dados.adolescenteB),
@@ -371,9 +375,10 @@ export default function ConflitoPorIdPage() {
   }, [carregarDados]);
 
   const statusDerivado: "ATIVO" | "RESOLVIDO" | "PARCIAL" = useMemo(() => {
-    if (!conflito?.paresDoGrupo?.length) return (conflito?.status as "ATIVO" | "RESOLVIDO") ?? "ATIVO";
+    if (!conflito?.paresDoGrupo?.length)
+      return (conflito?.status as "ATIVO" | "RESOLVIDO") ?? "ATIVO";
     const ativos = conflito.paresDoGrupo.filter(
-      (p) => (p.status ?? "").toUpperCase() !== "RESOLVIDO"
+      (p) => (p.status ?? "").toUpperCase() !== "RESOLVIDO",
     ).length;
     const resolvidos = conflito.paresDoGrupo.length - ativos;
     if (ativos > 0 && resolvidos > 0) return "PARCIAL";
@@ -648,7 +653,7 @@ export default function ConflitoPorIdPage() {
 
         <div className="mt-4">
           <label className="block text-sm font-semibold text-gray-700 mb-2">
-            Observacoes / descricao
+            Observações / descrição
           </label>
           <textarea
             value={edicaoConflito.descricao}
@@ -728,12 +733,17 @@ export default function ConflitoPorIdPage() {
                       {par.status}
                     </span>
                     {par.ciLabel && (
-                      <span className="text-xs text-slate-500">({par.ciLabel})</span>
+                      <span className="text-xs text-slate-500">
+                        ({par.ciLabel})
+                      </span>
                     )}
                   </div>
                   <div className="text-slate-800 font-semibold">
-                    {participantesMap.get(par.adolescenteAId) ?? par.adolescenteAId} x{" "}
-                    {participantesMap.get(par.adolescenteBId) ?? par.adolescenteBId}
+                    {participantesMap.get(par.adolescenteAId) ??
+                      par.adolescenteAId}{" "}
+                    x{" "}
+                    {participantesMap.get(par.adolescenteBId) ??
+                      par.adolescenteBId}
                   </div>
                 </div>
                 {(par.status ?? "").toUpperCase() !== "RESOLVIDO" ? (

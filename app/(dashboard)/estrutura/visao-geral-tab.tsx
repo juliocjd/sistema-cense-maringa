@@ -27,6 +27,9 @@ import type { ImpactoConflitoExterno } from "@/types/inteligencia";
 import {
   calcularRiscoAlojamento,
   criarMapaSlots,
+  type AdolescenteRisco,
+  type AlojamentoRisco,
+  type CasaRisco,
   type ResultadoRisco,
 } from "@/lib/riscos/calcular";
 import { useAuth } from "@/hooks/useAuth";
@@ -121,6 +124,32 @@ const construirMapaConflitosInternos = (
   return mapa;
 };
 
+const mapearAdolescenteRisco = (
+  adolescente: AdolescenteTipo
+): AdolescenteRisco => ({
+  id: adolescente.id,
+  nomeCompleto: adolescente.nomeCompleto,
+  bairroOrigemId: adolescente.bairroOrigemId ?? null,
+  faccaoGrupoId: adolescente.faccaoGrupoId ?? null,
+  alertaRiscoSuicidio: adolescente.alertaRiscoSuicidio,
+  alertaPerfilMapeado: adolescente.alertaPerfilMapeado,
+  alertaSaudeConfidencial: adolescente.alertaSaudeConfidencial,
+  alertaSaudeDetalhes: adolescente.alertaSaudeDetalhes ?? null,
+  alertaRiscoSuicidioNivel: adolescente.alertaRiscoSuicidioNivel ?? null,
+  atoInfracionalVinculos:
+    (adolescente.atoInfracionalVinculos ?? [])
+      .map((item: any) => ({
+        id: item?.id ?? item?.vinculoId ?? item?.vinculo?.id ?? "",
+        descricao: item?.descricao ?? item?.vinculo?.descricao ?? null,
+      }))
+      .filter((item: any) => item.id),
+  faccao: adolescente.faccao
+    ? { id: adolescente.faccao.id ?? null, nome: adolescente.faccao.nome ?? null }
+    : null,
+  conflitosA: adolescente.conflitosA ?? [],
+  conflitosB: adolescente.conflitosB ?? [],
+});
+
 const renderIconesAlerta = (
   alojamento: Alojamento,
   temConflitos: boolean,
@@ -147,14 +176,6 @@ const renderIconesAlerta = (
       {ocupante?.alertaSaudeConfidencial && (
         <div className="rounded-full bg-blue-500 p-0.5" title="Alerta de saude">
           <Activity size={10} className="text-white" />
-        </div>
-      )}
-      {temAliados && (
-        <div
-          className="rounded-full bg-amber-500/70 px-1.5 py-0.5 text-[8px] font-semibold text-white border border-amber-300"
-          title="Aliados do rival na casa"
-        >
-          A
         </div>
       )}
       {/*
@@ -531,23 +552,51 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
     }));
   }, [casas, adolescentesLookup]);
 
-  const slotsPorAdolescente = useMemo(
-    () => criarMapaSlots(casasNormalizadas),
+  const casasParaCalculo = useMemo<CasaRisco[]>(
+    () =>
+      casasNormalizadas.map((casa) => ({
+        id: casa.id,
+        nome: casa.nome,
+        numero: casa.numero,
+        isolada: casa.isolada,
+        alojamentos: casa.alojamentos.map((alojamento) => ({
+          ...alojamento,
+          adolescentes: (alojamento.adolescentes ?? []).map(mapearAdolescenteRisco),
+        })),
+      })),
     [casasNormalizadas]
+  );
+
+  const alojamentosPorId = useMemo(() => {
+    const mapa = new Map<string, AlojamentoRisco>();
+    casasParaCalculo.forEach((casa) => {
+      casa.alojamentos.forEach((alojamento) => {
+        mapa.set(alojamento.id, alojamento);
+      });
+    });
+    return mapa;
+  }, [casasParaCalculo]);
+
+  const slotsPorAdolescente = useMemo(
+    () => criarMapaSlots(casasParaCalculo),
+    [casasParaCalculo]
   );
 
   const avaliarRiscoAlojamento = useCallback(
     (alojamento: Alojamento) => {
       const resultadoServidor = avaliacoes[alojamento.id];
+      const alojamentoRisco =
+        alojamentosPorId.get(alojamento.id) ??
+        (alojamento as unknown as AlojamentoRisco);
+      const casaAtual =
+        casasParaCalculo.find((casa) => casa.id === alojamento.casaId) ?? null;
 
       const resultado =
         resultadoServidor ??
         calcularRiscoAlojamento({
-          alojamento,
-          casaAtual: casasNormalizadas.find(
-            (casa) => casa.id === alojamento.casaId
-          ),
-          casas: casasNormalizadas,
+          alojamento: alojamentoRisco,
+          casaAtual,
+          casas: casasParaCalculo,
           slots: slotsPorAdolescente,
           conflitosExternos,
         });
@@ -567,7 +616,13 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
         corClass,
       };
     },
-    [avaliacoes, casasNormalizadas, conflitosExternos, slotsPorAdolescente]
+    [
+      avaliacoes,
+      alojamentosPorId,
+      casasParaCalculo,
+      conflitosExternos,
+      slotsPorAdolescente,
+    ]
   );
 
   // Mapa de nÃ­veis de risco por adolescente (para filtrar dropdown)
@@ -897,12 +952,6 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
               </span>
               Alerta de saude
             </div>
-            <div className="flex items-center gap-1">
-              <span className="rounded-full bg-amber-500/70 px-2 py-0.5 text-[10px] font-semibold text-white border border-amber-300">
-                Aliados
-              </span>
-              Aliados do rival na casa
-            </div>
           </div>
         </div>
       </div>
@@ -1226,4 +1275,3 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
     </div>
   );
 }
-

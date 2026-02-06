@@ -65,8 +65,8 @@ const formatarStatusLabel = (valor?: StatusFiltro) =>
 
 const formatarTituloRelatorio = (tipo: RelatorioTipo) =>
   tipo === "FACCAO"
-    ? "Relatorio - Internos por faccoes"
-    : "Relatorio - Internos por regioes";
+    ? "RELATÓRIO - INTERNOS POR FACÇÕES"
+    : "RELATÓRIO - INTERNOS POR REGIÕES";
 
 export default function RelatorioAfiliacoesModalTrigger() {
   const [aberto, setAberto] = useState(false);
@@ -109,7 +109,7 @@ export default function RelatorioAfiliacoesModalTrigger() {
         setErro(
           error instanceof Error
             ? error.message
-            : "Erro inesperado ao gerar relatorio."
+            : "Erro inesperado ao gerar relatório."
         );
       } finally {
         setCarregando(false);
@@ -228,14 +228,14 @@ export default function RelatorioAfiliacoesModalTrigger() {
               <div className="flex items-start justify-between border-b border-slate-200 px-6 py-4">
                 <div>
                   <p className="text-xs uppercase tracking-wide text-indigo-500">
-                    Inteligencia operacional
+                    Inteligência operacional
                   </p>
                   <h2 className="text-2xl font-bold text-slate-900">
-                    Relatorio de internos por faccao ou regiao
+                    Relatório de internos por facção ou região
                   </h2>
                   <p className="text-sm text-slate-600">
-                    Consulte rapidamente os adolescentes conforme regioes
-                    mapeadas ou faccoes cadastradas.
+                    Consulte rapidamente os adolescentes conforme regiões
+                    mapeadas ou facções cadastradas.
                   </p>
                 </div>
                 <button
@@ -314,7 +314,7 @@ export default function RelatorioAfiliacoesModalTrigger() {
                 {carregando && (
                   <div className="flex h-full flex-col items-center justify-center gap-3 text-slate-500">
                     <Loader2 className="h-6 w-6 animate-spin" />
-                    <p>Gerando relatorio...</p>
+                    <p>Gerando relatório...</p>
                   </div>
                 )}
 
@@ -326,7 +326,7 @@ export default function RelatorioAfiliacoesModalTrigger() {
 
                 {!carregando && !erro && dados?.grupos.length === 0 && (
                   <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                    Nao ha dados disponiveis para o tipo selecionado.
+                    Não há dados disponiveis para o tipo selecionado.
                   </div>
                 )}
 
@@ -398,7 +398,7 @@ export default function RelatorioAfiliacoesModalTrigger() {
               <div className="flex items-center justify-between border-t border-slate-200 px-6 py-4 text-sm text-slate-600">
                 <div className="flex items-center gap-2">
                   <FileText size={16} />
-                  Relatorio atualizado em tempo real.
+                  Relatório atualizado em tempo real.
                 </div>
                 <button
                   type="button"

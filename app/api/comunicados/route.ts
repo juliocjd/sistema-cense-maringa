@@ -13,6 +13,7 @@ import {
   findActiveConflictPairs,
   buildPairKey,
 } from "@/lib/conflitos/pairs";
+import { notificarTecnicoSobreComunicado } from "@/lib/notificacoes/comunicado";
 
 const prisma = new PrismaClient();
 const CI_ALERTA_ESPECIAL_MAP: Record<string, keyof typeof ALERTAS_ESPECIAIS> =
@@ -46,6 +47,7 @@ type ComunicadosPayload = {
   gerarAlerta?: boolean | string | null;
   nivelRiscoAlerta?: string | null;
   tipoConflitoGerado?: string | null;
+  enviarEmailTecnicos?: boolean | string | null;
 };
 
 const parseAdolescentesIds = (valor: unknown): string[] => {
@@ -99,6 +101,7 @@ const parsePayload = async (request: NextRequest): Promise<ComunicadosPayload> =
       gerarAlerta: parseBoolean(getString("gerarAlerta")),
       nivelRiscoAlerta: getString("nivelRiscoAlerta"),
       tipoConflitoGerado: getString("tipoConflitoGerado"),
+      enviarEmailTecnicos: parseBoolean(getString("enviarEmailTecnicos")),
     };
   }
 
@@ -110,6 +113,230 @@ const parsePayload = async (request: NextRequest): Promise<ComunicadosPayload> =
     ladoAIds: json.ladoAIds ?? (json as any)?.lado1Ids ?? null,
     ladoBIds: json.ladoBIds ?? (json as any)?.lado2Ids ?? null,
     tipoConflitoGerado: json.tipoConflitoGerado ?? null,
+    enviarEmailTecnicos: parseBoolean(json.enviarEmailTecnicos),
+  };
+};
+
+const selecionarTecnicoReferencia = (
+  lista?:
+    | Array<{
+        tecnicoReferencia?: { nome: string; email: string | null } | null;
+      }>
+    | null
+) => {
+  if (!lista) return null;
+  const contato = lista.find((item) => item?.tecnicoReferencia)
+    ?.tecnicoReferencia;
+  return contato ? { nome: contato.nome, email: contato.email ?? null } : null;
+};
+
+const montarNomeAdolescente = (dados: {
+  nomeCompleto?: string | null;
+  nomeSocial?: string | null;
+}) => dados.nomeCompleto ?? dados.nomeSocial ?? "Adolescente sem nome";
+
+const formatarResumoAdolescente = (dados: {
+  nome: string;
+  numeroSms?: string | null;
+}) => `${dados.nome} (SMS: ${dados.numeroSms ?? "Nao informado"})`;
+
+const construirResumoConflito = (dados: {
+  adolescentes: Array<{ id: string; nome: string; numeroSms?: string | null }>;
+  ladoAIds: string[];
+  ladoBIds: string[];
+  conflitoSolicitado: boolean;
+}) => {
+  if (!dados.conflitoSolicitado) {
+    return null;
+  }
+  const nomesMap = new Map(
+    dados.adolescentes.map((item) => [
+      item.id,
+      formatarResumoAdolescente(item),
+    ])
+  );
+  const fallback = (id: string) => `Adolescente ${id.slice(0, 8)}`;
+  const construirLado = (ids: string[]) =>
+    ids.map((id) => nomesMap.get(id) ?? fallback(id));
+
+  let lado1 = construirLado(dados.ladoAIds);
+  let lado2 = construirLado(dados.ladoBIds);
+
+  if ((!lado1.length || !lado2.length) && dados.adolescentes.length >= 2) {
+    lado1 = [formatarResumoAdolescente(dados.adolescentes[0])];
+    lado2 = dados.adolescentes
+      .slice(1)
+      .map((item) => formatarResumoAdolescente(item));
+  }
+
+  if (!lado1.length || !lado2.length) {
+    return null;
+  }
+
+  return `Conflito envolvendo ${lado1.join(", ")} de um lado e ${lado2.join(
+    ", "
+  )} do outro`;
+};
+
+const notificarTecnicosDoComunicado = async (dados: {
+  ciId: string;
+  numero: number;
+  ano: number;
+  tipo: string;
+  dataFato: string;
+  resumo: string;
+  adolescentesIds: string[];
+  ladoAIds: string[];
+  ladoBIds: string[];
+  conflitosGerados: number;
+  ocorrenciasGeradas: number;
+  alertasGerados: number;
+  conflitoSolicitado: boolean;
+  alertaSolicitado: boolean;
+  origin?: string;
+}) => {
+  const adolescentes = await prisma.adolescente.findMany({
+    where: { id: { in: dados.adolescentesIds } },
+    select: {
+      id: true,
+      nomeCompleto: true,
+      nomeSocial: true,
+      numeroSms: true,
+      tecnicosReferencia: {
+        include: {
+          tecnicoReferencia: { select: { nome: true, email: true } },
+        },
+        orderBy: { criadoEm: "asc" },
+      },
+    },
+  });
+
+  const adolescentesMap = new Map(adolescentes.map((item) => [item.id, item]));
+  const adolescentesResumo = dados.adolescentesIds
+    .map((adolescenteId) => {
+      const adolescente = adolescentesMap.get(adolescenteId);
+      if (!adolescente) return null;
+      const contato = selecionarTecnicoReferencia(
+        adolescente.tecnicosReferencia ?? null
+      );
+      return {
+        id: adolescente.id,
+        nome: montarNomeAdolescente(adolescente),
+        numeroSms: adolescente.numeroSms ?? null,
+        tecnicoNome: contato?.nome ?? null,
+        tecnicoEmail: contato?.email ?? null,
+      };
+    })
+    .filter(
+      (
+        item
+      ): item is {
+        id: string;
+        nome: string;
+        numeroSms: string | null;
+        tecnicoNome: string | null;
+        tecnicoEmail: string | null;
+      } => Boolean(item)
+    );
+
+  const tecnicosMap = new Map<string, { nome: string; email: string }>();
+  let adolescentesSemTecnico = 0;
+
+  adolescentesResumo.forEach((adolescente) => {
+    if (!adolescente.tecnicoEmail) {
+      adolescentesSemTecnico += 1;
+      return;
+    }
+
+    const chave = adolescente.tecnicoEmail.toLowerCase();
+    if (!tecnicosMap.has(chave)) {
+      tecnicosMap.set(chave, {
+        nome: adolescente.tecnicoNome ?? "Tecnico de referencia",
+        email: adolescente.tecnicoEmail,
+      });
+    }
+  });
+
+  const contatos = Array.from(tecnicosMap.values());
+  if (contatos.length === 0) {
+    return {
+      emailsEnviados: 0,
+      emailsFalharam: 0,
+      adolescentesSemTecnico,
+      motivo: "sem_tecnicos",
+    };
+  }
+
+  if (!process.env.EMAIL_HOST) {
+    console.log(
+      "[comunicados] SMTP nao configurado. Emails nao serao enviados."
+    );
+    return {
+      emailsEnviados: 0,
+      emailsFalharam: contatos.length,
+      adolescentesSemTecnico,
+      motivo: "smtp_nao_configurado",
+    };
+  }
+
+  let emailsEnviados = 0;
+  let emailsFalharam = 0;
+
+  const resumoConflito = construirResumoConflito({
+    adolescentes: adolescentesResumo.map((item) => ({
+      id: item.id,
+      nome: item.nome,
+      numeroSms: item.numeroSms ?? null,
+    })),
+    ladoAIds: dados.ladoAIds,
+    ladoBIds: dados.ladoBIds,
+    conflitoSolicitado: dados.conflitoSolicitado,
+  });
+
+  for (const contato of contatos) {
+    const resultado = await notificarTecnicoSobreComunicado({
+      tecnico: { nome: contato.nome, email: contato.email },
+      adolescentes: adolescentesResumo.map((item) => ({
+        id: item.id,
+        nome: item.nome,
+        numeroSms: item.numeroSms ?? null,
+        tecnicoNome: item.tecnicoNome ?? null,
+      })),
+      comunicado: {
+        id: dados.ciId,
+        numero: dados.numero,
+        ano: dados.ano,
+        tipo: dados.tipo,
+        dataFato: dados.dataFato,
+        resumo: dados.resumo,
+      },
+      geracao: {
+        conflitoSolicitado: dados.conflitoSolicitado,
+        alertaSolicitado: dados.alertaSolicitado,
+        conflitosGerados: dados.conflitosGerados,
+        ocorrenciasGeradas: dados.ocorrenciasGeradas,
+        alertasGerados: dados.alertasGerados,
+      },
+      resumoConflito,
+      link: dados.origin ? `${dados.origin}/comunicados/${dados.ciId}` : null,
+    });
+
+    if (resultado.sucesso) {
+      emailsEnviados += 1;
+    } else {
+      emailsFalharam += 1;
+      console.error(
+        "[comunicados] Falha ao enviar email para tecnico:",
+        contato.email,
+        resultado.erro ?? "erro desconhecido"
+      );
+    }
+  }
+
+  return {
+    emailsEnviados,
+    emailsFalharam,
+    adolescentesSemTecnico,
   };
 };
 
@@ -362,6 +589,9 @@ export async function POST(request: NextRequest) {
       gerarAlertaEntrada === undefined
         ? (tipoCI ? tiposQueGeramAlerta.includes(tipoCI) : false)
         : gerarAlertaEntrada;
+    const enviarEmailTecnicosBool = parseBoolean(
+      payload.enviarEmailTecnicos
+    );
     const caminhoPdfNormalizado =
       typeof caminhoPdf === "string" && caminhoPdf.trim().length > 0
         ? caminhoPdf.trim()
@@ -754,12 +984,33 @@ export async function POST(request: NextRequest) {
       };
     });
 
+    const notificacaoEmail = enviarEmailTecnicosBool
+      ? await notificarTecnicosDoComunicado({
+          ciId: resultado.ci.id,
+          numero: numeroInt,
+          ano: anoInt,
+          tipo: tipoCI,
+          dataFato,
+          resumo: resumoCI.trim(),
+          adolescentesIds: adolescentesIdsArray,
+          ladoAIds: lado1Ids,
+          ladoBIds: lado2Ids,
+          conflitosGerados: resultado.conflitosGerados.length,
+          ocorrenciasGeradas: resultado.ocorrenciasGeradas,
+          alertasGerados: resultado.alertasGerados.length,
+          conflitoSolicitado: deveGerarConflito,
+          alertaSolicitado: deveGerarAlerta,
+          origin: request.nextUrl.origin,
+        })
+      : null;
+
     return NextResponse.json(
       {
         comunicado: resultado.ci,
         conflitosGerados: resultado.conflitosGerados.length,
         alertasGerados: resultado.alertasGerados.length,
         ocorrenciasRegistradas: resultado.ocorrenciasGeradas,
+        notificacaoEmail,
         mensagem: `CI criado com sucesso! ${resultado.conflitosGerados.length} novo(s) conflito(s), ${resultado.ocorrenciasGeradas} ocorrencia(s) registradas e ${resultado.alertasGerados.length} alerta(s) gerado(s) automaticamente.`,
       },
       { status: 201 }

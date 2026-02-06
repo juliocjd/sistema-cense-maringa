@@ -237,7 +237,11 @@ export function RelatorioFase3ModalTrigger() {
         align: "center",
       });
       doc.setFontSize(11);
-      const addLinhaRotuloValor = (rotulo: string, valor: string, y: number) => {
+      const addLinhaRotuloValor = (
+        rotulo: string,
+        valor: string,
+        y: number,
+      ) => {
         doc.setFont("helvetica", "bold");
         doc.text(rotulo, 14, y);
         const valorX = 14 + doc.getTextWidth(rotulo) + 4;
@@ -290,8 +294,7 @@ export function RelatorioFase3ModalTrigger() {
       const linhasObservacoes = medirLinhas(observacoes);
       const alturaBase = 46;
       const alturaBloco =
-        alturaBase +
-        (linhasImpedimentos + linhasObservacoes) * 4.5;
+        alturaBase + (linhasImpedimentos + linhasObservacoes) * 4.5;
 
       // Replica o resumo exibido no modal logo abaixo da localizacao atual.
       doc.setFillColor(248, 250, 252);
@@ -407,7 +410,7 @@ export function RelatorioFase3ModalTrigger() {
             ),
             formatarListaCelula(
               analise.avaliacao.observacoes,
-              "Sem observacoes adicionais",
+              "Sem observações adicionais",
             ),
           ],
         ],
@@ -689,7 +692,7 @@ export function RelatorioFase3ModalTrigger() {
                               <li key={item}>{item}</li>
                             ))
                           ) : (
-                            <li>Sem observacoes complementares</li>
+                            <li>Sem observações complementares</li>
                           )}
                         </ul>
                       </div>

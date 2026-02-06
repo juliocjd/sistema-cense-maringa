@@ -3,6 +3,9 @@ import {
   calcularRiscoAlojamento,
   criarMapaSlots,
   type CasaRisco,
+  type AlojamentoRisco,
+  type AdolescenteRisco,
+  type ConflitoRisco,
   type ResultadoRisco,
 } from "@/lib/riscos/calcular";
 import type { ConflitosExternosMapa } from "@/lib/riscos/calcular";
@@ -95,6 +98,91 @@ const mapearCorRisco = (categoria: string, nivel: number) => {
   if (nivel === 1) return "seguro";
   return "livre";
 };
+
+type ConflitoBruto = {
+  id?: string;
+  status?: string | null;
+  tipoConflito?: string | null;
+  adolescenteAId?: string | null;
+  adolescenteBId?: string | null;
+  adolescenteA?: { id?: string | null } | null;
+  adolescenteB?: { id?: string | null } | null;
+};
+
+type AdolescenteParaRisco = {
+  id: string;
+  nomeCompleto: string;
+  bairroOrigemId?: string | null;
+  faccaoGrupoId?: string | null;
+  alertaRiscoSuicidio?: boolean | null;
+  alertaPerfilMapeado?: boolean | null;
+  alertaSaudeConfidencial?: boolean | null;
+  alertaSaudeDetalhes?: string | null;
+  alertaRiscoSuicidioNivel?: string | null;
+  faccao?:
+    | {
+        id?: string | null;
+        nome?: string | null;
+        nomeFaccao?: string | null;
+      }
+    | null;
+  conflitosA?: ConflitoBruto[];
+  conflitosB?: ConflitoBruto[];
+  atoInfracionalVinculos?: Array<{
+    vinculoId?: string | null;
+    vinculo?: { id?: string | null; descricao?: string | null } | null;
+  }>;
+};
+
+const mapearConflitoRisco = (conflito: ConflitoBruto): ConflitoRisco => ({
+  id: String(conflito.id ?? ""),
+  status: conflito.status ?? null,
+  tipoConflito: conflito.tipoConflito ?? null,
+  adolescenteAId:
+    conflito.adolescenteAId ?? conflito.adolescenteA?.id ?? null,
+  adolescenteBId:
+    conflito.adolescenteBId ?? conflito.adolescenteB?.id ?? null,
+});
+
+const mapearAdolescenteRisco = (
+  adolescente: AdolescenteParaRisco
+): AdolescenteRisco => ({
+  id: adolescente.id,
+  nomeCompleto: adolescente.nomeCompleto,
+  bairroOrigemId: adolescente.bairroOrigemId ?? null,
+  faccaoGrupoId: adolescente.faccaoGrupoId ?? null,
+  alertaRiscoSuicidio: Boolean(adolescente.alertaRiscoSuicidio),
+  alertaPerfilMapeado: Boolean(adolescente.alertaPerfilMapeado),
+  alertaSaudeConfidencial: Boolean(adolescente.alertaSaudeConfidencial),
+  alertaSaudeDetalhes: adolescente.alertaSaudeDetalhes ?? null,
+  alertaRiscoSuicidioNivel: adolescente.alertaRiscoSuicidioNivel ?? null,
+  faccao: adolescente.faccao
+    ? {
+        id: adolescente.faccao.id ?? null,
+        nome:
+          adolescente.faccao.nome ??
+          adolescente.faccao.nomeFaccao ??
+          null,
+      }
+    : null,
+  atoInfracionalVinculos:
+    (adolescente.atoInfracionalVinculos ?? [])
+      .flatMap((item: any) => {
+        const vinculo = item?.vinculo ?? item;
+        const id = vinculo?.id ?? item?.vinculoId ?? item?.id;
+        if (!id) return [];
+        const descricao =
+          typeof vinculo?.descricao === "string" ? vinculo.descricao : null;
+        return [
+          {
+            id: String(id),
+            descricao,
+          },
+        ];
+      }) ?? [],
+  conflitosA: (adolescente.conflitosA ?? []).map(mapearConflitoRisco),
+  conflitosB: (adolescente.conflitosB ?? []).map(mapearConflitoRisco),
+});
 
 const construirConflitoResumo = (
   conflito: any,
@@ -306,6 +394,16 @@ const calcularSnapshot = async (): Promise<{
                 },
                 bairroOrigem: true,
                 faccao: true,
+                atoInfracionalVinculos: {
+                  include: {
+                    vinculo: {
+                      select: {
+                        id: true,
+                        descricao: true,
+                      },
+                    },
+                  },
+                },
                 alertasAtivos: {
                   where: {
                     desativadoEm: null,
@@ -360,8 +458,8 @@ const calcularSnapshot = async (): Promise<{
         nivelRisco: alojamentoNormalizado.nivelRisco ?? undefined,
         icones: alojamentoNormalizado.icones ?? [],
         alertas: alojamentoNormalizado.alertas ?? [],
-        adolescentes: alojamento.adolescentes as unknown as Adolescente[],
-      } as Alojamento;
+        adolescentes: (alojamento.adolescentes ?? []).map(mapearAdolescenteRisco),
+      } as AlojamentoRisco;
     }),
   }));
 
@@ -374,11 +472,27 @@ const calcularSnapshot = async (): Promise<{
       (alojamento) => {
         const alojamentoParcial = alojamento as unknown as Partial<Alojamento>;
 
+        const alojamentoParaCalculo =
+          casaParaCalculo?.alojamentos.find(
+            (item) => item.id === alojamento.id
+          ) ??
+          ({
+            id: alojamento.id,
+            casaId: casa.id,
+            numeroAlojamento: alojamento.numeroAlojamento,
+            ala: alojamento.ala,
+            statusManutencao: alojamento.statusManutencao,
+            alojamentoFrontalId: alojamento.alojamentoFrontalId,
+            localizacaoPreferencial: alojamento.localizacaoPreferencial,
+            corRisco: alojamentoParcial.corRisco ?? undefined,
+            nivelRisco: alojamentoParcial.nivelRisco ?? undefined,
+            icones: alojamentoParcial.icones ?? [],
+            alertas: alojamentoParcial.alertas ?? [],
+            adolescentes: (alojamento.adolescentes ?? []).map(mapearAdolescenteRisco),
+          } as AlojamentoRisco);
+
         const risco = calcularRiscoAlojamento({
-          alojamento: {
-            ...alojamento,
-            adolescentes: alojamento.adolescentes as unknown as Adolescente[],
-          } as any,
+          alojamento: alojamentoParaCalculo,
           casaAtual: casaParaCalculo,
           casas: casasParaCalculo,
           slots,

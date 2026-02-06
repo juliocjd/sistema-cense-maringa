@@ -98,6 +98,10 @@ export type AdolescenteRisco = Pick<
     nivelRisco?: number;
     criadoEm?: string | null;
   }>;
+  atoInfracionalVinculos?: Array<{
+    id: string;
+    descricao?: string | null;
+  }>;
 };
 
 export type AlojamentoRisco = Omit<Alojamento, "adolescentes"> & {

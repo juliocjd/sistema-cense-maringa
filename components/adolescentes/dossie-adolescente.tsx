@@ -747,6 +747,46 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                 )}
 
               <div className="space-y-4">
+                {Array.isArray(adolescente.alertasAtivos) &&
+                  adolescente.alertasAtivos.length > 0 && (
+                    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                      <p className="text-sm font-semibold text-slate-700 mb-3">
+                        Alertas ativos registrados
+                      </p>
+                      <div className="space-y-2">
+                        {adolescente.alertasAtivos.map((alerta) => (
+                          <div
+                            key={alerta.id}
+                            className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700"
+                          >
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-semibold uppercase text-slate-700">
+                                {alerta.tipo ?? "Alerta"}
+                              </span>
+                              {alerta.nivelRisco && (
+                                <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold uppercase text-indigo-700">
+                                  {alerta.nivelRisco}
+                                </span>
+                              )}
+                              {alerta.criadoEm && (
+                                <span className="text-[10px] text-slate-500">
+                                  {new Date(alerta.criadoEm).toLocaleDateString(
+                                    "pt-BR"
+                                  )}
+                                </span>
+                              )}
+                            </div>
+                            {alerta.descricao && (
+                              <p className="mt-2 text-xs text-slate-600">
+                                {alerta.descricao}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                 {adolescente.alertaRiscoSuicidio && (
                   <div className="bg-orange-50 border-l-4 border-orange-500 rounded-r-lg p-6">
                     <div className="flex items-start gap-4">
@@ -825,7 +865,9 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
 
                 {!adolescente.alertaRiscoSuicidio &&
                   !adolescente.alertaPerfilMapeado &&
-                  !adolescente.alertaSaudeConfidencial && (
+                  !adolescente.alertaSaudeConfidencial &&
+                  (!adolescente.alertasAtivos ||
+                    adolescente.alertasAtivos.length === 0) && (
                     <div className="text-center py-12 text-gray-500">
                       <AlertTriangle
                         size={48}
@@ -868,6 +910,12 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                           <p className="text-sm text-gray-600 mb-2">
                             <span className="font-semibold">Significado:</span>{" "}
                             {tatuagem.significado || "Nao informado"}
+                          </p>
+                          <p className="text-sm text-gray-600 mb-2">
+                            <span className="font-semibold">
+                              Auto-declaração do Adolescente:
+                            </span>{" "}
+                            {tatuagem.significadoPessoal || "Nao informado"}
                           </p>
                           {tatuagem.observacoes && (
                             <p className="text-xs text-gray-500 bg-gray-100 rounded p-2">

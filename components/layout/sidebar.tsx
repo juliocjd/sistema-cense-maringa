@@ -168,17 +168,17 @@ export function Sidebar({
       },
       {
         section: "Configuracoes",
-        items: [
-          { label: "Usuários & Permissões", href: "/configuracoes/usuarios", icon: Settings },
-        ],
+        items: isAdmin
+          ? [
+              {
+                label: "Usu�rios & Pap�is",
+                href: "/configuracoes/usuarios",
+                icon: Settings,
+              },
+            ]
+          : [],
       },
     ]
-      .map((section) => {
-        if (section.section !== "Configuracoes") {
-          return section;
-        }
-        return isAdmin ? section : { ...section, items: [] };
-      })
       .filter((section) => section.items.length > 0),
     [isAdmin, podeCadastrarAdolescente, podeVerConflitosExternos, podeVerJustificativas]
   );
@@ -301,3 +301,6 @@ export function Sidebar({
     </>
   );
 }
+
+
+

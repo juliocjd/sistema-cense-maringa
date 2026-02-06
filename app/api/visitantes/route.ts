@@ -31,15 +31,24 @@ const normalizeTelefones = (value: unknown): string[] => {
 
 const vinculoSchema = z.object({
   adolescenteId: z.string().uuid("adolescenteId invalido"),
-  parentesco: z.string().min(2, "Parentesco deve ter ao menos 2 caracteres").max(100).optional().nullable(),
+  parentesco: z
+    .string()
+    .min(2, "Parentesco deve ter ao menos 2 caracteres")
+    .max(100)
+    .optional()
+    .nullable(),
   autorizado: z.boolean().optional(),
-  observacoes: z.string().max(500, "Observacoes deve ter no maximo 500 caracteres").optional().nullable(),
+  observacoes: z
+    .string()
+    .max(500, "Observações deve ter no máximo 500 caracteres")
+    .optional()
+    .nullable(),
 });
 
 const createVisitanteSchema = z.object({
   nomeCompleto: z
     .string()
-    .min(3, "Nome completo deve ter no minimo 3 caracteres"),
+    .min(3, "Nome completo deve ter no mínimo 3 caracteres"),
   cpf: z
     .string()
     .optional()
@@ -54,7 +63,7 @@ const createVisitanteSchema = z.object({
     .refine(
       (value) =>
         !value || !Number.isNaN(Date.parse(value)) || value.trim().length === 0,
-      { message: "dataNascimento invalida" }
+      { message: "dataNascimento invalida" },
     ),
   enderecoCompleto: z.string().optional().nullable(),
   telefones: z.array(z.string()).optional(),
@@ -64,10 +73,30 @@ const createVisitanteSchema = z.object({
     .optional()
     .nullable()
     .or(z.literal("").transform(() => null)),
-  rg: z.string().max(30).optional().nullable().or(z.literal("").transform(() => null)),
-  nomePai: z.string().max(150).optional().nullable().or(z.literal("").transform(() => null)),
-  nomeMae: z.string().max(150).optional().nullable().or(z.literal("").transform(() => null)),
-  profissao: z.string().max(120).optional().nullable().or(z.literal("").transform(() => null)),
+  rg: z
+    .string()
+    .max(30)
+    .optional()
+    .nullable()
+    .or(z.literal("").transform(() => null)),
+  nomePai: z
+    .string()
+    .max(150)
+    .optional()
+    .nullable()
+    .or(z.literal("").transform(() => null)),
+  nomeMae: z
+    .string()
+    .max(150)
+    .optional()
+    .nullable()
+    .or(z.literal("").transform(() => null)),
+  profissao: z
+    .string()
+    .max(120)
+    .optional()
+    .nullable()
+    .or(z.literal("").transform(() => null)),
   fotoUrl: z
     .string()
     .optional()
@@ -76,9 +105,13 @@ const createVisitanteSchema = z.object({
       (value) => {
         if (!value) return true; // null/undefined é válido
         // Aceita URLs completas ou caminhos relativos começando com /
-        return value.startsWith("http://") || value.startsWith("https://") || value.startsWith("/");
+        return (
+          value.startsWith("http://") ||
+          value.startsWith("https://") ||
+          value.startsWith("/")
+        );
       },
-      { message: "fotoUrl invalida" }
+      { message: "fotoUrl invalida" },
     )
     .or(z.literal("").transform(() => null)),
   vinculos: z.array(vinculoSchema).optional(),
@@ -134,7 +167,7 @@ const ensureAdolescentesExistem = async (ids: string[]) => {
         erro: "Alguns adolescentes nao foram encontrados",
         ausentes,
       }),
-      { status: 404 }
+      { status: 404 },
     );
   }
 };
@@ -145,7 +178,7 @@ const parseJsonBody = async (request: NextRequest) => {
   } catch {
     throw new NextResponse(
       JSON.stringify({ erro: "Payload invalido: esperado JSON" }),
-      { status: 400 }
+      { status: 400 },
     );
   }
 };
@@ -162,19 +195,19 @@ export async function GET(request: NextRequest) {
 
     const busca = normalizeString(searchParams.get("busca"));
     const adolescenteIdParam = normalizeString(
-      searchParams.get("adolescente_id")
+      searchParams.get("adolescente_id"),
     );
     const autorizadoParam = searchParams.get("autorizado");
     const detalhes = searchParams.get("detalhes") === "true";
     const incluirVisitas = searchParams.get("incluir_visitas") === "true";
     const limiteVisitas = Math.min(
       Math.max(parseInt(searchParams.get("limite_visitas") ?? "5", 10), 1),
-      20
+      20,
     );
 
     const limite = Math.min(
       Math.max(parseInt(searchParams.get("limite") ?? "50", 10), 1),
-      200
+      200,
     );
 
     const where: Prisma.VisitanteWhereInput = {};
@@ -234,7 +267,7 @@ export async function GET(request: NextRequest) {
 
     if (incluirVisitas || detalhes) {
       include.visitasRegistro = buildVisitaInclude(
-        incluirVisitas ? limiteVisitas : 5
+        incluirVisitas ? limiteVisitas : 5,
       );
     }
 
@@ -247,14 +280,11 @@ export async function GET(request: NextRequest) {
 
     const visitantesSerializados = visitantes.map((visitante) => {
       if (detalhes || incluirVisitas || busca) {
-        return mapVisitanteDetalhado(
-          visitante as any,
-          {
-            incluirVinculos: detalhes || !!busca,
-            incluirVisitas: incluirVisitas,
-            limiteVisitas: incluirVisitas ? limiteVisitas : 5,
-          }
-        );
+        return mapVisitanteDetalhado(visitante as any, {
+          incluirVinculos: detalhes || !!busca,
+          incluirVisitas: incluirVisitas,
+          limiteVisitas: incluirVisitas ? limiteVisitas : 5,
+        });
       }
 
       return mapVisitanteBasico(visitante);
@@ -275,7 +305,7 @@ export async function GET(request: NextRequest) {
         erro: "Erro ao listar visitantes",
         detalhes: error instanceof Error ? error.message : "Erro desconhecido",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -370,7 +400,7 @@ export async function POST(request: NextRequest) {
       enviarOrientacoesVisitante(
         visitante.id,
         visitante.nomeCompleto,
-        visitante.email
+        visitante.email,
       ).catch((error) => {
         console.error("Erro ao enviar e-mail de orientações:", error);
         // Não falha a criação do visitante se o e-mail falhar
@@ -383,9 +413,9 @@ export async function POST(request: NextRequest) {
           ...visitante,
           visitasRegistro: [],
         } as VisitanteComRelacoes,
-        { incluirVinculos: true, incluirVisitas: false }
+        { incluirVinculos: true, incluirVisitas: false },
       ),
-      { status: 201 }
+      { status: 201 },
     );
   } catch (error) {
     if (error instanceof NextResponse) {
@@ -395,7 +425,7 @@ export async function POST(request: NextRequest) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { erro: "Dados invalidos", detalhes: error.flatten() },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -405,7 +435,7 @@ export async function POST(request: NextRequest) {
     ) {
       return NextResponse.json(
         { erro: "CPF ja cadastrado para outro visitante" },
-        { status: 409 }
+        { status: 409 },
       );
     }
 
@@ -415,7 +445,7 @@ export async function POST(request: NextRequest) {
         erro: "Erro ao criar visitante",
         detalhes: error instanceof Error ? error.message : "Erro desconhecido",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

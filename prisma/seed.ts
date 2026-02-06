@@ -59,11 +59,15 @@ const zonasVinculos: Array<
 
 async function seedCasasEAlojamentos() {
   for (const casa of casasBase) {
-    const registroCasa = await prisma.casa.upsert({
+    const existente = await prisma.casa.findFirst({
       where: { numero: casa.numero },
-      update: { nome: casa.nome, isolada: casa.isolada },
-      create: casa,
     });
+    const registroCasa = existente
+      ? await prisma.casa.update({
+          where: { id: existente.id },
+          data: { nome: casa.nome, isolada: casa.isolada },
+        })
+      : await prisma.casa.create({ data: casa });
 
     const alojamentos = alojamentosPorCasa(casa.numero);
     for (const alojamento of alojamentos) {
@@ -121,17 +125,23 @@ async function seedZonas() {
   const zonasMap: Record<string, string> = {};
 
   for (const [key, config] of Object.entries(zonasConfig)) {
-    const zona = await prisma.zonaRisco.upsert({
+    const zonaExistente = await prisma.zonaRisco.findFirst({
       where: { nomeZona: key },
-      update: {},
-      create: {
-        nomeZona: key,
-        descricao: `Zona de janela para casa ${config.casa}`,
-      },
     });
+    const zona = zonaExistente
+      ? await prisma.zonaRisco.update({
+          where: { id: zonaExistente.id },
+          data: {},
+        })
+      : await prisma.zonaRisco.create({
+          data: {
+            nomeZona: key,
+            descricao: `Zona de janela para casa ${config.casa}`,
+          },
+        });
     zonasMap[key] = zona.id;
 
-    const casa = await prisma.casa.findUnique({
+    const casa = await prisma.casa.findFirst({
       where: { numero: config.casa },
     });
 

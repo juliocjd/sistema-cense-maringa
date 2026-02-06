@@ -89,6 +89,18 @@ export const mapearAdolescenteParaRisco = (
     nivelRisco: a.nivelRisco,
     criadoEm: a.criadoEm ?? null,
   })),
+  atoInfracionalVinculos:
+    (adolescente.atoInfracionalVinculos ?? [])
+      .map((item: any) => {
+        const vinculo = item?.vinculo ?? item;
+        const id = vinculo?.id ?? item?.vinculoId ?? item?.id;
+        if (!id) return null;
+        return {
+          id,
+          descricao: vinculo?.descricao ?? null,
+        };
+      })
+      .filter(Boolean) ?? [],
   faccao: adolescente.faccao
     ? {
         id: adolescente.faccao.id,

@@ -68,6 +68,7 @@ export function RegistroCI({ adolescentes, onSalvar }: RegistroCIProps) {
   const [loading, setLoading] = useState(false);
   const [gerarConflito, setGerarConflito] = useState(false);
   const [gerarAlerta, setGerarAlerta] = useState(false);
+  const [enviarEmailTecnicos, setEnviarEmailTecnicos] = useState(false);
   const [tipoConflitoGerado, setTipoConflitoGerado] =
     useState<string>("PESSOAL");
   const [ladoA, setLadoA] = useState<Adolescente[]>([]);
@@ -223,6 +224,10 @@ export function RegistroCI({ adolescentes, onSalvar }: RegistroCIProps) {
       formData.append("gerarConflito", gerarConflito ? "true" : "false");
       formData.append("gerarAlerta", gerarAlerta ? "true" : "false");
       formData.append("nivelRiscoAlerta", nivelRisco);
+      formData.append(
+        "enviarEmailTecnicos",
+        enviarEmailTecnicos ? "true" : "false"
+      );
 
       await onSalvar(formData);
 
@@ -406,6 +411,24 @@ export function RegistroCI({ adolescentes, onSalvar }: RegistroCIProps) {
               )}
             </div>
           )}
+          <div className="mt-2 rounded-2xl border border-gray-200 bg-gray-50 p-4">
+            <label className="flex items-start gap-2 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                checked={enviarEmailTecnicos}
+                onChange={(e) => setEnviarEmailTecnicos(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span>
+                Enviar este comunicado e os registros gerados por email para os
+                tecnicos de referencia.
+              </span>
+            </label>
+            <p className="mt-1 text-xs text-gray-500">
+              O email inclui o resumo do CI, participantes vinculados e alertas
+              ou conflitos gerados automaticamente.
+            </p>
+          </div>
 
 
           {/* Sele??o de Adolescentes */}

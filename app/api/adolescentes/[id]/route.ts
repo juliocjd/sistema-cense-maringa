@@ -48,6 +48,14 @@ const historicoRegistroSchema = z
   )
   .optional();
 
+const vinculoInfracionalSchema = z.object({
+  id: z.string().uuid().optional().nullable(),
+  descricao: z
+    .string()
+    .min(3, "Descricao do vinculo deve ter ao menos 3 caracteres"),
+  adolescentesIds: z.array(z.string().uuid()).optional().default([]),
+});
+
 const ALERTA_ESPECIAL_ENUM = z.enum(
   ALERTA_ESPECIAL_TIPOS as [
     AlertaEspecialTipo,
@@ -126,6 +134,7 @@ const updateAdolescenteSchema = z.object({
     significadoPessoal: z.string().optional().nullable(),
   })).optional(),
   historicoInfracional: historicoRegistroSchema,
+  atoInfracionalVinculos: z.array(vinculoInfracionalSchema).optional(),
   tecnicosReferenciaIds: z.array(z.string().uuid()).optional(),
   alertasEspeciais: z.array(alertaEspecialSchema).optional(),
 });
@@ -175,6 +184,12 @@ type HistoricoEntrada = {
   ano: number | null;
   observacoes: string | null;
   catalogoId: string | null;
+};
+
+type VinculoEntrada = {
+  id?: string | null;
+  descricao: string;
+  adolescentesIds: string[];
 };
 
 const parseHistoricoPayload = (
@@ -241,6 +256,166 @@ const parseHistoricoPayload = (
   });
 
   return entradas;
+};
+
+const parseVinculosPayload = (
+  vinculos?: Array<{
+    id?: string | null;
+    descricao?: string | null;
+    adolescentesIds?: string[] | null;
+  }>
+): VinculoEntrada[] => {
+  if (!vinculos || vinculos.length === 0) {
+    return [];
+  }
+
+  const entradas: VinculoEntrada[] = [];
+  const chaves = new Set<string>();
+
+  vinculos.forEach((item) => {
+    const descricao = sanitizeNullableString(item.descricao ?? undefined);
+    if (!descricao || descricao.length < 3) {
+      return;
+    }
+    const ids = Array.from(
+      new Set(
+        Array.isArray(item.adolescentesIds)
+          ? item.adolescentesIds.filter(Boolean)
+          : []
+      )
+    );
+    if (ids.length === 0) {
+      return;
+    }
+    const chave = `${descricao.toLowerCase()}|${ids.slice().sort().join(",")}`;
+    if (chaves.has(chave)) {
+      return;
+    }
+    chaves.add(chave);
+    entradas.push({
+      id: typeof item.id === "string" ? item.id : null,
+      descricao,
+      adolescentesIds: ids,
+    });
+  });
+
+  return entradas;
+};
+
+const sincronizarVinculosInfracionais = async ({
+  tx,
+  adolescenteId,
+  vinculosPayload,
+  vinculosExistentes,
+}: {
+  tx: any;
+  adolescenteId: string;
+  vinculosPayload: VinculoEntrada[];
+  vinculosExistentes?: any[];
+}) => {
+  const existentes = Array.isArray(vinculosExistentes) ? vinculosExistentes : [];
+  const existentesIds = new Set(
+    existentes
+      .map((item) => item?.vinculoId ?? item?.vinculo?.id)
+      .filter(Boolean)
+  );
+
+  const idsPayload = new Set(
+    vinculosPayload.map((item) => item.id).filter(Boolean) as string[]
+  );
+
+  for (const entrada of vinculosPayload) {
+    const participantes = Array.from(
+      new Set([adolescenteId, ...entrada.adolescentesIds])
+    );
+    if (participantes.length < 2) {
+      continue;
+    }
+
+    if (entrada.id && existentesIds.has(entrada.id)) {
+      await tx.atoInfracionalVinculo.update({
+        where: { id: entrada.id },
+        data: { descricao: entrada.descricao },
+      });
+
+      const atuais = await tx.atoInfracionalVinculoAdolescente.findMany({
+        where: { vinculoId: entrada.id },
+        select: { adolescenteId: true },
+      });
+      const atuaisSet = new Set(atuais.map((item) => item.adolescenteId));
+      const paraAdicionar = participantes.filter((id) => !atuaisSet.has(id));
+      const paraRemover = Array.from(atuaisSet).filter(
+        (id) => !participantes.includes(id)
+      );
+
+      if (paraAdicionar.length > 0) {
+        await tx.atoInfracionalVinculoAdolescente.createMany({
+          data: paraAdicionar.map((id) => ({
+            vinculoId: entrada.id,
+            adolescenteId: id,
+          })),
+        });
+      }
+
+      if (paraRemover.length > 0) {
+        await tx.atoInfracionalVinculoAdolescente.deleteMany({
+          where: {
+            vinculoId: entrada.id,
+            adolescenteId: { in: paraRemover },
+          },
+        });
+      }
+
+      const total = await tx.atoInfracionalVinculoAdolescente.count({
+        where: { vinculoId: entrada.id },
+      });
+      if (total < 2) {
+        await tx.atoInfracionalVinculo.delete({ where: { id: entrada.id } });
+      }
+    } else {
+      await tx.atoInfracionalVinculo.create({
+        data: {
+          descricao: entrada.descricao,
+          adolescentes: {
+            create: participantes.map((id) => ({
+              adolescente: { connect: { id } },
+            })),
+          },
+        },
+      });
+    }
+  }
+
+  const vinculosParaRemover = Array.from(existentesIds).filter(
+    (id) => !idsPayload.has(id)
+  );
+  if (vinculosParaRemover.length === 0) {
+    return;
+  }
+
+  await tx.atoInfracionalVinculoAdolescente.deleteMany({
+    where: {
+      vinculoId: { in: vinculosParaRemover },
+      adolescenteId,
+    },
+  });
+
+  const contagens = await tx.atoInfracionalVinculoAdolescente.groupBy({
+    by: ["vinculoId"],
+    where: { vinculoId: { in: vinculosParaRemover } },
+    _count: { _all: true },
+  });
+  const contagemMap = new Map(
+    contagens.map((item: any) => [item.vinculoId, item._count._all])
+  );
+  const paraExcluir = vinculosParaRemover.filter(
+    (id) => (contagemMap.get(id) ?? 0) < 2
+  );
+  if (paraExcluir.length > 0) {
+    await tx.atoInfracionalVinculo.deleteMany({
+      where: { id: { in: paraExcluir } },
+    });
+  }
 };
 
 const buildHistoricoKey = (entrada: HistoricoEntrada) =>
@@ -372,6 +547,10 @@ export async function PUT(
     const historicoNovos = parseHistoricoPayload(
       validated.historicoInfracional
     );
+    const vinculosNovos = parseVinculosPayload(
+      validated.atoInfracionalVinculos
+    );
+    const vinculosInformados = validated.atoInfracionalVinculos !== undefined;
 
     const permissoes = resolveUserPermissions(session, operador);
     const podeAlterarAlojamento = hasPermission(
@@ -980,6 +1159,10 @@ export async function PUT(
       camposAlterados.push("tatuagens");
     }
 
+    if (vinculosInformados) {
+      camposAlterados.push("atoInfracionalVinculos");
+    }
+
     if (camposAlterados.length === 0) {
       return NextResponse.json(
         { mensagem: "Nenhuma alteracao aplicada" },
@@ -1122,6 +1305,15 @@ export async function PUT(
           ano: historicoParaCriar.ano ?? historicoParaCriar.atoInfracionalAno ?? null,
           observacoes: historicoParaCriar.observacoes ?? null,
           catalogoId: (historicoParaCriar as any).atoInfracionalCatalogoId ?? null,
+        });
+      }
+
+      if (vinculosInformados) {
+        await sincronizarVinculosInfracionais({
+          tx,
+          adolescenteId: id,
+          vinculosPayload: vinculosNovos,
+          vinculosExistentes: (existente as any).atoInfracionalVinculos,
         });
       }
 

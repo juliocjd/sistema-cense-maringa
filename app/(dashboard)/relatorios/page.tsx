@@ -78,7 +78,7 @@ export default async function RelatoriosPage() {
       tone: "slate",
       label: "Planejamento",
       icon: Activity,
-      title: "Relatório de pedido de transferencia judicial",
+      title: "Relatório de pedido de transferência judicial",
       description:
         "Justificativa detalhada quando não ha possibilidade de permanência do adolescente na Unidade.",
       action: <RelatorioTransferenciaModalTrigger />,

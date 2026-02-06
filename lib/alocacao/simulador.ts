@@ -2,6 +2,8 @@ import {
   calcularRiscoAlojamento,
   criarMapaSlots,
   type CasaRisco,
+  type AlojamentoRisco,
+  type AdolescenteRisco,
 } from "@/lib/riscos/calcular";
 import type { RiscoDetalhado, NivelRiscoBasico } from "@/lib/riscos/calcular";
 import type { ConflitosExternosMapa } from "@/lib/riscos/calcular";
@@ -75,6 +77,74 @@ const construirAlertas = (
       });
     });
   }
+
+  return alertas;
+};
+
+type AlertaAlocacao = ReturnType<typeof construirAlertas>[number] | {
+  tipo: "ATO_INFRACIONAL";
+  nivel: NivelRiscoBasico;
+  mensagem: string;
+  proximidade?: undefined;
+  conflitoId?: undefined;
+  conflitoCriadoEm?: null;
+  alertaId?: string;
+  alertaCriadoEm?: string;
+};
+
+const criarAlertasVinculosInfracionais = ({
+  adolescente,
+  alojamentoAlvo,
+  casaAlvo,
+  slots,
+}: {
+  adolescente: AdolescenteRisco;
+  alojamentoAlvo: AlojamentoRisco;
+  casaAlvo: CasaRisco;
+  slots: Map<string, { adolescente: AdolescenteRisco; alojamento: AlojamentoRisco; casa: CasaRisco }>;
+}): AlertaAlocacao[] => {
+  if (!alojamentoAlvo.ala) {
+    return [];
+  }
+  const vinculosAlvo = adolescente.atoInfracionalVinculos ?? [];
+  if (vinculosAlvo.length === 0) {
+    return [];
+  }
+
+  const vinculosMap = new Map(
+    vinculosAlvo.map((vinculo) => [vinculo.id, vinculo.descricao ?? null])
+  );
+  const alertas: AlertaAlocacao[] = [];
+
+  slots.forEach((slot) => {
+    if (slot.adolescente.id === adolescente.id) return;
+    if (slot.casa.id !== casaAlvo.id) return;
+    if (!slot.alojamento.ala || slot.alojamento.ala !== alojamentoAlvo.ala) {
+      return;
+    }
+
+    const compartilhados = (slot.adolescente.atoInfracionalVinculos ?? [])
+      .map((vinculo) => vinculo.id)
+      .filter((id) => vinculosMap.has(id));
+    if (compartilhados.length === 0) return;
+
+    const descricoes = compartilhados
+      .map((id) => vinculosMap.get(id))
+      .filter(Boolean);
+    const detalhe =
+      descricoes.length > 0 ? ` Detalhes: ${descricoes.join("; ")}.` : "";
+
+    alertas.push({
+      tipo: "ATO_INFRACIONAL",
+      nivel: 2 as NivelRiscoBasico,
+      mensagem: `Vinculo infracional compartilhado com ${slot.adolescente.nomeCompleto} na mesma ala.${detalhe}`,
+      proximidade: undefined,
+      conflitoId: undefined,
+      conflitoCriadoEm: null,
+      alertaId: undefined,
+      alertaCriadoEm: undefined,
+    });
+  });
 
   return alertas;
 };
@@ -155,12 +225,21 @@ export const simularAlocacao = ({
         : false
     ) ?? null;
 
-  const alertas = construirAlertas(
+  const alertas: AlertaAlocacao[] = construirAlertas(
     resultado.detalhes,
     resultado.ambiental ?? null,
     conflitoInfo,
     alertaSuicidio
   );
+  const alertasVinculos = criarAlertasVinculosInfracionais({
+    adolescente: adolescenteSimulado as AdolescenteRisco,
+    alojamentoAlvo,
+    casaAlvo,
+    slots: mapaSlots,
+  });
+  if (alertasVinculos.length > 0) {
+    alertas.push(...alertasVinculos);
+  }
   if (!vigilanciaFrontal.valido && vigilanciaFrontal.motivo) {
     const jaExiste = alertas.some(
       (alerta) => alerta.mensagem === vigilanciaFrontal.motivo

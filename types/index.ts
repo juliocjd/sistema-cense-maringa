@@ -197,6 +197,28 @@ export interface AdolescenteHistoricoRegistroInput {
   catalogoId?: string | null;
 }
 
+export interface AdolescenteAtoInfracionalVinculoAdolescente {
+  id: string;
+  nomeCompleto: string;
+  numeroSms?: string | null;
+  fotoUrl?: string | null;
+  statusUnidade?: StatusUnidade;
+}
+
+export interface AdolescenteAtoInfracionalVinculoItem {
+  id?: string;
+  descricao: string;
+  adolescentes: AdolescenteAtoInfracionalVinculoAdolescente[];
+  criadoEm?: string | null;
+  atualizadoEm?: string | null;
+}
+
+export interface AdolescenteAtoInfracionalVinculoInput {
+  id?: string;
+  descricao: string;
+  adolescentesIds: string[];
+}
+
 export interface Adolescente {
   id: string;
   nomeCompleto: string;
@@ -275,7 +297,15 @@ export interface Adolescente {
   conflitosB: Conflito[];
   conflitosResolvidos?: Conflito[];
   historicoInfracional: AdolescenteHistoricoInfracionalItem[];
+  atoInfracionalVinculos?: AdolescenteAtoInfracionalVinculoItem[];
   alertasEspeciais?: AdolescenteAlertaEspecial[];
+  alertasAtivos?: Array<{
+    id: string;
+    tipo: string | null;
+    descricao: string | null;
+    nivelRisco: string | null;
+    criadoEm?: string | null;
+  }>;
   alertasPendentes?: number;
 
   criadoEm?: string;
@@ -315,12 +345,14 @@ export type AdolescenteCadastroPayload = Partial<
     | "conflitosB"
     | "conflitosResolvidos"
     | "historicoInfracional"
+    | "atoInfracionalVinculos"
   >
   > & {
     alertasEspeciais?: Array<
       Pick<AdolescenteAlertaEspecial, "tipo" | "descricao" | "nivelRisco">
     >;
     historicoInfracional?: AdolescenteHistoricoRegistroInput[];
+    atoInfracionalVinculos?: AdolescenteAtoInfracionalVinculoInput[];
     tatuagens?: Array<{
     catalogoId: string;
     localCorpo: string;

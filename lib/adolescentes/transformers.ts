@@ -161,6 +161,31 @@ export const INCLUDE_ADOLESCENTE_DEFAULT: any = {
       ano: "desc",
     },
   },
+  atoInfracionalVinculos: {
+    include: {
+      vinculo: {
+        select: {
+          id: true,
+          descricao: true,
+          criadoEm: true,
+          atualizadoEm: true,
+          adolescentes: {
+            include: {
+              adolescente: {
+                select: {
+                  id: true,
+                  nomeCompleto: true,
+                  numeroSms: true,
+                  fotoUrl: true,
+                  statusUnidade: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
   alertasAtivos: {
     where: { desativadoEm: null },
     select: {
@@ -212,6 +237,16 @@ export const INCLUDE_ADOLESCENTE_MAPA = {
       tipoAlerta: true,
       descricaoAlerta: true,
       nivelRisco: true,
+    },
+  },
+  atoInfracionalVinculos: {
+    include: {
+      vinculo: {
+        select: {
+          id: true,
+          descricao: true,
+        },
+      },
     },
   },
   conflitosA: {
@@ -403,6 +438,35 @@ export function mapPrismaAdolescente(adolescente: any): Adolescente {
       observacoes: registro.observacoes ?? null,
     })) ?? [];
 
+  const atoInfracionalVinculos =
+    adolescente.atoInfracionalVinculos
+      ?.map((item: any) => {
+        const vinculo = item?.vinculo;
+        if (!vinculo?.id) {
+          return null;
+        }
+        const adolescentes =
+          vinculo.adolescentes
+            ?.map((rel: any) => rel?.adolescente)
+            .filter(Boolean)
+            .map((ad: any) => ({
+              id: ad.id,
+              nomeCompleto: ad.nomeCompleto,
+              numeroSms: ad.numeroSms ?? null,
+              fotoUrl: ad.fotoUrl ?? null,
+              statusUnidade: ad.statusUnidade ?? undefined,
+            })) ?? [];
+
+        return {
+          id: vinculo.id,
+          descricao: vinculo.descricao ?? "",
+          adolescentes,
+          criadoEm: formatDate(vinculo.criadoEm) ?? null,
+          atualizadoEm: formatDate(vinculo.atualizadoEm) ?? null,
+        };
+      })
+      .filter((v: any) => Boolean(v)) ?? [];
+
   const alertasEspeciais =
     adolescente.alertasAtivos
       ?.map((alerta) => {
@@ -420,6 +484,14 @@ export function mapPrismaAdolescente(adolescente: any): Adolescente {
           alerta
         ): alerta is NonNullable<typeof alerta> => Boolean(alerta)
       ) ?? [];
+  const alertasAtivos =
+    adolescente.alertasAtivos?.map((alerta) => ({
+      id: alerta.id,
+      tipo: alerta.tipoAlerta ?? null,
+      descricao: alerta.descricaoAlerta ?? null,
+      nivelRisco: alerta.nivelRisco ?? null,
+      criadoEm: formatDate(alerta.criadoEm) ?? null,
+    })) ?? [];
   const alertaSuicidioNivel = extrairNivelRiscoSuicidio(alertasEspeciais);
   const riscoFugaOrigemRegistro = adolescente.historicoMovimentacao?.[0];
 
@@ -649,7 +721,9 @@ export function mapPrismaAdolescente(adolescente: any): Adolescente {
         };
         }) ?? [],
     historicoInfracional,
+    atoInfracionalVinculos,
     alertasEspeciais,
+    alertasAtivos,
     alertasPendentes: 0,
     criadoEm: formatDate(adolescente.criadoEm),
     atualizadoEm: formatDate(adolescente.atualizadoEm),

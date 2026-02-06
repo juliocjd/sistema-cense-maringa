@@ -22,6 +22,7 @@ type Participante = {
   fotoUrl?: string | null;
   alojamento?: string | null;
   lado?: string | null;
+  statusUnidade?: string | null;
 };
 
 type Conflito = {
@@ -33,6 +34,7 @@ type Conflito = {
     fotoUrl?: string | null;
     alojamento?: string | null;
     lado?: string | null;
+    statusUnidade?: string | null;
   };
   adolescenteB: {
     id: string;
@@ -41,6 +43,7 @@ type Conflito = {
     fotoUrl?: string | null;
     alojamento?: string | null;
     lado?: string | null;
+    statusUnidade?: string | null;
   };
   tipoConflito: string;
   status: "ATIVO" | "RESOLVIDO";
@@ -110,6 +113,7 @@ export function DetalhesConflito({
           fotoUrl: conflito.adolescenteA.fotoUrl ?? null,
           alojamento: conflito.adolescenteA.alojamento,
           lado: conflito.adolescenteA.lado ?? "Lado 1",
+          statusUnidade: conflito.adolescenteA.statusUnidade ?? null,
         },
         {
           id: conflito.adolescenteB.id,
@@ -118,6 +122,7 @@ export function DetalhesConflito({
           fotoUrl: conflito.adolescenteB.fotoUrl ?? null,
           alojamento: conflito.adolescenteB.alojamento,
           lado: conflito.adolescenteB.lado ?? "Lado 2",
+          statusUnidade: conflito.adolescenteB.statusUnidade ?? null,
         },
       ];
   const [mostrarFormMediacao, setMostrarFormMediacao] = useState(false);
@@ -187,9 +192,9 @@ export function DetalhesConflito({
         dataProximaAvaliacao: "",
       });
       setMostrarFormMediacao(false);
-      alert("Mediacao registrada com sucesso.");
+      alert("Mediação registrada com sucesso.");
     } catch (error) {
-      alert("Erro ao registrar mediacao. Tente novamente.");
+      alert("Erro ao registrar mediação. Tente novamente.");
     } finally {
       setLoading(false);
     }
@@ -242,6 +247,17 @@ export function DetalhesConflito({
   };
 
   const ocorrencias = conflito.ocorrencias ?? [];
+  const ladosConflito = participantes.reduce(
+    (acc, participante) => {
+      const lado = participante.lado === "Lado 2" ? "Lado 2" : "Lado 1";
+      acc[lado].push(participante);
+      return acc;
+    },
+    {
+      "Lado 1": [] as Participante[],
+      "Lado 2": [] as Participante[],
+    },
+  );
 
   return (
     <div className="space-y-6">
@@ -263,7 +279,7 @@ export function DetalhesConflito({
             <div className="flex flex-wrap items-center gap-2">
               <span
                 className={`rounded-full border px-3 py-1 text-sm font-bold ${getTipoColor(
-                  conflito.tipoConflito
+                  conflito.tipoConflito,
                 )}`}
               >
                 {conflito.tipoConflito}
@@ -282,10 +298,10 @@ export function DetalhesConflito({
             </div>
           </div>
 
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                onClick={handleNotificarTecnicos}
-                disabled={notificando}
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={handleNotificarTecnicos}
+              disabled={notificando}
               className="flex items-center gap-2 rounded-lg border border-indigo-200 bg-white px-4 py-2 font-semibold text-indigo-700 transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:text-gray-400"
             >
               <Mail size={18} />
@@ -307,7 +323,9 @@ export function DetalhesConflito({
         {statusNotificacao && (
           <p
             className={`mt-3 text-sm ${
-              statusNotificacao.tipo === "sucesso" ? "text-green-700" : "text-red-700"
+              statusNotificacao.tipo === "sucesso"
+                ? "text-green-700"
+                : "text-red-700"
             }`}
           >
             {statusNotificacao.mensagem}
@@ -331,7 +349,8 @@ export function DetalhesConflito({
             </div>
             {ultimaOcorrenciaEm && (
               <span className="text-sm text-gray-600">
-                Última em {new Date(ultimaOcorrenciaEm).toLocaleDateString("pt-BR")}
+                Última em{" "}
+                {new Date(ultimaOcorrenciaEm).toLocaleDateString("pt-BR")}
               </span>
             )}
           </div>
@@ -343,12 +362,15 @@ export function DetalhesConflito({
                   {new Date(oc.criadoEm).toLocaleString("pt-BR")}
                   {oc.ci && (
                     <span className="px-2 py-0.5 text-xs rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
-                      CI {oc.ci.numero}/{oc.ci.ano} {oc.ci.tipo ? `(${oc.ci.tipo})` : ""}
+                      CI {oc.ci.numero}/{oc.ci.ano}{" "}
+                      {oc.ci.tipo ? `(${oc.ci.tipo})` : ""}
                     </span>
                   )}
                 </div>
                 {oc.ci?.resumo && (
-                  <p className="text-sm text-gray-800 font-medium">{oc.ci.resumo}</p>
+                  <p className="text-sm text-gray-800 font-medium">
+                    {oc.ci.resumo}
+                  </p>
                 )}
                 {oc.descricao && !oc.ci?.resumo && (
                   <p className="text-sm text-gray-600 whitespace-pre-line">
@@ -364,61 +386,101 @@ export function DetalhesConflito({
       {quickEditSlot}
 
       <div className="rounded-2xl bg-white p-6 shadow-lg">
-        <h2 className="mb-4 text-xl font-bold text-gray-800">Informacoes do conflito</h2>
+        <h2 className="mb-4 text-xl font-bold text-gray-800">
+          Informacoes do conflito
+        </h2>
 
-          <div className="grid gap-6 md:grid-cols-2">
-            {participantes.map((participante, index) => (
-              <div
-                key={`${participante.id}-${index}`}
-                className="rounded-lg border-2 border-red-200 bg-red-50 p-4"
-              >
-                <h3 className="mb-3 flex items-center gap-2 font-semibold text-gray-700">
-                  <User size={18} />
-                  <span className="flex items-center gap-2">
-                    {`Participante ${index + 1}`}
-                    {participante.lado && (
-                      <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700">
-                        {participante.lado}
-                      </span>
-                    )}
-                  </span>
-                </h3>
-                <div className="flex items-start gap-3">
-                  {participante.fotoUrl ? (
-                    <div className="shrink-0">
-                      <div className="h-10 w-10 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-sm font-semibold">
-                        <img
-                          src={participante.fotoUrl}
-                          alt={participante.nome}
-                          className="h-full w-full object-cover"
-                        />
-                      </div>
-                    </div>
-                  ) : (
-                    <div
-                      title="Sem foto cadastrada"
-                      className="h-10 w-10 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-sm font-semibold shrink-0"
-                    >
-                      {participante.nome?.trim().charAt(0) ?? "?"}
-                    </div>
-                  )}
-                  <div>
-                    <p className="text-lg font-bold text-gray-900">{participante.nome}</p>
-                    <p className="text-sm text-gray-600">
-                      SMS: {participante.numeroSms}
-                      {participante.alojamento ? ` | ${participante.alojamento}` : ""}
-                    </p>
-                    <Link
-                      href={`/adolescentes/${participante.id}`}
-                      className="mt-2 inline-flex items-center text-sm font-semibold text-indigo-600 hover:text-indigo-700"
-                    >
-                      Ver dossie &rarr;
-                    </Link>
-                  </div>
-                </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          {(
+            [
+              { titulo: "Lado 1", lista: ladosConflito["Lado 1"] },
+              { titulo: "Lado 2", lista: ladosConflito["Lado 2"] },
+            ] as const
+          ).map(({ titulo, lista }) => (
+            <div
+              key={titulo}
+              className="rounded-2xl border border-indigo-100 bg-indigo-50/70 p-4"
+            >
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-sm font-semibold text-gray-800">{titulo}</p>
+                <span className="text-[11px] font-semibold text-gray-500">
+                  {lista.length} participante(s)
+                </span>
               </div>
-            ))}
-          </div>
+              {lista.length === 0 ? (
+                <p className="text-xs text-gray-500">
+                  Nenhum adolescente neste lado.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {lista.map((participante) => {
+                    const statusNormalizado =
+                      participante.statusUnidade?.toUpperCase() ?? "ATIVO";
+                    const inativo = statusNormalizado !== "ATIVO";
+                    const statusLabel =
+                      statusNormalizado === "TRANSFERIDO"
+                        ? "Transferido"
+                        : statusNormalizado === "LIBERADO"
+                          ? "Liberado"
+                          : statusNormalizado === "EVADIDO"
+                            ? "Evadido"
+                            : statusNormalizado === "ATIVO"
+                              ? "Ativo"
+                              : statusNormalizado;
+                    return (
+                      <Link
+                        key={participante.id}
+                        href={`/adolescentes/${participante.id}`}
+                        className={`block rounded-lg border px-3 py-2 text-sm hover:bg-indigo-100 ${
+                          inativo
+                            ? "border-slate-200 bg-slate-50"
+                            : "border-indigo-200 bg-white"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          {participante.fotoUrl ? (
+                            <div className="h-8 w-8 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-xs font-semibold shrink-0">
+                              <img
+                                src={participante.fotoUrl}
+                                alt={participante.nome}
+                                className="h-full w-full object-cover"
+                              />
+                            </div>
+                          ) : (
+                            <div
+                              title="Sem foto cadastrada"
+                              className="h-8 w-8 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-xs font-semibold shrink-0"
+                            >
+                              {participante.nome?.trim().charAt(0) ?? "?"}
+                            </div>
+                          )}
+                          <div className="flex-1">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="font-semibold text-gray-800">
+                                {participante.nome}
+                              </p>
+                              {inativo && (
+                                <span className="text-[11px] font-semibold text-slate-500">
+                                  Status: {statusLabel}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-gray-500">
+                              SMS: {participante.numeroSms}
+                              {participante.alojamento && (
+                                <> - {participante.alojamento}</>
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
 
         <div className="mt-6 grid gap-4 md:grid-cols-2">
           <div className="rounded-lg bg-gray-50 p-3 text-sm text-gray-700">
@@ -433,7 +495,9 @@ export function DetalhesConflito({
 
         {conflito.descricao && (
           <div className="mt-4 rounded-lg bg-gray-50 p-4">
-            <p className="mb-2 text-sm font-semibold text-gray-700">Descricao</p>
+            <p className="mb-2 text-sm font-semibold text-gray-700">
+              Descricao
+            </p>
             <p className="text-gray-800">{conflito.descricao}</p>
           </div>
         )}
@@ -457,14 +521,16 @@ export function DetalhesConflito({
               className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 font-semibold text-white transition hover:bg-indigo-700"
             >
               <Plus size={18} />
-              Registrar mediacao
+              Registrar mediação
             </button>
           )}
         </div>
 
         {mostrarFormMediacao && (
           <div className="mb-6 rounded-xl border-2 border-indigo-200 bg-indigo-50 p-6">
-            <h3 className="mb-4 font-bold text-gray-800">Nova tentativa de mediacao</h3>
+            <h3 className="mb-4 font-bold text-gray-800">
+              Nova tentativa de mediacao
+            </h3>
 
             <div className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
@@ -476,7 +542,10 @@ export function DetalhesConflito({
                     type="date"
                     value={formData.dataTentativa}
                     onChange={(event) =>
-                      setFormData({ ...formData, dataTentativa: event.target.value })
+                      setFormData({
+                        ...formData,
+                        dataTentativa: event.target.value,
+                      })
                     }
                     className="w-full rounded-lg border-2 border-gray-300 px-4 py-2 focus:border-indigo-500"
                   />
@@ -503,7 +572,7 @@ export function DetalhesConflito({
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-gray-700">
-                    Tipo de intervencao *
+                    Tipo de intervenção *
                   </label>
                   <select
                     value={formData.tipoIntervencao}
@@ -517,8 +586,12 @@ export function DetalhesConflito({
                   >
                     <option value="">Selecione...</option>
                     <option value="MEDIACAO">Mediacao</option>
-                    <option value="CIRCULO_RESTAURATIVO">Circulo restaurativo</option>
-                    <option value="ATENDIMENTO_INDIVIDUAL">Atendimento individual</option>
+                    <option value="CIRCULO_RESTAURATIVO">
+                      Circulo restaurativo
+                    </option>
+                    <option value="ATENDIMENTO_INDIVIDUAL">
+                      Atendimento individual
+                    </option>
                     <option value="GRUPO_TERAPEUTICO">Grupo terapeutico</option>
                     <option value="OUTROS">Outros</option>
                   </select>
@@ -530,7 +603,10 @@ export function DetalhesConflito({
                   <select
                     value={formData.resultado}
                     onChange={(event) =>
-                      setFormData({ ...formData, resultado: event.target.value })
+                      setFormData({
+                        ...formData,
+                        resultado: event.target.value,
+                      })
                     }
                     className="w-full rounded-lg border-2 border-gray-300 px-4 py-2 focus:border-indigo-500"
                   >
@@ -544,12 +620,15 @@ export function DetalhesConflito({
 
               <div>
                 <label className="mb-2 block text-sm font-semibold text-gray-700">
-                  Observacoes *
+                  Observações *
                 </label>
                 <textarea
                   value={formData.observacoes}
                   onChange={(event) =>
-                    setFormData({ ...formData, observacoes: event.target.value })
+                    setFormData({
+                      ...formData,
+                      observacoes: event.target.value,
+                    })
                   }
                   rows={3}
                   placeholder="Descreva o que foi feito, reacoes dos adolescentes e encaminhamentos"
@@ -636,7 +715,7 @@ export function DetalhesConflito({
                   </div>
                   <span
                     className={`rounded-full px-3 py-1 text-xs font-bold ${getResultadoColor(
-                      mediacao.resultado
+                      mediacao.resultado,
                     )}`}
                   >
                     {mediacao.resultado}
@@ -671,4 +750,3 @@ export function DetalhesConflito({
     </div>
   );
 }
-

@@ -1073,8 +1073,10 @@ const conflitosAvaliacaoDetalhados = useMemo<RiscoDetalhadoResumo[]>(() => {
     return Array.from(map.values());
   }, [riscosDetalhados, origemConflitoLabel]);
 
-const motivosAmbientaisDetalhados = useMemo<MotivoAmbientalDetalhado[]>(() => {
-    const motivos = avaliacaoRisco?.ambiental?.motivos;
+  const motivosAmbientaisDetalhados = useMemo<MotivoAmbientalDetalhado[]>(() => {
+    const motivos = avaliacaoRisco?.ambiental?.motivos?.filter(
+      (motivo) => !/alinhado ao rival/i.test(motivo)
+    );
     if (!motivos?.length) {
       return [];
     }
@@ -2206,9 +2208,13 @@ const motivosAmbientaisDetalhados = useMemo<MotivoAmbientalDetalhado[]>(() => {
                         </p>
                       </div>
 
-                      {transferenciaVerificacao.alertas.length > 0 && (
+                      {transferenciaVerificacao.alertas.filter(
+                        (alerta) => alerta.tipo !== "ALIADO"
+                      ).length > 0 && (
                         <div className="mt-3 space-y-2">
-                          {transferenciaVerificacao.alertas.map((alerta, index) => {
+                          {transferenciaVerificacao.alertas
+                            .filter((alerta) => alerta.tipo !== "ALIADO")
+                            .map((alerta, index) => {
                             const parsed = parseDetalheMensagem(alerta.mensagem);
 
                             return (

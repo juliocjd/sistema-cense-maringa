@@ -9,6 +9,9 @@ import type { ImpactoConflitoExterno } from "@/types/inteligencia";
 import {
   calcularRiscoAlojamento,
   criarMapaSlots,
+  type AdolescenteRisco,
+  type AlojamentoRisco,
+  type CasaRisco,
   type ResultadoRisco,
 } from "@/lib/riscos/calcular";
 
@@ -89,6 +92,32 @@ const formatarLocalReferencia = (
   return partes.length > 0 ? partes.join(", ") : null;
 };
 
+const mapearAdolescenteRisco = (
+  adolescente: Adolescente
+): AdolescenteRisco => ({
+  id: adolescente.id,
+  nomeCompleto: adolescente.nomeCompleto,
+  bairroOrigemId: adolescente.bairroOrigemId ?? null,
+  faccaoGrupoId: adolescente.faccaoGrupoId ?? null,
+  alertaRiscoSuicidio: adolescente.alertaRiscoSuicidio,
+  alertaPerfilMapeado: adolescente.alertaPerfilMapeado,
+  alertaSaudeConfidencial: adolescente.alertaSaudeConfidencial,
+  alertaSaudeDetalhes: adolescente.alertaSaudeDetalhes ?? null,
+  alertaRiscoSuicidioNivel: adolescente.alertaRiscoSuicidioNivel ?? null,
+  atoInfracionalVinculos:
+    (adolescente.atoInfracionalVinculos ?? [])
+      .map((item: any) => ({
+        id: item?.id ?? item?.vinculoId ?? item?.vinculo?.id ?? "",
+        descricao: item?.descricao ?? item?.vinculo?.descricao ?? null,
+      }))
+      .filter((item: any) => item.id),
+  faccao: adolescente.faccao
+    ? { id: adolescente.faccao.id ?? null, nome: adolescente.faccao.nome ?? null }
+    : null,
+  conflitosA: adolescente.conflitosA ?? [],
+  conflitosB: adolescente.conflitosB ?? [],
+});
+
 export function MapaInterativo({
   casas,
   adolescentes,
@@ -148,23 +177,50 @@ export function MapaInterativo({
     }));
   }, [casas, adolescentesLookup]);
 
-  const slotsPorAdolescente = useMemo(
-    () => criarMapaSlots(casasNormalizadas),
+  const casasParaCalculo = useMemo<CasaRisco[]>(
+    () =>
+      casasNormalizadas.map((casa) => ({
+        id: casa.id,
+        nome: casa.nome,
+        numero: casa.numero,
+        isolada: casa.isolada,
+        alojamentos: casa.alojamentos.map((alojamento) => ({
+          ...alojamento,
+          adolescentes: (alojamento.adolescentes ?? []).map(mapearAdolescenteRisco),
+        })),
+      })),
     [casasNormalizadas]
+  );
+
+  const alojamentosPorId = useMemo(() => {
+    const mapa = new Map<string, AlojamentoRisco>();
+    casasParaCalculo.forEach((casa) => {
+      casa.alojamentos.forEach((alojamento) => {
+        mapa.set(alojamento.id, alojamento);
+      });
+    });
+    return mapa;
+  }, [casasParaCalculo]);
+
+  const slotsPorAdolescente = useMemo(
+    () => criarMapaSlots(casasParaCalculo),
+    [casasParaCalculo]
   );
 
   const avaliarRiscoAlojamento = useCallback(
     (alojamento: Alojamento): AvaliacaoRiscoAlojamento => {
-      const casaAtual = casasNormalizadas.find(
-        (casa) => casa.id === alojamento.casaId
-      );
+      const casaAtual =
+        casasParaCalculo.find((casa) => casa.id === alojamento.casaId) ?? null;
+      const alojamentoRisco =
+        alojamentosPorId.get(alojamento.id) ??
+        (alojamento as unknown as AlojamentoRisco);
 
       const resultadoBase =
         avaliacoes?.[alojamento.id] ??
         calcularRiscoAlojamento({
-          alojamento,
+          alojamento: alojamentoRisco,
           casaAtual,
-          casas: casasNormalizadas,
+          casas: casasParaCalculo,
           slots: slotsPorAdolescente,
           conflitosExternos,
         });
@@ -184,7 +240,13 @@ export function MapaInterativo({
         corClass,
       };
     },
-    [avaliacoes, casasNormalizadas, slotsPorAdolescente, conflitosExternos]
+    [
+      avaliacoes,
+      casasParaCalculo,
+      alojamentosPorId,
+      slotsPorAdolescente,
+      conflitosExternos,
+    ]
   );
 
   function getIconesAlerta(alojamento: Alojamento) {
@@ -276,17 +338,6 @@ export function MapaInterativo({
     fecharModalDetalhes();
   };
 
-  const getBadgeAliados = (avaliacao?: AvaliacaoRiscoAlojamento | null) => {
-    if (!avaliacao?.detalhes?.some((detalhe) => detalhe.tipo === "ALIADO")) {
-      return null;
-    }
-    return (
-      <span className="absolute -left-2 -top-2 rounded-full bg-amber-500/85 px-2 py-0.5 text-[10px] font-semibold text-white shadow backdrop-blur border border-amber-300">
-        Aliados do rival na casa
-      </span>
-    );
-  };
-
   const AlojamentoCard = ({ numero, casa }: { numero: string; casa: Casa }) => {
     const aloj = getAlojamento(casa, numero);
     if (!aloj) return null;
@@ -326,7 +377,6 @@ export function MapaInterativo({
             : "Clique para visualizar acoes e alocar"
         }
       >
-        {getBadgeAliados(avaliacao)}
         {getIconesAlerta(aloj)}
         <span className="font-bold text-xl text-gray-800">{numero}</span>
         {nomeResumido && (
@@ -531,12 +581,6 @@ export function MapaInterativo({
                   <Activity size={12} className="text-white" />
                 </span>
                 Alerta de saude
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="rounded-full bg-amber-500/70 px-2 py-0.5 text-[10px] font-semibold text-white border border-amber-300">
-                  Aliados
-                </span>
-                Aliados do rival na casa
               </div>
             </div>
           </div>

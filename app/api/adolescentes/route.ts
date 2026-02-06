@@ -74,6 +74,14 @@ const historicoRegistroSchema = z
   )
   .optional();
 
+const vinculoInfracionalSchema = z.object({
+  id: z.string().uuid().optional().nullable(),
+  descricao: z
+    .string()
+    .min(3, "Descricao do vinculo deve ter ao menos 3 caracteres"),
+  adolescentesIds: z.array(z.string().uuid()).optional().default([]),
+});
+
 const createAdolescenteSchema = z.object({
   nomeCompleto: z.string().min(3, "Nome deve ter no minimo 3 caracteres"),
   nomeSocial: z.string().optional().nullable(),
@@ -118,6 +126,10 @@ const createAdolescenteSchema = z.object({
   historicoInfracional: historicoRegistroSchema,
   tecnicosReferenciaIds: z.array(z.string().uuid()).optional().default([]),
   alertasEspeciais: z.array(alertaEspecialSchema).optional().default([]),
+  atoInfracionalVinculos: z
+    .array(vinculoInfracionalSchema)
+    .optional()
+    .default([]),
 });
 
 const sanitizeNullableString = (value: string | null | undefined) => {
@@ -152,6 +164,12 @@ type HistoricoEntrada = {
   ano: number | null;
   observacoes: string | null;
   catalogoId: string | null;
+};
+
+type VinculoEntrada = {
+  id?: string | null;
+  descricao: string;
+  adolescentesIds: string[];
 };
 
 const parseHistoricoPayload = (
@@ -215,6 +233,50 @@ const parseHistoricoPayload = (
 
     chaves.add(chave);
     entradas.push(entrada);
+  });
+
+  return entradas;
+};
+
+const parseVinculosPayload = (
+  vinculos?: Array<{
+    id?: string | null;
+    descricao?: string | null;
+    adolescentesIds?: string[] | null;
+  }>
+): VinculoEntrada[] => {
+  if (!vinculos || vinculos.length === 0) {
+    return [];
+  }
+
+  const entradas: VinculoEntrada[] = [];
+  const chaves = new Set<string>();
+
+  vinculos.forEach((item) => {
+    const descricao = sanitizeNullableString(item.descricao ?? undefined);
+    if (!descricao || descricao.length < 3) {
+      return;
+    }
+    const ids = Array.from(
+      new Set(
+        Array.isArray(item.adolescentesIds)
+          ? item.adolescentesIds.filter(Boolean)
+          : []
+      )
+    );
+    if (ids.length === 0) {
+      return;
+    }
+    const chave = `${descricao.toLowerCase()}|${ids.slice().sort().join(",")}`;
+    if (chaves.has(chave)) {
+      return;
+    }
+    chaves.add(chave);
+    entradas.push({
+      id: typeof item.id === "string" ? item.id : null,
+      descricao,
+      adolescentesIds: ids,
+    });
   });
 
   return entradas;
@@ -394,6 +456,9 @@ export async function POST(request: NextRequest) {
     );
     const historicoNovos = parseHistoricoPayload(
       validated.historicoInfracional
+    );
+    const vinculosNovos = parseVinculosPayload(
+      validated.atoInfracionalVinculos
     );
 
     const session = await auth().catch(() => null);
@@ -656,6 +721,27 @@ export async function POST(request: NextRequest) {
             observacoes: entrada.observacoes,
           })),
         });
+      }
+
+      if (vinculosNovos.length > 0) {
+        for (const entrada of vinculosNovos) {
+          const participantes = Array.from(
+            new Set([base.id, ...entrada.adolescentesIds])
+          );
+          if (participantes.length < 2) {
+            continue;
+          }
+          await tx.atoInfracionalVinculo.create({
+            data: {
+              descricao: entrada.descricao,
+              adolescentes: {
+                create: participantes.map((adolescenteId) => ({
+                  adolescente: { connect: { id: adolescenteId } },
+                })),
+              },
+            },
+          });
+        }
       }
 
       await aplicarAlertasEspeciais(

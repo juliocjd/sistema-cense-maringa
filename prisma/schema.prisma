@@ -335,14 +335,15 @@ model Adolescente {
   faccaoHistorico            AdolescenteFaccaoHistorico[]      @relation("AdolescenteFaccaoHistorico")
   faccaoInformacoesPrestadas AdolescenteFaccaoHistorico[]      @relation("FaccaoInformante")
   visitasRegistro            VisitaRegistro[]
+  atoInfracionalVinculos     AtoInfracionalVinculoAdolescente[]
 
   @@map("adolescentes")
 }
 
 model AdolescenteFaccaoHistorico {
-  id                String     @id @default(uuid())
-  adolescenteId     String     @db.Uuid @map("adolescente_id")
-  faccaoId          String?    @db.Uuid @map("faccao_id")
+  id                String     @id @default(uuid()) @db.Uuid
+  adolescenteId     String     @map("adolescente_id")
+  faccaoId          String?    @map("faccao_id")
   faccao            Faccao?    @relation("DeclaracaoFaccao", fields: [faccaoId], references: [id])
   funcao            String?    @map("funcao")
   origemInformacao  String     @map("origem_informacao") // CONFESSADA, OBSERVACAO, INTELIGENCIA, TERCEIROS, NAO_INFORMADO
@@ -353,7 +354,7 @@ model AdolescenteFaccaoHistorico {
   informanteAdolescenteId String?    @db.Text @map("informante_adolescente_id")
   informanteAdolescente   Adolescente? @relation("FaccaoInformante", fields: [informanteAdolescenteId], references: [id])
   criadoEm          DateTime   @default(now()) @map("criado_em")
-  criadoPorId       String?    @db.Uuid @map("criado_por_id")
+  criadoPorId       String?    @map("criado_por_id")
   criadoPor         Operador?  @relation("OperadorCriadorFaccaoHistorico", fields: [criadoPorId], references: [id])
   adolescente       Adolescente @relation("AdolescenteFaccaoHistorico", fields: [adolescenteId], references: [id])
   vinculoAtualDe    Adolescente? @relation("FaccaoVinculoAtual")
@@ -364,7 +365,7 @@ model AdolescenteFaccaoHistorico {
 
 
 model AdolescenteTecnicoReferencia {
-  id                   String              @id @default(uuid())
+  id                   String              @id @default(uuid()) @db.Uuid
   adolescenteId        String              @map("adolescente_id")
   tecnicoReferenciaId  String              @map("tecnico_referencia_id")
   criadoEm             DateTime            @default(now()) @map("criado_em")
@@ -405,6 +406,29 @@ model AdolescenteHistoricoInfracional {
   atoInfracionalCatalogo     AtoInfracionalCatalogo? @relation(fields: [atoInfracionalCatalogoId], references: [id])
 
   @@map("adolescentes_historico_infracional")
+}
+
+model AtoInfracionalVinculo {
+  id          String                           @id @default(uuid())
+  descricao   String
+  criadoEm    DateTime                         @default(now()) @map("criado_em")
+  atualizadoEm DateTime                        @updatedAt @map("atualizado_em")
+  adolescentes AtoInfracionalVinculoAdolescente[]
+
+  @@map("atos_infracionais_vinculos")
+}
+
+model AtoInfracionalVinculoAdolescente {
+  id            String               @id @default(uuid())
+  vinculoId     String               @map("vinculo_id")
+  adolescenteId String               @map("adolescente_id")
+  criadoEm      DateTime             @default(now()) @map("criado_em")
+  vinculo       AtoInfracionalVinculo @relation(fields: [vinculoId], references: [id], onDelete: Cascade)
+  adolescente   Adolescente          @relation(fields: [adolescenteId], references: [id], onDelete: Cascade)
+
+  @@unique([vinculoId, adolescenteId])
+  @@index([adolescenteId])
+  @@map("atos_infracionais_vinculos_adolescentes")
 }
 
 model Grupo {
