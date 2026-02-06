@@ -917,6 +917,17 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                             </span>{" "}
                             {tatuagem.significadoPessoal || "Nao informado"}
                           </p>
+                          <p className="text-sm text-gray-600 mb-2">
+                            <span className="font-semibold">
+                              Vinculo com faccao:
+                            </span>{" "}
+                            {tatuagem.faccoesAssociadas &&
+                            tatuagem.faccoesAssociadas.length > 0
+                              ? tatuagem.faccoesAssociadas
+                                  .map((faccao) => faccao.nomeFaccao)
+                                  .join(", ")
+                              : "Nao informado"}
+                          </p>
                           {tatuagem.observacoes && (
                             <p className="text-xs text-gray-500 bg-gray-100 rounded p-2">
                               {tatuagem.observacoes}

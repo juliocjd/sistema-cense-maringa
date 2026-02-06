@@ -103,6 +103,10 @@ export interface AdolescenteTatuagemResumo {
   nivelRisco?: string | null;
   localCorpo?: string | null;
   observacoes?: string | null;
+  faccoesAssociadas?: Array<{
+    id: string;
+    nomeFaccao: string;
+  }>;
 }
 
 export interface HistoricoMovimentacaoRegistro {

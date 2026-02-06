@@ -53,7 +53,17 @@ export const INCLUDE_ADOLESCENTE_DEFAULT: any = {
     },
   },
   tatuagens: {
-    include: { tatuagemCatalogo: true },
+    include: {
+      tatuagemCatalogo: {
+        include: {
+          faccoesAssociadas: {
+            include: {
+              faccao: true,
+            },
+          },
+        },
+      },
+    },
   },
   atoInfracionalAtualCatalogo: {
     select: {
@@ -422,6 +432,14 @@ export function mapPrismaAdolescente(adolescente: any): Adolescente {
       nivelRisco: tatuagem.tatuagemCatalogo?.nivelRisco ?? null,
       localCorpo: tatuagem.localCorpo ?? null,
       observacoes: tatuagem.observacoes ?? null,
+      faccoesAssociadas:
+        tatuagem.tatuagemCatalogo?.faccoesAssociadas
+          ?.map((rel) => rel.faccao)
+          .filter(Boolean)
+          .map((faccao) => ({
+            id: faccao.id,
+            nomeFaccao: faccao.nomeFaccao,
+          })) ?? [],
     })) ?? [];
 
   const historicoInfracional =
