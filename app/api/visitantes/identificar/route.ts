@@ -163,7 +163,13 @@ export async function POST(request: NextRequest) {
         id: visitanteIdentificado.id,
         nomeCompleto: visitanteIdentificado.nomeCompleto,
         cpf: visitanteIdentificado.cpf,
+        rg: visitanteIdentificado.rg ?? null,
+        nomePai: visitanteIdentificado.nomePai ?? null,
+        nomeMae: visitanteIdentificado.nomeMae ?? null,
         dataNascimento: visitanteIdentificado.dataNascimento,
+        bnmpUltimaConsultaEm: visitanteIdentificado.bnmpUltimaConsultaEm
+          ? visitanteIdentificado.bnmpUltimaConsultaEm.toISOString()
+          : null,
         fotoUrl: visitanteIdentificado.fotoUrl,
         adolescentes: visitanteIdentificado.adolescentesLink.map(
           (rel) => rel.adolescente

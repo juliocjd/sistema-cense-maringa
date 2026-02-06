@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Shield, Search, Plus, Edit2, Trash2, AlertTriangle } from "lucide-react";
+import { PenTool, Search, Plus, Edit2, Trash2, AlertTriangle } from "lucide-react";
 import ModalCriarTatuagem from "@/components/tatuagens/modal-criar-tatuagem";
 import ModalEditarTatuagem from "@/components/tatuagens/modal-editar-tatuagem";
 
@@ -105,7 +105,7 @@ export default function TatuagensPage() {
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-2">
-            <Shield className="w-8 h-8 text-indigo-600" />
+            <PenTool className="w-8 h-8 text-indigo-600" />
             <h1 className="text-3xl font-bold text-slate-800">
               Catálogo de Tatuagens
             </h1>
@@ -189,41 +189,63 @@ export default function TatuagensPage() {
         )}
 
         {!loading && tatuagens.length > 0 && (
-          <div className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">
+          <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-slate-50 border-b border-slate-200">
+              <table className="w-full text-sm">
+                <thead className="bg-gradient-to-r from-slate-50 via-slate-50 to-slate-100 border-b border-slate-200">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
-                      Nome/Símbolo
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                      Nome/Simbolo
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
                       Significado
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
-                      Nível de Risco
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                      Faccoes possivelmente associadas
                     </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-slate-700 uppercase tracking-wider">
-                      Ações
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                      Nivel de Risco
+                    </th>
+                    <th className="px-6 py-4 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                      Acoes
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-200">
+                <tbody className="divide-y divide-slate-100">
                   {tatuagens.map((tatuagem) => (
-                    <tr key={tatuagem.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="font-medium text-slate-900">
+                    <tr key={tatuagem.id} className="odd:bg-white even:bg-slate-50/60 hover:bg-indigo-50/40 transition-colors">
+                      <td className="px-6 py-4 align-top whitespace-nowrap">
+                        <div className="font-semibold text-slate-900">
                           {tatuagem.nomeSimbolo}
                         </div>
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="text-sm text-slate-600 max-w-md truncate">
+                      <td className="px-6 py-4 align-top">
+                        <div className="text-slate-600 max-w-md line-clamp-2" title={tatuagem.significadoAssociado || undefined}>
                           {tatuagem.significadoAssociado || (
                             <span className="italic text-slate-400">Não informado</span>
                           )}
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-6 py-4 align-top">
+                        {tatuagem.faccoesAssociadas &&
+                        tatuagem.faccoesAssociadas.length > 0 ? (
+                          <div className="flex flex-wrap gap-2 max-w-sm">
+                            {tatuagem.faccoesAssociadas.map((faccao) => (
+                              <span
+                                key={faccao.id}
+                                className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-xs font-medium text-slate-600"
+                              >
+                                {faccao.nomeFaccao}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-slate-400 italic">
+                            Nenhuma associacao registrada
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 align-top whitespace-nowrap">
                         <span
                           className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${getNivelRiscoColor(
                             tatuagem.nivelRisco
@@ -232,7 +254,7 @@ export default function TatuagensPage() {
                           {getNivelRiscoLabel(tatuagem.nivelRisco)}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right">
+                      <td className="px-6 py-4 align-top whitespace-nowrap text-right">
                         <div className="flex items-center justify-end gap-2">
                           <button
                             onClick={() => handleEdit(tatuagem)}

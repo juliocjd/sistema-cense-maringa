@@ -23,6 +23,8 @@ type VisitanteBasico = Pick<
   | "faceEmbeddings"
   | "criadoEm"
   | "atualizadoEm"
+  | "bnmpUltimaConsultaEm"
+  | "bnmpUltimaConsultaOperadorId"
   | "_count"
 >;
 
@@ -116,6 +118,11 @@ export function mapVisitanteBasico(
     temFaceCadastrada: !!visitante.faceEmbeddings && Array.isArray(visitante.faceEmbeddings) && visitante.faceEmbeddings.length === 128,
     criadoEm: visitante.criadoEm.toISOString(),
     atualizadoEm: visitante.atualizadoEm.toISOString(),
+    bnmpUltimaConsultaEm: visitante.bnmpUltimaConsultaEm
+      ? visitante.bnmpUltimaConsultaEm.toISOString()
+      : null,
+    bnmpUltimaConsultaOperadorId:
+      visitante.bnmpUltimaConsultaOperadorId ?? null,
     totalVinculos:
       extras?.totalVinculos ?? visitante._count?.adolescentesLink ?? 0,
     totalVisitas:

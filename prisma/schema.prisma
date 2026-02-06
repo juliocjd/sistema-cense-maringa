@@ -26,6 +26,7 @@ model Operador {
   declaracoesFaccaoCriadas        AdolescenteFaccaoHistorico[] @relation("OperadorCriadorFaccaoHistorico")
   papeis                          OperadorPapel[]
   solicitacoesTransf              SolicitacaoTransferencia[]
+  consultasBnmp                   Visitante[]               @relation("VisitanteBnmpOperador")
 
   @@map("operadores")
 }
@@ -729,6 +730,9 @@ model Visitante {
   dataDesbloqueio        DateTime?                  @map("data_desbloqueio")
   motivoBloqueio         String?                    @map("motivo_bloqueio")
   operadorBloqueioId     String?                    @map("operador_bloqueio_id")
+  bnmpUltimaConsultaEm   DateTime?                  @map("bnmp_ultima_consulta_em")
+  bnmpUltimaConsultaOperadorId String?              @map("bnmp_ultima_consulta_operador_id")
+  bnmpUltimaConsultaOperador Operador?              @relation("VisitanteBnmpOperador", fields: [bnmpUltimaConsultaOperadorId], references: [id])
   rg                     String?                    @map("rg")
   nomePai                String?                    @map("nome_pai")
   nomeMae                String?                    @map("nome_mae")

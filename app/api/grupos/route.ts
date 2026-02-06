@@ -41,6 +41,147 @@ const montarMembros = (grupo: any, mapaConflitos?: Map<string, number>) => {
   }));
 };
 
+type ParInfo = {
+  a: { id: string; nome: string };
+  b: { id: string; nome: string };
+  detalhe: string;
+};
+
+const gerarPares = (
+  membros: Array<{ id: string; nome: string }>,
+  detalhe: string,
+  destino: ParInfo[]
+) => {
+  for (let i = 0; i < membros.length; i += 1) {
+    for (let j = i + 1; j < membros.length; j += 1) {
+      destino.push({
+        a: { id: membros[i].id, nome: membros[i].nome },
+        b: { id: membros[j].id, nome: membros[j].nome },
+        detalhe,
+      });
+    }
+  }
+};
+
+type MembroAtivo = {
+  id: string;
+  nome: string;
+  faccaoId: string | null;
+  faccaoNome: string | null;
+  bairroId: string | null;
+  bairroNome: string | null;
+  bairroCidade: string | null;
+  vinculos: Array<{ id: string; descricao: string | null }>;
+};
+
+const calcularAgrupamentos = (grupo: any) => {
+  const membrosAtivos: MembroAtivo[] = (grupo.membros ?? [])
+    .filter((membro: any) => membro.dataSaida === null)
+    .map((membro: any) => ({
+      id: membro.adolescente.id,
+      nome: membro.adolescente.nomeCompleto,
+      faccaoId:
+        membro.adolescente.faccao?.id ??
+        membro.adolescente.faccaoGrupoId ??
+        null,
+      faccaoNome: membro.adolescente.faccao?.nomeFaccao ?? null,
+      bairroId:
+        membro.adolescente.bairroOrigem?.id ??
+        membro.adolescente.bairroOrigemId ??
+        null,
+      bairroNome: membro.adolescente.bairroOrigem?.nomeBairro ?? null,
+      bairroCidade: membro.adolescente.bairroOrigem?.cidade ?? null,
+      vinculos: (membro.adolescente.atoInfracionalVinculos ?? [])
+        .map((item: any) => item?.vinculo ?? item)
+        .filter((item: any) => item?.id)
+        .map((item: any) => ({
+          id: item.id,
+          descricao: item.descricao ?? null,
+        })),
+    }));
+
+  const faccaoPares: ParInfo[] = [];
+  const bairroPares: ParInfo[] = [];
+  const atoPares: ParInfo[] = [];
+
+  const membrosPorFaccao = new Map<string, typeof membrosAtivos>();
+  membrosAtivos.forEach((membro) => {
+    if (!membro.faccaoId) return;
+    const lista = membrosPorFaccao.get(membro.faccaoId) ?? [];
+    lista.push(membro);
+    membrosPorFaccao.set(membro.faccaoId, lista);
+  });
+  membrosPorFaccao.forEach((lista) => {
+    if (lista.length < 2) return;
+    const nome = lista[0].faccaoNome ?? "Faccao";
+    gerarPares(
+      lista.map((m) => ({ id: m.id, nome: m.nome })),
+      `Faccao ${nome}`,
+      faccaoPares
+    );
+  });
+
+  const membrosPorBairro = new Map<string, typeof membrosAtivos>();
+  membrosAtivos.forEach((membro) => {
+    if (!membro.bairroId) return;
+    const lista = membrosPorBairro.get(membro.bairroId) ?? [];
+    lista.push(membro);
+    membrosPorBairro.set(membro.bairroId, lista);
+  });
+  membrosPorBairro.forEach((lista) => {
+    if (lista.length < 2) return;
+    const bairro = lista[0].bairroNome ?? "Bairro";
+    const cidade = lista[0].bairroCidade ? ` - ${lista[0].bairroCidade}` : "";
+    gerarPares(
+      lista.map((m) => ({ id: m.id, nome: m.nome })),
+      `Bairro ${bairro}${cidade}`,
+      bairroPares
+    );
+  });
+
+  const membrosPorVinculo = new Map<
+    string,
+    { descricao: string | null; membros: typeof membrosAtivos }
+  >();
+  membrosAtivos.forEach((membro) => {
+    (membro.vinculos ?? []).forEach((vinculo) => {
+      const atual =
+        membrosPorVinculo.get(vinculo.id) ?? {
+          descricao: vinculo.descricao ?? null,
+          membros: [],
+        };
+      atual.membros.push(membro);
+      membrosPorVinculo.set(vinculo.id, atual);
+    });
+  });
+  membrosPorVinculo.forEach((info) => {
+    if (info.membros.length < 2) return;
+    const descricao = info.descricao?.trim() ?? "";
+    const detalhe =
+      descricao.length > 0
+        ? `Ato infracional: ${descricao}`
+        : "Ato infracional conjunto";
+    gerarPares(
+      info.membros.map((m) => ({ id: m.id, nome: m.nome })),
+      detalhe,
+      atoPares
+    );
+  });
+
+  return {
+    agrupamentosResumo: {
+      faccao: faccaoPares.length,
+      bairro: bairroPares.length,
+      atoInfracional: atoPares.length,
+    },
+    agrupamentosDetalhes: {
+      faccao: faccaoPares,
+      bairro: bairroPares,
+      atoInfracional: atoPares,
+    },
+  };
+};
+
 const criarMapaContagens = (
   registros: Array<{ registroGrupoId: string | null; _count: { _all: number } }>
 ) => {
@@ -108,6 +249,29 @@ export async function GET(request: NextRequest) {
             include: {
               adolescente: {
                 include: {
+                  faccao: {
+                    select: {
+                      id: true,
+                      nomeFaccao: true,
+                    },
+                  },
+                  bairroOrigem: {
+                    select: {
+                      id: true,
+                      nomeBairro: true,
+                      cidade: true,
+                    },
+                  },
+                  atoInfracionalVinculos: {
+                    include: {
+                      vinculo: {
+                        select: {
+                          id: true,
+                          descricao: true,
+                        },
+                      },
+                    },
+                  },
                   alojamentoAtual: {
                     select: {
                       id: true,
@@ -240,6 +404,7 @@ export async function GET(request: NextRequest) {
         : undefined,
       conflitosAtivos: mapaAtivos.get(grupo.id) ?? 0,
       conflitosSemMediacao: mapaSemMediacao.get(grupo.id) ?? 0,
+      ...(incluirMembros ? calcularAgrupamentos(grupo) : null),
     }));
 
     return NextResponse.json({

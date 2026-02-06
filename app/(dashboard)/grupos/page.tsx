@@ -67,6 +67,28 @@ type Grupo = {
   casa: Casa;
   totalMembros?: number;
   membros?: Membro[];
+  agrupamentosResumo?: {
+    faccao: number;
+    bairro: number;
+    atoInfracional: number;
+  };
+  agrupamentosDetalhes?: {
+    faccao: Array<{
+      a: { id: string; nome: string };
+      b: { id: string; nome: string };
+      detalhe: string;
+    }>;
+    bairro: Array<{
+      a: { id: string; nome: string };
+      b: { id: string; nome: string };
+      detalhe: string;
+    }>;
+    atoInfracional: Array<{
+      a: { id: string; nome: string };
+      b: { id: string; nome: string };
+      detalhe: string;
+    }>;
+  };
 };
 
 type InconsistenciaItem = {

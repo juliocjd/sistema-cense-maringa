@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { Shield } from "lucide-react";
+import { Flag } from "lucide-react";
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -46,7 +46,7 @@ export default async function CadastroFaccoesPage() {
         <div className="bg-white rounded-2xl shadow-lg p-6 border-b-4 border-red-600">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
-              <Shield size={24} className="text-purple-600" />
+              <Flag size={24} className="text-purple-600" />
             </div>
             <div>
               <h1 className="text-3xl font-bold text-gray-800">

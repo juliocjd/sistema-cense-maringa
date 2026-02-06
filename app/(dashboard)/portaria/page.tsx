@@ -7,6 +7,7 @@ import {
   UserCheck,
   AlertCircle,
   CheckCircle,
+  Copy,
   QrCode,
   Monitor,
   X,
@@ -54,6 +55,7 @@ type IdentificacaoResultado = {
     nomePai?: string | null;
     nomeMae?: string | null;
     dataNascimento: string;
+    bnmpUltimaConsultaEm?: string | null;
     fotoUrl: string;
     adolescentes: Adolescente[];
     ultimasVisitas: Array<{
@@ -66,7 +68,7 @@ type IdentificacaoResultado = {
 };
 
 const normalizarAdolescentes = (
-  lista?: (Partial<Adolescente> & { status?: string | null })[] | null
+  lista?: (Partial<Adolescente> & { status?: string | null })[] | null,
 ): Adolescente[] =>
   Array.isArray(lista)
     ? lista.map((item) => ({
@@ -80,6 +82,8 @@ const normalizarAdolescentes = (
       }))
     : [];
 
+const BNMP_URL = "https://portalbnmp.pdpj.jus.br/#/pesquisa-peca";
+
 export default function PortariaPage() {
   const [modoCadastro, setModoCadastro] = useState(false);
   const [modoIdentificacao, setModoIdentificacao] = useState(false);
@@ -87,7 +91,7 @@ export default function PortariaPage() {
   const [modoBuscaManual, setModoBuscaManual] = useState(false);
   const [processando, setProcessando] = useState(false);
   const [resultado, setResultado] = useState<IdentificacaoResultado | null>(
-    null
+    null,
   );
   const [erro, setErro] = useState<string | null>(null);
   const [adolescenteSelecionadoId, setAdolescenteSelecionadoId] =
@@ -101,16 +105,18 @@ export default function PortariaPage() {
   >(null);
   const [cameraSessionId, setCameraSessionId] = useState(0);
   const [mensagemSucesso, setMensagemSucesso] = useState<string | null>(null);
+  const [bnmpFeedback, setBnmpFeedback] = useState<string | null>(null);
+  const [bnmpRegistrando, setBnmpRegistrando] = useState(false);
   const [adolescentesInativos, setAdolescentesInativos] = useState<
     Adolescente[]
   >([]);
   const justificativaObrigatoria = Boolean(
-    validacaoResultado?.requerJustificativa
+    validacaoResultado?.requerJustificativa,
   );
   const justificativaObrigatoriaAnterior = useRef(false);
 
   const separarAdolescentesPorStatus = (
-    lista?: Adolescente[] | null
+    lista?: Adolescente[] | null,
   ): { ativos: Adolescente[]; inativos: Adolescente[] } => {
     const normalizados = normalizarAdolescentes(lista);
     const ativos: Adolescente[] = [];
@@ -132,13 +138,15 @@ export default function PortariaPage() {
     lista
       .map((adolescente) => {
         const nome = adolescente.nomeSocial || adolescente.nomeCompleto;
-        const status = (adolescente.statusUnidade || "DESCONHECIDO").toUpperCase();
+        const status = (
+          adolescente.statusUnidade || "DESCONHECIDO"
+        ).toUpperCase();
         return `${nome} (${status})`;
       })
       .join(", ");
 
   const prepararAdolescentesParaFluxo = (
-    lista?: Adolescente[] | null
+    lista?: Adolescente[] | null,
   ): { ativos: Adolescente[]; inativos: Adolescente[] } => {
     const { ativos, inativos } = separarAdolescentesPorStatus(lista);
     setAdolescentesInativos(inativos);
@@ -147,12 +155,122 @@ export default function PortariaPage() {
 
   const gerarMensagemSemAtivos = (
     visitanteNome: string,
-    inativos: Adolescente[]
+    inativos: Adolescente[],
   ) => {
     const detalhes = inativos.length
       ? ` VÃ­nculos encontrados: ${descreverAdolescentes(inativos)}.`
       : "";
     return `Visitante ${visitanteNome} nÃ£o possui adolescentes ativos autorizados para visitas no momento.${detalhes}`;
+  };
+
+  const formatarDataNascimento = (valor?: string | null) => {
+    if (!valor) return "Nao informado";
+    const data = new Date(valor);
+    if (Number.isNaN(data.getTime())) {
+      return "Nao informado";
+    }
+    return data.toLocaleDateString("pt-BR");
+  };
+
+  const formatarDataHora = (valor?: string | null) => {
+    if (!valor) return "Nao registrada";
+    const data = new Date(valor);
+    if (Number.isNaN(data.getTime())) {
+      return "Nao registrada";
+    }
+    return data.toLocaleString("pt-BR");
+  };
+
+  const copiarTextoSync = (texto: string) => {
+    if (!texto) return false;
+    const textarea = document.createElement("textarea");
+    textarea.value = texto;
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+    try {
+      return document.execCommand("copy");
+    } finally {
+      document.body.removeChild(textarea);
+    }
+  };
+
+  const copiarTextoAsync = async (texto: string) => {
+    if (!texto || !navigator.clipboard?.writeText) {
+      return false;
+    }
+    try {
+      await navigator.clipboard.writeText(texto);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const handleCopiarCampoBnmp = async (
+    label: string,
+    valor: string | null | undefined,
+  ) => {
+    const texto = valor?.trim() ?? "";
+    if (!texto) {
+      setBnmpFeedback("Nao ha dado para copiar.");
+      return;
+    }
+    const copiadoSync = copiarTextoSync(texto);
+    if (copiadoSync) {
+      setBnmpFeedback(`${label} copiado.`);
+      return;
+    }
+    const copiadoAsync = await copiarTextoAsync(texto);
+    setBnmpFeedback(
+      copiadoAsync ? `${label} copiado.` : "Nao foi possivel copiar o dado.",
+    );
+  };
+
+  const registrarConsultaBnmp = async (visitanteId: string) => {
+    setBnmpRegistrando(true);
+    try {
+      const response = await fetch(`/api/visitantes/${visitanteId}/bnmp`, {
+        method: "POST",
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(payload?.erro ?? "Erro ao registrar consulta BNMP");
+      }
+      return payload?.bnmpUltimaConsultaEm ?? null;
+    } catch (error) {
+      console.error("Erro ao registrar consulta BNMP:", error);
+      setBnmpFeedback(
+        error instanceof Error
+          ? error.message
+          : "Erro ao registrar consulta BNMP",
+      );
+      return null;
+    } finally {
+      setBnmpRegistrando(false);
+    }
+  };
+
+  const handleConsultaBnmp = async () => {
+    if (!resultado?.visitante) return;
+    window.open(BNMP_URL, "_blank", "noopener,noreferrer");
+
+    const novaConsulta = await registrarConsultaBnmp(resultado.visitante.id);
+    if (novaConsulta) {
+      setResultado((prev) =>
+        prev?.visitante
+          ? {
+              ...prev,
+              visitante: {
+                ...prev.visitante,
+                bnmpUltimaConsultaEm: novaConsulta,
+              },
+            }
+          : prev,
+      );
+    }
   };
 
   useEffect(() => {
@@ -162,6 +280,14 @@ export default function PortariaPage() {
     const timeout = setTimeout(() => setMensagemSucesso(null), 4000);
     return () => clearTimeout(timeout);
   }, [mensagemSucesso]);
+
+  useEffect(() => {
+    if (!bnmpFeedback) {
+      return;
+    }
+    const timeout = setTimeout(() => setBnmpFeedback(null), 4000);
+    return () => clearTimeout(timeout);
+  }, [bnmpFeedback]);
 
   useEffect(() => {
     if (justificativaObrigatoria && !justificativaObrigatoriaAnterior.current) {
@@ -200,12 +326,14 @@ export default function PortariaPage() {
     setJustificativaHorario("");
     setObservacoesVisita("");
     setAdolescentesInativos([]);
+    setBnmpFeedback(null);
+    setBnmpRegistrando(false);
   };
 
   const registrarVisitaDireta = async (
     adolescenteId: string,
     justificativa: string | null,
-    observacoes: string | null
+    observacoes: string | null,
   ) => {
     if (!resultado?.visitante) {
       setErro("Nenhum visitante selecionado para registrar a visita.");
@@ -228,7 +356,7 @@ export default function PortariaPage() {
             observacoes,
             justificativaHorario: justificativa || null,
           }),
-        }
+        },
       );
 
       const data = await response.json();
@@ -246,7 +374,7 @@ export default function PortariaPage() {
         setErro(
           `${data.erro || "Erro ao registrar visita."}${
             detalhes ? ` (${detalhes})` : ""
-          }`
+          }`,
         );
         console.error("Erro ao registrar visita:", data);
         return;
@@ -262,7 +390,7 @@ export default function PortariaPage() {
       setErro(
         err instanceof Error
           ? err.message
-          : "Erro inesperado ao registrar visita."
+          : "Erro inesperado ao registrar visita.",
       );
     } finally {
       setProcessando(false);
@@ -274,7 +402,7 @@ export default function PortariaPage() {
    */
   const handleIdentificarVisitante = async (
     imageDataUrl: string,
-    embeddings: Float32Array
+    embeddings: Float32Array,
   ) => {
     setProcessando(true);
     setErro(null);
@@ -321,12 +449,12 @@ export default function PortariaPage() {
         setResultado(data);
       } else if (data.visitante) {
         const { ativos, inativos } = prepararAdolescentesParaFluxo(
-          data.visitante.adolescentes
+          data.visitante.adolescentes,
         );
 
         if (ativos.length === 0) {
           setErro(
-            gerarMensagemSemAtivos(data.visitante.nomeCompleto, inativos)
+            gerarMensagemSemAtivos(data.visitante.nomeCompleto, inativos),
           );
           setResultado(null);
           if (origemIdentificacao === "facial") {
@@ -337,7 +465,7 @@ export default function PortariaPage() {
 
         // Verificar se ha visitas em andamento ANTES de mostrar sucesso
         const visitasAbertas = await verificarVisitasEmAndamento(
-          data.visitante.id
+          data.visitante.id,
         );
 
         if (visitasAbertas.length > 0) {
@@ -347,7 +475,7 @@ export default function PortariaPage() {
             .join(", ");
           setErro(
             `ATENCAO: ${data.visitante.nomeCompleto} ja possui visita em andamento com: ${nomes}. ` +
-              `Por favor, finalize a visita atual antes de registrar uma nova.`
+              `Por favor, finalize a visita atual antes de registrar uma nova.`,
           );
           setResultado(null);
           if (origemIdentificacao === "facial") {
@@ -393,7 +521,7 @@ export default function PortariaPage() {
     try {
       const response = await fetch(
         `/api/visitantes/${visitanteId}/visitas?status=abertas`,
-        { cache: "no-store" }
+        { cache: "no-store" },
       );
       const data = await response.json();
 
@@ -408,7 +536,7 @@ export default function PortariaPage() {
         (visita) =>
           visita.emAberto === true ||
           visita.dataHoraSaida === null ||
-          typeof visita.dataHoraSaida === "undefined"
+          typeof visita.dataHoraSaida === "undefined",
       );
 
       return visitasEmAberto;
@@ -423,7 +551,7 @@ export default function PortariaPage() {
    */
   const validarEntradaAutomatica = async (
     visitanteId: string,
-    adolescenteId: string
+    adolescenteId: string,
   ) => {
     setValidandoEntrada(true);
     try {
@@ -471,7 +599,7 @@ export default function PortariaPage() {
     await registrarVisitaDireta(
       adolescenteSelecionadoId,
       justificativaAtual.length > 0 ? justificativaAtual : null,
-      observacoesVisita.trim() ? observacoesVisita.trim() : null
+      observacoesVisita.trim() ? observacoesVisita.trim() : null,
     );
   };
 
@@ -495,7 +623,7 @@ export default function PortariaPage() {
 
       // Verificar visitas em andamento ANTES de mostrar sucesso
       const visitasAbertas = await verificarVisitasEmAndamento(
-        data.visitante.id
+        data.visitante.id,
       );
 
       if (visitasAbertas.length > 0) {
@@ -504,25 +632,25 @@ export default function PortariaPage() {
           .join(", ");
         setErro(
           `ATENCAO: ${data.visitante.nomeCompleto} ja possui visita em andamento com: ${nomes}. ` +
-            `Por favor, finalize a visita atual antes de registrar uma nova.`
+            `Por favor, finalize a visita atual antes de registrar uma nova.`,
         );
         setResultado(null);
       } else {
         // Transformar resposta da API de QR Code para formato IdentificacaoResultado
         const adolescentesVinculadosApi = Array.isArray(
-          data.visitante.adolescentesVinculados
+          data.visitante.adolescentesVinculados,
         )
           ? data.visitante.adolescentesVinculados
           : [];
         setOrigemIdentificacao("qrcode");
 
         const { ativos, inativos } = prepararAdolescentesParaFluxo(
-          adolescentesVinculadosApi as Adolescente[]
+          adolescentesVinculadosApi as Adolescente[],
         );
 
         if (ativos.length === 0) {
           setErro(
-            gerarMensagemSemAtivos(data.visitante.nomeCompleto, inativos)
+            gerarMensagemSemAtivos(data.visitante.nomeCompleto, inativos),
           );
           setResultado(null);
           setModoQRCode(false);
@@ -545,7 +673,8 @@ export default function PortariaPage() {
             rg: data.visitante.rg || null,
             nomePai: data.visitante.nomePai || null,
             nomeMae: data.visitante.nomeMae || null,
-            dataNascimento: "", // Nao vem na API de QR Code
+            dataNascimento: data.visitante.dataNascimento || "",
+            bnmpUltimaConsultaEm: data.visitante.bnmpUltimaConsultaEm ?? null,
             fotoUrl: data.visitante.urlFoto || "",
             adolescentes: ativos,
             ultimasVisitas: Array.isArray(data.visitasRecentes)
@@ -710,12 +839,12 @@ export default function PortariaPage() {
           <BuscaVisitanteManual
             onVisitanteSelecionado={(visitante) => {
               const { ativos, inativos } = prepararAdolescentesParaFluxo(
-                visitante.adolescentes
+                visitante.adolescentes,
               );
 
               if (ativos.length === 0) {
                 setErro(
-                  gerarMensagemSemAtivos(visitante.nomeCompleto, inativos)
+                  gerarMensagemSemAtivos(visitante.nomeCompleto, inativos),
                 );
                 setModoBuscaManual(false);
                 setResultado(null);
@@ -735,6 +864,7 @@ export default function PortariaPage() {
                   nomePai: visitante.nomePai || null,
                   nomeMae: visitante.nomeMae || null,
                   dataNascimento: visitante.dataNascimento || "",
+                  bnmpUltimaConsultaEm: visitante.bnmpUltimaConsultaEm ?? null,
                   fotoUrl: visitante.fotoUrl || "",
                   adolescentes: ativos,
                   ultimasVisitas: [],
@@ -813,34 +943,173 @@ export default function PortariaPage() {
                         />
                       )}
                       <div className="space-y-2 text-gray-700 text-sm md:text-base">
-                        <p>
-                          <strong>Nome:</strong>{" "}
-                          {resultado.visitante.nomeCompleto}
+                        <div className="flex items-center justify-between gap-2">
+                          <p>
+                            <strong>Nome:</strong>{" "}
+                            {resultado.visitante.nomeCompleto}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleCopiarCampoBnmp(
+                                "Nome",
+                                resultado.visitante?.nomeCompleto,
+                              )
+                            }
+                            className="rounded-md p-1 text-slate-500 hover:text-slate-700"
+                            title="Copiar nome"
+                            aria-label="Copiar nome"
+                          >
+                            <Copy size={14} />
+                          </button>
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <p>
+                            <strong>CPF:</strong>{" "}
+                            {resultado.visitante.cpf || "Nao informado"}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleCopiarCampoBnmp(
+                                "CPF",
+                                resultado.visitante?.cpf,
+                              )
+                            }
+                            disabled={!resultado.visitante.cpf}
+                            className="rounded-md p-1 text-slate-500 hover:text-slate-700 disabled:cursor-not-allowed disabled:text-slate-300"
+                            title="Copiar CPF"
+                            aria-label="Copiar CPF"
+                          >
+                            <Copy size={14} />
+                          </button>
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <p>
+                            <strong>RG:</strong>{" "}
+                            {resultado.visitante.rg || "Nao informado"}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleCopiarCampoBnmp(
+                                "RG",
+                                resultado.visitante?.rg,
+                              )
+                            }
+                            disabled={!resultado.visitante.rg}
+                            className="rounded-md p-1 text-slate-500 hover:text-slate-700 disabled:cursor-not-allowed disabled:text-slate-300"
+                            title="Copiar RG"
+                            aria-label="Copiar RG"
+                          >
+                            <Copy size={14} />
+                          </button>
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <p>
+                            <strong>Data de Nascimento:</strong>{" "}
+                            {formatarDataNascimento(
+                              resultado.visitante.dataNascimento,
+                            )}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleCopiarCampoBnmp(
+                                "Data de nascimento",
+                                formatarDataNascimento(
+                                  resultado.visitante?.dataNascimento,
+                                ),
+                              )
+                            }
+                            disabled={
+                              formatarDataNascimento(
+                                resultado.visitante.dataNascimento,
+                              ) === "Nao informado"
+                            }
+                            className="rounded-md p-1 text-slate-500 hover:text-slate-700 disabled:cursor-not-allowed disabled:text-slate-300"
+                            title="Copiar data de nascimento"
+                            aria-label="Copiar data de nascimento"
+                          >
+                            <Copy size={14} />
+                          </button>
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <p>
+                            <strong>Nome do pai:</strong>{" "}
+                            {resultado.visitante.nomePai || "Nao informado"}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleCopiarCampoBnmp(
+                                "Nome do pai",
+                                resultado.visitante?.nomePai,
+                              )
+                            }
+                            disabled={!resultado.visitante.nomePai}
+                            className="rounded-md p-1 text-slate-500 hover:text-slate-700 disabled:cursor-not-allowed disabled:text-slate-300"
+                            title="Copiar nome do pai"
+                            aria-label="Copiar nome do pai"
+                          >
+                            <Copy size={14} />
+                          </button>
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <p>
+                            <strong>Nome da mae:</strong>{" "}
+                            {resultado.visitante.nomeMae || "Nao informado"}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleCopiarCampoBnmp(
+                                "Nome da mae",
+                                resultado.visitante?.nomeMae,
+                              )
+                            }
+                            disabled={!resultado.visitante.nomeMae}
+                            className="rounded-md p-1 text-slate-500 hover:text-slate-700 disabled:cursor-not-allowed disabled:text-slate-300"
+                            title="Copiar nome da mae"
+                            aria-label="Copiar nome da mae"
+                          >
+                            <Copy size={14} />
+                          </button>
+                        </div>
+                      </div>
+                      <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-semibold text-slate-700">
+                              Consulta Banco Nacional de Mandados de Prisão
+                            </p>
+                            <p className="text-[11px] text-slate-500">
+                              Ultima consulta:{" "}
+                              {formatarDataHora(
+                                resultado.visitante.bnmpUltimaConsultaEm,
+                              )}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleConsultaBnmp}
+                            disabled={bnmpRegistrando}
+                            className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+                          >
+                            {bnmpRegistrando
+                              ? "Registrando..."
+                              : "Consultar no BNMP"}
+                          </button>
+                        </div>
+                        <p className="mt-2 text-[11px] text-slate-500">
+                          O portal sera aberto em outra aba. Copie o dado que
+                          deseja usar nos botoes ao lado de cada campo.
                         </p>
-                        <p>
-                          <strong>CPF:</strong>{" "}
-                          {resultado.visitante.cpf || "Nao informado"}
-                        </p>
-                        <p>
-                          <strong>RG:</strong>{" "}
-                          {resultado.visitante.rg || "Nao informado"}
-                        </p>
-                        <p>
-                          <strong>Data de Nascimento:</strong>{" "}
-                          {resultado.visitante.dataNascimento
-                            ? new Date(
-                                resultado.visitante.dataNascimento
-                              ).toLocaleDateString("pt-BR")
-                            : "Nao informado"}
-                        </p>
-                        <p>
-                          <strong>Nome do pai:</strong>{" "}
-                          {resultado.visitante.nomePai || "Nao informado"}
-                        </p>
-                        <p>
-                          <strong>Nome da mae:</strong>{" "}
-                          {resultado.visitante.nomeMae || "Nao informado"}
-                        </p>
+                        {bnmpFeedback && (
+                          <p className="mt-1 text-[11px] font-semibold text-slate-700">
+                            {bnmpFeedback}
+                          </p>
+                        )}
                       </div>
                     </div>
 
@@ -939,7 +1208,7 @@ export default function PortariaPage() {
                                                 />
                                                 <span>{alerta}</span>
                                               </p>
-                                            )
+                                            ),
                                           )}
                                         </div>
                                       )}
@@ -953,7 +1222,7 @@ export default function PortariaPage() {
                                               >
                                                 ? {aviso}
                                               </p>
-                                            )
+                                            ),
                                           )}
                                         </div>
                                       )}
@@ -969,7 +1238,7 @@ export default function PortariaPage() {
                                   )}
                                 </li>
                               );
-                            }
+                            },
                           )}
                         </ul>
                       ) : (
@@ -983,7 +1252,7 @@ export default function PortariaPage() {
                       <div className="mt-5 space-y-4">
                         <div className="space-y-2">
                           <label className="block text-sm font-semibold text-gray-700">
-                            ObservaÃ§Ãµes (opcional)
+                            Observações (opcional)
                           </label>
                           <textarea
                             value={observacoesVisita}
@@ -998,9 +1267,9 @@ export default function PortariaPage() {
                         {validacaoResultado?.requerJustificativa && (
                           <div className="space-y-2">
                             <label className="block text-sm font-semibold text-gray-700 flex items-center gap-2">
-                              Justificativa de horÃ¡rio
+                              Justificativa de horário
                               <span className="text-xs font-semibold text-red-600">
-                                ObrigatÃ³rio
+                                Obrigatório
                               </span>
                             </label>
                             <textarea
@@ -1040,13 +1309,13 @@ export default function PortariaPage() {
                       {validandoEntrada
                         ? "Validando..."
                         : processando
-                        ? "Processando..."
-                        : !adolescenteSelecionadoId
-                        ? "Selecione um adolescente"
-                        : justificativaObrigatoria &&
-                          justificativaHorario.trim().length === 0
-                        ? "Informe a justificativa"
-                        : "Confirmar entrada"}
+                          ? "Processando..."
+                          : !adolescenteSelecionadoId
+                            ? "Selecione um adolescente"
+                            : justificativaObrigatoria &&
+                                justificativaHorario.trim().length === 0
+                              ? "Informe a justificativa"
+                              : "Confirmar entrada"}
                     </button>
                     <button
                       onClick={() => {
@@ -1161,4 +1430,3 @@ export default function PortariaPage() {
     </div>
   );
 }
-

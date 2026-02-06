@@ -9,9 +9,9 @@ import {
   Search,
   Filter,
   Calendar,
+  Lock,
   User,
   AlertCircle,
-  Shield,
   CheckCircle,
   Clock,
   RefreshCw,
@@ -190,7 +190,7 @@ export default function JustificativasAlgemaPage() {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-4">
             <div>
               <div className="flex items-center gap-3 mb-2">
-                <Shield className="w-10 h-10 text-indigo-600" />
+                <Lock className="w-10 h-10 text-indigo-600" />
                 <div>
                   <h1 className="text-3xl font-bold text-slate-800">
                     Justificativas de Algema
@@ -316,7 +316,7 @@ export default function JustificativasAlgemaPage() {
         {/* Empty State */}
         {!loading && justificativasFiltradas.length === 0 && (
           <div className="bg-white rounded-xl shadow-md p-12 text-center border-2 border-dashed border-slate-300">
-            <Shield className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+            <Lock className="w-16 h-16 text-slate-300 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-slate-700 mb-2">
               {busca ? "Nenhuma justificativa encontrada" : "Nenhuma justificativa registrada"}
             </h3>

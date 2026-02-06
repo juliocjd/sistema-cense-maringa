@@ -2,12 +2,31 @@
 import { prisma } from "@/lib/prisma";
 import { getEstruturaSnapshot } from "@/lib/estrutura/snapshot";
 
+const CACHE_TTL_MS = 30000;
+let cachedStats: Record<string, unknown> | null = null;
+let cachedAt = 0;
+let inFlight: Promise<Record<string, unknown>> | null = null;
+
 /**
  * GET /api/dashboard/stats
  * Retorna estatÃ­sticas gerais para o dashboard
  */
 export async function GET(request: NextRequest) {
   try {
+    const now = Date.now();
+    if (cachedStats && now - cachedAt < CACHE_TTL_MS) {
+      return NextResponse.json(cachedStats, {
+        headers: { "x-cache": "HIT" },
+      });
+    }
+    if (inFlight) {
+      const data = await inFlight;
+      return NextResponse.json(data, {
+        headers: { "x-cache": "HIT" },
+      });
+    }
+
+    inFlight = (async () => {
     // Total de adolescentes ativos na unidade
     const totalAdolescentes = await prisma.adolescente.count({
       where: {
@@ -252,7 +271,7 @@ export async function GET(request: NextRequest) {
       {} as Record<string, number>
     );
 
-    return NextResponse.json({
+    return {
       totalAdolescentes,
       totalVagas,
       alojamentosOcupados,
@@ -278,6 +297,14 @@ export async function GET(request: NextRequest) {
           gravidadeAlertas.leve,
       },
       conflitosPorTipo,
+    } as Record<string, unknown>;
+    })();
+
+    const data = await inFlight;
+    cachedStats = data;
+    cachedAt = now;
+    return NextResponse.json(data, {
+      headers: { "x-cache": "MISS" },
     });
   } catch (error) {
     console.error("Erro ao buscar estatÃ­sticas do dashboard:", error);
@@ -285,6 +312,8 @@ export async function GET(request: NextRequest) {
       { error: "Erro ao buscar estatÃ­sticas" },
       { status: 500 }
     );
+  } finally {
+    inFlight = null;
   }
 }
 

@@ -101,6 +101,8 @@ const ALERTAS_ESPECIAIS_ORDEM: AlertaEspecialTipo[] = [
   "PERFIL_MAPEADO",
   "SAUDE_CONFIDENCIAL",
 ];
+const MENSAGEM_SAIDA_SEM_SALVAR =
+  "Voce tem alteracoes nao salvas. Deseja sair sem salvar?";
 
 type TipoInternacao = "PROVISORIA" | "DEFINITIVA";
 
@@ -285,6 +287,8 @@ export function CadastroAdolescente({
     : "Erro ao salvar adolescente. Tente novamente.";
   const [etapaAtual, setEtapaAtual] = useState(1);
   const [loading, setLoading] = useState(false);
+  const estadoInicialRef = useRef<string | null>(null);
+  const temAlteracaoRef = useRef(false);
   const [errosFormulario, setErrosFormulario] = useState<string[]>([]);
   const [statusUnidade, setStatusUnidade] = useState<StatusUnidade>("ATIVO");
   const [dataStatus, setDataStatus] = useState("");
@@ -522,7 +526,9 @@ export function CadastroAdolescente({
 
   const obterStatusLabel = (status?: StatusUnidade | null) => {
     if (!status) return "Nao informado";
-    return STATUS_OPCOES.find((opcao) => opcao.value === status)?.label ?? status;
+    return (
+      STATUS_OPCOES.find((opcao) => opcao.value === status)?.label ?? status
+    );
   };
 
   const limparValidacaoSms = () => {
@@ -599,6 +605,8 @@ export function CadastroAdolescente({
 
   useEffect(() => {
     if (!initialData) return;
+    estadoInicialRef.current = null;
+    temAlteracaoRef.current = false;
 
     setDadosPessoais({
       nomeCompleto: initialData.nomeCompleto ?? "",
@@ -1014,7 +1022,9 @@ export function CadastroAdolescente({
     const carregar = async () => {
       try {
         const response = await fetch(
-          `/api/adolescentes?busca=${encodeURIComponent(termo)}&limit=20`,
+          `/api/adolescentes?busca=${encodeURIComponent(
+            termo,
+          )}&limit=20&ignorar_acentos=true`,
         );
         if (!response.ok) {
           throw new Error("Falha ao buscar adolescentes");
@@ -1067,7 +1077,9 @@ export function CadastroAdolescente({
     const carregar = async () => {
       try {
         const response = await fetch(
-          `/api/adolescentes?busca=${encodeURIComponent(termo)}&limit=20`,
+          `/api/adolescentes?busca=${encodeURIComponent(
+            termo,
+          )}&limit=20&ignorar_acentos=true`,
         );
         if (!response.ok) {
           throw new Error("Falha ao buscar adolescentes");
@@ -1462,6 +1474,92 @@ export function CadastroAdolescente({
   const [erroReferencias, setErroReferencias] = useState<string | null>(null);
   const [bairroBusca, setBairroBusca] = useState("");
   const [mostrarSugestoesBairro, setMostrarSugestoesBairro] = useState(false);
+  const estadoSerializado = useMemo(
+    () =>
+      JSON.stringify({
+        dadosPessoais,
+        statusUnidade,
+        dataStatus,
+        atoInfracional,
+        atoInfracionalVinculos,
+        vinculoDescricao,
+        vinculoSelecionados,
+        vinculacoes,
+        tecnicosReferenciaIds,
+        tatuagens,
+        alertasEspeciais,
+        foto,
+        alojamentoSelecionado,
+        bairroBusca,
+      }),
+    [
+      dadosPessoais,
+      statusUnidade,
+      dataStatus,
+      atoInfracional,
+      atoInfracionalVinculos,
+      vinculoDescricao,
+      vinculoSelecionados,
+      vinculacoes,
+      tecnicosReferenciaIds,
+      tatuagens,
+      alertasEspeciais,
+      foto,
+      alojamentoSelecionado,
+      bairroBusca,
+    ],
+  );
+
+  if (estadoInicialRef.current === null) {
+    estadoInicialRef.current = estadoSerializado;
+  }
+  const temAlteracaoAtual =
+    estadoInicialRef.current !== null &&
+    estadoSerializado !== estadoInicialRef.current;
+  temAlteracaoRef.current = temAlteracaoAtual;
+
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!temAlteracaoRef.current) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, []);
+
+  useEffect(() => {
+    const handleClick = (event: MouseEvent) => {
+      if (!temAlteracaoRef.current) return;
+      if (event.button !== 0) return;
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+        return;
+      }
+      const alvo = event.target as HTMLElement | null;
+      const link = alvo?.closest("a");
+      if (!link) return;
+      const href = link.getAttribute("href");
+      if (
+        !href ||
+        href.startsWith("#") ||
+        href.startsWith("mailto:") ||
+        href.startsWith("tel:")
+      ) {
+        return;
+      }
+      const destino = link.getAttribute("target");
+      if (destino && destino !== "_self") return;
+      if (!confirm(MENSAGEM_SAIDA_SEM_SALVAR)) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    };
+    document.addEventListener("click", handleClick, true);
+    return () => document.removeEventListener("click", handleClick, true);
+  }, []);
+
+  const podeSairSemSalvar = () =>
+    !temAlteracaoRef.current || confirm(MENSAGEM_SAIDA_SEM_SALVAR);
 
   const carregarReferencias = async () => {
     setCarregandoReferencias(true);
@@ -2463,9 +2561,7 @@ export function CadastroAdolescente({
             adolescentesIds: ids,
           };
         })
-        .filter(
-          (item): item is NonNullable<typeof item> => item !== null,
-        );
+        .filter((item): item is NonNullable<typeof item> => item !== null);
 
       adolescente.atoInfracionalVinculos = vinculosPayload;
 
@@ -2474,6 +2570,8 @@ export function CadastroAdolescente({
         : undefined;
 
       await onSalvar(adolescente, destinoAlojamento);
+      estadoInicialRef.current = estadoSerializado;
+      temAlteracaoRef.current = false;
       alert(mensagemSucesso);
     } catch (error) {
       console.error("Erro ao salvar:", error);
@@ -2483,6 +2581,11 @@ export function CadastroAdolescente({
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleCancelar = () => {
+    if (!podeSairSemSalvar()) return;
+    onCancelar();
   };
 
   const handleUploadFoto = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -2581,15 +2684,11 @@ export function CadastroAdolescente({
     setVinculoEmEdicao(vinculo);
     setVinculoDescricao(vinculo.descricao ?? "");
     setVinculoSelecionados(vinculo.adolescentes ?? []);
-    setAtoInfracionalVinculos((prev) =>
-      prev.filter((_, i) => i !== index),
-    );
+    setAtoInfracionalVinculos((prev) => prev.filter((_, i) => i !== index));
   };
 
   const removerVinculoInfracional = (index: number) => {
-    setAtoInfracionalVinculos((prev) =>
-      prev.filter((_, i) => i !== index),
-    );
+    setAtoInfracionalVinculos((prev) => prev.filter((_, i) => i !== index));
   };
 
   const iniciarEdicaoHistorico = (
@@ -2879,9 +2978,10 @@ export function CadastroAdolescente({
                       </span>
                       <button
                         type="button"
-                        onClick={() =>
-                          router.push(`/adolescentes/${smsDuplicado.id}`)
-                        }
+                        onClick={() => {
+                          if (!podeSairSemSalvar()) return;
+                          router.push(`/adolescentes/${smsDuplicado.id}`);
+                        }}
                         className="font-semibold underline text-rose-700 hover:text-rose-800"
                       >
                         Abrir ficha existente
@@ -3106,11 +3206,11 @@ export function CadastroAdolescente({
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
                     <h3 className="text-sm font-semibold text-slate-800">
-                      Vinculos no mesmo ato infracional
+                      Vínculos no mesmo ato infracional
                     </h3>
                     <p className="text-[11px] text-slate-500">
                       Registre outros adolescentes envolvidos no mesmo ato
-                      infracional. O alerta de alocacao aparece apenas quando
+                      infracional. O alerta de alocação aparece apenas quando
                       estiverem na mesma ala.
                     </p>
                   </div>
@@ -3119,20 +3219,7 @@ export function CadastroAdolescente({
                   </span>
                 </div>
 
-                <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                      Descricao do vinculo
-                    </label>
-                    <textarea
-                      value={vinculoDescricao}
-                      onChange={(e) => setVinculoDescricao(e.target.value)}
-                      rows={2}
-                      className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all resize-none"
-                      placeholder="Ex: Ocorrencia conjunta registrada no mesmo boletim."
-                    />
-                  </div>
-
+                <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
                   <div>
                     <label className="block text-[11px] font-semibold text-slate-600 mb-1">
                       Adolescentes envolvidos
@@ -3187,7 +3274,7 @@ export function CadastroAdolescente({
                                       className="h-full w-full object-cover"
                                     />
                                   ) : (
-                                    item.nomeCompleto?.trim().charAt(0) ?? "?"
+                                    (item.nomeCompleto?.trim().charAt(0) ?? "?")
                                   )}
                                 </span>
                                 <span className="flex flex-col">
@@ -3221,7 +3308,7 @@ export function CadastroAdolescente({
                                   className="h-full w-full object-cover"
                                 />
                               ) : (
-                                item.nomeCompleto?.trim().charAt(0) ?? "?"
+                                (item.nomeCompleto?.trim().charAt(0) ?? "?")
                               )}
                             </span>
                             <span className="max-w-[140px] truncate">
@@ -3245,6 +3332,19 @@ export function CadastroAdolescente({
                       </div>
                     )}
                   </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                      Descrição do vínculo
+                    </label>
+                    <textarea
+                      value={vinculoDescricao}
+                      onChange={(e) => setVinculoDescricao(e.target.value)}
+                      rows={2}
+                      className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all resize-none"
+                      placeholder="Ex: Ocorrencia conjunta registrada no mesmo boletim."
+                    />
+                  </div>
                 </div>
 
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -3254,7 +3354,7 @@ export function CadastroAdolescente({
                     disabled={!podeAdicionarVinculo}
                     className="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300"
                   >
-                    {vinculoEmEdicaoId ? "Salvar vinculo" : "Adicionar vinculo"}
+                    {vinculoEmEdicaoId ? "Salvar vínculo" : "Adicionar vínculo"}
                   </button>
                   {vinculoEmEdicaoId && (
                     <button
@@ -3295,9 +3395,8 @@ export function CadastroAdolescente({
                                     className="h-full w-full object-cover"
                                   />
                                 ) : (
-                                  adolescente.nomeCompleto
-                                    ?.trim()
-                                    .charAt(0) ?? "?"
+                                  (adolescente.nomeCompleto?.trim().charAt(0) ??
+                                  "?")
                                 )}
                               </span>
                               <span>
@@ -4664,7 +4763,7 @@ export function CadastroAdolescente({
           <div className="mt-4 text-center">
             <button
               type="button"
-              onClick={onCancelar}
+              onClick={handleCancelar}
               className="text-gray-600 hover:text-gray-800 text-sm font-semibold"
             >
               {textoCancelarAcao}

@@ -37,9 +37,14 @@ export async function GET(
             id: true,
             nomeCompleto: true,
             cpf: true,
+            rg: true,
+            nomePai: true,
+            nomeMae: true,
+            dataNascimento: true,
             telefones: true,
             email: true,
             fotoUrl: true,
+            bnmpUltimaConsultaEm: true,
             bloqueado: true,
             motivoBloqueio: true,
             dataBloqueio: true,
@@ -288,7 +293,15 @@ export async function GET(
         id: qrCode.visitante.id,
         nomeCompleto: qrCode.visitante.nomeCompleto,
         cpf: qrCode.visitante.cpf,
-        rg: null,
+        rg: qrCode.visitante.rg,
+        nomePai: qrCode.visitante.nomePai ?? null,
+        nomeMae: qrCode.visitante.nomeMae ?? null,
+        dataNascimento: qrCode.visitante.dataNascimento
+          ? qrCode.visitante.dataNascimento.toISOString()
+          : null,
+        bnmpUltimaConsultaEm: qrCode.visitante.bnmpUltimaConsultaEm
+          ? qrCode.visitante.bnmpUltimaConsultaEm.toISOString()
+          : null,
         telefone: telefonePrincipal,
         telefones: qrCode.visitante.telefones,
         email: qrCode.visitante.email,

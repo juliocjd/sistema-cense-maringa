@@ -50,6 +50,7 @@ export function FormVisitante({ visitante, onSuccess, onCancel }: FormVisitanteP
 const [vinculos, setVinculos] = useState<Vinculo[]>([]);
 const [adolescentes, setAdolescentes] = useState<any[]>([]);
 const [buscaVinculo, setBuscaVinculo] = useState("");
+const [mostrarResultadosVinculo, setMostrarResultadosVinculo] = useState(false);
 const [novoVinculo, setNovoVinculo] = useState({
   adolescenteId: "",
   parentesco: "",
@@ -68,6 +69,40 @@ const [novoVinculo, setNovoVinculo] = useState({
   );
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+
+  const normalizarTexto = (valor: string) =>
+    valor
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+
+  const normalizarNumero = (valor: string) => valor.replace(/\D/g, "");
+
+  const extrairIniciais = (nome: string) => {
+    const partes = nome.trim().split(/\s+/).filter(Boolean);
+    const iniciais = partes.slice(0, 2).map((parte) => parte[0]).join("");
+    return iniciais ? iniciais.toUpperCase() : "?";
+  };
+
+  const renderAvatar = (
+    fotoUrl: string | null | undefined,
+    nome: string,
+    tamanho = "h-10 w-10"
+  ) => (
+    <div
+      className={`${tamanho} rounded-full overflow-hidden bg-slate-100 border border-slate-200 flex items-center justify-center text-xs font-semibold text-slate-500`}
+    >
+      {fotoUrl ? (
+        <img
+          src={fotoUrl}
+          alt={`Foto de ${nome}`}
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        <span>{extrairIniciais(nome)}</span>
+      )}
+    </div>
+  );
 
   // Carregar adolescentes ativos
   useEffect(() => {
@@ -122,6 +157,15 @@ const [novoVinculo, setNovoVinculo] = useState({
   ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleBuscaVinculoChange = (valor: string) => {
+    setBuscaVinculo(valor);
+    const temTermo = valor.trim().length > 0;
+    setMostrarResultadosVinculo(temTermo);
+    setNovoVinculo((prev) =>
+      prev.adolescenteId ? { ...prev, adolescenteId: "" } : prev
+    );
   };
 
   const handleAdicionarVinculo = () => {
@@ -296,6 +340,35 @@ const [novoVinculo, setNovoVinculo] = useState({
       </div>
     );
   }
+
+  const termoBuscaVinculo = buscaVinculo.trim();
+  const deveMostrarResultadosVinculo =
+    mostrarResultadosVinculo && termoBuscaVinculo.length > 0;
+  const adolescentesDisponiveis =
+    Array.isArray(adolescentes) && termoBuscaVinculo
+      ? adolescentes.filter(
+          (a) =>
+            !vinculos.some((v) => v.adolescenteId === a.id) &&
+            (() => {
+              const termoNormalizado = normalizarTexto(termoBuscaVinculo);
+              const termoNumeros = normalizarNumero(termoBuscaVinculo);
+              const nome = normalizarTexto(
+                `${a.nomeCompleto || ""} ${a.nomeSocial || ""}`
+              );
+              const numeroInterno =
+                a.numeroInterno != null ? String(a.numeroInterno) : "";
+              const numeroSms = a.numeroSms || "";
+              const numeroInternoNormalizado = normalizarNumero(numeroInterno);
+              const numeroSmsNormalizado = normalizarNumero(numeroSms);
+              const matchNome = nome.includes(termoNormalizado);
+              const matchNumero =
+                termoNumeros.length > 0 &&
+                (numeroInternoNormalizado.includes(termoNumeros) ||
+                  numeroSmsNormalizado.includes(termoNumeros));
+              return matchNome || matchNumero;
+            })()
+        )
+      : [];
 
   return (
     <div className="p-6">
@@ -600,14 +673,20 @@ const [novoVinculo, setNovoVinculo] = useState({
                     const adolescente = adolescentes.find(
                       (a) => a.id === vinculo.adolescenteId
                     );
+                    const nomeVinculo =
+                      adolescente?.nomeCompleto ||
+                      adolescente?.nomeSocial ||
+                      "Adolescente";
+                    const fotoVinculo = adolescente?.fotoUrl || null;
                     return (
                       <div
                         key={vinculo.adolescenteId}
                         className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200"
                       >
+                        {renderAvatar(fotoVinculo, nomeVinculo)}
                         <div className="flex-1">
                           <p className="font-medium text-gray-900">
-                            {adolescente?.nomeCompleto || adolescente?.nomeSocial || "Adolescente"}
+                            {nomeVinculo}
                           </p>
                           <p className="text-sm text-gray-600">
                             Parentesco: <span className="font-medium">{vinculo.parentesco}</span>
@@ -651,91 +730,77 @@ const [novoVinculo, setNovoVinculo] = useState({
                     <input
                       type="text"
                       value={buscaVinculo}
-                      onChange={(event) => setBuscaVinculo(event.target.value)}
-                      placeholder="Buscar por nome ou numero"
+                      onChange={(event) =>
+                        handleBuscaVinculoChange(event.target.value)
+                      }
+                      placeholder="Buscar por nome, SMS ou numero"
                       className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm shadow-sm"
                     />
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                   </div>
-                  <div className="rounded-3xl border border-gray-200 bg-white shadow-inner max-h-72 overflow-auto divide-y divide-slate-100">
-                    <button
-                      type="button"
-                      onClick={() => setNovoVinculo({ ...novoVinculo, adolescenteId: "" })}
-                      className={`w-full text-left px-5 py-3 text-sm font-medium ${
-                        novoVinculo.adolescenteId === ""
-                          ? "bg-indigo-50 text-indigo-600 font-semibold"
-                          : "text-gray-600 hover:bg-gray-50"
-                      }`}
-                    >
-                      Selecione um adolescente...
-                    </button>
-                    {Array.isArray(adolescentes) &&
-                      adolescentes
-                        .filter(
-                          (a) =>
-                            !vinculos.some((v) => v.adolescenteId === a.id) &&
-                            (() => {
-                              const termo = buscaVinculo.trim().toLowerCase();
-                              if (!termo) return true;
-                              const nome =
-                                (a.nomeCompleto || a.nomeSocial || "")
-                                  .toLowerCase();
-                              const numero = String(a.numeroInterno || "")
-                                .toLowerCase();
-                              return (
-                                nome.includes(termo) || numero.includes(termo)
-                              );
-                            })()
-                        )
-                        .map((adolescente) => {
-                          const casaNumero =
-                            adolescente.alojamentoAtual?.casa?.numero;
-                          const alojNumero =
-                            adolescente.alojamentoAtual?.numero;
-                          const ala = adolescente.alojamentoAtual?.ala;
-                          const local = casaNumero
-                            ? `Casa ${String(casaNumero).padStart(2, "0")} • Aloj. ${
-                                alojNumero ?? "--"
-                              }${ala ? ` (Ala ${ala})` : ""}`
-                            : "Sem alojamento";
-                          const numeroInterno = adolescente.numeroInterno
-                            ? `#${adolescente.numeroInterno}`
-                            : null;
-                          const nomeOpcao =
-                            adolescente.nomeCompleto ||
-                            adolescente.nomeSocial ||
-                            "Sem nome";
-                          const selecionado =
-                            novoVinculo.adolescenteId === adolescente.id;
-                          return (
-                            <button
-                              key={adolescente.id}
-                              type="button"
-                              onClick={() =>
-                                setNovoVinculo({
-                                  ...novoVinculo,
-                                  adolescenteId: adolescente.id,
-                                })
-                              }
-                              className={`w-full px-5 py-4 text-left transition ${
-                                selecionado
-                                  ? "bg-indigo-50 border-l-4 border-indigo-500 text-indigo-700"
-                                  : "hover:bg-gray-50"
-                              }`}
-                            >
-                              <p className="text-base font-semibold text-gray-900 flex items-center gap-3">
-                                {nomeOpcao}
-                                {numeroInterno && (
-                                  <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded-full">
-                                    {numeroInterno}
-                                  </span>
-                                )}
-                              </p>
-                              <p className="text-xs text-gray-500">{local}</p>
-                            </button>
-                          );
-                        })}
-                  </div>
+                  {deveMostrarResultadosVinculo && (
+                    <div className="rounded-3xl border border-gray-200 bg-white shadow-inner max-h-72 overflow-auto divide-y divide-slate-100">
+                      {adolescentesDisponiveis.map((adolescente) => {
+                        const casaNumero =
+                          adolescente.alojamentoAtual?.casa?.numero;
+                        const alojNumero =
+                          adolescente.alojamentoAtual?.numero;
+                        const ala = adolescente.alojamentoAtual?.ala;
+                        const local = casaNumero
+                          ? `Casa ${String(casaNumero).padStart(2, "0")} - Aloj. ${
+                              alojNumero ?? "--"
+                            }${ala ? ` (Ala ${ala})` : ""}`
+                          : "Sem alojamento";
+                        const numeroInterno = adolescente.numeroInterno
+                          ? `#${adolescente.numeroInterno}`
+                          : null;
+                        const nomeOpcao =
+                          adolescente.nomeCompleto ||
+                          adolescente.nomeSocial ||
+                          "Sem nome";
+                        const selecionado =
+                          novoVinculo.adolescenteId === adolescente.id;
+                        return (
+                          <button
+                            key={adolescente.id}
+                            type="button"
+                            onClick={() => {
+                              setNovoVinculo({
+                                ...novoVinculo,
+                                adolescenteId: adolescente.id,
+                              });
+                              setBuscaVinculo(nomeOpcao);
+                              setMostrarResultadosVinculo(false);
+                            }}
+                            className={`w-full px-5 py-4 text-left transition ${
+                              selecionado
+                                ? "bg-indigo-50 border-l-4 border-indigo-500 text-indigo-700"
+                                : "hover:bg-gray-50"
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              {renderAvatar(
+                                adolescente.fotoUrl,
+                                nomeOpcao,
+                                "h-9 w-9"
+                              )}
+                              <div>
+                                <p className="text-base font-semibold text-gray-900 flex items-center gap-3">
+                                  {nomeOpcao}
+                                  {numeroInterno && (
+                                    <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded-full">
+                                      {numeroInterno}
+                                    </span>
+                                  )}
+                                </p>
+                                <p className="text-xs text-gray-500">{local}</p>
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
                 {/* Input Parentesco */}

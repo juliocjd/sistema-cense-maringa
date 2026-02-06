@@ -11,10 +11,13 @@ import {
   Calendar,
   ClipboardList,
   FileText,
+  Flag,
+  Lock,
   LayoutDashboard,
   LogOut,
   MapPin,
   Menu,
+  PenTool,
   PieChart,
   Settings,
   Shield,
@@ -113,8 +116,8 @@ export function Sidebar({
         items: podeVerConflitosExternos
           ? [
               { label: "Bairro/Cidade", href: "/cadastros/bairros", icon: MapPin },
-              { label: "Facções", href: "/cadastros/faccoes", icon: Shield },
-              { label: "Tatuagens", href: "/tatuagens", icon: Shield },
+              { label: "Facções", href: "/cadastros/faccoes", icon: Flag },
+              { label: "Tatuagens", href: "/tatuagens", icon: PenTool },
               {
                 label: "Técnicos de Referência",
                 href: "/tecnicos",
@@ -152,7 +155,7 @@ export function Sidebar({
                 {
                   label: "Justificativas de Algema",
                   href: "/justificativas-algema",
-                  icon: Shield,
+                  icon: Lock,
                 },
               ]
             : []),

@@ -361,19 +361,9 @@ export async function POST(request: NextRequest) {
             : undefined,
         },
         include: {
-          _count: {
-            select: {
-              adolescentesLink: true,
-              visitasRegistro: true,
-              verificacoesFaciais: true,
-              notificacoesEnviadas: true,
-              historicoBloqueios: true,
-              qrCodes: true,
-              fotosEvidencia: true,
-              notificacoesWhatsApp: true,
-            },
-          },
+          _count: true,
           adolescentesLink: buildLinkInclude(),
+          visitasRegistro: buildVisitaInclude(0),
         },
       });
 
@@ -408,13 +398,10 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(
-      mapVisitanteDetalhado(
-        {
-          ...visitante,
-          visitasRegistro: [],
-        } as VisitanteComRelacoes,
-        { incluirVinculos: true, incluirVisitas: false },
-      ),
+      mapVisitanteDetalhado(visitante as VisitanteComRelacoes, {
+        incluirVinculos: true,
+        incluirVisitas: false,
+      }),
       { status: 201 },
     );
   } catch (error) {

@@ -37,10 +37,7 @@ import type {
 const LIST_LIMIT_MAX = 100;
 
 const ALERTA_ESPECIAL_ENUM = z.enum(
-  ALERTA_ESPECIAL_TIPOS as [
-    AlertaEspecialTipo,
-    ...AlertaEspecialTipo[]
-  ]
+  ALERTA_ESPECIAL_TIPOS as [AlertaEspecialTipo, ...AlertaEspecialTipo[]],
 );
 const ALERTA_NIVEL_ENUM = z.enum(ALERTA_NIVEL_RISCO_VARIADIC);
 const FACCAO_ORIGEM_ENUM = z.enum([
@@ -71,7 +68,7 @@ const historicoRegistroSchema = z
       unidade: z.string().optional().nullable(),
       observacoes: z.string().optional().nullable(),
       catalogoId: z.string().uuid().optional().nullable(),
-    })
+    }),
   )
   .optional();
 
@@ -79,7 +76,7 @@ const vinculoInfracionalSchema = z.object({
   id: z.string().uuid().optional().nullable(),
   descricao: z
     .string()
-    .min(3, "Descricao do vinculo deve ter ao menos 3 caracteres"),
+    .min(3, "Descrição do vínculo deve ter ao menos 3 caracteres"),
   adolescentesIds: z.array(z.string().uuid()).optional().default([]),
 });
 
@@ -118,12 +115,17 @@ const createAdolescenteSchema = z.object({
   alertaSaudeDetalhes: z.string().optional().nullable(),
   alojamentoAtualId: z.string().uuid().optional().nullable(),
   faseInternacaoAtualId: z.string().uuid().optional().nullable(),
-  tatuagens: z.array(z.object({
-    catalogoId: z.string().uuid(),
-    localCorpo: z.string().optional().nullable(),
-    observacoes: z.string().optional().nullable(),
-    significadoPessoal: z.string().optional().nullable(),
-  })).optional().default([]),
+  tatuagens: z
+    .array(
+      z.object({
+        catalogoId: z.string().uuid(),
+        localCorpo: z.string().optional().nullable(),
+        observacoes: z.string().optional().nullable(),
+        significadoPessoal: z.string().optional().nullable(),
+      }),
+    )
+    .optional()
+    .default([]),
   historicoInfracional: historicoRegistroSchema,
   tecnicosReferenciaIds: z.array(z.string().uuid()).optional().default([]),
   alertasEspeciais: z.array(alertaEspecialSchema).optional().default([]),
@@ -182,7 +184,7 @@ const parseHistoricoPayload = (
     comarca?: string | null;
     unidade?: string | null;
     observacoes?: string | null;
-  }>
+  }>,
 ): HistoricoEntrada[] => {
   if (!registros || registros.length === 0) {
     return [];
@@ -216,10 +218,11 @@ const parseHistoricoPayload = (
       atoInfracionalGravidadeObs: null,
       unidadeInternacao:
         sanitizeNullableString(
-          (item as any).comarca ?? item.unidade ?? undefined
+          (item as any).comarca ?? item.unidade ?? undefined,
         ) ?? null,
       ano: anoValido,
-      observacoes: sanitizeNullableString(item.observacoes ?? undefined) ?? null,
+      observacoes:
+        sanitizeNullableString(item.observacoes ?? undefined) ?? null,
       catalogoId:
         typeof (item as any).catalogoId === "string" &&
         (item as any).catalogoId.length > 0
@@ -244,7 +247,7 @@ const parseVinculosPayload = (
     id?: string | null;
     descricao?: string | null;
     adolescentesIds?: string[] | null;
-  }>
+  }>,
 ): VinculoEntrada[] => {
   if (!vinculos || vinculos.length === 0) {
     return [];
@@ -262,8 +265,8 @@ const parseVinculosPayload = (
       new Set(
         Array.isArray(item.adolescentesIds)
           ? item.adolescentesIds.filter(Boolean)
-          : []
-      )
+          : [],
+      ),
     );
     if (ids.length === 0) {
       return;
@@ -298,7 +301,7 @@ const buildWhere = (params: URLSearchParams): Prisma.AdolescenteWhereInput => {
   const casaId = sanitizeNullableString(params.get("casa_id"));
   const grupoId = sanitizeNullableString(params.get("grupo_id"));
   const numeroInternoParam = sanitizeNullableString(
-    params.get("numero_interno")
+    params.get("numero_interno"),
   );
 
   const where: Prisma.AdolescenteWhereInput = {};
@@ -369,7 +372,7 @@ const parsePagination = (params: URLSearchParams) => {
 };
 
 export async function GET(
-  request: NextRequest
+  request: NextRequest,
 ): Promise<NextResponse<ListaAdolescentesResponse | { erro: string }>> {
   try {
     const { searchParams } = new URL(request.url);
@@ -424,7 +427,7 @@ export async function GET(
     console.error("Erro ao buscar adolescentes:", error);
     return NextResponse.json(
       { erro: "Erro ao buscar adolescentes" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -437,7 +440,7 @@ export async function POST(request: NextRequest) {
     } catch {
       return NextResponse.json(
         { erro: "Payload invalido, esperado JSON" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -457,13 +460,13 @@ export async function POST(request: NextRequest) {
           ativo: validated.alertaSaudeConfidencial,
           descricao: validated.alertaSaudeDetalhes ?? undefined,
         },
-      }
+      },
     );
     const historicoNovos = parseHistoricoPayload(
-      validated.historicoInfracional
+      validated.historicoInfracional,
     );
     const vinculosNovos = parseVinculosPayload(
-      validated.atoInfracionalVinculos
+      validated.atoInfracionalVinculos,
     );
 
     const session = await auth().catch(() => null);
@@ -472,7 +475,7 @@ export async function POST(request: NextRequest) {
     if (!operadorId) {
       return NextResponse.json(
         { erro: "Operador nao autenticado" },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
@@ -484,29 +487,29 @@ export async function POST(request: NextRequest) {
     if (!operadorExiste) {
       return NextResponse.json(
         { erro: "Operador nao encontrado" },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
     const permissoes = resolveUserPermissions(session, operadorExiste);
     const podeCadastrar = hasPermission(
       permissoes,
-      PERMISSIONS.ADOLESCENTES_CREATE
+      PERMISSIONS.ADOLESCENTES_CREATE,
     );
     if (!podeCadastrar) {
       return NextResponse.json(
         { erro: "Sem permissao para cadastrar adolescente" },
-        { status: 403 }
+        { status: 403 },
       );
     }
     const podeAlterarAlojamento = hasPermission(
       permissoes,
-      PERMISSIONS.ADOLESCENTES_EDIT_ALOJAMENTO
+      PERMISSIONS.ADOLESCENTES_EDIT_ALOJAMENTO,
     );
     if (validated.alojamentoAtualId !== undefined && !podeAlterarAlojamento) {
       return NextResponse.json(
         { erro: "Sem permissao para alterar alojamento do adolescente" },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
@@ -515,14 +518,19 @@ export async function POST(request: NextRequest) {
       validated.numeroInterno === undefined
         ? undefined
         : validated.numeroInterno === null
-        ? null
-        : validated.numeroInterno;
+          ? null
+          : validated.numeroInterno;
 
     if (statusCriado === "ATIVO") {
-      if (numeroInternoInformado === undefined || numeroInternoInformado === null) {
+      if (
+        numeroInternoInformado === undefined ||
+        numeroInternoInformado === null
+      ) {
         return NextResponse.json(
-          { erro: "Informe o número interno (1 a 86) para adolescentes ativos" },
-          { status: 400 }
+          {
+            erro: "Informe o número interno (1 a 86) para adolescentes ativos",
+          },
+          { status: 400 },
         );
       }
     } else if (
@@ -531,13 +539,15 @@ export async function POST(request: NextRequest) {
     ) {
       return NextResponse.json(
         { erro: "Somente adolescentes ativos podem ter número interno" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    const vulgoSanitizado = sanitizeNullableString(validated.vulgo ?? undefined);
+    const vulgoSanitizado = sanitizeNullableString(
+      validated.vulgo ?? undefined,
+    );
     const faccaoFuncaoSanitizada = sanitizeNullableString(
-      validated.faccaoFuncao ?? undefined
+      validated.faccaoFuncao ?? undefined,
     );
     const faccaoOrigemInfo = validated.faccaoInformacaoOrigem ?? undefined;
     const faccaoOrigemDetalheSanitizado =
@@ -548,19 +558,18 @@ export async function POST(request: NextRequest) {
       faccaoOrigemInfo ??
       (validated.faccaoGrupoId ? "NAO_INFORMADO" : undefined);
     const tecnicosIds = Array.from(
-      new Set(validated.tecnicosReferenciaIds ?? [])
+      new Set(validated.tecnicosReferenciaIds ?? []),
     );
     const numeroSmsSanitizado = sanitizeNullableString(
-      validated.numeroSms ?? undefined
+      validated.numeroSms ?? undefined,
     );
 
     if (faccaoOrigemInfo === "OBSERVACAO" && !faccaoOrigemDetalheSanitizado) {
       return NextResponse.json(
         {
-          erro:
-            "Descreva como a informacao de faccao foi obtida quando a origem for observacao.",
+          erro: "Descreva como a informacao de faccao foi obtida quando a origem for observacao.",
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
     if (
@@ -569,10 +578,9 @@ export async function POST(request: NextRequest) {
     ) {
       return NextResponse.json(
         {
-          erro:
-            "Selecione o adolescente informante quando a origem for Outro interno.",
+          erro: "Selecione o adolescente informante quando a origem for Outro interno.",
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -592,7 +600,7 @@ export async function POST(request: NextRequest) {
             erro: `Número SMS ja cadastrado para ${existenteSms.nomeCompleto}.`,
             adolescenteExistente: existenteSms,
           },
-          { status: 409 }
+          { status: 409 },
         );
       }
     }
@@ -610,7 +618,8 @@ export async function POST(request: NextRequest) {
         ? { connect: { id: validated.atoInfracionalAtualId } }
         : undefined,
       atoInfracionalObservacoes:
-        sanitizeNullableString(validated.atoInfracionalObservacoes) ?? undefined,
+        sanitizeNullableString(validated.atoInfracionalObservacoes) ??
+        undefined,
       statusUnidade: statusCriado,
       faccao: validated.faccaoGrupoId
         ? { connect: { id: validated.faccaoGrupoId } }
@@ -642,17 +651,17 @@ export async function POST(request: NextRequest) {
           : undefined,
       numeroInterno:
         statusCriado === "ATIVO" && numeroInternoInformado !== undefined
-          ? numeroInternoInformado ?? undefined
+          ? (numeroInternoInformado ?? undefined)
           : undefined,
     };
     const dataDesinternacaoTransformada = toDateOrUndefined(
-      validated.dataDesinternacao
+      validated.dataDesinternacao,
     );
     if (validated.statusUnidade !== "ATIVO") {
       if (!dataDesinternacaoTransformada) {
         return NextResponse.json(
           { erro: "Data de desinternacao obrigatoria para status inativo" },
-          { status: 400 }
+          { status: 400 },
         );
       }
       data.dataDesinternacao = dataDesinternacaoTransformada;
@@ -661,7 +670,7 @@ export async function POST(request: NextRequest) {
     }
 
     const numeroParaValidar =
-      statusCriado === "ATIVO" ? numeroInternoInformado ?? null : null;
+      statusCriado === "ATIVO" ? (numeroInternoInformado ?? null) : null;
 
     const criado = await prisma.$transaction(async (tx) => {
       if (numeroParaValidar) {
@@ -687,7 +696,7 @@ export async function POST(request: NextRequest) {
             observacao: faccaoOrigemDetalheSanitizado ?? null,
             informanteAdolescenteId:
               faccaoOrigemInfo === "OUTRO_INTERNO"
-                ? validated.faccaoInformanteAdolescenteId ?? null
+                ? (validated.faccaoInformanteAdolescenteId ?? null)
                 : null,
             criadoPorId: operadorId ?? null,
           },
@@ -703,10 +712,13 @@ export async function POST(request: NextRequest) {
           data: validated.tatuagens.map((tat) => ({
             adolescenteId: base.id,
             tatuagemCatalogoId: tat.catalogoId,
-            localCorpo: sanitizeNullableString(tat.localCorpo ?? undefined) ?? null,
-            observacoes: sanitizeNullableString(tat.observacoes ?? undefined) ?? null,
+            localCorpo:
+              sanitizeNullableString(tat.localCorpo ?? undefined) ?? null,
+            observacoes:
+              sanitizeNullableString(tat.observacoes ?? undefined) ?? null,
             significadoPessoal:
-              sanitizeNullableString(tat.significadoPessoal ?? undefined) ?? null,
+              sanitizeNullableString(tat.significadoPessoal ?? undefined) ??
+              null,
           })),
         });
       }
@@ -731,7 +743,7 @@ export async function POST(request: NextRequest) {
       if (vinculosNovos.length > 0) {
         for (const entrada of vinculosNovos) {
           const participantes = Array.from(
-            new Set([base.id, ...entrada.adolescentesIds])
+            new Set([base.id, ...entrada.adolescentesIds]),
           );
           if (participantes.length < 2) {
             continue;
@@ -749,15 +761,10 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      await aplicarAlertasEspeciais(
-        tx,
-        base.id,
-        alertasEspeciaisSelecionados,
-        {
-          operadorId,
-          ipOrigem: request.headers.get("x-forwarded-for") ?? "unknown",
-        }
-      );
+      await aplicarAlertasEspeciais(tx, base.id, alertasEspeciaisSelecionados, {
+        operadorId,
+        ipOrigem: request.headers.get("x-forwarded-for") ?? "unknown",
+      });
 
       return tx.adolescente.findUnique({
         where: { id: base.id },
@@ -802,13 +809,13 @@ export async function POST(request: NextRequest) {
         mensagem: "Adolescente cadastrado com sucesso",
         adolescente: adolescenteResposta,
       },
-      { status: 201 }
+      { status: 201 },
     );
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { erro: "Dados invalidos", detalhes: error.errors },
-        { status: 400 }
+        { status: 400 },
       );
     }
     if (error instanceof NumeroInternoIndisponivelError) {
@@ -816,14 +823,14 @@ export async function POST(request: NextRequest) {
         {
           erro: `Número interno ${error.numero} indisponivel. Atualmente atribuido a ${error.titular}.`,
         },
-        { status: 409 }
+        { status: 409 },
       );
     }
 
     console.error("Erro ao cadastrar adolescente:", error);
     return NextResponse.json(
       { erro: "Erro ao cadastrar adolescente" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
