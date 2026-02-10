@@ -19,7 +19,7 @@ const isAdminSession = (
         };
       }
     | null
-    | undefined
+    | undefined,
 ) => {
   const cargo = session?.user?.cargo ?? "";
   const roles = session?.user?.roles ?? [];
@@ -36,7 +36,7 @@ export default function AdminGuard({
 
   const permitido = useMemo(
     () => status === "authenticated" && isAdminSession(session),
-    [session, status]
+    [session, status],
   );
 
   useEffect(() => {
@@ -54,7 +54,7 @@ export default function AdminGuard({
       <div className="flex min-h-[240px] items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white">
         <div className="flex items-center gap-3 text-slate-600">
           <Loader2 size={20} className="animate-spin text-indigo-600" />
-          Verificando permissÃµes...
+          Verificando permissões...
         </div>
       </div>
     );
@@ -71,7 +71,7 @@ export default function AdminGuard({
             Acesso restrito a administradores.
           </p>
           <p className="text-xs text-amber-700">
-            VocÃª serÃ¡ redirecionado automaticamente.
+            Você será redirecionado automaticamente.
           </p>
         </div>
       </div>

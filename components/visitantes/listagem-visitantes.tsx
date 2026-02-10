@@ -17,6 +17,8 @@ type Visitante = {
   consentimentoBiometria: boolean;
   temFaceCadastrada: boolean;
   criadoEm: string;
+  antecedentesPdfUrl?: string | null;
+  antecedentesPdfAtualizadoEm?: string | null;
 };
 
 export function ListagemVisitantes() {
@@ -109,21 +111,21 @@ export function ListagemVisitantes() {
   }
 
   return (
-    <div className="p-4 md:p-6">
+    <div className="p-4 md:p-5">
       {/* Header */}
-      <div className="mb-4 md:mb-6">
+      <div className="mb-4 md:mb-5">
         <h1 className="text-2xl md:text-3xl font-bold text-gray-900 flex items-center gap-2 md:gap-3">
           <Users className="text-indigo-600 w-8 h-8 md:w-9 md:h-9" />
           <span className="hidden sm:inline">Gestão de Visitantes</span>
           <span className="sm:hidden">Visitantes</span>
         </h1>
-        <p className="text-gray-600 mt-2 text-sm md:text-base">
+        <p className="text-gray-600 mt-1.5 text-sm md:text-base">
           Cadastro de visitantes com reconhecimento facial
         </p>
       </div>
 
       {/* Barra de Ações */}
-      <div className="mb-4 md:mb-6 flex flex-col sm:flex-row gap-3 md:gap-4">
+      <div className="mb-4 md:mb-5 flex flex-col sm:flex-row gap-3">
         <div className="flex-1 relative">
           <Search
             className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 md:w-5 md:h-5"
@@ -133,12 +135,12 @@ export function ListagemVisitantes() {
             placeholder="Buscar por nome ou CPF..."
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
-            className="w-full pl-9 md:pl-10 pr-4 py-2.5 md:py-3 text-sm md:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            className="w-full pl-9 md:pl-10 pr-4 py-2.5 text-sm md:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
           />
         </div>
         <button
           onClick={handleNovo}
-          className="flex items-center justify-center gap-2 px-4 md:px-6 py-2.5 md:py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-semibold shadow-md text-sm md:text-base"
+          className="flex items-center justify-center gap-2 px-4 md:px-5 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-semibold shadow-md text-sm md:text-base"
         >
           <Plus className="w-4 h-4 md:w-5 md:h-5" />
           <span className="hidden sm:inline">Novo Visitante</span>
@@ -169,23 +171,23 @@ export function ListagemVisitantes() {
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
           {visitantesFiltrados.map((visitante) => (
             <div
               key={visitante.id}
-              className="bg-white rounded-xl shadow-md border border-gray-200 p-4 md:p-6 hover:shadow-lg transition-shadow"
+              className="bg-white rounded-xl shadow-md border border-gray-200 p-3.5 md:p-4 hover:shadow-lg transition-shadow"
             >
               {/* Foto */}
-              <div className="flex items-start gap-3 md:gap-4 mb-3 md:mb-4">
+              <div className="flex items-start gap-3 mb-3">
                 {visitante.fotoUrl ? (
                   <img
                     src={visitante.fotoUrl}
                     alt={visitante.nomeCompleto}
-                    className="w-16 h-16 md:w-20 md:h-20 rounded-full object-cover border-2 border-indigo-200 flex-shrink-0"
+                    className="w-14 h-14 md:w-16 md:h-16 rounded-full object-cover border-2 border-indigo-200 flex-shrink-0"
                   />
                 ) : (
-                  <div className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
-                    <Users className="text-gray-400 w-7 h-7 md:w-8 md:h-8" />
+                  <div className="w-14 h-14 md:w-16 md:h-16 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
+                    <Users className="text-gray-400 w-6 h-6 md:w-7 md:h-7" />
                   </div>
                 )}
                 <div className="flex-1 min-w-0">
@@ -193,13 +195,15 @@ export function ListagemVisitantes() {
                     {visitante.nomeCompleto}
                   </h3>
                   {visitante.cpf && (
-                    <p className="text-xs md:text-sm text-gray-600 truncate">CPF: {visitante.cpf}</p>
+                    <p className="text-xs md:text-sm text-gray-600 truncate">
+                      CPF: {visitante.cpf}
+                    </p>
                   )}
                 </div>
               </div>
 
               {/* Informações */}
-              <div className="space-y-1.5 md:space-y-2 mb-3 md:mb-4">
+              <div className="space-y-1.5 mb-3">
                 {visitante.dataNascimento && (
                   <p className="text-xs md:text-sm text-gray-700">
                     <strong>Nascimento:</strong>{" "}

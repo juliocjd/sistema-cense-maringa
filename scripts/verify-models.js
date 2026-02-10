@@ -1,5 +1,5 @@
 /**
- * Script para verificar se os modelos do face-api.js estão instalados
+ * Script para verificar se os modelos do face-api estão instalados
  * Execute: node scripts/verify-models.js
  */
 
@@ -25,7 +25,7 @@ function formatBytes(bytes) {
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
 }
 
-console.log('Verificando instalação dos modelos face-api.js...\n');
+console.log('Verificando instalação dos modelos face-api...\n');
 
 // Verificar se diretório existe
 if (!fs.existsSync(MODELS_DIR)) {
@@ -64,6 +64,6 @@ if (allPresent) {
   console.log('\nPara instalar, siga as instruções em:');
   console.log('  docs/INSTALACAO-MODELOS-FACIAIS.md\n');
   console.log('Ou baixe manualmente de:');
-  console.log('  https://github.com/justadudewhohacks/face-api.js/tree/master/weights\n');
+  console.log('  https://cdn.jsdelivr.net/npm/@vladmandic/face-api@latest/model/\n');
   process.exit(1);
 }

@@ -126,14 +126,14 @@ Sistema de reconhecimento facial 100% local para identificação automatizada de
 
 ### Passo 1: Instalar Modelos de IA ⚠️ OBRIGATÓRIO
 
-Os modelos do face-api.js precisam ser baixados manualmente:
+Os modelos do face-api (@vladmandic/face-api) precisam ser baixados manualmente:
 
 ```bash
 # Opção 1: Verificar status atual
 node scripts/verify-models.js
 
 # Opção 2: Download manual
-# Acesse: https://github.com/justadudewhohacks/face-api.js/tree/master/weights
+# Acesse: https://github.com/vladmandic/face-api/tree/master/model
 # Baixe os 8 arquivos listados em docs/INSTALACAO-MODELOS-FACIAIS.md
 # Salve em: public/models/
 ```
@@ -193,7 +193,7 @@ node scripts/verify-models.js
 │    ├─ CameraCapture                                     │
 │    ├─ useWebcam hook                                    │
 │    └─ lib/face-recognition.ts                           │
-│         ├─ face-api.js (browser)                        │
+│         ├─ face-api (@vladmandic/face-api) (browser)     │
 │         └─ Modelos IA (public/models/)                  │
 └─────────────────────────────────────────────────────────┘
                             │
@@ -334,7 +334,7 @@ node scripts/verify-models.js
 
 ### Atualização
 - Modelos de IA raramente mudam
-- face-api.js estável (versão 0.22.2)
+- face-api (@vladmandic/face-api) estável (versão 1.7.x)
 - Next.js e Prisma: atualizações regulares
 
 ---

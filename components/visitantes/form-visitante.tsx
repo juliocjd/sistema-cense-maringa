@@ -19,6 +19,8 @@ type Visitante = {
   fotoUrl: string | null;
   consentimentoBiometria: boolean;
   temFaceCadastrada: boolean;
+  antecedentesPdfUrl?: string | null;
+  antecedentesPdfAtualizadoEm?: string | null;
 };
 
 type FormVisitanteProps = {
@@ -69,6 +71,16 @@ const [novoVinculo, setNovoVinculo] = useState({
   );
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [antecedentesPdfUrl, setAntecedentesPdfUrl] = useState<string | null>(
+    visitante?.antecedentesPdfUrl ?? null
+  );
+  const [antecedentesPdfAtualizadoEm, setAntecedentesPdfAtualizadoEm] = useState<
+    string | null
+  >(visitante?.antecedentesPdfAtualizadoEm ?? null);
+  const [antecedentesEnviando, setAntecedentesEnviando] = useState(false);
+  const [antecedentesFeedback, setAntecedentesFeedback] = useState<string | null>(
+    null
+  );
 
   const normalizarTexto = (valor: string) =>
     valor
@@ -77,6 +89,26 @@ const [novoVinculo, setNovoVinculo] = useState({
       .toLowerCase();
 
   const normalizarNumero = (valor: string) => valor.replace(/\D/g, "");
+
+  const formatarDataHora = (valor?: string | null) => {
+    if (!valor) return "Nao registrada";
+    const data = new Date(valor);
+    if (Number.isNaN(data.getTime())) {
+      return "Nao registrada";
+    }
+    return data.toLocaleString("pt-BR");
+  };
+
+  const antecedentesDesatualizados = (valor?: string | null) => {
+    if (!valor) return false;
+    const data = new Date(valor);
+    if (Number.isNaN(data.getTime())) {
+      return false;
+    }
+    const limite = new Date();
+    limite.setFullYear(limite.getFullYear() - 1);
+    return data < limite;
+  };
 
   const extrairIniciais = (nome: string) => {
     const partes = nome.trim().split(/\s+/).filter(Boolean);
@@ -134,6 +166,10 @@ const [novoVinculo, setNovoVinculo] = useState({
           const response = await fetch(`/api/visitantes/${visitante.id}`);
           if (response.ok) {
             const data = await response.json();
+            setAntecedentesPdfUrl(data.antecedentesPdfUrl ?? null);
+            setAntecedentesPdfAtualizadoEm(
+              data.antecedentesPdfAtualizadoEm ?? null
+            );
             if (data.vinculos) {
               setVinculos(
                 data.vinculos.map((v: any) => ({
@@ -181,6 +217,8 @@ const [novoVinculo, setNovoVinculo] = useState({
 
     setVinculos([...vinculos, { ...novoVinculo }]);
     setNovoVinculo({ adolescenteId: "", parentesco: "", autorizado: true });
+    setBuscaVinculo("");
+    setMostrarResultadosVinculo(false);
   };
 
   const handleRemoverVinculo = (adolescenteId: string) => {
@@ -201,6 +239,56 @@ const [novoVinculo, setNovoVinculo] = useState({
     setConsentimentoBiometria(true); // Ao capturar, assume consentimento
 
     console.log("✅ Estado atualizado - embeddingsCapturados definido");
+  };
+
+  const handleUploadAntecedentes = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0] ?? null;
+    if (!file || !visitante?.id) {
+      if (event.target) {
+        event.target.value = "";
+      }
+      return;
+    }
+
+    setAntecedentesEnviando(true);
+    setAntecedentesFeedback(null);
+    try {
+      const formDataUpload = new FormData();
+      formDataUpload.append("file", file);
+
+      const response = await fetch(
+        `/api/visitantes/${visitante.id}/antecedentes`,
+        {
+          method: "POST",
+          body: formDataUpload,
+        }
+      );
+
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(payload?.erro ?? "Erro ao salvar antecedentes");
+      }
+
+      setAntecedentesPdfUrl(payload?.antecedentesPdfUrl ?? null);
+      setAntecedentesPdfAtualizadoEm(
+        payload?.antecedentesPdfAtualizadoEm ?? null
+      );
+      setAntecedentesFeedback("Antecedentes salvos.");
+    } catch (error) {
+      console.error("Erro ao salvar antecedentes:", error);
+      setAntecedentesFeedback(
+        error instanceof Error
+          ? error.message
+          : "Erro ao salvar antecedentes"
+      );
+    } finally {
+      setAntecedentesEnviando(false);
+      if (event.target) {
+        event.target.value = "";
+      }
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -371,13 +459,13 @@ const [novoVinculo, setNovoVinculo] = useState({
       : [];
 
   return (
-    <div className="p-6">
+    <div className="p-5 md:p-6">
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">
+      <div className="mb-5">
+        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
           {visitante ? "Editar Visitante" : "Novo Visitante"}
         </h1>
-        <p className="text-gray-600 mt-2">
+        <p className="text-gray-600 mt-1.5 text-sm md:text-base">
           Preencha os dados do visitante e, opcionalmente, cadastre a face para
           reconhecimento automático
         </p>
@@ -392,10 +480,10 @@ const [novoVinculo, setNovoVinculo] = useState({
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5">
           {/* Coluna Esquerda - Dados Básicos */}
-          <div className="space-y-6">
-            <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+          <div className="space-y-4">
+            <div className="bg-white rounded-xl shadow-md border border-gray-200 p-5">
               <h2 className="text-xl font-bold text-gray-900 mb-4">
                 Dados Pessoais
               </h2>
@@ -416,102 +504,37 @@ const [novoVinculo, setNovoVinculo] = useState({
                 />
               </div>
 
-              {/* CPF */}
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  CPF
-                </label>
-                <input
-                  type="text"
-                  name="cpf"
-                  value={formData.cpf}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  placeholder="000.000.000-00"
-                  maxLength={14}
-                />
-              </div>
-
-              {/* RG */}
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  RG
-                </label>
-                <input
-                  type="text"
-                  name="rg"
-                  value={formData.rg}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  placeholder="Documento de identidade"
-                />
-              </div>
-
-              {/* Data de Nascimento */}
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Data de Nascimento
-                </label>
-                <input
-                  type="date"
-                  name="dataNascimento"
-                  value={formData.dataNascimento}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                />
-              </div>
-
-              {/* Telefone */}
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Telefone
-                </label>
-                <input
-                  type="tel"
-                  name="telefone"
-                  value={formData.telefone}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  placeholder="(00) 00000-0000"
-                />
-              </div>
-
-              {/* E-mail */}
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  E-mail *
-                </label>
-                <input
-                  type="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  required
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  placeholder="email@exemplo.com"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Usado para envio de orientações e avisos sobre visitas
-                </p>
-              </div>
-
-              {/* Endereço */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Endereço Completo
-                </label>
-                <textarea
-                  name="enderecoCompleto"
-                  value={formData.enderecoCompleto}
-                  onChange={handleChange}
-                  rows={3}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  placeholder="Rua, número, bairro, cidade..."
-                />
-              </div>
-
-              {/* Pais */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    CPF
+                  </label>
+                  <input
+                    type="text"
+                    name="cpf"
+                    value={formData.cpf}
+                    onChange={handleChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    placeholder="000.000.000-00"
+                    maxLength={14}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    RG
+                  </label>
+                  <input
+                    type="text"
+                    name="rg"
+                    value={formData.rg}
+                    onChange={handleChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    placeholder="Documento de identidade"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-4 mb-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Nome do pai
@@ -540,26 +563,86 @@ const [novoVinculo, setNovoVinculo] = useState({
                 </div>
               </div>
 
-              {/* Profissão */}
-              <div className="mb-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Data de Nascimento
+                  </label>
+                  <input
+                    type="date"
+                    name="dataNascimento"
+                    value={formData.dataNascimento}
+                    onChange={handleChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Telefone
+                  </label>
+                  <input
+                    type="tel"
+                    name="telefone"
+                    value={formData.telefone}
+                    onChange={handleChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    placeholder="(00) 00000-0000"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    E-mail *
+                  </label>
+                  <input
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    required
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    placeholder="email@exemplo.com"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Usado para envio de orientações e avisos sobre visitas
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Profissão
+                  </label>
+                  <input
+                    type="text"
+                    name="profissao"
+                    value={formData.profissao}
+                    onChange={handleChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    placeholder="Ex.: Técnico, Advogado, etc."
+                  />
+                </div>
+              </div>
+
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Profissão
+                  Endereço Completo
                 </label>
-                <input
-                  type="text"
-                  name="profissao"
-                  value={formData.profissao}
+                <textarea
+                  name="enderecoCompleto"
+                  value={formData.enderecoCompleto}
                   onChange={handleChange}
+                  rows={3}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  placeholder="Ex.: Técnico, Advogado, etc."
+                  placeholder="Rua, número, bairro, cidade..."
                 />
               </div>
             </div>
           </div>
 
           {/* Coluna Direita - Reconhecimento Facial */}
-          <div className="space-y-6">
-            <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+          <div className="space-y-4">
+            <div className="bg-white rounded-xl shadow-md border border-gray-200 p-5">
               <h2 className="text-xl font-bold text-gray-900 mb-4">
                 Reconhecimento Facial
               </h2>
@@ -648,12 +731,91 @@ const [novoVinculo, setNovoVinculo] = useState({
                 </ul>
               </div>
             </div>
+
+            <div className="bg-white rounded-xl shadow-md border border-gray-200 p-5">
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <h2 className="text-xl font-bold text-gray-900">
+                  Antecedentes
+                </h2>
+                <button
+                  type="button"
+                  onClick={() =>
+                    window.open(
+                      "https://www.atestados.pr.gov.br/solicitante/validar",
+                      "_blank",
+                      "noopener,noreferrer"
+                    )
+                  }
+                  className="rounded-md bg-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-300"
+                >
+                  Consultar
+                </button>
+              </div>
+              <p className="text-[11px] text-slate-500">
+                O portal sera aberto em outra aba. Preencha o captcha para
+                emitir o PDF.
+              </p>
+              <p className="mt-2 text-[11px] text-slate-500">
+                Ultima atualizacao: {formatarDataHora(antecedentesPdfAtualizadoEm)}
+              </p>
+              {antecedentesDesatualizados(antecedentesPdfAtualizadoEm) && (
+                <p className="mt-1 flex items-center gap-1 text-[11px] font-semibold text-amber-700">
+                  <AlertCircle size={12} className="text-amber-600" />
+                  Antecedente com mais de 1 ano sem atualizacao.
+                </p>
+              )}
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                {antecedentesPdfUrl ? (
+                  <a
+                    href={antecedentesPdfUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs font-semibold text-slate-700 underline"
+                  >
+                    Abrir PDF
+                  </a>
+                ) : (
+                  <span className="text-[11px] text-slate-500">
+                    Nenhum PDF anexado.
+                  </span>
+                )}
+                <label
+                  className={`cursor-pointer rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    visitante?.id
+                      ? "text-slate-600 hover:bg-slate-200"
+                      : "text-slate-300 cursor-not-allowed"
+                  }`}
+                >
+                  {antecedentesPdfUrl ? "Substituir PDF" : "Enviar PDF"}
+                  <input
+                    type="file"
+                    accept="application/pdf"
+                    onChange={handleUploadAntecedentes}
+                    className="sr-only"
+                    disabled={!visitante?.id || antecedentesEnviando}
+                  />
+                </label>
+                {antecedentesEnviando && (
+                  <span className="text-[11px] text-slate-500">Enviando...</span>
+                )}
+              </div>
+              {!visitante?.id && (
+                <p className="mt-2 text-[11px] text-slate-500">
+                  Salve o visitante para liberar o upload do PDF.
+                </p>
+              )}
+              {antecedentesFeedback && (
+                <p className="mt-1 text-[11px] font-semibold text-slate-700">
+                  {antecedentesFeedback}
+                </p>
+              )}
+            </div>
           </div>
         </div>
 
         {/* Seção de Vínculos com Adolescentes */}
-        <div className="mt-6">
-          <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+        <div className="mt-5">
+          <div className="bg-white rounded-xl shadow-md border border-gray-200 p-5">
             <h2 className="text-xl font-bold text-gray-900 mb-4">
               Vínculos com Adolescentes
             </h2>
@@ -715,7 +877,7 @@ const [novoVinculo, setNovoVinculo] = useState({
               <h3 className="text-sm font-semibold text-gray-700 mb-3">
                 Adicionar Novo Vínculo
               </h3>
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-5">
                 {/* Select Adolescente */}
                 <div className="space-y-3 lg:col-span-2">
                   <div className="flex items-center justify-between gap-3">
@@ -734,7 +896,7 @@ const [novoVinculo, setNovoVinculo] = useState({
                         handleBuscaVinculoChange(event.target.value)
                       }
                       placeholder="Buscar por nome, SMS ou numero"
-                      className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm shadow-sm"
+                      className="w-full pl-12 pr-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm shadow-sm"
                     />
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                   </div>
@@ -843,7 +1005,7 @@ const [novoVinculo, setNovoVinculo] = useState({
               <button
                 type="button"
                 onClick={handleAdicionarVinculo}
-                className="mt-4 flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-semibold"
+                className="mt-3 flex items-center gap-2 px-5 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-semibold"
               >
                 <Plus size={20} />
                 Adicionar Vínculo
@@ -853,11 +1015,11 @@ const [novoVinculo, setNovoVinculo] = useState({
         </div>
 
         {/* Botões de Ação */}
-        <div className="flex gap-4 mt-6">
+        <div className="flex gap-3 mt-5">
           <button
             type="submit"
             disabled={salvando || !formData.nomeCompleto}
-            className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-semibold shadow-md"
+            className="flex-1 flex items-center justify-center gap-2 px-5 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-semibold shadow-md"
           >
             <Save size={20} />
             {salvando ? "Salvando..." : "Salvar Visitante"}
@@ -866,7 +1028,7 @@ const [novoVinculo, setNovoVinculo] = useState({
             type="button"
             onClick={onCancel}
             disabled={salvando}
-            className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-semibold shadow-md"
+            className="px-5 py-2.5 bg-gray-500 text-white rounded-lg hover:bg-gray-600 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-semibold shadow-md"
           >
             <X size={20} />
           </button>

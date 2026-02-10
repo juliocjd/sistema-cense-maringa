@@ -11,7 +11,7 @@ const updateSchema = z
   })
   .refine(
     (val) => Object.keys(val).length > 0,
-    "Pelo menos um campo deve ser informado para atualizacao"
+    "Pelo menos um campo deve ser informado para atualização",
   );
 
 const ensureString = (value: unknown): string => {
@@ -28,7 +28,7 @@ const getIp = (req: NextRequest) =>
 const formatGrupo = (
   grupo: Awaited<ReturnType<typeof prisma.grupo.findUnique>>,
   incluirMembros: boolean,
-  mapaConflitos?: Map<string, number>
+  mapaConflitos?: Map<string, number>,
 ) => {
   if (!grupo) return null;
 
@@ -90,7 +90,7 @@ const formatGrupo = (
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
@@ -133,7 +133,7 @@ export async function GET(
     if (!grupo) {
       return NextResponse.json(
         { erro: "Grupo nao encontrado" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -148,7 +148,7 @@ export async function GET(
             return adolescente.id;
           }
           return m.adolescenteId;
-        })
+        }),
       );
 
       if (idsAtivos.size > 0 && prisma.conflito?.findMany) {
@@ -183,7 +183,6 @@ export async function GET(
 
           incrementar(conflito.adolescenteAId);
           incrementar(conflito.adolescenteBId);
-
         }
 
         mapaConflitosPorGrupo = mapa;
@@ -191,7 +190,7 @@ export async function GET(
     }
 
     return NextResponse.json(
-      formatGrupo(grupo, incluirMembros, mapaConflitosPorGrupo)
+      formatGrupo(grupo, incluirMembros, mapaConflitosPorGrupo),
     );
   } catch (error) {
     console.error("Erro ao buscar grupo:", error);
@@ -200,14 +199,14 @@ export async function GET(
         erro: "Erro ao buscar grupo",
         detalhes: error instanceof Error ? error.message : "Erro desconhecido",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
@@ -217,7 +216,7 @@ export async function PATCH(
     } catch {
       return NextResponse.json(
         { erro: "Payload invalido: esperado JSON" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -228,7 +227,7 @@ export async function PATCH(
       if (error instanceof z.ZodError) {
         return NextResponse.json(
           { erro: "Dados invalidos", detalhes: error.errors },
-          { status: 400 }
+          { status: 400 },
         );
       }
       throw error;
@@ -239,7 +238,7 @@ export async function PATCH(
     if (!operadorId) {
       return NextResponse.json(
         { erro: "Operador nao autenticado" },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
@@ -250,7 +249,7 @@ export async function PATCH(
     if (!operadorExiste) {
       return NextResponse.json(
         { erro: "Operador nao encontrado" },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
@@ -262,7 +261,7 @@ export async function PATCH(
     if (!grupoAtual) {
       return NextResponse.json(
         { erro: "Grupo nao encontrado" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -301,7 +300,7 @@ export async function PATCH(
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { erro: "Dados invalidos", detalhes: error.errors },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -311,14 +310,14 @@ export async function PATCH(
         erro: "Erro ao atualizar grupo",
         detalhes: error instanceof Error ? error.message : "Erro desconhecido",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
@@ -328,7 +327,7 @@ export async function DELETE(
     if (!operadorId) {
       return NextResponse.json(
         { erro: "Operador nao autenticado" },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
@@ -339,7 +338,7 @@ export async function DELETE(
     if (!operadorExiste) {
       return NextResponse.json(
         { erro: "Operador nao encontrado" },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
@@ -357,14 +356,14 @@ export async function DELETE(
     if (!grupo) {
       return NextResponse.json(
         { erro: "Grupo nao encontrado" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
     if (grupo.membros.length > 0) {
       return NextResponse.json(
         { erro: "Nao e possivel remover grupos com membros ativos" },
-        { status: 409 }
+        { status: 409 },
       );
     }
 
@@ -426,7 +425,7 @@ export async function DELETE(
         erro: "Erro ao remover grupo",
         detalhes: error instanceof Error ? error.message : "Erro desconhecido",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

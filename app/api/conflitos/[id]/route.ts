@@ -41,34 +41,34 @@ const ladoOposto = (lado: LadoToken): LadoToken =>
 
 const coletarParticipantes = (
   conflitos: any[],
-  ladosMap?: Map<string, LadoToken>
+  ladosMap?: Map<string, LadoToken>,
 ) => {
-    const mapa = new Map<
-      string,
-      {
-        id: string;
-        nomeCompleto: string;
-        numeroSms: string | null;
-        fotoUrl: string | null;
-        alojamentoAtual: ReturnType<typeof formatarAlojamento>;
-        lado?: string;
-        statusUnidade?: string | null;
-      }
-    >();
+  const mapa = new Map<
+    string,
+    {
+      id: string;
+      nomeCompleto: string;
+      numeroSms: string | null;
+      fotoUrl: string | null;
+      alojamentoAtual: ReturnType<typeof formatarAlojamento>;
+      lado?: string;
+      statusUnidade?: string | null;
+    }
+  >();
 
   const adicionar = (dados: any) => {
     if (!dados) return;
     if (!mapa.has(dados.id)) {
       const ladoToken = ladosMap?.get(dados.id);
-        mapa.set(dados.id, {
-          id: dados.id,
-          nomeCompleto: dados.nomeCompleto ?? dados.nomeSocial ?? "",
-          numeroSms: dados.numeroSms ?? "",
-          fotoUrl: dados.fotoUrl ?? null,
-          statusUnidade: dados.statusUnidade ?? null,
-          alojamentoAtual: formatarAlojamento(dados.alojamentoAtual),
-          lado: ladoToken ? LADO_LABELS[ladoToken] : undefined,
-        });
+      mapa.set(dados.id, {
+        id: dados.id,
+        nomeCompleto: dados.nomeCompleto ?? dados.nomeSocial ?? "",
+        numeroSms: dados.numeroSms ?? "",
+        fotoUrl: dados.fotoUrl ?? null,
+        statusUnidade: dados.statusUnidade ?? null,
+        alojamentoAtual: formatarAlojamento(dados.alojamentoAtual),
+        lado: ladoToken ? LADO_LABELS[ladoToken] : undefined,
+      });
     }
   };
 
@@ -117,10 +117,7 @@ const mapearLadosDoGrupo = (conflitos: any[]) => {
   return lados;
 };
 
-const mapearConflito = (
-  conflito: any,
-  ladosMap?: Map<string, LadoToken>
-) => {
+const mapearConflito = (conflito: any, ladosMap?: Map<string, LadoToken>) => {
   const participante = (dados: any) => {
     const ladoToken = dados?.id ? ladosMap?.get(dados.id) : undefined;
     return {
@@ -193,14 +190,11 @@ const mapearConflito = (
 
 const montarFiltroPorGrupo = (
   registroGrupoId: string | null,
-  fallbackId: string
+  fallbackId: string,
 ): Prisma.ConflitoWhereInput => {
   if (registroGrupoId) {
     return {
-      OR: [
-        { registroGrupoId },
-        { id: registroGrupoId },
-      ],
+      OR: [{ registroGrupoId }, { id: registroGrupoId }],
     };
   }
   return { id: fallbackId };
@@ -217,7 +211,7 @@ const updateSchema = z.object({
 // GET /api/conflitos/[id]
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
@@ -284,7 +278,7 @@ export async function GET(
     if (!conflito) {
       return NextResponse.json(
         { erro: "Conflito nao encontrado" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -298,49 +292,49 @@ export async function GET(
     // Conflitos do grupo para mapear lados/participantes
     const conflitosAgrupados = await prisma.conflito.findMany({
       where: filtroGrupo,
-        include: {
-          adolescenteA: {
-            select: {
-              id: true,
-              nomeCompleto: true,
-              nomeSocial: true,
-              numeroSms: true,
-              fotoUrl: true,
-              statusUnidade: true,
-              alojamentoAtual: {
-                include: { casa: true },
-              },
-            },
-          },
-          adolescenteB: {
-            select: {
-              id: true,
-              nomeCompleto: true,
-              nomeSocial: true,
-              numeroSms: true,
-              fotoUrl: true,
-              statusUnidade: true,
-              alojamentoAtual: {
-                include: { casa: true },
-              },
+      include: {
+        adolescenteA: {
+          select: {
+            id: true,
+            nomeCompleto: true,
+            nomeSocial: true,
+            numeroSms: true,
+            fotoUrl: true,
+            statusUnidade: true,
+            alojamentoAtual: {
+              include: { casa: true },
             },
           },
         },
+        adolescenteB: {
+          select: {
+            id: true,
+            nomeCompleto: true,
+            nomeSocial: true,
+            numeroSms: true,
+            fotoUrl: true,
+            statusUnidade: true,
+            alojamentoAtual: {
+              include: { casa: true },
+            },
+          },
+        },
+      },
     });
 
     const totalAtivos = conflitosAgrupados.filter(
-      (c) => (c.status ?? "").toUpperCase() === "ATIVO"
+      (c) => (c.status ?? "").toUpperCase() === "ATIVO",
     ).length;
     const totalResolvidos = conflitosAgrupados.filter(
-      (c) => (c.status ?? "").toUpperCase() === "RESOLVIDO"
+      (c) => (c.status ?? "").toUpperCase() === "RESOLVIDO",
     ).length;
 
     const statusGrupo =
       totalAtivos > 0 && totalResolvidos > 0
         ? "PARCIAL"
         : totalAtivos > 0
-        ? "ATIVO"
-        : "RESOLVIDO";
+          ? "ATIVO"
+          : "RESOLVIDO";
 
     // Conflitos com ocorrencias para exibir histórico consolidado
     // Ocorrencias do grupo com CI ativo
@@ -409,7 +403,8 @@ export async function GET(
         },
         ...ocorrenciasLista,
       ].sort(
-        (a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime()
+        (a, b) =>
+          new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime(),
       );
     }
 
@@ -450,13 +445,15 @@ export async function GET(
         const existente = mapa.get(chave);
         if (
           !existente ||
-          new Date(oc.criadoEm).getTime() > new Date(existente.criadoEm).getTime()
+          new Date(oc.criadoEm).getTime() >
+            new Date(existente.criadoEm).getTime()
         ) {
           mapa.set(chave, oc);
         }
       });
       ocorrenciasLista = Array.from(mapa.values()).sort(
-        (a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime()
+        (a, b) =>
+          new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime(),
       );
     }
 
@@ -474,9 +471,12 @@ export async function GET(
       registroGrupoId: c.registroGrupoId ?? c.id,
       adolescenteAId: c.adolescenteAId,
       adolescenteBId: c.adolescenteBId,
-      adolescenteANome: c.adolescenteA?.nomeCompleto ?? c.adolescenteA?.nomeSocial ?? null,
-      adolescenteBNome: c.adolescenteB?.nomeCompleto ?? c.adolescenteB?.nomeSocial ?? null,
-      ciOrigemNumero: (c as any).ciOrigem?.numero ?? (c as any).ciOrigemNumero ?? null,
+      adolescenteANome:
+        c.adolescenteA?.nomeCompleto ?? c.adolescenteA?.nomeSocial ?? null,
+      adolescenteBNome:
+        c.adolescenteB?.nomeCompleto ?? c.adolescenteB?.nomeSocial ?? null,
+      ciOrigemNumero:
+        (c as any).ciOrigem?.numero ?? (c as any).ciOrigemNumero ?? null,
       ciOrigemAno: (c as any).ciOrigem?.ano ?? (c as any).ciOrigemAno ?? null,
     }));
 
@@ -496,14 +496,14 @@ export async function GET(
         erro: "Erro ao buscar conflito",
         detalhes: error instanceof Error ? error.message : "Erro desconhecido",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
@@ -513,7 +513,7 @@ export async function PUT(
     if (!operadorId) {
       return NextResponse.json(
         { erro: "Operador nao autenticado" },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
@@ -523,7 +523,7 @@ export async function PUT(
     } catch {
       return NextResponse.json(
         { erro: "Payload invalido, esperado JSON" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -537,7 +537,7 @@ export async function PUT(
       if (!tipo) {
         return NextResponse.json(
           { erro: "Tipo de conflito nao pode ser vazio" },
-          { status: 400 }
+          { status: 400 },
         );
       }
       data.tipoConflito = tipo.toUpperCase();
@@ -566,7 +566,7 @@ export async function PUT(
         if (Number.isNaN(resolvidoEm.getTime())) {
           return NextResponse.json(
             { erro: "Data de resolucao invalida" },
-            { status: 400 }
+            { status: 400 },
           );
         }
         data.resolvidoEm = resolvidoEm;
@@ -580,7 +580,7 @@ export async function PUT(
     if (!possuiAlteracoes) {
       return NextResponse.json(
         { erro: "Nenhuma alteracao fornecida" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -595,13 +595,13 @@ export async function PUT(
     if (!conflitoBase) {
       return NextResponse.json(
         { erro: "Conflito nao encontrado" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
     const filtroGrupo = montarFiltroPorGrupo(
       conflitoBase.registroGrupoId,
-      conflitoBase.id
+      conflitoBase.id,
     );
 
     const conflitosDoGrupo = await prisma.conflito.findMany({
@@ -611,8 +611,8 @@ export async function PUT(
 
     if (conflitosDoGrupo.length === 0) {
       return NextResponse.json(
-        { erro: "Nenhum conflito encontrado para atualizacao" },
-        { status: 404 }
+        { erro: "Nenhum conflito encontrado para atualização" },
+        { status: 404 },
       );
     }
 
@@ -695,7 +695,7 @@ export async function PUT(
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { erro: "Dados invalidos", detalhes: error.errors },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -705,14 +705,14 @@ export async function PUT(
         erro: "Erro ao atualizar conflito",
         detalhes: error instanceof Error ? error.message : "Erro desconhecido",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
@@ -723,7 +723,7 @@ export async function DELETE(
     if (!operadorId) {
       return NextResponse.json(
         { erro: "Operador nao autenticado" },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
@@ -735,7 +735,7 @@ export async function DELETE(
     if (!operador) {
       return NextResponse.json(
         { erro: "Operador nao encontrado" },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
@@ -750,17 +750,14 @@ export async function DELETE(
     if (!conflitoExistente) {
       return NextResponse.json(
         { erro: "Conflito nao encontrado" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
     const grupoId = conflitoExistente.registroGrupoId;
     const where: Prisma.ConflitoWhereInput = grupoId
       ? {
-          OR: [
-            { registroGrupoId: grupoId },
-            { id: grupoId },
-          ],
+          OR: [{ registroGrupoId: grupoId }, { id: grupoId }],
         }
       : { id };
 
@@ -777,7 +774,7 @@ export async function DELETE(
           registroGrupoId: grupoId ?? id,
           totalRemovidos: 0,
         },
-        { status: 200 }
+        { status: 200 },
       );
     }
 
@@ -822,9 +819,7 @@ export async function DELETE(
         erro: "Erro ao excluir conflito",
         detalhes: error instanceof Error ? error.message : "Erro desconhecido",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
-
-

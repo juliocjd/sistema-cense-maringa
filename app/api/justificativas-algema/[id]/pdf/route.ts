@@ -280,7 +280,7 @@ export async function GET(
       .replace(MENSAGEM_SUICIDIO_ALTA, mensagemSuicidioFinal);
     fundamentacaoLegalAjustada = fundamentacaoLegalAjustada.replace(
       /Ato infracional em apura[çc][aã]o:[^\n]*/i,
-      `Gravidade (catálogo): ${gravidadeCatalogo ?? "NÃ£o informado"}`,
+      `Gravidade (catálogo): ${gravidadeCatalogo ?? "Não informado"}`,
     );
     fundamentacaoLegalAjustada = fundamentacaoLegalAjustada.replace(
       /V[ií]nculo faccional identificado[^\n]*/i,

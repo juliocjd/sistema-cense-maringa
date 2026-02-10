@@ -6,7 +6,7 @@ O sistema de reconhecimento facial foi implementado para automatizar e agilizar 
 
 ## Tecnologias Utilizadas
 
-- **face-api.js**: Biblioteca JavaScript de reconhecimento facial baseada em TensorFlow.js
+- **face-api (@vladmandic/face-api)**: Biblioteca JavaScript de reconhecimento facial baseada em TensorFlow.js
 - **Modelos de IA**: SSD MobileNet v1, Face Landmark 68, Face Recognition Net
 - **Armazenamento**: PostgreSQL (embeddings em formato JSON)
 - **Upload**: Sistema local de arquivos (pasta `public/uploads`)
@@ -55,7 +55,7 @@ Hook React personalizado para gerenciar acesso à webcam.
 - Tratamento de erros de permissão
 - Cleanup automático de recursos
 
-#### **Utilitários face-api.js** (`lib/face-recognition.ts`)
+#### **Utilitários face-api** (`lib/face-recognition.ts`)
 Funções auxiliares para reconhecimento facial.
 
 **Principais funções:**
@@ -341,7 +341,7 @@ Os modelos precisam estar em `public/models/`:
 # Criar pasta de modelos
 mkdir -p public/models
 
-# Baixar modelos do face-api.js (fazer manualmente ou via script)
+# Baixar modelos do face-api (fazer manualmente ou via script)
 # Modelos necessários:
 # - ssd_mobilenetv1_model-weights_manifest.json
 # - ssd_mobilenetv1_model-shard1
@@ -351,7 +351,7 @@ mkdir -p public/models
 # - face_recognition_model-shard1
 ```
 
-Download dos modelos: https://github.com/justadudewhohacks/face-api.js/tree/master/weights
+Download dos modelos: https://github.com/vladmandic/face-api/tree/master/model
 
 ### 2. Criar Estrutura de Pastas
 
@@ -456,7 +456,7 @@ Para dúvidas ou problemas:
 
 ## Referências
 
-- [face-api.js Documentation](https://github.com/justadudewhohacks/face-api.js)
+- [face-api Documentation](https://github.com/vladmandic/face-api)
 - [LGPD - Lei Geral de Proteção de Dados](http://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709.htm)
 - [Next.js File Upload](https://nextjs.org/docs/app/building-your-application/routing/route-handlers)
 - [Prisma JSON Fields](https://www.prisma.io/docs/concepts/components/prisma-schema/data-model#json)

@@ -733,6 +733,8 @@ model Visitante {
   bnmpUltimaConsultaEm   DateTime?                  @map("bnmp_ultima_consulta_em")
   bnmpUltimaConsultaOperadorId String?              @map("bnmp_ultima_consulta_operador_id")
   bnmpUltimaConsultaOperador Operador?              @relation("VisitanteBnmpOperador", fields: [bnmpUltimaConsultaOperadorId], references: [id])
+  antecedentesPdfUrl     String?                   @map("antecedentes_pdf_url")
+  antecedentesPdfAtualizadoEm DateTime?             @map("antecedentes_pdf_atualizado_em")
   rg                     String?                    @map("rg")
   nomePai                String?                    @map("nome_pai")
   nomeMae                String?                    @map("nome_mae")

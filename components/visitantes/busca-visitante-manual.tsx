@@ -13,6 +13,8 @@ type Visitante = {
   dataNascimento: string | null;
   fotoUrl: string | null;
   bnmpUltimaConsultaEm?: string | null;
+  antecedentesPdfUrl?: string | null;
+  antecedentesPdfAtualizadoEm?: string | null;
   adolescentes?: Array<{
     id: string;
     nomeCompleto: string;

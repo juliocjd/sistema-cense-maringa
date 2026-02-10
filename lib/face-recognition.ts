@@ -1,13 +1,31 @@
-import * as faceapi from "face-api.js";
 import {
   euclideanDistance,
   findBestEmbeddingMatch,
 } from "@/lib/visitantes/embedding-utils";
 
+type FaceApi = typeof import("@vladmandic/face-api");
+
+let faceapi: FaceApi | null = null;
+let faceApiLoading: Promise<FaceApi> | null = null;
+
 let modelsLoaded = false;
 
+const getFaceApi = async (): Promise<FaceApi> => {
+  if (faceapi) return faceapi;
+  if (typeof window === "undefined") {
+    throw new Error("Face API disponivel apenas no navegador");
+  }
+  if (!faceApiLoading) {
+    faceApiLoading = import("@vladmandic/face-api").then((module) => {
+      faceapi = module;
+      return module;
+    });
+  }
+  return faceApiLoading;
+};
+
 /**
- * Carrega os modelos de detecção facial do face-api.js
+ * Carrega os modelos de detecção facial do face-api
  * Os modelos devem estar em public/models/
  */
 export async function loadFaceAPIModels(): Promise<void> {
@@ -16,16 +34,17 @@ export async function loadFaceAPIModels(): Promise<void> {
   const MODEL_URL = "/models";
 
   try {
+    const api = await getFaceApi();
     await Promise.all([
-      faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
-      faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-      faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
+      api.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
+      api.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+      api.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
     ]);
 
     modelsLoaded = true;
-    console.log("✅ Modelos face-api.js carregados com sucesso");
+    console.log("✅ Modelos face-api carregados com sucesso");
   } catch (error) {
-    console.error("❌ Erro ao carregar modelos face-api.js:", error);
+    console.error("❌ Erro ao carregar modelos face-api:", error);
     throw new Error("Falha ao carregar modelos de reconhecimento facial");
   }
 }
@@ -45,7 +64,8 @@ export async function detectFaceEmbeddings(
     await loadFaceAPIModels();
     console.log("🔧 Modelos carregados");
 
-    const detection = await faceapi
+    const api = await getFaceApi();
+    const detection = await api
       .detectSingleFace(imageElement)
       .withFaceLandmarks()
       .withFaceDescriptor();
@@ -80,7 +100,8 @@ export async function detectMultipleFaces(
   try {
     await loadFaceAPIModels();
 
-    const detections = await faceapi
+    const api = await getFaceApi();
+    const detections = await api
       .detectAllFaces(imageElement)
       .withFaceLandmarks()
       .withFaceDescriptors();
@@ -89,6 +110,32 @@ export async function detectMultipleFaces(
   } catch (error) {
     console.error("Erro ao detectar faces:", error);
     return [];
+  }
+}
+
+/**
+ * Retorna métricas rápidas para orientar o operador em tempo real.
+ */
+export async function detectFaceGuidance(
+  imageElement: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement
+): Promise<{ box: { x: number; y: number; width: number; height: number }; score: number } | null> {
+  try {
+    await loadFaceAPIModels();
+    const api = await getFaceApi();
+    const detection = await api.detectSingleFace(imageElement);
+    if (!detection) return null;
+    return {
+      box: {
+        x: detection.box.x,
+        y: detection.box.y,
+        width: detection.box.width,
+        height: detection.box.height,
+      },
+      score: detection.score,
+    };
+  } catch (error) {
+    console.error("Erro ao detectar face para guia:", error);
+    return null;
   }
 }
 
@@ -151,7 +198,8 @@ export async function drawFaceDetection(
 ): Promise<void> {
   await loadFaceAPIModels();
 
-  const detections = await faceapi
+  const api = await getFaceApi();
+  const detections = await api
     .detectAllFaces(imageElement)
     .withFaceLandmarks();
 
@@ -160,16 +208,16 @@ export async function drawFaceDetection(
     height: imageElement.height || (imageElement as HTMLImageElement).naturalHeight,
   };
 
-  faceapi.matchDimensions(canvasElement, displaySize);
-  const resizedDetections = faceapi.resizeResults(detections, displaySize);
+  api.matchDimensions(canvasElement, displaySize);
+  const resizedDetections = api.resizeResults(detections, displaySize);
 
   const ctx = canvasElement.getContext("2d");
   if (ctx) {
     ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
   }
 
-  faceapi.draw.drawDetections(canvasElement, resizedDetections);
-  faceapi.draw.drawFaceLandmarks(canvasElement, resizedDetections);
+  api.draw.drawDetections(canvasElement, resizedDetections);
+  api.draw.drawFaceLandmarks(canvasElement, resizedDetections);
 }
 
 /**
@@ -186,7 +234,8 @@ export async function validateImageQuality(
     await loadFaceAPIModels();
     console.log("🔍 Modelos carregados para validação");
 
-    const detection = await faceapi
+    const api = await getFaceApi();
+    const detection = await api
       .detectSingleFace(imageElement)
       .withFaceLandmarks();
 

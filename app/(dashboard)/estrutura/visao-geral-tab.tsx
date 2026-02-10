@@ -186,8 +186,8 @@ const renderIconesAlerta = (
         </div>
       )}
       {/*
-        REMOVIDO: Ãcone vermelho de conflito
-        As cores de nÃ­vel de risco e os Ã­cones especÃ­ficos jÃ¡ indicam os conflitos.
+        REMOVIDO: Ícone vermelho de conflito
+        As cores de ní­vel de risco e os Í­cones específicos já indicam os conflitos.
       */}
     </div>
   );
@@ -527,7 +527,7 @@ export function VisaoGeralTab({
     };
   }, [agendarAtualizacao]);
 
-  // Auto-scroll para casa especÃ­fica quando vem da URL
+  // Auto-scroll para casa especí­fica quando vem da URL
   useEffect(() => {
     if (casaNumeroFromUrl && casas.length > 0) {
       const casaNumero = parseInt(casaNumeroFromUrl, 10);
@@ -541,10 +541,10 @@ export function VisaoGeralTab({
             block: "center",
           });
 
-          // Adicionar highlight temporÃ¡rio
+          // Adicionar highlight temporário
           setCasaHighlighted(casaNumero);
 
-          // Remover highlight apÃ³s 3 segundos
+          // Remover highlight após 3 segundos
           setTimeout(() => {
             setCasaHighlighted(null);
           }, 3000);
@@ -658,7 +658,7 @@ export function VisaoGeralTab({
     ],
   );
 
-  // Mapa de nÃ­veis de risco por adolescente (para filtrar dropdown)
+  // Mapa de ní­veis de risco por adolescente (para filtrar dropdown)
   const riscosPorAdolescente = useMemo(() => {
     const mapa = new Map<string, number>();
 
@@ -943,7 +943,7 @@ export function VisaoGeralTab({
         </div>
       </div>
 
-      {/* Legenda de risco e Ã­cones de alerta */}
+      {/* Legenda de risco e Í­cones de alerta */}
       <div className="bg-white rounded-xl shadow p-4 border border-gray-200 text-xs">
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1059,18 +1059,18 @@ export function VisaoGeralTab({
               )}
             </div>
 
-            {/* Adolescentes com conflitos nÃ£o alocados */}
+            {/* Adolescentes com conflitos não alocados */}
             {/*
-            REGRA DE NEGÃ“CIO: Conflitos e status de internaÃ§Ã£o
+            REGRA DE NEGÓCIO: Conflitos e status de internação
 
             1. Apenas adolescentes com status ATIVO/INTERNADO devem aparecer em listas de conflitos
-            2. Adolescentes TRANSFERIDOS, LIBERADOS ou EVADIDOS nÃ£o devem aparecer
-            3. Quando um adolescente Ã© desinternado:
-               - O conflito direto com ele deixa de existir (nÃ£o estÃ¡ mais no sistema)
-               - MAS o risco pode permanecer entre o adolescente que ainda estÃ¡ internado
-                 e os ALIADOS do adolescente desinternado (mesmo bairro/facÃ§Ã£o)
+            2. Adolescentes TRANSFERIDOS, LIBERADOS ou EVADIDOS não devem aparecer
+            3. Quando um adolescente é desinternado:
+               - O conflito direto com ele deixa de existir (não está mais no sistema)
+               - MAS o risco pode permanecer entre o adolescente que ainda está internado
+                 e os ALIADOS do adolescente desinternado (mesmo bairro/facção)
             4. Conflitos internos: registros diretos na tabela Conflito
-            5. Conflitos externos: rivalidades de bairro/facÃ§Ã£o detectadas pela inteligÃªncia
+            5. Conflitos externos: rivalidades de bairro/facção detectadas pela inteligência
           */}
             {(() => {
               const adolescentesComConflitosNaoAlocados = adolescentes.filter(
@@ -1091,12 +1091,11 @@ export function VisaoGeralTab({
                     </div>
                     <div>
                       <h3 className="font-bold text-xl text-red-900">
-                        Adolescentes com Conflitos NÃ£o Alocados
+                        Adolescentes com Conflitos Não Alocados
                       </h3>
                       <p className="text-sm text-red-700">
                         {adolescentesComConflitosNaoAlocados.length}{" "}
-                        adolescente(s) aguardando alocaÃ§Ã£o com conflitos
-                        ativos
+                        adolescente(s) aguardando alocação com conflitos ativos
                       </p>
                     </div>
                   </div>
@@ -1134,7 +1133,7 @@ export function VisaoGeralTab({
                         </div>
                         <div className="flex items-center gap-2 text-xs text-red-600">
                           <AlertCircle size={14} />
-                          <span>Clique para analisar e sugerir alocaÃ§Ã£o</span>
+                          <span>Clique para analisar e sugerir alocação</span>
                         </div>
                       </button>
                     ))}
@@ -1220,7 +1219,7 @@ export function VisaoGeralTab({
                             interditado
                               ? `Alojamento ${aloj.numeroAlojamento} - Interditado`
                               : ocupante && temConflitos
-                                ? `${ocupante.nomeCompleto} - Clique para visualizar | Clique no Ã­cone vermelho para analisar conflitos`
+                                ? `${ocupante.nomeCompleto} - Clique para visualizar | Clique no í­cone vermelho para analisar conflitos`
                                 : ocupante
                                   ? `${ocupante.nomeCompleto} - Clique para visualizar`
                                   : `Alojamento ${aloj.numeroAlojamento} - Clique para alocar`

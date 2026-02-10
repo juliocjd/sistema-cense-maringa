@@ -2,7 +2,7 @@
 
 ## Opção 1: Download Manual (Recomendado)
 
-Os modelos do face-api.js precisam estar na pasta `public/models/`. Siga os passos:
+Os modelos do face-api (@vladmandic/face-api) precisam estar na pasta `public/models/`. Siga os passos:
 
 ### 1. Criar pasta de modelos
 ```bash
@@ -12,7 +12,7 @@ mkdir public/models
 ### 2. Baixar modelos
 
 Acesse o repositório oficial e baixe os arquivos:
-**https://github.com/justadudewhohacks/face-api.js/tree/master/weights**
+**https://github.com/vladmandic/face-api/tree/master/model**
 
 #### Arquivos necessários:
 
@@ -61,7 +61,7 @@ Se não conseguir baixar do GitHub, use o CDN oficial:
 node scripts/download-face-models-cdn.js
 ```
 
-## Opção 3: Usar face-api.js via CDN (Sem Download)
+## Opção 3: Usar face-api via CDN (Sem Download)
 
 **Desvantagem**: Requer internet para funcionar.
 
@@ -108,8 +108,8 @@ Total: ~22 MB
 
 ## Links Úteis
 
-- Repositório oficial: https://github.com/justadudewhohacks/face-api.js
-- Modelos: https://github.com/justadudewhohacks/face-api.js/tree/master/weights
+- Repositório oficial: https://github.com/vladmandic/face-api
+- Modelos: https://github.com/vladmandic/face-api/tree/master/model
 - CDN alternativo: https://www.jsdelivr.com/package/npm/@vladmandic/face-api
 
 ## Tamanho dos Modelos

@@ -170,6 +170,11 @@ export async function POST(request: NextRequest) {
         bnmpUltimaConsultaEm: visitanteIdentificado.bnmpUltimaConsultaEm
           ? visitanteIdentificado.bnmpUltimaConsultaEm.toISOString()
           : null,
+        antecedentesPdfUrl: visitanteIdentificado.antecedentesPdfUrl ?? null,
+        antecedentesPdfAtualizadoEm:
+          visitanteIdentificado.antecedentesPdfAtualizadoEm
+            ? visitanteIdentificado.antecedentesPdfAtualizadoEm.toISOString()
+            : null,
         fotoUrl: visitanteIdentificado.fotoUrl,
         adolescentes: visitanteIdentificado.adolescentesLink.map(
           (rel) => rel.adolescente

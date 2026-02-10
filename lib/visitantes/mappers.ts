@@ -25,6 +25,8 @@ type VisitanteBasico = Pick<
   | "atualizadoEm"
   | "bnmpUltimaConsultaEm"
   | "bnmpUltimaConsultaOperadorId"
+  | "antecedentesPdfUrl"
+  | "antecedentesPdfAtualizadoEm"
   | "_count"
 >;
 
@@ -123,6 +125,10 @@ export function mapVisitanteBasico(
       : null,
     bnmpUltimaConsultaOperadorId:
       visitante.bnmpUltimaConsultaOperadorId ?? null,
+    antecedentesPdfUrl: visitante.antecedentesPdfUrl ?? null,
+    antecedentesPdfAtualizadoEm: visitante.antecedentesPdfAtualizadoEm
+      ? visitante.antecedentesPdfAtualizadoEm.toISOString()
+      : null,
     totalVinculos:
       extras?.totalVinculos ?? visitante._count?.adolescentesLink ?? 0,
     totalVisitas:

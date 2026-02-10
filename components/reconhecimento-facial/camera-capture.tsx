@@ -3,7 +3,11 @@
 import { useState, useRef, useEffect } from "react";
 import { Camera, X, RotateCcw, Check, AlertCircle } from "lucide-react";
 import { useWebcam } from "@/hooks/useWebcam";
-import { detectFaceEmbeddings, validateImageQuality } from "@/lib/face-recognition";
+import {
+  detectFaceEmbeddings,
+  validateImageQuality,
+  detectFaceGuidance,
+} from "@/lib/face-recognition";
 
 export interface CameraCaptureProps {
   onCapture: (imageDataUrl: string, embeddings: Float32Array) => void;
@@ -32,13 +36,118 @@ export function CameraCapture({
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [guidance, setGuidance] = useState<{
+    status: "ok" | "warn" | "bad" | "idle";
+    message: string;
+    detail?: string;
+  }>({ status: "idle", message: "Aguardando câmera..." });
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const guidanceBusyRef = useRef(false);
 
   // Iniciar câmera ao montar componente
   useEffect(() => {
     startCamera();
     return () => stopCamera();
   }, [startCamera, stopCamera]);
+
+  useEffect(() => {
+    if (!isStreaming || capturedImage) {
+      setGuidance((prev) => ({
+        status: prev.status === "idle" ? prev.status : "idle",
+        message: "Aguardando câmera...",
+      }));
+      return;
+    }
+
+    let intervalId: number | null = null;
+
+    const atualizarGuia = async () => {
+      const video = videoRef.current;
+      if (!video || guidanceBusyRef.current || capturedImage) {
+        return;
+      }
+      if (video.readyState < 2) {
+        setGuidance({ status: "idle", message: "Carregando câmera..." });
+        return;
+      }
+
+      guidanceBusyRef.current = true;
+      try {
+        const metrics = await detectFaceGuidance(video);
+        if (!metrics) {
+          setGuidance({
+            status: "bad",
+            message: "Nenhum rosto detectado",
+            detail: "Aproxime e centralize o rosto",
+          });
+          return;
+        }
+
+        const videoWidth = video.videoWidth || video.clientWidth || width;
+        const videoHeight = video.videoHeight || video.clientHeight || height;
+        const sizeRatio = metrics.box.width / videoWidth;
+        const centerX = metrics.box.x + metrics.box.width / 2;
+        const centerY = metrics.box.y + metrics.box.height / 2;
+        const offsetX = Math.abs(centerX - videoWidth / 2) / (videoWidth / 2);
+        const offsetY = Math.abs(centerY - videoHeight / 2) / (videoHeight / 2);
+
+        if (metrics.score < 0.6) {
+          setGuidance({
+            status: "warn",
+            message: "Iluminação baixa",
+            detail: `Detecção ${Math.round(metrics.score * 100)}%`,
+          });
+          return;
+        }
+
+        if (sizeRatio < 0.25) {
+          setGuidance({
+            status: "warn",
+            message: "Aproxime o rosto",
+            detail: `Tamanho ${Math.round(sizeRatio * 100)}%`,
+          });
+          return;
+        }
+
+        if (sizeRatio > 0.6) {
+          setGuidance({
+            status: "warn",
+            message: "Afaste um pouco",
+            detail: `Tamanho ${Math.round(sizeRatio * 100)}%`,
+          });
+          return;
+        }
+
+        if (offsetX > 0.2 || offsetY > 0.2) {
+          setGuidance({
+            status: "warn",
+            message: "Centralize o rosto",
+            detail: `Desvio ${Math.round(
+              Math.max(offsetX, offsetY) * 100,
+            )}%`,
+          });
+          return;
+        }
+
+        setGuidance({
+          status: "ok",
+          message: "Pronto para capturar",
+          detail: `Detecção ${Math.round(metrics.score * 100)}%`,
+        });
+      } finally {
+        guidanceBusyRef.current = false;
+      }
+    };
+
+    atualizarGuia();
+    intervalId = window.setInterval(atualizarGuia, 350);
+
+    return () => {
+      if (intervalId) {
+        window.clearInterval(intervalId);
+      }
+    };
+  }, [capturedImage, height, isStreaming, videoRef, width]);
 
   /**
    * Captura foto e valida detecção facial
@@ -259,8 +368,34 @@ export function CameraCapture({
 
             {/* Overlay de guia */}
             <div className="absolute inset-0 pointer-events-none">
+              <div className="absolute left-3 top-3">
+                <div
+                  className={`rounded-full border px-3 py-1 text-[11px] font-semibold shadow-sm backdrop-blur ${
+                    guidance.status === "ok"
+                      ? "border-emerald-200 bg-emerald-50/90 text-emerald-700"
+                      : guidance.status === "warn"
+                        ? "border-amber-200 bg-amber-50/90 text-amber-700"
+                        : guidance.status === "bad"
+                          ? "border-rose-200 bg-rose-50/90 text-rose-700"
+                          : "border-slate-200 bg-slate-50/90 text-slate-600"
+                  }`}
+                >
+                  {guidance.message}
+                  {guidance.detail ? ` · ${guidance.detail}` : ""}
+                </div>
+              </div>
               <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-64 h-80 border-4 border-indigo-500 rounded-full opacity-30"></div>
+                <div
+                  className={`w-64 h-80 border-4 rounded-full opacity-40 ${
+                    guidance.status === "ok"
+                      ? "border-emerald-400"
+                      : guidance.status === "warn"
+                        ? "border-amber-400"
+                        : guidance.status === "bad"
+                          ? "border-rose-400"
+                          : "border-indigo-400"
+                  }`}
+                />
               </div>
             </div>
 

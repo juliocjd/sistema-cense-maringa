@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { ChangeEvent } from "react";
 import {
   ShieldCheck,
   Camera,
@@ -56,6 +57,8 @@ type IdentificacaoResultado = {
     nomeMae?: string | null;
     dataNascimento: string;
     bnmpUltimaConsultaEm?: string | null;
+    antecedentesPdfUrl?: string | null;
+    antecedentesPdfAtualizadoEm?: string | null;
     fotoUrl: string;
     adolescentes: Adolescente[];
     ultimasVisitas: Array<{
@@ -83,6 +86,7 @@ const normalizarAdolescentes = (
     : [];
 
 const BNMP_URL = "https://portalbnmp.pdpj.jus.br/#/pesquisa-peca";
+const ANTECEDENTES_URL = "https://www.atestados.pr.gov.br/solicitante/validar";
 
 export default function PortariaPage() {
   const [modoCadastro, setModoCadastro] = useState(false);
@@ -107,6 +111,11 @@ export default function PortariaPage() {
   const [mensagemSucesso, setMensagemSucesso] = useState<string | null>(null);
   const [bnmpFeedback, setBnmpFeedback] = useState<string | null>(null);
   const [bnmpRegistrando, setBnmpRegistrando] = useState(false);
+  const [antecedentesFeedback, setAntecedentesFeedback] = useState<
+    string | null
+  >(null);
+  const [antecedentesEnviando, setAntecedentesEnviando] = useState(false);
+  const antecedentesInputRef = useRef<HTMLInputElement | null>(null);
   const [adolescentesInativos, setAdolescentesInativos] = useState<
     Adolescente[]
   >([]);
@@ -158,9 +167,9 @@ export default function PortariaPage() {
     inativos: Adolescente[],
   ) => {
     const detalhes = inativos.length
-      ? ` VÃ­nculos encontrados: ${descreverAdolescentes(inativos)}.`
+      ? ` Vínculos encontrados: ${descreverAdolescentes(inativos)}.`
       : "";
-    return `Visitante ${visitanteNome} nÃ£o possui adolescentes ativos autorizados para visitas no momento.${detalhes}`;
+    return `Visitante ${visitanteNome} não possui adolescentes ativos autorizados para visitas no momento.${detalhes}`;
   };
 
   const formatarDataNascimento = (valor?: string | null) => {
@@ -179,6 +188,17 @@ export default function PortariaPage() {
       return "Nao registrada";
     }
     return data.toLocaleString("pt-BR");
+  };
+
+  const antecedentesDesatualizados = (valor?: string | null) => {
+    if (!valor) return false;
+    const data = new Date(valor);
+    if (Number.isNaN(data.getTime())) {
+      return false;
+    }
+    const limite = new Date();
+    limite.setFullYear(limite.getFullYear() - 1);
+    return data < limite;
   };
 
   const copiarTextoSync = (texto: string) => {
@@ -273,6 +293,69 @@ export default function PortariaPage() {
     }
   };
 
+  const handleConsultaAntecedentes = () => {
+    window.open(ANTECEDENTES_URL, "_blank", "noopener,noreferrer");
+  };
+
+  const handleUploadAntecedentes = async (
+    event: ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0] ?? null;
+    if (!file || !resultado?.visitante) {
+      if (event.target) {
+        event.target.value = "";
+      }
+      return;
+    }
+
+    setAntecedentesEnviando(true);
+    setAntecedentesFeedback(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch(
+        `/api/visitantes/${resultado.visitante.id}/antecedentes`,
+        {
+          method: "POST",
+          body: formData,
+        },
+      );
+
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(payload?.erro ?? "Erro ao salvar antecedentes");
+      }
+
+      setResultado((prev) =>
+        prev?.visitante
+          ? {
+              ...prev,
+              visitante: {
+                ...prev.visitante,
+                antecedentesPdfUrl: payload?.antecedentesPdfUrl ?? null,
+                antecedentesPdfAtualizadoEm:
+                  payload?.antecedentesPdfAtualizadoEm ?? null,
+              },
+            }
+          : prev,
+      );
+      setAntecedentesFeedback("Antecedentes salvos.");
+    } catch (error) {
+      console.error("Erro ao salvar antecedentes:", error);
+      setAntecedentesFeedback(
+        error instanceof Error ? error.message : "Erro ao salvar antecedentes",
+      );
+    } finally {
+      setAntecedentesEnviando(false);
+      if (antecedentesInputRef.current) {
+        antecedentesInputRef.current.value = "";
+      } else if (event.target) {
+        event.target.value = "";
+      }
+    }
+  };
+
   useEffect(() => {
     if (!mensagemSucesso) {
       return;
@@ -288,6 +371,14 @@ export default function PortariaPage() {
     const timeout = setTimeout(() => setBnmpFeedback(null), 4000);
     return () => clearTimeout(timeout);
   }, [bnmpFeedback]);
+
+  useEffect(() => {
+    if (!antecedentesFeedback) {
+      return;
+    }
+    const timeout = setTimeout(() => setAntecedentesFeedback(null), 4000);
+    return () => clearTimeout(timeout);
+  }, [antecedentesFeedback]);
 
   useEffect(() => {
     if (justificativaObrigatoria && !justificativaObrigatoriaAnterior.current) {
@@ -328,6 +419,8 @@ export default function PortariaPage() {
     setAdolescentesInativos([]);
     setBnmpFeedback(null);
     setBnmpRegistrando(false);
+    setAntecedentesFeedback(null);
+    setAntecedentesEnviando(false);
   };
 
   const registrarVisitaDireta = async (
@@ -675,6 +768,9 @@ export default function PortariaPage() {
             nomeMae: data.visitante.nomeMae || null,
             dataNascimento: data.visitante.dataNascimento || "",
             bnmpUltimaConsultaEm: data.visitante.bnmpUltimaConsultaEm ?? null,
+            antecedentesPdfUrl: data.visitante.antecedentesPdfUrl ?? null,
+            antecedentesPdfAtualizadoEm:
+              data.visitante.antecedentesPdfAtualizadoEm ?? null,
             fotoUrl: data.visitante.urlFoto || "",
             adolescentes: ativos,
             ultimasVisitas: Array.isArray(data.visitasRecentes)
@@ -865,6 +961,9 @@ export default function PortariaPage() {
                   nomeMae: visitante.nomeMae || null,
                   dataNascimento: visitante.dataNascimento || "",
                   bnmpUltimaConsultaEm: visitante.bnmpUltimaConsultaEm ?? null,
+                  antecedentesPdfUrl: visitante.antecedentesPdfUrl ?? null,
+                  antecedentesPdfAtualizadoEm:
+                    visitante.antecedentesPdfAtualizadoEm ?? null,
                   fotoUrl: visitante.fotoUrl || "",
                   adolescentes: ativos,
                   ultimasVisitas: [],
@@ -917,204 +1016,287 @@ export default function PortariaPage() {
               </button>
               {resultado.success && resultado.visitante ? (
                 <div className="space-y-6">
-                  <div className="flex items-center gap-2 md:gap-3 mb-4 md:mb-6 pb-4 md:pb-6 border-b">
-                    <CheckCircle className="text-green-600 w-10 h-10 md:w-12 md:h-12 flex-shrink-0" />
-                    <div>
-                      <h2 className="text-xl md:text-2xl lg:text-3xl font-bold text-green-700">
+                  <div className="flex items-center justify-between gap-3 mb-3 md:mb-4 pb-3 md:pb-4 border-b">
+                    <div className="flex items-center gap-2 md:gap-3">
+                      <CheckCircle className="text-green-600 w-9 h-9 md:w-10 md:h-10 flex-shrink-0" />
+                      <h2 className="text-lg md:text-xl lg:text-2xl font-bold text-green-700">
                         Visitante Identificado!
                       </h2>
-                      <p className="text-gray-600 mt-1 text-xs md:text-sm">
-                        Confianca: {resultado.match?.confidence}% | Distancia:{" "}
-                        {resultado.match?.distance.toFixed(3)}
-                      </p>
                     </div>
+                    <span className="text-[11px] md:text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2.5 py-1">
+                      Confiança: {resultado.match?.confidence}% · Distância:{" "}
+                      {resultado.match?.distance.toFixed(3)}
+                    </span>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
-                    <div>
-                      <h3 className="text-lg md:text-xl font-bold text-gray-900 mb-3 md:mb-4">
+                  <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-6 md:gap-8">
+                    <div className="min-w-0">
+                      <h3 className="text-lg md:text-xl font-bold text-gray-900 mb-2 md:mb-3">
                         Dados do Visitante
                       </h3>
-                      {resultado.visitante.fotoUrl && (
-                        <img
-                          src={resultado.visitante.fotoUrl}
-                          alt={resultado.visitante.nomeCompleto}
-                          className="w-32 h-32 md:w-40 md:h-40 lg:w-48 lg:h-48 object-cover rounded-lg mb-4 shadow-md"
-                        />
-                      )}
-                      <div className="space-y-2 text-gray-700 text-sm md:text-base">
-                        <div className="flex items-center justify-between gap-2">
-                          <p>
-                            <strong>Nome:</strong>{" "}
-                            {resultado.visitante.nomeCompleto}
-                          </p>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleCopiarCampoBnmp(
-                                "Nome",
-                                resultado.visitante?.nomeCompleto,
-                              )
-                            }
-                            className="rounded-md p-1 text-slate-500 hover:text-slate-700"
-                            title="Copiar nome"
-                            aria-label="Copiar nome"
-                          >
-                            <Copy size={14} />
-                          </button>
-                        </div>
-                        <div className="flex items-center justify-between gap-2">
-                          <p>
-                            <strong>CPF:</strong>{" "}
-                            {resultado.visitante.cpf || "Nao informado"}
-                          </p>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleCopiarCampoBnmp(
-                                "CPF",
-                                resultado.visitante?.cpf,
-                              )
-                            }
-                            disabled={!resultado.visitante.cpf}
-                            className="rounded-md p-1 text-slate-500 hover:text-slate-700 disabled:cursor-not-allowed disabled:text-slate-300"
-                            title="Copiar CPF"
-                            aria-label="Copiar CPF"
-                          >
-                            <Copy size={14} />
-                          </button>
-                        </div>
-                        <div className="flex items-center justify-between gap-2">
-                          <p>
-                            <strong>RG:</strong>{" "}
-                            {resultado.visitante.rg || "Nao informado"}
-                          </p>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleCopiarCampoBnmp(
-                                "RG",
-                                resultado.visitante?.rg,
-                              )
-                            }
-                            disabled={!resultado.visitante.rg}
-                            className="rounded-md p-1 text-slate-500 hover:text-slate-700 disabled:cursor-not-allowed disabled:text-slate-300"
-                            title="Copiar RG"
-                            aria-label="Copiar RG"
-                          >
-                            <Copy size={14} />
-                          </button>
-                        </div>
-                        <div className="flex items-center justify-between gap-2">
-                          <p>
-                            <strong>Data de Nascimento:</strong>{" "}
-                            {formatarDataNascimento(
-                              resultado.visitante.dataNascimento,
-                            )}
-                          </p>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleCopiarCampoBnmp(
-                                "Data de nascimento",
-                                formatarDataNascimento(
-                                  resultado.visitante?.dataNascimento,
-                                ),
-                              )
-                            }
-                            disabled={
-                              formatarDataNascimento(
-                                resultado.visitante.dataNascimento,
-                              ) === "Nao informado"
-                            }
-                            className="rounded-md p-1 text-slate-500 hover:text-slate-700 disabled:cursor-not-allowed disabled:text-slate-300"
-                            title="Copiar data de nascimento"
-                            aria-label="Copiar data de nascimento"
-                          >
-                            <Copy size={14} />
-                          </button>
-                        </div>
-                        <div className="flex items-center justify-between gap-2">
-                          <p>
-                            <strong>Nome do pai:</strong>{" "}
-                            {resultado.visitante.nomePai || "Nao informado"}
-                          </p>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleCopiarCampoBnmp(
-                                "Nome do pai",
-                                resultado.visitante?.nomePai,
-                              )
-                            }
-                            disabled={!resultado.visitante.nomePai}
-                            className="rounded-md p-1 text-slate-500 hover:text-slate-700 disabled:cursor-not-allowed disabled:text-slate-300"
-                            title="Copiar nome do pai"
-                            aria-label="Copiar nome do pai"
-                          >
-                            <Copy size={14} />
-                          </button>
-                        </div>
-                        <div className="flex items-center justify-between gap-2">
-                          <p>
-                            <strong>Nome da mae:</strong>{" "}
-                            {resultado.visitante.nomeMae || "Nao informado"}
-                          </p>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleCopiarCampoBnmp(
-                                "Nome da mae",
-                                resultado.visitante?.nomeMae,
-                              )
-                            }
-                            disabled={!resultado.visitante.nomeMae}
-                            className="rounded-md p-1 text-slate-500 hover:text-slate-700 disabled:cursor-not-allowed disabled:text-slate-300"
-                            title="Copiar nome da mae"
-                            aria-label="Copiar nome da mae"
-                          >
-                            <Copy size={14} />
-                          </button>
-                        </div>
-                      </div>
-                      <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                          <div>
-                            <p className="text-xs font-semibold text-slate-700">
-                              Consulta Banco Nacional de Mandados de Prisão
-                            </p>
-                            <p className="text-[11px] text-slate-500">
-                              Ultima consulta:{" "}
-                              {formatarDataHora(
-                                resultado.visitante.bnmpUltimaConsultaEm,
-                              )}
-                            </p>
+                      <div className="space-y-3">
+                        <div className="flex flex-col sm:flex-row sm:items-start gap-3">
+                          {resultado.visitante.fotoUrl && (
+                            <img
+                              src={resultado.visitante.fotoUrl}
+                              alt={resultado.visitante.nomeCompleto}
+                              className="w-24 h-24 sm:w-28 sm:h-28 md:w-32 md:h-32 object-cover rounded-lg shadow-md"
+                            />
+                          )}
+                          <div className="flex-1 min-w-0 space-y-2 text-gray-700 text-sm md:text-base">
+                            <div className="flex items-center justify-between gap-2">
+                              <p>
+                                <strong>Nome:</strong>{" "}
+                                {resultado.visitante.nomeCompleto}
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleCopiarCampoBnmp(
+                                    "Nome",
+                                    resultado.visitante?.nomeCompleto,
+                                  )
+                                }
+                                className="rounded-md p-1 text-slate-500 hover:text-slate-700"
+                                title="Copiar nome"
+                                aria-label="Copiar nome"
+                              >
+                                <Copy size={14} />
+                              </button>
+                            </div>
+                            <div className="flex items-center justify-between gap-2">
+                              <p>
+                                <strong>CPF:</strong>{" "}
+                                {resultado.visitante.cpf || "Nao informado"}
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleCopiarCampoBnmp(
+                                    "CPF",
+                                    resultado.visitante?.cpf,
+                                  )
+                                }
+                                disabled={!resultado.visitante.cpf}
+                                className="rounded-md p-1 text-slate-500 hover:text-slate-700 disabled:cursor-not-allowed disabled:text-slate-300"
+                                title="Copiar CPF"
+                                aria-label="Copiar CPF"
+                              >
+                                <Copy size={14} />
+                              </button>
+                            </div>
+                            <div className="flex items-center justify-between gap-2">
+                              <p>
+                                <strong>RG:</strong>{" "}
+                                {resultado.visitante.rg || "Nao informado"}
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleCopiarCampoBnmp(
+                                    "RG",
+                                    resultado.visitante?.rg,
+                                  )
+                                }
+                                disabled={!resultado.visitante.rg}
+                                className="rounded-md p-1 text-slate-500 hover:text-slate-700 disabled:cursor-not-allowed disabled:text-slate-300"
+                                title="Copiar RG"
+                                aria-label="Copiar RG"
+                              >
+                                <Copy size={14} />
+                              </button>
+                            </div>
+                            <div className="flex items-center justify-between gap-2">
+                              <p>
+                                <strong>Data de Nascimento:</strong>{" "}
+                                {formatarDataNascimento(
+                                  resultado.visitante.dataNascimento,
+                                )}
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleCopiarCampoBnmp(
+                                    "Data de nascimento",
+                                    formatarDataNascimento(
+                                      resultado.visitante?.dataNascimento,
+                                    ),
+                                  )
+                                }
+                                disabled={
+                                  formatarDataNascimento(
+                                    resultado.visitante.dataNascimento,
+                                  ) === "Nao informado"
+                                }
+                                className="rounded-md p-1 text-slate-500 hover:text-slate-700 disabled:cursor-not-allowed disabled:text-slate-300"
+                                title="Copiar data de nascimento"
+                                aria-label="Copiar data de nascimento"
+                              >
+                                <Copy size={14} />
+                              </button>
+                            </div>
+                            <div className="flex items-center justify-between gap-2">
+                              <p>
+                                <strong>Nome do pai:</strong>{" "}
+                                {resultado.visitante.nomePai || "Nao informado"}
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleCopiarCampoBnmp(
+                                    "Nome do pai",
+                                    resultado.visitante?.nomePai,
+                                  )
+                                }
+                                disabled={!resultado.visitante.nomePai}
+                                className="rounded-md p-1 text-slate-500 hover:text-slate-700 disabled:cursor-not-allowed disabled:text-slate-300"
+                                title="Copiar nome do pai"
+                                aria-label="Copiar nome do pai"
+                              >
+                                <Copy size={14} />
+                              </button>
+                            </div>
+                            <div className="flex items-center justify-between gap-2">
+                              <p>
+                                <strong>Nome da mae:</strong>{" "}
+                                {resultado.visitante.nomeMae || "Nao informado"}
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleCopiarCampoBnmp(
+                                    "Nome da mae",
+                                    resultado.visitante?.nomeMae,
+                                  )
+                                }
+                                disabled={!resultado.visitante.nomeMae}
+                                className="rounded-md p-1 text-slate-500 hover:text-slate-700 disabled:cursor-not-allowed disabled:text-slate-300"
+                                title="Copiar nome da mae"
+                                aria-label="Copiar nome da mae"
+                              >
+                                <Copy size={14} />
+                              </button>
+                            </div>
                           </div>
-                          <button
-                            type="button"
-                            onClick={handleConsultaBnmp}
-                            disabled={bnmpRegistrando}
-                            className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
-                          >
-                            {bnmpRegistrando
-                              ? "Registrando..."
-                              : "Consultar no BNMP"}
-                          </button>
                         </div>
-                        <p className="mt-2 text-[11px] text-slate-500">
-                          O portal sera aberto em outra aba. Copie o dado que
-                          deseja usar nos botoes ao lado de cada campo.
-                        </p>
-                        {bnmpFeedback && (
-                          <p className="mt-1 text-[11px] font-semibold text-slate-700">
-                            {bnmpFeedback}
-                          </p>
-                        )}
+                        <div className="grid gap-3 md:grid-cols-2">
+                          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                              <div>
+                                <p className="text-xs font-semibold text-slate-700">
+                                  Consulta Banco Nacional de Mandados de Prisão
+                                </p>
+                                <p className="text-[11px] text-slate-500">
+                                  Ultima consulta:{" "}
+                                  {formatarDataHora(
+                                    resultado.visitante.bnmpUltimaConsultaEm,
+                                  )}
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={handleConsultaBnmp}
+                                disabled={bnmpRegistrando}
+                                className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+                              >
+                                {bnmpRegistrando
+                                  ? "Registrando..."
+                                  : "Consultar no BNMP"}
+                              </button>
+                            </div>
+                            <p className="mt-2 text-[11px] text-slate-500">
+                              O portal sera aberto em outra aba. Copie o dado
+                              que deseja usar nos botoes ao lado de cada campo.
+                            </p>
+                            {bnmpFeedback && (
+                              <p className="mt-1 text-[11px] font-semibold text-slate-700">
+                                {bnmpFeedback}
+                              </p>
+                            )}
+                          </div>
+                          <div className="rounded-lg border border-slate-200 bg-slate-100 p-3">
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                              <div>
+                                <p className="text-xs font-semibold text-slate-700">
+                                  Atestado de Antecedentes Criminais do Parana
+                                </p>
+                                <p className="text-[11px] text-slate-500">
+                                  Última atualização:{" "}
+                                  {formatarDataHora(
+                                    resultado.visitante
+                                      .antecedentesPdfAtualizadoEm,
+                                  )}
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={handleConsultaAntecedentes}
+                                className="rounded-md bg-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-300"
+                              >
+                                Consultar Antecedentes
+                              </button>
+                            </div>
+                            <p className="mt-2 text-[11px] text-slate-500">
+                              O portal sera aberto em outra aba. Copie os dados
+                              acima e preencha o captcha para emitir o PDF.
+                            </p>
+                            {antecedentesDesatualizados(
+                              resultado.visitante.antecedentesPdfAtualizadoEm,
+                            ) && (
+                              <p className="mt-1 flex items-center gap-1 text-[11px] font-semibold text-amber-700">
+                                <AlertCircle
+                                  size={12}
+                                  className="text-amber-600"
+                                />
+                                Antecedente com mais de 1 ano sem atualização.
+                              </p>
+                            )}
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                              {resultado.visitante.antecedentesPdfUrl ? (
+                                <a
+                                  href={resultado.visitante.antecedentesPdfUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-xs font-semibold text-slate-700 underline"
+                                >
+                                  Abrir PDF
+                                </a>
+                              ) : (
+                                <span className="text-[11px] text-slate-500">
+                                  Nenhum PDF anexado.
+                                </span>
+                              )}
+                              <label className="cursor-pointer rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-200">
+                                {resultado.visitante.antecedentesPdfUrl
+                                  ? "Substituir PDF"
+                                  : "Enviar PDF"}
+                                <input
+                                  ref={antecedentesInputRef}
+                                  type="file"
+                                  accept="application/pdf"
+                                  onChange={handleUploadAntecedentes}
+                                  className="sr-only"
+                                  disabled={antecedentesEnviando}
+                                />
+                              </label>
+                              {antecedentesEnviando && (
+                                <span className="text-[11px] text-slate-500">
+                                  Enviando...
+                                </span>
+                              )}
+                            </div>
+                            {antecedentesFeedback && (
+                              <p className="mt-1 text-[11px] font-semibold text-slate-700">
+                                {antecedentesFeedback}
+                              </p>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </div>
 
-                    <div>
-                      <h3 className="text-lg md:text-xl font-bold text-gray-900 mb-3 md:mb-4">
+                    <div className="min-w-0">
+                      <h3 className="text-lg md:text-xl font-bold text-gray-900 mb-2 md:mb-3">
                         <span className="hidden sm:inline">
                           Adolescentes Relacionados
                         </span>
@@ -1126,13 +1308,13 @@ export default function PortariaPage() {
                         )}
                       </h3>
                       {adolescentesInativos.length > 0 && (
-                        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs md:text-sm text-amber-800">
+                        <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-800">
                           <p className="font-semibold flex items-center gap-2">
                             <AlertCircle
                               size={14}
                               className="text-amber-600 flex-shrink-0"
                             />
-                            Alguns adolescentes vinculados nÃ£o estÃ£o ativos
+                            Alguns adolescentes vinculados não estão ativos
                           </p>
                           <ul className="mt-1 list-disc list-inside space-y-0.5">
                             {adolescentesInativos.map((adolescente) => (
@@ -1151,7 +1333,7 @@ export default function PortariaPage() {
                         </div>
                       )}
                       {resultado.visitante.adolescentes.length > 0 ? (
-                        <ul className="space-y-2 md:space-y-3">
+                        <ul className="space-y-2">
                           {resultado.visitante.adolescentes.map(
                             (adolescente) => {
                               const isSelected =
@@ -1162,7 +1344,7 @@ export default function PortariaPage() {
                                   onClick={() =>
                                     handleSelecionarAdolescente(adolescente.id)
                                   }
-                                  className={`p-3 md:p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                                  className={`p-2.5 md:p-3 rounded-lg border-2 cursor-pointer transition-all ${
                                     isSelected
                                       ? "bg-green-50 border-green-500 shadow-md"
                                       : "bg-indigo-50 border-indigo-200 hover:border-indigo-400 hover:shadow"
@@ -1192,7 +1374,7 @@ export default function PortariaPage() {
                                     </p>
                                   )}
                                   {isSelected && validacaoResultado && (
-                                    <div className="mt-3 pt-3 border-t border-green-300">
+                                    <div className="mt-2 pt-2 border-t border-green-300">
                                       {validacaoResultado.alertas.length >
                                         0 && (
                                         <div className="space-y-1">
@@ -1213,7 +1395,7 @@ export default function PortariaPage() {
                                         </div>
                                       )}
                                       {validacaoResultado.avisos.length > 0 && (
-                                        <div className="space-y-1 mt-2">
+                                        <div className="space-y-1 mt-1.5">
                                           {validacaoResultado.avisos.map(
                                             (aviso: string, idx: number) => (
                                               <p
@@ -1244,13 +1426,13 @@ export default function PortariaPage() {
                       ) : (
                         <p className="text-gray-500 text-sm">
                           {adolescentesInativos.length > 0
-                            ? "Nenhum adolescente ativo disponÃ­vel para este visitante."
+                            ? "Nenhum adolescente ativo disponível para este visitante."
                             : "Nenhum adolescente relacionado"}
                         </p>
                       )}
 
-                      <div className="mt-5 space-y-4">
-                        <div className="space-y-2">
+                      <div className="mt-4 space-y-3">
+                        <div className="space-y-1.5">
                           <label className="block text-sm font-semibold text-gray-700">
                             Observações (opcional)
                           </label>
@@ -1260,12 +1442,12 @@ export default function PortariaPage() {
                               setObservacoesVisita(e.target.value)
                             }
                             placeholder="Informe detalhes relevantes desta visita..."
-                            className="w-full min-h-[96px] px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none text-sm"
+                            className="w-full min-h-[80px] px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none text-sm"
                           />
                         </div>
 
                         {validacaoResultado?.requerJustificativa && (
-                          <div className="space-y-2">
+                          <div className="space-y-1.5">
                             <label className="block text-sm font-semibold text-gray-700 flex items-center gap-2">
                               Justificativa de horário
                               <span className="text-xs font-semibold text-red-600">
@@ -1278,7 +1460,7 @@ export default function PortariaPage() {
                                 setJustificativaHorario(e.target.value)
                               }
                               placeholder="Especifique o motivo para autorizar a visita fora das regras impostas."
-                              className="w-full min-h-[96px] px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none text-sm"
+                              className="w-full min-h-[80px] px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none text-sm"
                             />
                           </div>
                         )}

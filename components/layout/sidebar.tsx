@@ -54,10 +54,12 @@ export function Sidebar({
   const pathname = usePathname();
   const { user, logout } = useAuth();
 
+  const [isMounted, setIsMounted] = useState(false);
   const [forceOpen, setForceOpen] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
 
   useEffect(() => {
+    setIsMounted(true);
     const handleResize = () => setIsDesktop(window.innerWidth >= 1024);
     handleResize();
     window.addEventListener("resize", handleResize);
@@ -217,6 +219,7 @@ export function Sidebar({
   );
 
   const isActive = (href: string) => {
+    if (!isMounted) return false;
     if (href === "/dashboard") {
       return pathname === href;
     }

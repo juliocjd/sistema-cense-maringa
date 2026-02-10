@@ -22,7 +22,7 @@ export async function POST() {
     ];
 
     const casas = await Promise.all(
-      casasData.map((casa) => prisma.casa.create({ data: casa }))
+      casasData.map((casa) => prisma.casa.create({ data: casa })),
     );
 
     // Criar alojamentos para cada casa
@@ -79,10 +79,10 @@ export async function POST() {
     for (const casa of casas.slice(0, 7)) {
       for (const [num1, num2] of mapeamentoFrontais) {
         const aloj1 = alojamentos.find(
-          (a) => a.casaId === casa.id && a.numeroAlojamento === num1
+          (a) => a.casaId === casa.id && a.numeroAlojamento === num1,
         );
         const aloj2 = alojamentos.find(
-          (a) => a.casaId === casa.id && a.numeroAlojamento === num2
+          (a) => a.casaId === casa.id && a.numeroAlojamento === num2,
         );
 
         if (aloj1 && aloj2) {
@@ -114,10 +114,10 @@ export async function POST() {
     ];
 
     const zonas = await Promise.all(
-      zonasData.map((zona) => prisma.zonaRisco.create({ data: zona }))
+      zonasData.map((zona) => prisma.zonaRisco.create({ data: zona })),
     );
 
-    // Vincular alojamentos Ã s zonas
+    // Vincular alojamentos as zonas
     const vinculosZonas = [
       { zona: 0, casa: 1, alojamentos: ["08", "09"] }, // C02 Ala B
       { zona: 1, casa: 2, alojamentos: ["01", "02", "03"] }, // C03 Ala A
@@ -135,7 +135,7 @@ export async function POST() {
 
       for (const numAloj of vinculo.alojamentos) {
         const aloj = alojamentos.find(
-          (a) => a.casaId === casa.id && a.numeroAlojamento === numAloj
+          (a) => a.casaId === casa.id && a.numeroAlojamento === numAloj,
         );
 
         if (aloj) {
@@ -149,7 +149,7 @@ export async function POST() {
       }
     }
 
-    // Criar vÃ­nculos entre zonas (C02â†”C03, C04â†”C05, C05â†”C06, C06â†”C07)
+    // Criar ví­nculos entre zonas (C02â†”C03, C04â†”C05, C05â†”C06, C06â†”C07)
     const vinculosEntreZonas = [
       [0, 1], // C02-AlaB â†” C03-AlaA
       [2, 3], // C04-AlaB â†” C05-AlaA
@@ -171,11 +171,7 @@ export async function POST() {
     console.error("Erro ao inicializar estrutura:", error);
     return NextResponse.json(
       { erro: "Erro ao criar estrutura" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
-
-
-
-

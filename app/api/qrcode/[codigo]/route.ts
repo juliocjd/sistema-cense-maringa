@@ -45,6 +45,8 @@ export async function GET(
             email: true,
             fotoUrl: true,
             bnmpUltimaConsultaEm: true,
+            antecedentesPdfUrl: true,
+            antecedentesPdfAtualizadoEm: true,
             bloqueado: true,
             motivoBloqueio: true,
             dataBloqueio: true,
@@ -302,6 +304,11 @@ export async function GET(
         bnmpUltimaConsultaEm: qrCode.visitante.bnmpUltimaConsultaEm
           ? qrCode.visitante.bnmpUltimaConsultaEm.toISOString()
           : null,
+        antecedentesPdfUrl: qrCode.visitante.antecedentesPdfUrl ?? null,
+        antecedentesPdfAtualizadoEm:
+          qrCode.visitante.antecedentesPdfAtualizadoEm
+            ? qrCode.visitante.antecedentesPdfAtualizadoEm.toISOString()
+            : null,
         telefone: telefonePrincipal,
         telefones: qrCode.visitante.telefones,
         email: qrCode.visitante.email,

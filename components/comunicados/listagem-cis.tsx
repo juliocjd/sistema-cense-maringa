@@ -204,7 +204,7 @@ export function ListagemCIs({ comunicados }: ListagemCIsProps) {
     return matchBusca && matchTipo && matchAno;
   });
 
-  // EstatÃ­sticas
+  // Estatí­sticas
   const stats = {
     total: comunicados.length,
     ano2025: comunicados.filter((c) => c.ano === 2025).length,
@@ -212,7 +212,7 @@ export function ListagemCIs({ comunicados }: ListagemCIsProps) {
     alertas: comunicados.filter((c) => c.temAlerta).length,
   };
 
-  // Anos disponÃ­veis
+  // Anos disponíveis
   const anosDisponiveis = Array.from(
     new Set(comunicados.map((c) => c.ano)),
   ).sort((a, b) => b - a);
@@ -293,7 +293,7 @@ export function ListagemCIs({ comunicados }: ListagemCIsProps) {
         </div>
       </div>
 
-      {/* Cards de EstatÃ­sticas */}
+      {/* Cards de Estatí­sticas */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white rounded-xl shadow-lg p-4 border-l-4 border-blue-500">
           <div className="flex items-center justify-between">
@@ -362,7 +362,7 @@ export function ListagemCIs({ comunicados }: ListagemCIsProps) {
             </div>
           </div>
 
-          {/* BotÃ£o Filtros */}
+          {/* Botão Filtros */}
           <button
             onClick={() => setMostrarFiltros(!mostrarFiltros)}
             className={`px-6 py-3 rounded-lg font-semibold transition-colors flex items-center gap-2 ${
@@ -399,9 +399,9 @@ export function ListagemCIs({ comunicados }: ListagemCIsProps) {
                   <option value="DISCIPLINAR">Disciplinar</option>
                   <option value="CONFLITO">Conflito</option>
                   <option value="AUTORIZACAO_ESPECIAL">
-                    AutorizaÃ§Ã£o Especial
+                    Autorização Especial
                   </option>
-                  <option value="SAUDE">SaÃºde</option>
+                  <option value="SAUDE">Saúde</option>
                   <option value="OUTROS">Outros</option>
                 </select>
               </div>
@@ -425,7 +425,7 @@ export function ListagemCIs({ comunicados }: ListagemCIsProps) {
                 </select>
               </div>
 
-              {/* BotÃ£o Limpar */}
+              {/* Botão Limpar */}
               <div className="flex items-end">
                 <button
                   onClick={limparFiltros}
@@ -527,7 +527,7 @@ export function ListagemCIs({ comunicados }: ListagemCIsProps) {
                     <User size={16} />
                     <span>
                       <span className="font-semibold">Operador:</span>{" "}
-                      {ci.operador?.nome || "NÃ£o informado"}
+                      {ci.operador?.nome || "Não informado"}
                     </span>
                   </div>
                   <div className="flex items-center gap-2 text-gray-600">

@@ -47,7 +47,8 @@ export function ModalQRCode({ visitanteId, visitanteNome, onClose }: Props) {
   const [carregando, setCarregando] = useState(true);
   const [gerando, setGerando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
-  const [visitanteDetalhes, setVisitanteDetalhes] = useState<VisitanteDetalhes | null>(null);
+  const [visitanteDetalhes, setVisitanteDetalhes] =
+    useState<VisitanteDetalhes | null>(null);
   const [carregandoVisitante, setCarregandoVisitante] = useState(true);
   const [gerandoPdf, setGerandoPdf] = useState(false);
 
@@ -60,7 +61,7 @@ export function ModalQRCode({ visitanteId, visitanteNome, onClose }: Props) {
         const data = await response.json();
         setQrCode(data);
       } else if (response.status === 404) {
-        // NÃ£o tem QR Code, vai precisar gerar
+        // Não tem QR Code, vai precisar gerar
         setQrCode(null);
       } else {
         const errorData = await response.json();
@@ -173,7 +174,7 @@ export function ModalQRCode({ visitanteId, visitanteNome, onClose }: Props) {
         doc.text(
           doc.splitTextToSize(visitanteDetalhes.nomeCompleto, cardWidth * 0.7),
           leftX + 10,
-          top + 30
+          top + 30,
         );
 
         doc.setFont("helvetica", "normal");
@@ -182,17 +183,17 @@ export function ModalQRCode({ visitanteId, visitanteNome, onClose }: Props) {
         doc.text(
           `CPF: ${visitanteDetalhes.cpf ?? "Nao informado"}`,
           leftX + 10,
-          top + 40
+          top + 40,
         );
         doc.text(
           `Email: ${visitanteDetalhes.email ?? "Nao informado"}`,
           leftX + 10,
-          top + 46
+          top + 46,
         );
         doc.text(
           `Telefone: ${visitanteDetalhes.telefones?.[0] ?? "Nao informado"}`,
           leftX + 10,
-          top + 52
+          top + 52,
         );
 
         doc.setFont("helvetica", "bold");
@@ -206,7 +207,7 @@ export function ModalQRCode({ visitanteId, visitanteNome, onClose }: Props) {
             ? new Date(qrCode.dataExpiracao).toLocaleDateString("pt-BR")
             : "Sem validade",
           leftX + 10,
-          top + cardHeight - 7
+          top + cardHeight - 7,
         );
 
         const fotoLarg = 50;
@@ -215,10 +216,19 @@ export function ModalQRCode({ visitanteId, visitanteNome, onClose }: Props) {
         const fotoY = top + 18;
         if (visitanteDetalhes.fotoUrl) {
           const foto = await carregarImagemComoDataUrl(
-            visitanteDetalhes.fotoUrl
+            visitanteDetalhes.fotoUrl,
           );
           if (foto) {
-            doc.addImage(foto, "JPEG", fotoX, fotoY, fotoLarg, fotoAlt, undefined, "FAST");
+            doc.addImage(
+              foto,
+              "JPEG",
+              fotoX,
+              fotoY,
+              fotoLarg,
+              fotoAlt,
+              undefined,
+              "FAST",
+            );
           }
         } else {
           doc.setDrawColor(200, 204, 215);
@@ -233,14 +243,13 @@ export function ModalQRCode({ visitanteId, visitanteNome, onClose }: Props) {
         doc.setDrawColor(223, 226, 233);
         doc.roundedRect(leftX, top, cardWidth, cardHeight, 12, 12);
 
-        
         doc.setFont("helvetica", "normal");
         doc.setFontSize(10);
         doc.setTextColor(76, 86, 106);
         doc.text(
           "Apresente este QR Code na portaria para agilizar o acesso.",
           leftX + 10,
-          top + 15
+          top + 15,
         );
 
         const qrSize = 50;
@@ -270,7 +279,6 @@ export function ModalQRCode({ visitanteId, visitanteNome, onClose }: Props) {
       doc.line(leftX, linhaY, leftX + cardWidth, linhaY);
       // @ts-ignore - setLineDashPattern exists in jsPDF but types are incomplete
       doc.setLineDashPattern([], 0);
-
 
       const slug = visitanteDetalhes.nomeCompleto
         .toLowerCase()
@@ -309,7 +317,10 @@ export function ModalQRCode({ visitanteId, visitanteNome, onClose }: Props) {
         <div className="p-6">
           {carregando ? (
             <div className="flex flex-col items-center justify-center py-12">
-              <RefreshCw className="animate-spin text-indigo-600 mb-4" size={48} />
+              <RefreshCw
+                className="animate-spin text-indigo-600 mb-4"
+                size={48}
+              />
               <p className="text-gray-600">Carregando QR Code...</p>
             </div>
           ) : erro ? (
@@ -321,7 +332,10 @@ export function ModalQRCode({ visitanteId, visitanteNome, onClose }: Props) {
               {/* Mensagem de retorno */}
               {qrCode.mensagem && (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 flex items-start gap-3">
-                  <CheckCircle className="text-blue-600 flex-shrink-0 mt-0.5" size={20} />
+                  <CheckCircle
+                    className="text-blue-600 flex-shrink-0 mt-0.5"
+                    size={20}
+                  />
                   <p className="text-blue-700 text-sm">{qrCode.mensagem}</p>
                 </div>
               )}
@@ -331,12 +345,16 @@ export function ModalQRCode({ visitanteId, visitanteNome, onClose }: Props) {
                 {qrCode.ativo ? (
                   <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-3">
                     <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-                    <span className="font-semibold text-green-700">Carteirinha ativa</span>
+                    <span className="font-semibold text-green-700">
+                      Carteirinha ativa
+                    </span>
                   </div>
                 ) : (
                   <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 flex items-center gap-3">
                     <div className="w-3 h-3 bg-gray-400 rounded-full"></div>
-                    <span className="font-semibold text-gray-700">Carteirinha inativa</span>
+                    <span className="font-semibold text-gray-700">
+                      Carteirinha inativa
+                    </span>
                   </div>
                 )}
               </div>
@@ -348,7 +366,10 @@ export function ModalQRCode({ visitanteId, visitanteNome, onClose }: Props) {
                   disabled={gerandoPdf || !visitanteDetalhes}
                   className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-semibold shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <FileDown size={20} className={gerandoPdf ? "animate-pulse" : ""} />
+                  <FileDown
+                    size={20}
+                    className={gerandoPdf ? "animate-pulse" : ""}
+                  />
                   {gerandoPdf ? "Gerando PDF..." : "Salvar PDF"}
                 </button>
                 <button
@@ -356,12 +377,16 @@ export function ModalQRCode({ visitanteId, visitanteNome, onClose }: Props) {
                   disabled={gerando}
                   className="flex items-center justify-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-semibold shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <RefreshCw size={20} className={gerando ? "animate-spin" : ""} />
+                  <RefreshCw
+                    size={20}
+                    className={gerando ? "animate-spin" : ""}
+                  />
                   Atualizar Carteirinha
                 </button>
               </div>
 
-              {/* Carteirinha digital */}{/* Carteirinha digital */}
+              {/* Carteirinha digital */}
+              {/* Carteirinha digital */}
               <div className="mt-10 space-y-3">
                 <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-slate-500">
                   <IdCard size={16} />
@@ -387,7 +412,8 @@ export function ModalQRCode({ visitanteId, visitanteNome, onClose }: Props) {
                   />
                 ) : (
                   <div className="rounded-2xl border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500">
-                    Nao foi possivel carregar os dados do visitante para gerar a carteirinha.
+                    Nao foi possivel carregar os dados do visitante para gerar a
+                    carteirinha.
                   </div>
                 )}
               </div>
@@ -416,14 +442,12 @@ export function ModalQRCode({ visitanteId, visitanteNome, onClose }: Props) {
         {/* Info Footer */}
         <div className="bg-gray-50 px-6 py-4 rounded-b-2xl border-t">
           <p className="text-sm text-gray-600">
-            <strong>Importante:</strong> O QR Code facilita a identificaÃ§Ã£o do visitante na portaria.
-            Apresente o cÃ³digo na entrada da unidade para agilizar o processo de visita.
+            <strong>Importante:</strong> O QR Code facilita a identificação do
+            visitante na portaria. Apresente o código na entrada da unidade para
+            agilizar o processo de visita.
           </p>
         </div>
       </div>
     </div>
   );
 }
-
-
-

@@ -1,5 +1,5 @@
 /**
- * Script para baixar os modelos do face-api.js
+ * Script para baixar os modelos do face-api
  * Execute: node scripts/download-face-models.js
  */
 
@@ -8,7 +8,7 @@ const fs = require('fs');
 const path = require('path');
 
 const MODELS_DIR = path.join(__dirname, '..', 'public', 'models');
-const BASE_URL = 'https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights/';
+const BASE_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@latest/model/';
 
 const MODELS = [
   // SSD MobileNet v1 - Detecção de faces
@@ -57,7 +57,7 @@ function downloadFile(url, destination) {
 
 // Baixar todos os modelos
 async function downloadAllModels() {
-  console.log('Baixando modelos do face-api.js...\n');
+console.log('Baixando modelos do face-api...\n');
 
   for (const model of MODELS) {
     const url = BASE_URL + model;
