@@ -8,12 +8,15 @@
 ## 🔧 Correções de Bugs
 
 ### 1. Exibição de Conflitos Externos - Agrupamento de Rivais
+
 **Arquivo**: `components/mapa/modal-alojamento-detalhes.tsx`
 
 **Problema**:
+
 - Ao visualizar conflitos de um adolescente (ex: Marcos Sanches do bairro Requião), apenas UM rival do bairro conflitante (Santa Felicidade) era exibido, mesmo havendo múltiplos rivais (Carlos Andrade e Jean Reis).
 
 **Solução Implementada** (linhas 308-354):
+
 - Adicionado sistema de deduplicação usando `Set<string>` para processar cada `conflitoId` apenas uma vez
 - Busca TODOS os adolescentes relacionados ao conflito no mapa `impactosPorConflito`
 - Filtra apenas os RIVAIS reais (do bairro/facção oposta), excluindo aliados
@@ -25,9 +28,10 @@ externos.forEach((impacto) => {
   if (conflitosProcessados.has(impacto.conflitoId)) return;
   conflitosProcessados.add(impacto.conflitoId);
 
-  const todosRelacionados = impactosPorConflito
-    .get(impacto.conflitoId)
-    ?.filter((registro) => registro.adolescente.id !== ocupante.id) ?? [];
+  const todosRelacionados =
+    impactosPorConflito
+      .get(impacto.conflitoId)
+      ?.filter((registro) => registro.adolescente.id !== ocupante.id) ?? [];
 
   const rivaisReais = todosRelacionados.filter((registro) => {
     if (impacto.conflitoTipo === "BAIRRO") {
@@ -39,25 +43,31 @@ externos.forEach((impacto) => {
 ```
 
 ### 2. Campo Nome Incorreto - bairroOrigem vs bairro
+
 **Arquivo**: `components/mapa/modal-alojamento-detalhes.tsx`
 
 **Problema**:
+
 - Código usava `registro.adolescente.bairroOrigem?.id` mas a API retorna `registro.adolescente.bairro?.id`
 - Resultava em nenhum rival sendo exibido após o agrupamento
 
 **Solução** (linha 343):
+
 ```typescript
 // ANTES (ERRADO):
-const match = registro.adolescente.bairroOrigem?.id === impacto.conflitoDestino.id;
+const match =
+  registro.adolescente.bairroOrigem?.id === impacto.conflitoDestino.id;
 
 // DEPOIS (CORRETO):
 const match = registro.adolescente.bairro?.id === impacto.conflitoDestino.id;
 ```
 
 ### 3. Ordem de Exibição de Informações
+
 **Arquivo**: `components/mapa/modal-alojamento-detalhes.tsx`
 
 **Mudança** (linhas 627-664):
+
 - Reorganizada ordem dos dados do adolescente:
   1. Nome completo
   2. SMS
@@ -66,6 +76,7 @@ const match = registro.adolescente.bairro?.id === impacto.conflitoDestino.id;
   5. Nível de risco atual (com badge colorido)
 
 **Badge de Risco Colorido** (linhas 652-662):
+
 ```typescript
 <span className={`
   inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold
@@ -81,26 +92,31 @@ const match = registro.adolescente.bairro?.id === impacto.conflitoDestino.id;
 ```
 
 ### 4. Título da Seção de Conflitos
+
 **Arquivo**: `components/mapa/modal-alojamento-detalhes.tsx`
 
 **Mudança** (linha 680):
+
 ```typescript
 // ANTES:
-"Alertas e justificativas do risco"
+"Alertas e justificativas do risco";
 
 // DEPOIS:
-"Conflitos e justificativas do risco"
+"Conflitos e justificativas do risco";
 ```
 
 **Motivo**: Evitar confusão com o sistema de Alertas (alertaRiscoSuicidio, alertaPerfilMapeado, etc.)
 
 ### 5. Erro "casas.forEach is not a function"
+
 **Arquivo**: `components/estrutura/modal-analise-impacto.tsx`
 
 **Problema**:
+
 - API `/api/casas/status` retorna `{ casas: Casa[] }` mas código esperava array direto
 
 **Solução** (linhas 143-144, 250-251):
+
 ```typescript
 // ANTES:
 const casas = await casasResponse.json();
@@ -111,48 +127,57 @@ const casas = casasData.casas || [];
 ```
 
 ### 6. Alojamentos INTERDITADOS Sendo Sugeridos
+
 **Arquivo**: `components/estrutura/modal-analise-impacto.tsx`
 
 **Problema**:
+
 - API retorna `status_manutencao` (snake_case) mas código verificava `statusManutencao` (camelCase)
 - Alojamentos interditados eram incluídos nas sugestões
 
 **Solução** (linhas 257-263):
+
 ```typescript
 // Compatibilidade com ambos os formatos
 const statusManutencao = aloj.status_manutencao || aloj.statusManutencao;
 if (
   statusManutencao !== "INTERDITADO" &&
-  (!aloj.ocupante && !aloj.adolescentes ||
-   (Array.isArray(aloj.adolescentes) && aloj.adolescentes.length === 0))
+  ((!aloj.ocupante && !aloj.adolescentes) ||
+    (Array.isArray(aloj.adolescentes) && aloj.adolescentes.length === 0))
 ) {
   // Incluir alojamento
 }
 ```
 
 ### 7. Encoding UTF-8 - "CRÃTICO" vs "CRITICO"
+
 **Arquivo**: `components/mapa/modal-alocacao.tsx`
 
 **Problema**:
+
 - String "CRÍTICO" estava salva como "CRÃTICO" por erro de encoding
 - Switch statement nunca encontrava match, resultando em cor verde para nível crítico
 
 **Solução** (linha 178):
+
 ```typescript
 case "CRITICO":  // Corrigido de "CRÃTICO"
   return "text-red-600 bg-red-50 border-red-200";
 ```
 
 ### 8. Conflitos de Adolescentes Existentes Não Carregados
+
 **Arquivo**: `app/api/verificar-alocacao/route.ts`
 
 **Problema**:
+
 - API simulava alocação mas adolescentes já no sistema (como João) eram carregados SEM seus conflitos
 - Resultado: simulação de Enzo no aloj. 03 retornava nível 1 mesmo com João (rival) no aloj. 04 frontal
 
 **Solução** (linhas 290-337):
 
 **1. Adicionado includes dos conflitos na query Prisma:**
+
 ```typescript
 adolescentes: {
   where: { statusUnidade: "ATIVO" },
@@ -185,6 +210,7 @@ adolescentes: {
 ```
 
 **2. Mapeamento dos conflitos para AdolescenteRisco** (linhas 363-398):
+
 ```typescript
 adolescentes: alojamento.adolescentes.map((morador: any): AdolescenteRisco => {
   const conflitosA = mapearConflitosInternos(morador, "B");
@@ -192,10 +218,12 @@ adolescentes: alojamento.adolescentes.map((morador: any): AdolescenteRisco => {
 
   // Debug log para verificar
   if (conflitosA.length > 0 || conflitosB.length > 0) {
-    console.log(`[DEBUG] Morador ${morador.nomeCompleto} tem conflitos:`, {
+    console.log(`[DEBUG] Interno ${morador.nomeCompleto} tem conflitos:`, {
       conflitosA: conflitosA.length,
       conflitosB: conflitosB.length,
-      adversarios: [...conflitosA, ...conflitosB].map(c => c.adversario?.nomeCompleto)
+      adversarios: [...conflitosA, ...conflitosB].map(
+        (c) => c.adversario?.nomeCompleto,
+      ),
     });
   }
 
@@ -204,16 +232,19 @@ adolescentes: alojamento.adolescentes.map((morador: any): AdolescenteRisco => {
     conflitosA,
     conflitosB,
   };
-})
+});
 ```
 
 **3. Tratamento de alojamentos INTERDITADOS na simulação** (linhas 442-457):
+
 ```typescript
 // Para simular alocação, alojamento deve estar disponível
 const statusOriginal = alojamentoAlvo.statusManutencao;
 if (alojamentoAlvo.statusManutencao === "INTERDITADO") {
   alojamentoAlvo.statusManutencao = "DISPONIVEL";
-  console.log(`[DEBUG] Alojamento estava INTERDITADO, mudando para DISPONIVEL para simular`);
+  console.log(
+    `[DEBUG] Alojamento estava INTERDITADO, mudando para DISPONIVEL para simular`,
+  );
 }
 ```
 
@@ -222,11 +253,13 @@ if (alojamentoAlvo.statusManutencao === "INTERDITADO") {
 ## 🚀 Novas Funcionalidades
 
 ### 1. Regras de Casa por Tipo de Internação
+
 **Arquivo**: `components/estrutura/modal-analise-impacto.tsx`
 
 **Implementação** (linhas 347-365):
 
 #### Internação Provisória
+
 - **Regra**: APENAS Casa 01 é permitida
 - **Exceção**: Se não houver opções seguras (nível ≤ 3), mostra as 3 menos arriscadas com aviso
 - **Justificativa**: Internação provisória é triagem inicial, deve ficar isolada na Casa 01
@@ -234,12 +267,13 @@ if (alojamentoAlvo.statusManutencao === "INTERDITADO") {
 ```typescript
 if (tipoInternacao === "PROVISORIA") {
   sugestoesValidas = sugestoesValidas.filter(
-    (a) => a.alojamento.casaNumero === 1
+    (a) => a.alojamento.casaNumero === 1,
   );
 }
 ```
 
 #### Internação Definitiva
+
 - **Regra**: Apenas Casas 02 a 07 são permitidas
 - **Exclusões**:
   - Casa 01 (reservada para provisórios)
@@ -255,11 +289,13 @@ else if (tipoInternacao === "DEFINITIVA") {
 ```
 
 ### 2. Sistema de Fallback para Casos de Alto Risco
+
 **Arquivo**: `components/estrutura/modal-analise-impacto.tsx`
 
 **Implementação** (linhas 367-396):
 
 **Lógica**:
+
 1. Separa sugestões em **seguras** (nível 0-3) e **arriscadas** (nível 4-5)
 2. Se houver opções seguras: mostra até 10 (ou 3 se casa específica)
 3. Se NÃO houver opções seguras:
@@ -276,26 +312,30 @@ const sugestoesArriscadas = sugestoesValidas
   .filter((a) => a.nivelRisco >= 4)
   .sort((a, b) => a.nivelRisco - b.nivelRisco);
 
-const sugestoes = sugestoesSeguras.length > 0
-  ? sugestoesSeguras.slice(0, limitesugestoes)
-  : sugestoesArriscadas.slice(0, 3).map((sug) => ({
-      ...sug,
-      motivos: [
-        "⚠️ AVISO: Não há alojamentos seguros disponíveis. Esta é a opção MENOS ARRISCADA.",
-        ...sug.motivos,
-      ],
-    }));
+const sugestoes =
+  sugestoesSeguras.length > 0
+    ? sugestoesSeguras.slice(0, limitesugestoes)
+    : sugestoesArriscadas.slice(0, 3).map((sug) => ({
+        ...sug,
+        motivos: [
+          "⚠️ AVISO: Não há alojamentos seguros disponíveis. Esta é a opção MENOS ARRISCADA.",
+          ...sug.motivos,
+        ],
+      }));
 ```
 
 ### 3. Seletor de Casa Específica para Operadores
+
 **Arquivo**: `components/estrutura/modal-analise-impacto.tsx`
 
 **Estado Adicionado** (linha 82):
+
 ```typescript
 const [casaEspecifica, setCasaEspecifica] = useState<number | null>(null);
 ```
 
 **UI Implementada** (linhas 674-730):
+
 - Seção opcional que aparece após selecionar tipo de internação
 - Botão "Automático" (padrão): aplica regras por tipo de internação
 - Botões de Casa 01 a 07 conforme tipo:
@@ -336,27 +376,29 @@ const [casaEspecifica, setCasaEspecifica] = useState<number | null>(null);
 ```
 
 **Lógica de Filtro** (linhas 348-365):
+
 ```typescript
 if (casaEspecifica !== null) {
   // Modo manual: filtrar apenas pela casa selecionada
   sugestoesValidas = sugestoesValidas.filter(
-    (a) => a.alojamento.casaNumero === casaEspecifica
+    (a) => a.alojamento.casaNumero === casaEspecifica,
   );
 } else {
   // Modo automático: aplicar regras por tipo de internação
   if (tipoInternacao === "PROVISORIA") {
     sugestoesValidas = sugestoesValidas.filter(
-      (a) => a.alojamento.casaNumero === 1
+      (a) => a.alojamento.casaNumero === 1,
     );
   } else if (tipoInternacao === "DEFINITIVA") {
     sugestoesValidas = sugestoesValidas.filter(
-      (a) => a.alojamento.casaNumero >= 2 && a.alojamento.casaNumero <= 7
+      (a) => a.alojamento.casaNumero >= 2 && a.alojamento.casaNumero <= 7,
     );
   }
 }
 ```
 
 **Limite de Resultados** (linhas 384, 236):
+
 ```typescript
 // Quando casa específica selecionada: mostrar TOP 3
 // Quando automático: mostrar até 10
@@ -364,17 +406,19 @@ const limitesugestoes = casaEspecifica !== null ? 3 : 10;
 ```
 
 ### 4. Melhorias na Estrutura de Dados
+
 **Arquivo**: `components/estrutura/modal-analise-impacto.tsx`
 
 **Campo casaNumero Adicionado** (linhas 291-303):
+
 ```typescript
 const avaliacao = {
   alojamento: {
     id: aloj.id,
-    numero: aloj.numero || aloj.numeroAlojamento,  // Compatibilidade
+    numero: aloj.numero || aloj.numeroAlojamento, // Compatibilidade
     ala: aloj.ala,
-    casa: aloj.casa.nome || `Casa ${String(aloj.casa.numero).padStart(2, '0')}`,
-    casaNumero: aloj.casa.numero,  // NOVO: facilita filtragem
+    casa: aloj.casa.nome || `Casa ${String(aloj.casa.numero).padStart(2, "0")}`,
+    casaNumero: aloj.casa.numero, // NOVO: facilita filtragem
   },
   nivelRisco: resultado.nivel_numerico ?? 3,
   categoria: resultado.nivel_risco ?? "DESCONHECIDO",
@@ -388,6 +432,7 @@ const avaliacao = {
 ## 🔍 Debug e Logs Adicionados
 
 ### Logs Temporários para Diagnóstico
+
 **Arquivos com Debug Logs**:
 
 1. **modal-alojamento-detalhes.tsx** (linhas 326-336, 344, 354):
@@ -400,7 +445,7 @@ const avaliacao = {
    - Log de cada avaliação de alojamento
 
 3. **app/api/verificar-alocacao/route.ts** (linhas 322-327, 368-376, 383-391, 401-405, 428-432):
-   - Log de moradores com conflitos carregados
+   - Log de internos com conflitos carregados
    - Log de adolescente sendo simulado
    - Log de status do alojamento antes da simulação
    - Log de alojamento frontal detectado
@@ -414,25 +459,26 @@ const avaliacao = {
 
 ### Matriz de Alocação por Tipo de Internação
 
-| Tipo de Internação | Casas Permitidas | Casas Excluídas | Motivo da Exclusão |
-|-------------------|------------------|-----------------|-------------------|
-| **Provisória** | Casa 01 | Casas 02-08 | Triagem inicial, isolamento |
-| **Definitiva** | Casas 02-07 | Casa 01, Casa 08 | Casa 01 é provisória; Casa 08 é Fase 3 |
+| Tipo de Internação | Casas Permitidas | Casas Excluídas  | Motivo da Exclusão                     |
+| ------------------ | ---------------- | ---------------- | -------------------------------------- |
+| **Provisória**     | Casa 01          | Casas 02-08      | Triagem inicial, isolamento            |
+| **Definitiva**     | Casas 02-07      | Casa 01, Casa 08 | Casa 01 é provisória; Casa 08 é Fase 3 |
 
 ### Níveis de Risco e Ações
 
-| Nível | Categoria | Cor | Ação do Sistema |
-|-------|-----------|-----|-----------------|
-| 0 | LIVRE | Cinza | Sugerir normalmente |
-| 1 | SEGURO | Verde | Sugerir normalmente |
-| 2 | MONITORAR | Lima | Sugerir normalmente |
-| 3 | ATENÇÃO | Amarelo | Sugerir com ressalvas |
-| 4 | ELEVADO | Laranja | Não sugerir (exceto se não houver opções) |
-| 5 | CRÍTICO | Vermelho | Não sugerir (exceto se não houver opções) |
+| Nível | Categoria | Cor      | Ação do Sistema                           |
+| ----- | --------- | -------- | ----------------------------------------- |
+| 0     | LIVRE     | Cinza    | Sugerir normalmente                       |
+| 1     | SEGURO    | Verde    | Sugerir normalmente                       |
+| 2     | MONITORAR | Lima     | Sugerir normalmente                       |
+| 3     | ATENÇÃO   | Amarelo  | Sugerir com ressalvas                     |
+| 4     | ELEVADO   | Laranja  | Não sugerir (exceto se não houver opções) |
+| 5     | CRÍTICO   | Vermelho | Não sugerir (exceto se não houver opções) |
 
 ### Filtros de Sugestão
 
 **Modo Automático**:
+
 - Exclui alojamentos INTERDITADOS
 - Exclui alojamentos já ocupados
 - Aplica regras de casa por tipo de internação
@@ -440,6 +486,7 @@ const avaliacao = {
 - Mostra até 10 sugestões
 
 **Modo Casa Específica**:
+
 - Exclui alojamentos INTERDITADOS
 - Exclui alojamentos já ocupados
 - Filtra APENAS pela casa selecionada
@@ -451,28 +498,35 @@ const avaliacao = {
 ## 🧪 Testes Realizados
 
 ### Cenário 1: Enzo (não alocado) com conflito com João
+
 **Setup**:
+
 - Enzo: não alocado, tem conflito ATIVO com João
 - João: alocado no alojamento 04, Ala A, Casa 01
 
 **Teste 1**: Sugestão automática para Enzo (Provisória)
+
 - ✅ Sistema exclui alojamento 08 (INTERDITADO)
 - ✅ Sistema filtra apenas Casa 01
 - ❌ **BUG IDENTIFICADO**: Alojamento 03 (frontal ao João) retornava nível 1
 - ✅ **CORRIGIDO**: Conflitos de João agora são carregados, detecta conflito frontal
 
 **Teste 2**: Seleção de casa específica
+
 - ✅ Filtro por casa funciona corretamente
 - ✅ Mostra apenas top 3 da casa selecionada
 - ✅ Ordena por nível de risco crescente
 
 ### Cenário 2: Marcos Sanches (Requião) vs Santa Felicidade
+
 **Setup**:
+
 - Marcos Sanches: bairro Requião
 - Conflito territorial: Requião ↔ Santa Felicidade
 - Carlos Andrade e Jean Reis: ambos de Santa Felicidade, ambos na mesma ala
 
 **Teste**: Visualizar conflitos de Marcos
+
 - ❌ **BUG ORIGINAL**: Mostrava apenas Carlos OU Jean
 - ✅ **CORRIGIDO**: Mostra AMBOS Carlos E Jean em um único card de conflito
 
@@ -514,14 +568,17 @@ Nenhuma migração de banco de dados foi necessária nesta sessão.
 ## 🆕 Novas Implementações (2025-11-11 - Sessão Continuação)
 
 ### 1. Validação Casa 08 - Fase 3
+
 **Arquivo**: `components/estrutura/modal-analise-impacto.tsx`
 
 **Funcionalidade**:
+
 - Casa 08 é reservada para adolescentes em Fase 3 (progressão de medida)
 - **Regra Crítica**: Apenas adolescentes SEM conflitos ativos podem ser alocados na Casa 08
 - Filtragem automática: Casa 08 só aparece nas sugestões se o nível de risco for 0 ou 1 (LIVRE ou SEGURO)
 
 **Implementação** (linhas 358-363):
+
 ```typescript
 // Casa 08: apenas se não houver conflitos (Fase 3)
 if (casaNum === 8) {
@@ -530,23 +587,27 @@ if (casaNum === 8) {
 ```
 
 **Interface**:
+
 - Botão da Casa 08 tem estilo especial (borda roxa, fundo roxo claro)
 - Ícone de estrela (★) indica casa especial
 - Tooltip explicativo: "Casa 08 - Fase 3 (apenas sem conflitos)"
 
 **Também Aplicado em**:
+
 - Modal de Realocação (`components/mapa/modal-alocacao.tsx`)
 - Mesma lógica de validação implementada
 
 ---
 
 ### 2. Dashboard de Tensão por Casa
+
 **Arquivo Novo**: `app/dashboard-tensao/page.tsx`
 
 **Objetivo**:
 Fornecer uma visão executiva do estado de tensão de toda a unidade, facilitando a tomada de decisões estratégicas sobre realocações e intervenções.
 
 **🆕 Melhorias Adicionadas (Sessão Continuação 2)**:
+
 - ✅ **Timestamp de última atualização** com hora exata (HH:MM:SS)
 - ✅ **Botão de Atualizar otimizado** com indicador de loading (ícone animado)
 - ✅ **Exportação CSV** com todos os dados do dashboard
@@ -557,15 +618,18 @@ Fornecer uma visão executiva do estado de tensão de toda a unidade, facilitand
 **Funcionalidades Principais**:
 
 #### Estatísticas Gerais (4 cards no topo)
+
 1. **Total Alojamentos**: Quantidade total de alojamentos na unidade
 2. **Ocupados**: Quantidade de alojamentos com adolescentes + taxa de ocupação %
 3. **Com Risco**: Alojamentos com nível de risco ≥ 3 (Atenção, Elevado, Crítico)
 4. **Tensão Total**: Soma do score de tensão de todas as casas
 
 #### Cards Individuais por Casa
+
 Cada casa é exibida em um card com:
 
 **Header (fundo gradiente indigo)**:
+
 - Nome/número da casa
 - Ícone de escudo se for casa isolada
 - Badge de tensão com cores dinâmicas:
@@ -576,39 +640,46 @@ Cada casa é exibida em um card com:
   - Vermelho: Crítica (score > 30)
 
 **Alojamentos** (grid 2x2):
+
 - Total
 - Ocupados (verde)
 - Livres (azul)
 - Em Risco - nível 3+ (laranja)
 
 **Distribuição de Risco**:
+
 - Barras horizontais visuais mostrando quantidade de alojamentos em cada nível
 - Apenas níveis 3+ são exibidos (Crítico 5, Elevado 4, Atenção 3)
 - Se todos seguros (0-2), exibe mensagem com ícone de escudo
 - Largura da barra proporcional ao total de alojamentos
 
 **Conflitos Ativos**:
+
 - Contador de conflitos ativos de todos os adolescentes na casa
 - Vermelho se > 0, verde se = 0
 
 **Controles**:
+
 - Botão "Exportar" (verde) - baixa arquivo CSV com dados completos
 - Botão "Atualizar" (indigo) - recarrega dados com animação de loading
 - Ordenação por "Maior Tensão" (padrão) ou "Número da Casa"
 - Timestamp de última atualização logo abaixo do título
 
 **Exportação CSV** (novo):
+
 - Formato: UTF-8 com BOM para compatibilidade com Excel
 - Colunas: Casa, Score Tensão, Nível Tensão, Total Alojamentos, Ocupados, Livres, Em Risco, Crítico (5), Elevado (4), Atenção (3), Conflitos Ativos
 - Nome do arquivo: `dashboard-tensao-YYYY-MM-DD.csv`
 - Dados exportados refletem ordenação atual
 
 **Integração**:
+
 - Usa API existente `/api/casas/status`
 - Processa dados client-side para métricas
 - Link "Voltar para Estrutura" no topo
 
 **Navegação Adicionada**:
+
 - Botão "Dashboard de Tensão" no header da página `/estrutura`
 - Estilo gradiente roxo-indigo com ícone BarChart3
 - Link bidirecional entre estrutura ↔ dashboard
@@ -618,14 +689,16 @@ Cada casa é exibida em um card com:
 ## 📚 Arquivos Modificados/Criados
 
 ### Modificados
+
 1. `components/mapa/modal-alojamento-detalhes.tsx`
 2. `components/estrutura/modal-analise-impacto.tsx`
 3. `components/mapa/modal-alocacao.tsx`
 4. `app/api/verificar-alocacao/route.ts`
-5. `app/(dashboard)/estrutura/estrutura-tabs.tsx` *(NOVO na sessão continuação)*
+5. `app/(dashboard)/estrutura/estrutura-tabs.tsx` _(NOVO na sessão continuação)_
 
 ### Criados
-6. `app/dashboard-tensao/page.tsx` *(NOVO - 443 linhas)*
+
+6. `app/dashboard-tensao/page.tsx` _(NOVO - 443 linhas)_
 7. `CHANGELOG-SESSION.md`
 8. `PENDENCIAS.md`
 

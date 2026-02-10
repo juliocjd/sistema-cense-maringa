@@ -76,114 +76,144 @@ export function Sidebar({
   }, [user]);
   const podeCadastrarAdolescente = useMemo(
     () => hasPermission(user?.permissions, PERMISSIONS.ADOLESCENTES_CREATE),
-    [user?.permissions]
+    [user?.permissions],
   );
   const podeVerConflitosExternos = useMemo(
     () => hasPermission(user?.permissions, PERMISSIONS.CONFLITOS_EXTERNOS_VIEW),
-    [user?.permissions]
+    [user?.permissions],
   );
   const podeVerJustificativas = useMemo(
-    () => hasPermission(user?.permissions, PERMISSIONS.JUSTIFICATIVAS_ALGEMA_VIEW),
-    [user?.permissions]
+    () =>
+      hasPermission(user?.permissions, PERMISSIONS.JUSTIFICATIVAS_ALGEMA_VIEW),
+    [user?.permissions],
   );
 
   const menuItems: MenuSection[] = useMemo(
-    () => [
-      {
-        section: "Principal",
-        items: [
-          { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-          { label: "Estrutura & Mapa", href: "/estrutura", icon: Building2 },
-        ],
-      },
-      {
-        section: "Adolescentes",
-        items: [
-          { label: "Lista de Adolescentes", href: "/adolescentes", icon: Users },
-          ...(podeCadastrarAdolescente
+    () =>
+      [
+        {
+          section: "Principal",
+          items: [
+            { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+            { label: "Estrutura & Mapa", href: "/estrutura", icon: Building2 },
+          ],
+        },
+        {
+          section: "Adolescentes",
+          items: [
+            {
+              label: "Lista de Adolescentes",
+              href: "/adolescentes",
+              icon: Users,
+            },
+            ...(podeCadastrarAdolescente
+              ? [
+                  {
+                    label: "Novo Cadastro",
+                    href: "/adolescentes/novo",
+                    icon: UserPlus,
+                  },
+                ]
+              : []),
+          ],
+        },
+        {
+          section: "Cadastro",
+          items: podeVerConflitosExternos
             ? [
                 {
-                  label: "Novo Cadastro",
-                  href: "/adolescentes/novo",
-                  icon: UserPlus,
+                  label: "Bairro/Cidade",
+                  href: "/cadastros/bairros",
+                  icon: MapPin,
+                },
+                { label: "Facções", href: "/cadastros/faccoes", icon: Flag },
+                { label: "Tatuagens", href: "/tatuagens", icon: PenTool },
+                {
+                  label: "Técnicos de Referência",
+                  href: "/tecnicos",
+                  icon: User,
                 },
               ]
-            : []),
-        ],
-      },
-      {
-        section: "Cadastro",
-        items: podeVerConflitosExternos
-          ? [
-              { label: "Bairro/Cidade", href: "/cadastros/bairros", icon: MapPin },
-              { label: "Facções", href: "/cadastros/faccoes", icon: Flag },
-              { label: "Tatuagens", href: "/tatuagens", icon: PenTool },
-              {
-                label: "Técnicos de Referência",
-                href: "/tecnicos",
-                icon: User,
-              },
-            ]
-          : [],
-      },
-      {
-        section: "Gestão",
-        items: [
-          { label: "Comunicados Internos", href: "/comunicados", icon: FileText },
-          { label: "Conflitos Internos", href: "/conflitos", icon: Swords },
-          { label: "Alertas Ativos", href: "/alertas", icon: AlertTriangle },
-          ...(podeVerConflitosExternos
+            : [],
+        },
+        {
+          section: "Gestão",
+          items: [
+            {
+              label: "Comunicados Internos",
+              href: "/comunicados",
+              icon: FileText,
+            },
+            { label: "Conflitos Internos", href: "/conflitos", icon: Swords },
+            { label: "Alertas Ativos", href: "/alertas", icon: AlertTriangle },
+            ...(podeVerConflitosExternos
+              ? [
+                  {
+                    label: "Conflitos Externos",
+                    href: "/inteligencia/conflitos",
+                    icon: BarChart3,
+                  },
+                ]
+              : []),
+            { label: "Grupos de Atividade", href: "/grupos", icon: UserCircle },
+            { label: "Eventos Especiais", href: "/eventos", icon: Calendar },
+          ],
+        },
+        {
+          section: "Relatorios",
+          items: [
+            {
+              label: "Central de Relatórios",
+              href: "/relatorios",
+              icon: FileText,
+            },
+            { label: "Analytics", href: "/analytics", icon: PieChart },
+            ...(podeVerJustificativas
+              ? [
+                  {
+                    label: "Justificativas de Algema",
+                    href: "/justificativas-algema",
+                    icon: Lock,
+                  },
+                ]
+              : []),
+          ],
+        },
+        {
+          section: "Visitantes",
+          items: [
+            {
+              label: "Cadastro de Visitantes",
+              href: "/visitantes",
+              icon: Users,
+            },
+            { label: "Portaria", href: "/portaria", icon: UserCheck },
+            {
+              label: "Gestão de Visitas",
+              href: "/gestao-visitas",
+              icon: ClipboardList,
+            },
+          ],
+        },
+        {
+          section: "Configuracoes",
+          items: isAdmin
             ? [
                 {
-                  label: "Conflitos Externos",
-                  href: "/inteligencia/conflitos",
-                  icon: BarChart3,
+                  label: "Usuários & Papéis",
+                  href: "/configuracoes/usuarios",
+                  icon: Settings,
                 },
               ]
-            : []),
-          { label: "Grupos de Atividade", href: "/grupos", icon: UserCircle },
-          { label: "Eventos Especiais", href: "/eventos", icon: Calendar },
-        ],
-      },
-      {
-        section: "Relatorios",
-        items: [
-          { label: "Central de Relatórios", href: "/relatorios", icon: FileText },
-          { label: "Analytics", href: "/analytics", icon: PieChart },
-          ...(podeVerJustificativas
-            ? [
-                {
-                  label: "Justificativas de Algema",
-                  href: "/justificativas-algema",
-                  icon: Lock,
-                },
-              ]
-            : []),
-        ],
-      },
-      {
-        section: "Visitantes",
-        items: [
-          { label: "Cadastro de Visitantes", href: "/visitantes", icon: Users },
-          { label: "Portaria", href: "/portaria", icon: UserCheck },
-          { label: "Gestão de Visitas", href: "/gestao-visitas", icon: ClipboardList },
-        ],
-      },
-      {
-        section: "Configuracoes",
-        items: isAdmin
-          ? [
-              {
-                label: "Usu�rios & Pap�is",
-                href: "/configuracoes/usuarios",
-                icon: Settings,
-              },
-            ]
-          : [],
-      },
-    ]
-      .filter((section) => section.items.length > 0),
-    [isAdmin, podeCadastrarAdolescente, podeVerConflitosExternos, podeVerJustificativas]
+            : [],
+        },
+      ].filter((section) => section.items.length > 0),
+    [
+      isAdmin,
+      podeCadastrarAdolescente,
+      podeVerConflitosExternos,
+      podeVerJustificativas,
+    ],
   );
 
   const isActive = (href: string) => {
@@ -204,7 +234,9 @@ export function Sidebar({
 
       <aside
         className={`fixed top-0 left-0 h-full bg-gradient-to-b from-indigo-900 to-indigo-950 text-white shadow-2xl transition-all duration-300 overflow-hidden ${
-          expanded ? "w-64 z-40" : "w-0 pointer-events-none lg:pointer-events-auto lg:w-20 lg:z-40 lg:hover:w-64"
+          expanded
+            ? "w-64 z-40"
+            : "w-0 pointer-events-none lg:pointer-events-auto lg:w-20 lg:z-40 lg:hover:w-64"
         } ${expanded ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}
         onMouseEnter={() => {
           if (isDesktop) setForceOpen(true);
@@ -304,6 +336,3 @@ export function Sidebar({
     </>
   );
 }
-
-
-

@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
     if (!operadorId) {
       return NextResponse.json(
         { erro: "Operador nao autenticado" },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
     if (!operadorValido) {
       return NextResponse.json(
         { erro: "Operador nao encontrado" },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
     if (!hasPermission(permissoes, PERMISSIONS.ESTRUTURA_EDIT)) {
       return NextResponse.json(
         { erro: "Sem permissao para alterar a estrutura" },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
     } catch {
       return NextResponse.json(
         { erro: "Payload invalido: esperado JSON" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -94,13 +94,13 @@ export async function POST(request: NextRequest) {
     if (!adolescenteId || !alojamentoId) {
       return NextResponse.json(
         { erro: "adolescenteId e alojamentoId sao obrigatorios" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     const verificarUrl = new URL(
       "/api/verificar-alocacao",
-      request.nextUrl.origin
+      request.nextUrl.origin,
     );
     verificarUrl.searchParams.set("adolescenteId", adolescenteId);
     verificarUrl.searchParams.set("alojamentoId", alojamentoId);
@@ -115,14 +115,12 @@ export async function POST(request: NextRequest) {
     if (!verificacao.ok) {
       return NextResponse.json(
         { erro: "Nao foi possivel verificar a alocacao" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
     const dadosVerificacao = (await verificacao.json()) as VerificacaoPayload;
-    const requerJustificativa = Boolean(
-      dadosVerificacao?.requer_justificativa
-    );
+    const requerJustificativa = Boolean(dadosVerificacao?.requer_justificativa);
     const nivelRisco = dadosVerificacao?.nivel_risco ?? null;
     const alertas = Array.isArray(dadosVerificacao?.alertas)
       ? dadosVerificacao.alertas
@@ -136,7 +134,7 @@ export async function POST(request: NextRequest) {
           alertas,
           requer_justificativa: true,
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -153,14 +151,14 @@ export async function POST(request: NextRequest) {
     if (!alojamento) {
       return NextResponse.json(
         { erro: "Alojamento nao encontrado" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
     if (alojamento.statusManutencao === "INTERDITADO") {
       return NextResponse.json(
         { erro: "Alojamento esta interditado" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -170,7 +168,7 @@ export async function POST(request: NextRequest) {
           erro: "Alojamento ja esta ocupado",
           ocupante: alojamento.adolescentes[0].nomeCompleto,
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -188,14 +186,14 @@ export async function POST(request: NextRequest) {
     if (!adolescente) {
       return NextResponse.json(
         { erro: "Adolescente nao encontrado" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
     if (adolescente.statusUnidade !== "ATIVO") {
       return NextResponse.json(
         { erro: "Apenas adolescentes ativos podem ser alocados" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -207,7 +205,7 @@ export async function POST(request: NextRequest) {
     if (motivoTransferenciaExigido && motivoTransferencia.length === 0) {
       return NextResponse.json(
         { erro: "Informe o motivo da transferencia de alojamento." },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -240,7 +238,7 @@ export async function POST(request: NextRequest) {
             alojamentoId,
             nivelAlerta: nivelRisco === null ? null : String(nivelRisco),
             conflitosDetectados: alertas.filter((alerta) =>
-              ensureString(alerta?.tipo).includes("CONFLITO")
+              ensureString(alerta?.tipo).includes("CONFLITO"),
             ),
             justificativaOperador: justificativa,
             medidasAdicionais,
@@ -319,7 +317,7 @@ export async function POST(request: NextRequest) {
         nivel_risco: nivelRisco,
         alertas_processados: alertas.length,
       },
-      { status: 201 }
+      { status: 201 },
     );
   } catch (error) {
     return NextResponse.json(
@@ -327,7 +325,7 @@ export async function POST(request: NextRequest) {
         erro: "Erro ao alocar adolescente",
         detalhes: error instanceof Error ? error.message : String(error),
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -340,7 +338,7 @@ export async function DELETE(request: NextRequest) {
     if (!operadorId) {
       return NextResponse.json(
         { erro: "Operador nao autenticado" },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
@@ -352,7 +350,7 @@ export async function DELETE(request: NextRequest) {
     if (!operadorValido) {
       return NextResponse.json(
         { erro: "Operador nao encontrado" },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
@@ -360,7 +358,7 @@ export async function DELETE(request: NextRequest) {
     if (!hasPermission(permissoes, PERMISSIONS.ESTRUTURA_EDIT)) {
       return NextResponse.json(
         { erro: "Sem permissao para alterar a estrutura" },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
@@ -370,14 +368,16 @@ export async function DELETE(request: NextRequest) {
       body = await request.json().catch(() => null);
     }
 
-    const queryId = ensureString(request.nextUrl.searchParams.get("adolescenteId"));
+    const queryId = ensureString(
+      request.nextUrl.searchParams.get("adolescenteId"),
+    );
     const bodyId = ensureString(body?.adolescenteId);
     const adolescenteId = queryId || bodyId;
 
     if (!adolescenteId) {
       return NextResponse.json(
         { erro: "adolescenteId e obrigatorio" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -397,14 +397,14 @@ export async function DELETE(request: NextRequest) {
     if (!adolescente) {
       return NextResponse.json(
         { erro: "Adolescente nao encontrado" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
     if (!adolescente.alojamentoAtualId) {
       return NextResponse.json(
         { erro: "Adolescente ja esta sem alojamento" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -466,10 +466,10 @@ export async function DELETE(request: NextRequest) {
   } catch (error) {
     return NextResponse.json(
       {
-        erro: "Erro ao remover alocacao",
+        erro: "Erro ao remover alocação",
         detalhes: error instanceof Error ? error.message : String(error),
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

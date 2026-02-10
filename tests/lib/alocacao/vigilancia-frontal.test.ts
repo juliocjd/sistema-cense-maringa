@@ -8,7 +8,7 @@ import type { CasaRisco } from "@/lib/riscos/calcular";
 
 const criarAdolescenteRisco = (
   id: string,
-  opts?: { suicidio?: boolean; nivel?: string | null }
+  opts?: { suicidio?: boolean; nivel?: string | null },
 ) => ({
   id,
   nomeCompleto: `Adolescente ${id}`,
@@ -112,11 +112,11 @@ describe("avaliarVigilanciaFrontal", () => {
     const resultado = avaliarVigilanciaFrontal(alvo, mapa);
     expect(resultado.valido).toBe(true);
     expect(resultado.avisos).toBeTruthy();
-    expect(resultado.avisos?.[0]).toContain("alerta de risco de suicidio");
+    expect(resultado.avisos?.[0]).toContain("alerta de risco de suicídio");
   });
 });
 
-describe("simularAlocacao - vigilancia frontal para risco de suicidio", () => {
+describe("simularAlocacao - vigilancia frontal para risco de suicídio", () => {
   const adolescenteBase = {
     id: "ado-1",
     nomeCompleto: "Fulano",
@@ -146,13 +146,13 @@ describe("simularAlocacao - vigilancia frontal para risco de suicidio", () => {
     expect(dados.permite_alocacao).toBe(false);
     expect(
       dados.alertas.some((alerta: any) =>
-        alerta.mensagem.includes("Sem vigilancia frontal")
-      )
+        alerta.mensagem.includes("Sem vigilancia frontal"),
+      ),
     ).toBe(true);
     expect(
       dados.motivos.some((motivo: string) =>
-        motivo.includes("Sem vigilancia frontal")
-      )
+        motivo.includes("Sem vigilancia frontal"),
+      ),
     ).toBe(true);
   });
 
@@ -170,8 +170,8 @@ describe("simularAlocacao - vigilancia frontal para risco de suicidio", () => {
     expect(dados.permite_alocacao).toBe(true);
     expect(
       dados.alertas.some((alerta: any) =>
-        alerta.mensagem.includes("Sem vigilancia frontal")
-      )
+        alerta.mensagem.includes("Sem vigilancia frontal"),
+      ),
     ).toBe(false);
   });
 
@@ -192,8 +192,8 @@ describe("simularAlocacao - vigilancia frontal para risco de suicidio", () => {
     expect(dados.permite_alocacao).toBe(true);
     expect(
       dados.alertas.some((alerta: any) =>
-        alerta.mensagem.includes("tambem possui alerta de risco de suicidio")
-      )
+        alerta.mensagem.includes("tambem possui alerta de risco de suicídio"),
+      ),
     ).toBe(true);
   });
 
@@ -210,8 +210,8 @@ describe("simularAlocacao - vigilancia frontal para risco de suicidio", () => {
     expect(dados.permite_alocacao).toBe(true);
     expect(
       dados.alertas.some((alerta: any) =>
-        alerta.mensagem.includes("Sem vigilancia frontal")
-      )
+        alerta.mensagem.includes("Sem vigilancia frontal"),
+      ),
     ).toBe(false);
   });
 });

@@ -132,7 +132,7 @@ const criarAlertasVinculosInfracionais = ({
       .map((id) => vinculosMap.get(id))
       .filter(Boolean);
     const detalhe =
-      descricoes.length > 0 ? ` Detalhes: ${descricoes.join("; ")}.` : "";
+      descricoes.length > 0 ? `\nDetalhes: ${descricoes.join("; ")}.` : "";
 
     alertas.push({
       tipo: "ATO_INFRACIONAL",

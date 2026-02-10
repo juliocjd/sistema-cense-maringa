@@ -35,12 +35,12 @@ interface MapaInterativoProps {
     alojamentoId: string,
     justificativa?: string,
     motivoTransferencia?: string,
-    motivoTransferenciaObrigatorio?: boolean
+    motivoTransferenciaObrigatorio?: boolean,
   ) => Promise<void>;
   onDesalocar: (
     alojamentoId: string,
     adolescenteId: string,
-    motivo?: string
+    motivo?: string,
   ) => Promise<string>;
   onDesinternar: (adolescenteId: string) => Promise<void>;
   onTransferir: (
@@ -48,14 +48,14 @@ interface MapaInterativoProps {
     destinoAlojamentoId: string,
     justificativa?: string,
     motivoOperador?: string,
-    motivoObrigatorio?: boolean
+    motivoObrigatorio?: boolean,
   ) => Promise<void>;
   onAlterarStatusAlojamento: (
     alojamentoId: string,
     status: "LIVRE" | "INTERDITADO",
     justificativa: string,
     documentoTipo: "CI" | "DECISAO_JUDICIAL" | "OUTRO",
-    documentoReferencia: string
+    documentoReferencia: string,
   ) => Promise<void>;
 }
 
@@ -80,7 +80,7 @@ const classePorNivel: Record<0 | 1 | 2 | 3 | 4 | 5, string> = {
 
 const formatarLocalReferencia = (
   casa?: Pick<Casa, "nome"> | null,
-  alojamento?: Pick<Alojamento, "numeroAlojamento" | "ala"> | null
+  alojamento?: Pick<Alojamento, "numeroAlojamento" | "ala"> | null,
 ) => {
   const partes: string[] = [];
   if (casa?.nome) {
@@ -93,7 +93,7 @@ const formatarLocalReferencia = (
 };
 
 const mapearAdolescenteRisco = (
-  adolescente: Adolescente
+  adolescente: Adolescente,
 ): AdolescenteRisco => ({
   id: adolescente.id,
   nomeCompleto: adolescente.nomeCompleto,
@@ -104,15 +104,17 @@ const mapearAdolescenteRisco = (
   alertaSaudeConfidencial: adolescente.alertaSaudeConfidencial,
   alertaSaudeDetalhes: adolescente.alertaSaudeDetalhes ?? null,
   alertaRiscoSuicidioNivel: adolescente.alertaRiscoSuicidioNivel ?? null,
-  atoInfracionalVinculos:
-    (adolescente.atoInfracionalVinculos ?? [])
-      .map((item: any) => ({
-        id: item?.id ?? item?.vinculoId ?? item?.vinculo?.id ?? "",
-        descricao: item?.descricao ?? item?.vinculo?.descricao ?? null,
-      }))
-      .filter((item: any) => item.id),
+  atoInfracionalVinculos: (adolescente.atoInfracionalVinculos ?? [])
+    .map((item: any) => ({
+      id: item?.id ?? item?.vinculoId ?? item?.vinculo?.id ?? "",
+      descricao: item?.descricao ?? item?.vinculo?.descricao ?? null,
+    }))
+    .filter((item: any) => item.id),
   faccao: adolescente.faccao
-    ? { id: adolescente.faccao.id ?? null, nome: adolescente.faccao.nome ?? null }
+    ? {
+        id: adolescente.faccao.id ?? null,
+        nome: adolescente.faccao.nome ?? null,
+      }
     : null,
   conflitosA: adolescente.conflitosA ?? [],
   conflitosB: adolescente.conflitosB ?? [],
@@ -186,10 +188,12 @@ export function MapaInterativo({
         isolada: casa.isolada,
         alojamentos: casa.alojamentos.map((alojamento) => ({
           ...alojamento,
-          adolescentes: (alojamento.adolescentes ?? []).map(mapearAdolescenteRisco),
+          adolescentes: (alojamento.adolescentes ?? []).map(
+            mapearAdolescenteRisco,
+          ),
         })),
       })),
-    [casasNormalizadas]
+    [casasNormalizadas],
   );
 
   const alojamentosPorId = useMemo(() => {
@@ -204,7 +208,7 @@ export function MapaInterativo({
 
   const slotsPorAdolescente = useMemo(
     () => criarMapaSlots(casasParaCalculo),
-    [casasParaCalculo]
+    [casasParaCalculo],
   );
 
   const avaliarRiscoAlojamento = useCallback(
@@ -227,13 +231,13 @@ export function MapaInterativo({
 
       const nivelSeguro = Math.max(
         0,
-        Math.min(5, Math.round(resultadoBase.nivel ?? 0))
+        Math.min(5, Math.round(resultadoBase.nivel ?? 0)),
       ) as 0 | 1 | 2 | 3 | 4 | 5;
 
       const corClass =
         resultadoBase.categoria === "INTERDITADO"
           ? riscoClasses.interditado
-          : classePorNivel[nivelSeguro] ?? riscoClasses.livre;
+          : (classePorNivel[nivelSeguro] ?? riscoClasses.livre);
 
       return {
         ...resultadoBase,
@@ -246,7 +250,7 @@ export function MapaInterativo({
       alojamentosPorId,
       slotsPorAdolescente,
       conflitosExternos,
-    ]
+    ],
   );
 
   function getIconesAlerta(alojamento: Alojamento) {
@@ -281,7 +285,7 @@ export function MapaInterativo({
   const handleDesalocarDoDetalhe = async (
     alojamentoId: string,
     adolescenteId: string,
-    motivo?: string
+    motivo?: string,
   ) => {
     try {
       const mensagem = await onDesalocar(alojamentoId, adolescenteId, motivo);
@@ -299,7 +303,7 @@ export function MapaInterativo({
     destinoAlojamentoId: string,
     justificativa?: string,
     motivoOperador?: string,
-    motivoObrigatorio?: boolean
+    motivoObrigatorio?: boolean,
   ) => {
     try {
       await onTransferir(
@@ -307,7 +311,7 @@ export function MapaInterativo({
         destinoAlojamentoId,
         justificativa,
         motivoOperador,
-        motivoObrigatorio
+        motivoObrigatorio,
       );
       fecharModalDetalhes();
     } catch (error) {
@@ -322,14 +326,14 @@ export function MapaInterativo({
     status: "LIVRE" | "INTERDITADO",
     justificativa: string,
     documentoTipo: "CI" | "DECISAO_JUDICIAL" | "OUTRO",
-    documentoReferencia: string
+    documentoReferencia: string,
   ) => {
     await onAlterarStatusAlojamento(
       alojamentoId,
       status,
       justificativa,
       documentoTipo,
-      documentoReferencia
+      documentoReferencia,
     );
   };
 
@@ -373,15 +377,17 @@ export function MapaInterativo({
           aloj.statusManutencao === "INTERDITADO"
             ? "Alojamento Interditado"
             : ocupante
-            ? `${ocupante.nomeCompleto} - Clique para visualizar detalhes`
-            : "Clique para visualizar acoes e alocar"
+              ? `${ocupante.nomeCompleto} - Clique para visualizar detalhes`
+              : "Clique para visualizar acoes e alocar"
         }
       >
         {getIconesAlerta(aloj)}
         <span className="font-bold text-xl text-gray-800">{numero}</span>
         {nomeResumido && (
           <div className="mt-1 px-1 text-[8px] sm:text-[11px] text-gray-800 font-semibold leading-tight text-center w-full flex flex-col items-center">
-            <span className="w-full break-words whitespace-normal">{nomeResumido.primeiro}</span>
+            <span className="w-full break-words whitespace-normal">
+              {nomeResumido.primeiro}
+            </span>
             {nomeResumido.ultimo && (
               <span className="text-slate-700 font-medium text-[7px] sm:text-[10px] w-full break-words whitespace-normal">
                 {nomeResumido.ultimo}
@@ -462,7 +468,7 @@ export function MapaInterativo({
     const renderColuna = (
       lista: typeof ordenar,
       titulo: string,
-      alinhamento: "left" | "right"
+      alinhamento: "left" | "right",
     ) => (
       <div className="flex-1 flex flex-col gap-2">
         <div
@@ -529,7 +535,7 @@ export function MapaInterativo({
                   Legenda de risco (niveis 0 a 5)
                 </p>
                 <p className="text-[11px] text-slate-500">
-                  Use as cores para priorizar intervencoes.
+                  Use as cores para priorizar intervenções.
                 </p>
               </div>
               <div className="flex flex-wrap gap-3 text-[11px]">
@@ -568,7 +574,7 @@ export function MapaInterativo({
                 <span className="bg-orange-500 rounded-full p-1">
                   <AlertTriangle size={12} className="text-white" />
                 </span>
-                Risco de suicidio
+                Risco de suicídio
               </div>
               <div className="flex items-center gap-1">
                 <span className="bg-purple-500 rounded-full p-1">
@@ -593,9 +599,7 @@ export function MapaInterativo({
             {casa03 && <CasaPadrao casa={casa03} />}
           </div>
           <div className="flex flex-col gap-6">
-            {casa08 && (
-              <CasaFaseTres casa={casa08} />
-            )}
+            {casa08 && <CasaFaseTres casa={casa08} />}
             <div className="flex-1"></div>
             {casa04 && <CasaPadrao casa={casa04} />}
           </div>
@@ -619,25 +623,37 @@ export function MapaInterativo({
         onTransferir={handleTransferirDoDetalhe}
         onSolicitarAlocacao={() => {
           if (modalDetalhes.alojamento) {
-            abrirModalAlocacao(modalDetalhes.alojamento as Alojamento & { casa?: Casa });
+            abrirModalAlocacao(
+              modalDetalhes.alojamento as Alojamento & { casa?: Casa },
+            );
           }
         }}
-        onInterditar={(alojamentoId, justificativa, documentoTipo, documentoReferencia) =>
+        onInterditar={(
+          alojamentoId,
+          justificativa,
+          documentoTipo,
+          documentoReferencia,
+        ) =>
           handleAlterarStatusDoDetalhe(
             alojamentoId,
             "INTERDITADO",
             justificativa,
             documentoTipo,
-            documentoReferencia
+            documentoReferencia,
           )
         }
-        onLiberarInterdicao={(alojamentoId, justificativa, documentoTipo, documentoReferencia) =>
+        onLiberarInterdicao={(
+          alojamentoId,
+          justificativa,
+          documentoTipo,
+          documentoReferencia,
+        ) =>
           handleAlterarStatusDoDetalhe(
             alojamentoId,
             "LIVRE",
             justificativa,
             documentoTipo,
-            documentoReferencia
+            documentoReferencia,
           )
         }
       />

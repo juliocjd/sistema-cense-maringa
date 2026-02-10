@@ -82,20 +82,20 @@ const formatDate = (value?: string | null) => {
 const gerarTextoHistorico = (relatorio: RelatorioInterno) => {
   const linhas: string[] = [];
   linhas.push(
-    `Relatorio de conflitos e alertas - ${relatorio.adolescente.nome}`
+    `Relatorio de conflitos e alertas - ${relatorio.adolescente.nome}`,
   );
   linhas.push(
     `Status: ${relatorio.adolescente.status} | SMS: ${
       relatorio.adolescente.numeroSms ?? "Nao informado"
-    }`
+    }`,
   );
   linhas.push(
-    `Alojamento: ${relatorio.adolescente.alojamento ?? "Nao informado"}`
+    `Alojamento: ${relatorio.adolescente.alojamento ?? "Nao informado"}`,
   );
   linhas.push(
     `Faccao: ${relatorio.adolescente.faccao ?? "Nao informada"} | Bairro: ${
       relatorio.adolescente.bairro ?? "Nao informado"
-    }`
+    }`,
   );
   if (relatorio.protocoloRiscoSuicidio) {
     const bloco = relatorio.protocoloRiscoSuicidio;
@@ -103,19 +103,19 @@ const gerarTextoHistorico = (relatorio: RelatorioInterno) => {
       ? `Protocolo ativo (nivel ${bloco.nivelAtual ?? "N/I"})`
       : "Protocolo encerrado";
     linhas.push("");
-    linhas.push(`Risco de suicidio: ${status}`);
+    linhas.push(`Risco de suicídio: ${status}`);
     if (bloco.ultimaEntrada) {
       linhas.push(
         `- Inserido em ${formatDate(
-          bloco.ultimaEntrada.data
-        )}${bloco.ultimaEntrada.descricao ? ` (${bloco.ultimaEntrada.descricao})` : ""}`
+          bloco.ultimaEntrada.data,
+        )}${bloco.ultimaEntrada.descricao ? ` (${bloco.ultimaEntrada.descricao})` : ""}`,
       );
     }
     if (bloco.ultimaAlta) {
       linhas.push(
         `- Alta medica em ${formatDate(
-          bloco.ultimaAlta.data
-        )}${bloco.ultimaAlta.descricao ? ` (${bloco.ultimaAlta.descricao})` : ""}`
+          bloco.ultimaAlta.data,
+        )}${bloco.ultimaAlta.descricao ? ` (${bloco.ultimaAlta.descricao})` : ""}`,
       );
     }
   }
@@ -131,8 +131,8 @@ const gerarTextoHistorico = (relatorio: RelatorioInterno) => {
       `${index + 1}. [${conflito.status ?? "DESCONHECIDO"}] ${
         conflito.tipo ?? "Sem tipo"
       } contra ${adversario} - criado em ${formatDate(
-        conflito.criadoEm
-      )}${conflito.resolvidoEm ? `, resolvido em ${formatDate(conflito.resolvidoEm)}` : ""}`
+        conflito.criadoEm,
+      )}${conflito.resolvidoEm ? `, resolvido em ${formatDate(conflito.resolvidoEm)}` : ""}`,
     );
     if (conflito.descricao) {
       linhas.push(`    Observacao: ${conflito.descricao}`);
@@ -145,8 +145,10 @@ const gerarTextoHistorico = (relatorio: RelatorioInterno) => {
       `${index + 1}. [${alerta.nivelRisco ?? "NIVEL NAO INFORMADO"}] ${
         alerta.tipo ?? "TIPO DESCONHECIDO"
       } - criado em ${formatDate(alerta.criadoEm)}${
-        alerta.desativadoEm ? `, encerrado em ${formatDate(alerta.desativadoEm)}` : ""
-      }`
+        alerta.desativadoEm
+          ? `, encerrado em ${formatDate(alerta.desativadoEm)}`
+          : ""
+      }`,
     );
     linhas.push(`    Detalhes: ${alerta.descricao}`);
   });
@@ -173,9 +175,12 @@ export function RelatorioHistoricoModalTrigger() {
     const controller = new AbortController();
     const timeout = setTimeout(async () => {
       try {
-        const response = await fetch(`/api/search?q=${encodeURIComponent(termo)}`, {
-          signal: controller.signal,
-        });
+        const response = await fetch(
+          `/api/search?q=${encodeURIComponent(termo)}`,
+          {
+            signal: controller.signal,
+          },
+        );
         if (!response.ok) {
           throw new Error("Falha ao buscar adolescentes");
         }
@@ -199,7 +204,7 @@ export function RelatorioHistoricoModalTrigger() {
     setRelatorio(null);
     try {
       const response = await fetch(
-        `/api/relatorios/adolescentes/${adolescenteId}/conflitos-alertas`
+        `/api/relatorios/adolescentes/${adolescenteId}/conflitos-alertas`,
       );
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
@@ -209,7 +214,9 @@ export function RelatorioHistoricoModalTrigger() {
       setRelatorio(json);
     } catch (error) {
       setErro(
-        error instanceof Error ? error.message : "Erro inesperado ao gerar relatorio"
+        error instanceof Error
+          ? error.message
+          : "Erro inesperado ao gerar relatorio",
       );
     } finally {
       setCarregando(false);
@@ -229,12 +236,12 @@ export function RelatorioHistoricoModalTrigger() {
         relatorio.adolescente.numeroSms ?? "Nao informado"
       }`,
       14,
-      30
+      30,
     );
     doc.text(
       `Alojamento: ${relatorio.adolescente.alojamento ?? "Nao informado"}`,
       14,
-      36
+      36,
     );
     let blocoResumoY = 42;
     if (relatorio.protocoloRiscoSuicidio) {
@@ -249,7 +256,7 @@ export function RelatorioHistoricoModalTrigger() {
         doc.text(
           `Ingresso: ${formatDate(relatorio.protocoloRiscoSuicidio.ultimaEntrada.data)}`,
           14,
-          blocoResumoY
+          blocoResumoY,
         );
         blocoResumoY += 6;
       }
@@ -257,7 +264,7 @@ export function RelatorioHistoricoModalTrigger() {
         doc.text(
           `Alta medica: ${formatDate(relatorio.protocoloRiscoSuicidio.ultimaAlta.data)}`,
           14,
-          blocoResumoY
+          blocoResumoY,
         );
         blocoResumoY += 6;
       }
@@ -304,16 +311,18 @@ export function RelatorioHistoricoModalTrigger() {
   };
 
   const totalConflitosAtivos = useMemo(
-    () => relatorio?.conflitos.filter((c) => c.status?.toUpperCase() === "ATIVO").length ?? 0,
-    [relatorio]
+    () =>
+      relatorio?.conflitos.filter((c) => c.status?.toUpperCase() === "ATIVO")
+        .length ?? 0,
+    [relatorio],
   );
 
   const totalAlertasGraves = useMemo(
     () =>
       relatorio?.alertas.filter((a) =>
-        ["ALTO", "CRITICO"].includes((a.nivelRisco ?? "").toUpperCase())
+        ["ALTO", "CRITICO"].includes((a.nivelRisco ?? "").toUpperCase()),
       ).length ?? 0,
-    [relatorio]
+    [relatorio],
   );
 
   return (
@@ -328,7 +337,10 @@ export function RelatorioHistoricoModalTrigger() {
 
       {aberto && (
         <>
-          <div className="fixed inset-0 z-40 bg-black/40" onClick={() => setAberto(false)} />
+          <div
+            className="fixed inset-0 z-40 bg-black/40"
+            onClick={() => setAberto(false)}
+          />
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
               <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
@@ -340,7 +352,8 @@ export function RelatorioHistoricoModalTrigger() {
                     Conflitos e alertas do adolescente
                   </h2>
                   <p className="text-sm text-slate-600">
-                    Pesquise pelo adolescente para visualizar o historico completo.
+                    Pesquise pelo adolescente para visualizar o historico
+                    completo.
                   </p>
                 </div>
                 <button
@@ -380,12 +393,17 @@ export function RelatorioHistoricoModalTrigger() {
                         className="flex items-center justify-between border-b border-slate-100 px-3 py-2 last:border-b-0"
                       >
                         <div>
-                          <p className="text-sm font-semibold text-slate-900">{ado.nome}</p>
+                          <p className="text-sm font-semibold text-slate-900">
+                            {ado.nome}
+                          </p>
                           <p className="text-xs text-slate-500">
-                            SMS: {ado.numeroSms ?? "Nao informado"} • Status: {ado.status ?? "?"}
+                            SMS: {ado.numeroSms ?? "Nao informado"} • Status:{" "}
+                            {ado.status ?? "?"}
                           </p>
                           {ado.alojamento && (
-                            <p className="text-xs text-slate-500">{ado.alojamento}</p>
+                            <p className="text-xs text-slate-500">
+                              {ado.alojamento}
+                            </p>
                           )}
                         </div>
                         <button
@@ -433,14 +451,18 @@ export function RelatorioHistoricoModalTrigger() {
                             {relatorio.adolescente.nome}
                           </p>
                           <p className="text-xs text-slate-500">
-                            SMS: {relatorio.adolescente.numeroSms ?? "Nao informado"} • Status:{" "}
-                            {relatorio.adolescente.status}
+                            SMS:{" "}
+                            {relatorio.adolescente.numeroSms ?? "Nao informado"}{" "}
+                            • Status: {relatorio.adolescente.status}
                           </p>
                           <p className="text-xs text-slate-500">
-                            {relatorio.adolescente.alojamento ?? "Alojamento nao informado"}
+                            {relatorio.adolescente.alojamento ??
+                              "Alojamento nao informado"}
                           </p>
                           <p className="text-xs text-slate-500">
-                            Faccao: {relatorio.adolescente.faccao ?? "Nao informada"} • Origem:{" "}
+                            Faccao:{" "}
+                            {relatorio.adolescente.faccao ?? "Nao informada"} •
+                            Origem:{" "}
                             {relatorio.adolescente.bairro ?? "Nao informada"}
                           </p>
                         </div>
@@ -450,7 +472,7 @@ export function RelatorioHistoricoModalTrigger() {
                     {relatorio.protocoloRiscoSuicidio && (
                       <div className="rounded-2xl border border-rose-100 bg-rose-50 p-4 text-sm text-rose-900">
                         <p className="text-sm font-semibold text-rose-800">
-                          Protocolo de risco de suicidio
+                          Protocolo de risco de suicídio
                         </p>
                         <p className="text-xs text-rose-700">
                           {relatorio.protocoloRiscoSuicidio.ativo
@@ -460,8 +482,12 @@ export function RelatorioHistoricoModalTrigger() {
                         {relatorio.protocoloRiscoSuicidio.ultimaEntrada && (
                           <p className="text-xs text-rose-700">
                             Inserido em{" "}
-                            {formatDate(relatorio.protocoloRiscoSuicidio.ultimaEntrada.data)}
-                            {relatorio.protocoloRiscoSuicidio.ultimaEntrada.descricao
+                            {formatDate(
+                              relatorio.protocoloRiscoSuicidio.ultimaEntrada
+                                .data,
+                            )}
+                            {relatorio.protocoloRiscoSuicidio.ultimaEntrada
+                              .descricao
                               ? ` — ${relatorio.protocoloRiscoSuicidio.ultimaEntrada.descricao}`
                               : ""}
                           </p>
@@ -469,8 +495,11 @@ export function RelatorioHistoricoModalTrigger() {
                         {relatorio.protocoloRiscoSuicidio.ultimaAlta && (
                           <p className="text-xs text-rose-700">
                             Alta medica em{" "}
-                            {formatDate(relatorio.protocoloRiscoSuicidio.ultimaAlta.data)}
-                            {relatorio.protocoloRiscoSuicidio.ultimaAlta.descricao
+                            {formatDate(
+                              relatorio.protocoloRiscoSuicidio.ultimaAlta.data,
+                            )}
+                            {relatorio.protocoloRiscoSuicidio.ultimaAlta
+                              .descricao
                               ? ` — ${relatorio.protocoloRiscoSuicidio.ultimaAlta.descricao}`
                               : ""}
                           </p>
@@ -492,7 +521,8 @@ export function RelatorioHistoricoModalTrigger() {
                           </div>
                         </div>
                         <p className="text-sm text-slate-500">
-                          {totalConflitosAtivos} conflito(s) ativo(s) no momento.
+                          {totalConflitosAtivos} conflito(s) ativo(s) no
+                          momento.
                         </p>
                       </div>
 
@@ -509,7 +539,8 @@ export function RelatorioHistoricoModalTrigger() {
                           </div>
                         </div>
                         <p className="text-sm text-slate-500">
-                          {totalAlertasGraves} alerta(s) em nivel alto ou critico.
+                          {totalAlertasGraves} alerta(s) em nivel alto ou
+                          critico.
                         </p>
                       </div>
                     </div>
@@ -519,7 +550,9 @@ export function RelatorioHistoricoModalTrigger() {
                         Conflitos detalhados
                       </h3>
                       {relatorio.conflitos.length === 0 ? (
-                        <p className="text-sm text-slate-500">Nenhum conflito registrado.</p>
+                        <p className="text-sm text-slate-500">
+                          Nenhum conflito registrado.
+                        </p>
                       ) : (
                         <div className="space-y-3">
                           {relatorio.conflitos.map((conflito) => (
@@ -538,19 +571,24 @@ export function RelatorioHistoricoModalTrigger() {
                                 </div>
                                 <p className="text-sm font-semibold text-slate-900">
                                   {conflito.tipo ?? "Sem classificacao"} •{" "}
-                                  {conflito.adversario?.nome ?? "Oponente desconhecido"}
+                                  {conflito.adversario?.nome ??
+                                    "Oponente desconhecido"}
                                 </p>
                                 {conflito.adversario?.faccao && (
                                   <p className="text-xs text-slate-500">
-                                    Faccao adversaria: {conflito.adversario.faccao}
+                                    Faccao adversaria:{" "}
+                                    {conflito.adversario.faccao}
                                   </p>
                                 )}
                                 {conflito.descricao && (
-                                  <p className="text-xs text-slate-600">{conflito.descricao}</p>
+                                  <p className="text-xs text-slate-600">
+                                    {conflito.descricao}
+                                  </p>
                                 )}
                                 {conflito.resolvidoEm && (
                                   <p className="text-xs text-slate-500">
-                                    Resolvido em {formatDate(conflito.resolvidoEm)}
+                                    Resolvido em{" "}
+                                    {formatDate(conflito.resolvidoEm)}
                                   </p>
                                 )}
                               </div>
@@ -565,7 +603,9 @@ export function RelatorioHistoricoModalTrigger() {
                         Alertas registrados
                       </h3>
                       {relatorio.alertas.length === 0 ? (
-                        <p className="text-sm text-slate-500">Nenhum alerta cadastrado.</p>
+                        <p className="text-sm text-slate-500">
+                          Nenhum alerta cadastrado.
+                        </p>
                       ) : (
                         <div className="space-y-3">
                           {relatorio.alertas.map((alerta) => (
@@ -575,17 +615,22 @@ export function RelatorioHistoricoModalTrigger() {
                             >
                               <div className="flex items-center justify-between text-xs text-slate-500">
                                 <span>
-                                  Registrado em {formatDate(alerta.criadoEm)} • Nivel{" "}
-                                  {alerta.nivelRisco ?? "Nao informado"}
+                                  Registrado em {formatDate(alerta.criadoEm)} •
+                                  Nivel {alerta.nivelRisco ?? "Nao informado"}
                                 </span>
                                 {alerta.desativadoEm && (
-                                  <span>Encerrado em {formatDate(alerta.desativadoEm)}</span>
+                                  <span>
+                                    Encerrado em{" "}
+                                    {formatDate(alerta.desativadoEm)}
+                                  </span>
                                 )}
                               </div>
                               <p className="text-sm font-semibold text-slate-900">
                                 {alerta.tipo ?? "Tipo nao informado"}
                               </p>
-                              <p className="text-sm text-slate-600">{alerta.descricao}</p>
+                              <p className="text-sm text-slate-600">
+                                {alerta.descricao}
+                              </p>
                             </div>
                           ))}
                         </div>
@@ -598,7 +643,8 @@ export function RelatorioHistoricoModalTrigger() {
               {relatorio && (
                 <div className="flex items-center justify-between border-t border-slate-200 px-6 py-4">
                   <p className="text-sm text-slate-500">
-                    Relatorio atualizado em {formatDate(new Date().toISOString())}
+                    Relatorio atualizado em{" "}
+                    {formatDate(new Date().toISOString())}
                   </p>
                   <button
                     type="button"

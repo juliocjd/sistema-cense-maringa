@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
         {
           erro: "adolescenteId e lista de alojamentos sao obrigatorios",
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     if (!contexto) {
       return NextResponse.json(
         { erro: "Adolescente nao encontrado" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -65,13 +65,13 @@ export async function POST(request: NextRequest) {
       resultados,
     });
   } catch (error) {
-    console.error("Erro ao verificar alocacao em lote:", error);
+    console.error("Erro ao verificar alocação em lote:", error);
     return NextResponse.json(
       {
-        erro: "Erro ao verificar alocacao em lote",
+        erro: "Erro ao verificar alocação em lote",
         detalhes: error instanceof Error ? error.message : String(error),
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

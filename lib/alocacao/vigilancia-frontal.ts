@@ -24,7 +24,7 @@ type CasaBasica = {
 
 export type CasaComAlojamentosGenerica<
   C extends CasaBasica,
-  A extends AlojamentoBasico
+  A extends AlojamentoBasico,
 > = C & { alojamentos: A[] };
 
 export type VigilanciaFrontalResultado = {
@@ -47,7 +47,7 @@ const formatarCasa = (casa?: CasaBasica | null) => {
 
 const formatarLocalFrontal = (
   casa: CasaBasica | null,
-  alojamento: AlojamentoBasico
+  alojamento: AlojamentoBasico,
 ) => {
   const partes: string[] = [];
   partes.push(formatarCasa(casa));
@@ -65,9 +65,9 @@ const formatarLocalFrontal = (
 
 export const construirMapaAlojamentos = <
   C extends CasaBasica,
-  A extends AlojamentoBasico
+  A extends AlojamentoBasico,
 >(
-  casas: Array<CasaComAlojamentosGenerica<C, A>>
+  casas: Array<CasaComAlojamentosGenerica<C, A>>,
 ) => {
   const mapa = new Map<string, { casa: C; alojamento: A }>();
   casas.forEach((casa) => {
@@ -80,10 +80,10 @@ export const construirMapaAlojamentos = <
 
 export const avaliarVigilanciaFrontal = <
   C extends CasaBasica,
-  A extends AlojamentoBasico
+  A extends AlojamentoBasico,
 >(
   alojamento: A,
-  mapaAlojamentos: Map<string, { casa: C; alojamento: A }>
+  mapaAlojamentos: Map<string, { casa: C; alojamento: A }>,
 ): VigilanciaFrontalResultado => {
   const frontalId =
     alojamento.alojamentoFrontalId ?? alojamento.alojamentoFrontal?.id ?? null;
@@ -125,8 +125,9 @@ export const avaliarVigilanciaFrontal = <
     };
   }
 
-  const sentinela = frontalInfo.alojamento
-    .adolescentes[0] as AdolescenteSlim | undefined;
+  const sentinela = frontalInfo.alojamento.adolescentes[0] as
+    | AdolescenteSlim
+    | undefined;
   if (sentinela?.alertaRiscoSuicidio) {
     const nivel = sentinela.alertaRiscoSuicidioNivel
       ? sentinela.alertaRiscoSuicidioNivel.toLowerCase()
@@ -135,7 +136,7 @@ export const avaliarVigilanciaFrontal = <
     avisos.push(
       `Atencao: ${nome}${
         nivel ? ` (risco ${nivel})` : ""
-      } tambem possui alerta de risco de suicidio no alojamento frontal.`
+      } tambem possui alerta de risco de suicídio no alojamento frontal.`,
     );
   }
 

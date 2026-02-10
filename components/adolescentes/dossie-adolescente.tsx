@@ -30,6 +30,19 @@ interface DossieAdolescenteProps {
   adolescente: Adolescente;
 }
 
+const calcularIdade = (data?: string | null) => {
+  if (!data) return null;
+  const dataNasc = new Date(data);
+  if (Number.isNaN(dataNasc.getTime())) return null;
+  const hoje = new Date();
+  let idade = hoje.getFullYear() - dataNasc.getFullYear();
+  const mes = hoje.getMonth() - dataNasc.getMonth();
+  if (mes < 0 || (mes === 0 && hoje.getDate() < dataNasc.getDate())) {
+    idade -= 1;
+  }
+  return idade >= 0 ? idade : null;
+};
+
 export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
   const [abaAtiva, setAbaAtiva] = useState("geral");
   const [historicoMovimentacao, setHistoricoMovimentacao] = useState<
@@ -38,6 +51,7 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
   const [historicoLoading, setHistoricoLoading] = useState(false);
   const [historicoErro, setHistoricoErro] = useState<string | null>(null);
   const podeVerAlocacao = adolescente.statusUnidade === "ATIVO";
+  const idadeAdolescente = calcularIdade(adolescente.dataNascimento);
 
   useEffect(() => {
     let ativo = true;
@@ -342,13 +356,18 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
               </div>
               <div className="bg-gray-50 rounded-lg p-3">
                 <p className="text-xs text-gray-600 mb-1">Data de Nascimento</p>
-                <p className="font-bold text-gray-800">
-                  {adolescente.dataNascimento
-                    ? new Date(adolescente.dataNascimento).toLocaleDateString(
-                        "pt-BR",
-                      )
-                    : "-"}
-                </p>
+                <div className="flex items-baseline justify-between gap-2">
+                  <p className="font-bold text-gray-800">
+                    {adolescente.dataNascimento
+                      ? new Date(adolescente.dataNascimento).toLocaleDateString(
+                          "pt-BR",
+                        )
+                      : "-"}
+                  </p>
+                  <span className="text-xs text-gray-500">
+                    {idadeAdolescente !== null ? `${idadeAdolescente} anos` : "--"}
+                  </span>
+                </div>
               </div>
               <div className="bg-gray-50 rounded-lg p-3">
                 <p className="text-xs text-gray-600 mb-1">Data de Entrada</p>
@@ -462,6 +481,12 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                               adolescente.dataNascimento,
                             ).toLocaleDateString("pt-BR")
                           : "-"}
+                        {idadeAdolescente !== null && (
+                          <span className="text-xs text-gray-500">
+                            {" "}
+                            ({idadeAdolescente} anos)
+                          </span>
+                        )}
                       </span>
                     </div>
                     <div className="flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-2">

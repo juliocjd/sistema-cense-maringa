@@ -19,7 +19,7 @@ const DESCRICOES_TIPO: Record<string, string> = {
     "Permissao controlada de item nao autorizado (ex.: caneta/material de estudo).",
   SAUDE_CONFIDENCIAL:
     "Informacao de saude sensivel que impacta cuidados e seguranca.",
-  RISKO_SUICIDIO: "Risco de suicidio identificado.",
+  RISKO_SUICIDIO: "Risco de suicídio identificado.",
   PERFIL_MAPEADO: "Protecao por ato infracional que exige sigilo.",
   FUGA: "Risco ou registro de fuga/plano de fuga/evasao.",
   AGRESSAO: "Registro de agressao ou risco iminente.",
@@ -57,7 +57,7 @@ export function RegistroCI({ adolescentes, onSalvar }: RegistroCIProps) {
   const [numero, setNumero] = useState("");
   const [ano, setAno] = useState(new Date().getFullYear().toString());
   const [dataFato, setDataFato] = useState(
-    new Date().toISOString().split("T")[0]
+    new Date().toISOString().split("T")[0],
   );
   const [tipoCi, setTipoCi] = useState("");
   const [nivelRisco, setNivelRisco] = useState<NivelRisco>("MEDIO");
@@ -106,7 +106,7 @@ export function RegistroCI({ adolescentes, onSalvar }: RegistroCIProps) {
     (a) =>
       !adolescentesSelecionados.find((sel) => sel.id === a.id) &&
       (a.nomeCompleto.toLowerCase().includes(buscaAdolescente.toLowerCase()) ||
-        a.numeroSms.includes(buscaAdolescente))
+        a.numeroSms.includes(buscaAdolescente)),
   );
 
   const adicionarAdolescente = (adolescente: Adolescente) => {
@@ -117,7 +117,7 @@ export function RegistroCI({ adolescentes, onSalvar }: RegistroCIProps) {
 
   const removerAdolescente = (id: string) => {
     setAdolescentesSelecionados(
-      adolescentesSelecionados.filter((a) => a.id !== id)
+      adolescentesSelecionados.filter((a) => a.id !== id),
     );
   };
   const participantesConflitoIds = useMemo(() => {
@@ -208,16 +208,16 @@ export function RegistroCI({ adolescentes, onSalvar }: RegistroCIProps) {
       formData.append("resumoCi", resumoCi);
       formData.append(
         "adolescentesIds",
-        JSON.stringify(selecionadosParaEnvio.map((a) => a.id))
+        JSON.stringify(selecionadosParaEnvio.map((a) => a.id)),
       );
       if (modoConflito) {
         formData.append(
           "ladoAIds",
-          JSON.stringify(ladoA.map((participante) => participante.id))
+          JSON.stringify(ladoA.map((participante) => participante.id)),
         );
         formData.append(
           "ladoBIds",
-          JSON.stringify(ladoB.map((participante) => participante.id))
+          JSON.stringify(ladoB.map((participante) => participante.id)),
         );
         formData.append("tipoConflitoGerado", tipoConflitoGerado);
       }
@@ -226,7 +226,7 @@ export function RegistroCI({ adolescentes, onSalvar }: RegistroCIProps) {
       formData.append("nivelRiscoAlerta", nivelRisco);
       formData.append(
         "enviarEmailTecnicos",
-        enviarEmailTecnicos ? "true" : "false"
+        enviarEmailTecnicos ? "true" : "false",
       );
 
       await onSalvar(formData);
@@ -238,7 +238,7 @@ export function RegistroCI({ adolescentes, onSalvar }: RegistroCIProps) {
     } finally {
       setLoading(false);
     }
-  }
+  };
 
   return (
     <div className="space-y-6">
@@ -349,7 +349,9 @@ export function RegistroCI({ adolescentes, onSalvar }: RegistroCIProps) {
                     </label>
                     <select
                       value={nivelRisco}
-                      onChange={(e) => setNivelRisco(e.target.value as NivelRisco)}
+                      onChange={(e) =>
+                        setNivelRisco(e.target.value as NivelRisco)
+                      }
                       className="rounded-md border border-gray-300 px-2 py-1 text-xs"
                     >
                       {NIVEIS_RISCO.map((nivel) => (
@@ -364,7 +366,8 @@ export function RegistroCI({ adolescentes, onSalvar }: RegistroCIProps) {
             )}
           </div>
           {/* Acoes automaticas */}
-          {(TIPOS_CONFLITO_AUTOMATICO.has(tipoCi) || TIPOS_ALERTA_AUTOMATICO.has(tipoCi)) && (
+          {(TIPOS_CONFLITO_AUTOMATICO.has(tipoCi) ||
+            TIPOS_ALERTA_AUTOMATICO.has(tipoCi)) && (
             <div className="mt-2 space-y-2 rounded-2xl border border-gray-200 bg-gray-50 p-4">
               {TIPOS_CONFLITO_AUTOMATICO.has(tipoCi) && (
                 <label className="flex items-start gap-2 text-sm text-gray-700">
@@ -375,7 +378,8 @@ export function RegistroCI({ adolescentes, onSalvar }: RegistroCIProps) {
                     className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
                   <span>
-                    Gerar <strong>CONFLITOS</strong> automaticamente entre os adolescentes vinculados.
+                    Gerar <strong>CONFLITOS</strong> automaticamente entre os
+                    adolescentes vinculados.
                   </span>
                 </label>
               )}
@@ -405,7 +409,8 @@ export function RegistroCI({ adolescentes, onSalvar }: RegistroCIProps) {
                     className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
                   <span>
-                    Gerar <strong>ALERTAS</strong> automaticamente para os adolescentes deste CI.
+                    Gerar <strong>ALERTAS</strong> automaticamente para os
+                    adolescentes deste CI.
                   </span>
                 </label>
               )}
@@ -430,7 +435,6 @@ export function RegistroCI({ adolescentes, onSalvar }: RegistroCIProps) {
             </p>
           </div>
 
-
           {/* Sele??o de Adolescentes */}
           {modoConflito ? (
             <div className="space-y-6">
@@ -438,7 +442,9 @@ export function RegistroCI({ adolescentes, onSalvar }: RegistroCIProps) {
                 <div className="rounded-2xl border border-gray-200 p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-base font-semibold text-gray-800">Lado 1</p>
+                      <p className="text-base font-semibold text-gray-800">
+                        Lado 1
+                      </p>
                       <p className="text-xs text-gray-500">
                         Integrantes deste lado nao geram alertas entre si.
                       </p>
@@ -477,54 +483,58 @@ export function RegistroCI({ adolescentes, onSalvar }: RegistroCIProps) {
                               <span className="font-semibold text-gray-800">
                                 {item.nomeCompleto}
                               </span>
-                              <span className="text-xs text-gray-500">SMS: {item.numeroSms}</span>
+                              <span className="text-xs text-gray-500">
+                                SMS: {item.numeroSms}
+                              </span>
                             </button>
                           ))
                         )}
                       </div>
                     )}
                   </div>
-                    {ladoA.length > 0 && (
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {ladoA.map((item) => (
-                          <span
-                            key={item.id}
-                            className="inline-flex items-center gap-2 rounded-full bg-blue-100 px-3 py-1 text-sm font-semibold text-blue-700"
-                          >
-                            {item.fotoUrl ? (
-                              <span className="h-7 w-7 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-[10px] font-semibold">
-                                <img
-                                  src={item.fotoUrl}
-                                  alt={item.nomeCompleto}
-                                  className="h-full w-full object-cover"
-                                />
-                              </span>
-                            ) : (
-                              <span
-                                title="Sem foto cadastrada"
-                                className="h-7 w-7 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-[10px] font-semibold"
-                              >
-                                {item.nomeCompleto?.trim().charAt(0) ?? "?"}
-                              </span>
-                            )}
-                            <span>{item.nomeCompleto}</span>
-                            <button
-                              type="button"
-                              onClick={() => removerDoLado("A", item.id)}
-                              className="text-blue-600 hover:text-blue-800"
+                  {ladoA.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {ladoA.map((item) => (
+                        <span
+                          key={item.id}
+                          className="inline-flex items-center gap-2 rounded-full bg-blue-100 px-3 py-1 text-sm font-semibold text-blue-700"
+                        >
+                          {item.fotoUrl ? (
+                            <span className="h-7 w-7 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-[10px] font-semibold">
+                              <img
+                                src={item.fotoUrl}
+                                alt={item.nomeCompleto}
+                                className="h-full w-full object-cover"
+                              />
+                            </span>
+                          ) : (
+                            <span
+                              title="Sem foto cadastrada"
+                              className="h-7 w-7 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-[10px] font-semibold"
                             >
-                              <X size={14} />
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-                    )}
+                              {item.nomeCompleto?.trim().charAt(0) ?? "?"}
+                            </span>
+                          )}
+                          <span>{item.nomeCompleto}</span>
+                          <button
+                            type="button"
+                            onClick={() => removerDoLado("A", item.id)}
+                            className="text-blue-600 hover:text-blue-800"
+                          >
+                            <X size={14} />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="rounded-2xl border border-gray-200 p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-base font-semibold text-gray-800">Lado 2</p>
+                      <p className="text-base font-semibold text-gray-800">
+                        Lado 2
+                      </p>
                       <p className="text-xs text-gray-500">
                         Estes adolescentes serao avaliados contra o lado 1.
                       </p>
@@ -563,48 +573,50 @@ export function RegistroCI({ adolescentes, onSalvar }: RegistroCIProps) {
                               <span className="font-semibold text-gray-800">
                                 {item.nomeCompleto}
                               </span>
-                              <span className="text-xs text-gray-500">SMS: {item.numeroSms}</span>
+                              <span className="text-xs text-gray-500">
+                                SMS: {item.numeroSms}
+                              </span>
                             </button>
                           ))
                         )}
                       </div>
                     )}
                   </div>
-                    {ladoB.length > 0 && (
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {ladoB.map((item) => (
-                          <span
-                            key={item.id}
-                            className="inline-flex items-center gap-2 rounded-full bg-indigo-100 px-3 py-1 text-sm font-semibold text-indigo-700"
-                          >
-                            {item.fotoUrl ? (
-                              <span className="h-7 w-7 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-[10px] font-semibold">
-                                <img
-                                  src={item.fotoUrl}
-                                  alt={item.nomeCompleto}
-                                  className="h-full w-full object-cover"
-                                />
-                              </span>
-                            ) : (
-                              <span
-                                title="Sem foto cadastrada"
-                                className="h-7 w-7 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-[10px] font-semibold"
-                              >
-                                {item.nomeCompleto?.trim().charAt(0) ?? "?"}
-                              </span>
-                            )}
-                            <span>{item.nomeCompleto}</span>
-                            <button
-                              type="button"
-                              onClick={() => removerDoLado("B", item.id)}
-                              className="text-indigo-600 hover:text-indigo-800"
+                  {ladoB.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {ladoB.map((item) => (
+                        <span
+                          key={item.id}
+                          className="inline-flex items-center gap-2 rounded-full bg-indigo-100 px-3 py-1 text-sm font-semibold text-indigo-700"
+                        >
+                          {item.fotoUrl ? (
+                            <span className="h-7 w-7 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-[10px] font-semibold">
+                              <img
+                                src={item.fotoUrl}
+                                alt={item.nomeCompleto}
+                                className="h-full w-full object-cover"
+                              />
+                            </span>
+                          ) : (
+                            <span
+                              title="Sem foto cadastrada"
+                              className="h-7 w-7 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-[10px] font-semibold"
                             >
-                              <X size={14} />
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-                    )}
+                              {item.nomeCompleto?.trim().charAt(0) ?? "?"}
+                            </span>
+                          )}
+                          <span>{item.nomeCompleto}</span>
+                          <button
+                            type="button"
+                            onClick={() => removerDoLado("B", item.id)}
+                            className="text-indigo-600 hover:text-indigo-800"
+                          >
+                            <X size={14} />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -642,23 +654,25 @@ export function RegistroCI({ adolescentes, onSalvar }: RegistroCIProps) {
                         onClick={() => setMostrarLista(false)}
                       />
                       <div className="absolute z-20 w-full mt-1 bg-white border-2 border-gray-300 rounded-lg shadow-xl max-h-60 overflow-y-auto">
-                        {adolescentesFiltrados.slice(0, 5).map((adolescente) => (
-                          <button
-                            key={adolescente.id}
-                            onClick={() => adicionarAdolescente(adolescente)}
-                            className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors border-b border-gray-200 last:border-b-0"
-                          >
-                            <p className="font-semibold text-gray-800">
-                              {adolescente.nomeCompleto}
-                            </p>
-                            <p className="text-sm text-gray-600">
-                              SMS: {adolescente.numeroSms}
-                              {adolescente.alojamento && (
-                                <> ? {adolescente.alojamento}</>
-                              )}
-                            </p>
-                          </button>
-                        ))}
+                        {adolescentesFiltrados
+                          .slice(0, 5)
+                          .map((adolescente) => (
+                            <button
+                              key={adolescente.id}
+                              onClick={() => adicionarAdolescente(adolescente)}
+                              className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors border-b border-gray-200 last:border-b-0"
+                            >
+                              <p className="font-semibold text-gray-800">
+                                {adolescente.nomeCompleto}
+                              </p>
+                              <p className="text-sm text-gray-600">
+                                SMS: {adolescente.numeroSms}
+                                {adolescente.alojamento && (
+                                  <> ? {adolescente.alojamento}</>
+                                )}
+                              </p>
+                            </button>
+                          ))}
                       </div>
                     </>
                   )}
@@ -696,7 +710,9 @@ export function RegistroCI({ adolescentes, onSalvar }: RegistroCIProps) {
                           <p className="font-semibold text-sm">
                             {adolescente.nomeCompleto}
                           </p>
-                          <p className="text-xs">SMS: {adolescente.numeroSms}</p>
+                          <p className="text-xs">
+                            SMS: {adolescente.numeroSms}
+                          </p>
                         </div>
                         <button
                           onClick={() => removerAdolescente(adolescente.id)}
@@ -724,7 +740,6 @@ export function RegistroCI({ adolescentes, onSalvar }: RegistroCIProps) {
               className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all resize-none"
             />
           </div>
-
         </div>
 
         {/* Botões */}
@@ -765,4 +780,3 @@ export function RegistroCI({ adolescentes, onSalvar }: RegistroCIProps) {
     </div>
   );
 }
-

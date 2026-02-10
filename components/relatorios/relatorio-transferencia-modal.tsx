@@ -136,7 +136,7 @@ const limitarTexto = (texto: string, tamanho = 120) =>
   texto.length <= tamanho ? texto : `${texto.slice(0, tamanho - 3)}...`;
 
 const formatarAltaMedicaProtocolo = (
-  ultimaAlta?: { data: string; descricao: string | null } | null
+  ultimaAlta?: { data: string; descricao: string | null } | null,
 ) => {
   if (!ultimaAlta) return null;
   const dataFormatada = formatDate(ultimaAlta.data);
@@ -155,7 +155,9 @@ export function RelatorioTransferenciaModalTrigger() {
   const [aberto, setAberto] = useState(false);
   const [busca, setBusca] = useState("");
   const [resultados, setResultados] = useState<AdolescenteResultado[]>([]);
-  const [relatorio, setRelatorio] = useState<RelatorioTransferencia | null>(null);
+  const [relatorio, setRelatorio] = useState<RelatorioTransferencia | null>(
+    null,
+  );
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -169,9 +171,12 @@ export function RelatorioTransferenciaModalTrigger() {
     const controller = new AbortController();
     const timeout = setTimeout(async () => {
       try {
-        const response = await fetch(`/api/search?q=${encodeURIComponent(termo)}`, {
-          signal: controller.signal,
-        });
+        const response = await fetch(
+          `/api/search?q=${encodeURIComponent(termo)}`,
+          {
+            signal: controller.signal,
+          },
+        );
         if (!response.ok) {
           throw new Error("Falha ao buscar adolescentes");
         }
@@ -193,7 +198,7 @@ export function RelatorioTransferenciaModalTrigger() {
     setRelatorio(null);
     try {
       const response = await fetch(
-        `/api/relatorios/adolescentes/${adolescenteId}/transferencia`
+        `/api/relatorios/adolescentes/${adolescenteId}/transferencia`,
       );
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
@@ -203,7 +208,9 @@ export function RelatorioTransferenciaModalTrigger() {
       setRelatorio(json);
     } catch (error) {
       setErro(
-        error instanceof Error ? error.message : "Erro inesperado ao gerar relatorio"
+        error instanceof Error
+          ? error.message
+          : "Erro inesperado ao gerar relatorio",
       );
     } finally {
       setCarregando(false);
@@ -213,9 +220,9 @@ export function RelatorioTransferenciaModalTrigger() {
   const oponentesAtivos = useMemo(
     () =>
       relatorio?.conflitos.filter(
-        (conflito) => conflito.status?.toUpperCase() === "ATIVO"
+        (conflito) => conflito.status?.toUpperCase() === "ATIVO",
       ) ?? [],
-    [relatorio]
+    [relatorio],
   );
 
   const conflitosAgrupados = useMemo<ConflitoAgrupado[]>(() => {
@@ -236,7 +243,7 @@ export function RelatorioTransferenciaModalTrigger() {
             faccao: conflito.adversario.faccao,
             faccaoId: conflito.adversario.faccaoId,
             alojamento: conflito.adversario.alojamento,
-        }
+          }
         : null;
       const existente = grupos.get(chave);
       if (!existente) {
@@ -270,7 +277,7 @@ export function RelatorioTransferenciaModalTrigger() {
       }))
       .sort(
         (a, b) =>
-          new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime()
+          new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime(),
       );
   }, [relatorio]);
 
@@ -298,7 +305,7 @@ export function RelatorioTransferenciaModalTrigger() {
         item.adversarios.add(adv.nome);
         const titulo = grupo.tipo ?? "Sem classificacao";
         const detalheBase = `Registrado em ${formatDate(
-          grupo.criadoEm
+          grupo.criadoEm,
         )} contra ${adv.nome}`;
         const detalhe =
           relatorio.adolescente.faccao === adv.faccao
@@ -425,7 +432,7 @@ export function RelatorioTransferenciaModalTrigger() {
         ? {
             label: "Alta medica protocolo",
             value: formatarAltaMedicaProtocolo(
-              relatorio.protocoloRiscoSuicidio?.ultimaAlta
+              relatorio.protocoloRiscoSuicidio?.ultimaAlta,
             )!,
           }
         : null,
@@ -445,7 +452,7 @@ export function RelatorioTransferenciaModalTrigger() {
       const gaps = palavras.length - 1;
       const larguraPalavras = palavras.reduce(
         (acc, palavra) => acc + doc.getTextWidth(palavra),
-        0
+        0,
       );
       const larguraEspaco = doc.getTextWidth(" ");
       const larguraBase = larguraPalavras + gaps * larguraEspaco;
@@ -453,7 +460,7 @@ export function RelatorioTransferenciaModalTrigger() {
       if (extra <= 0 || larguraEspaco === 0) return linha;
       const espacosExtrasPorGap = Math.max(
         0,
-        Math.floor(extra / larguraEspaco / gaps)
+        Math.floor(extra / larguraEspaco / gaps),
       );
       const espacoJustificado = " ".repeat(1 + espacosExtrasPorGap);
       return palavras.join(espacoJustificado);
@@ -482,10 +489,11 @@ export function RelatorioTransferenciaModalTrigger() {
         doc.setFont("helvetica", "normal");
         doc.text(primeiraLinha, valueX, cursorY);
 
-        const linhasAjustadas = linhasRestantes.map((linha: string, index: number) =>
-          index < linhasRestantes.length - 1
-            ? justificarLinha(linha, largura)
-            : linha
+        const linhasAjustadas = linhasRestantes.map(
+          (linha: string, index: number) =>
+            index < linhasRestantes.length - 1
+              ? justificarLinha(linha, largura)
+              : linha,
         );
         let yAtual = cursorY + 5;
         linhasAjustadas.forEach((linha: string) => {
@@ -507,7 +515,7 @@ export function RelatorioTransferenciaModalTrigger() {
         doc.text(primeira, valueX, cursorY);
       }
       const linhasAjustadas = linhas.map((linha: string, index: number) =>
-        index < linhas.length - 1 ? justificarLinha(linha, largura) : linha
+        index < linhas.length - 1 ? justificarLinha(linha, largura) : linha,
       );
       let yAtual = cursorY + 5;
       linhasAjustadas.forEach((linha: string) => {
@@ -546,10 +554,19 @@ export function RelatorioTransferenciaModalTrigger() {
       startY: cursorY,
       head: [["Indicador", "Valor"]],
       body: [
-        ["Conflitos ativos", `${metricas.conflitosAtivos} de ${metricas.totalConflitos}`],
-        ["Alertas graves", `${metricas.alertasGraves} de ${metricas.alertasTotais}`],
+        [
+          "Conflitos ativos",
+          `${metricas.conflitosAtivos} de ${metricas.totalConflitos}`,
+        ],
+        [
+          "Alertas graves",
+          `${metricas.alertasGraves} de ${metricas.alertasTotais}`,
+        ],
         ["Ultimo conflito", formatDate(metricas.ultimaOcorrenciaConflito)],
-        ["Ultimo alerta grave", formatDate(metricas.ultimaOcorrenciaAlertaGrave)],
+        [
+          "Ultimo alerta grave",
+          formatDate(metricas.ultimaOcorrenciaAlertaGrave),
+        ],
       ],
       styles: { fontSize: 9 },
       headStyles: { fillColor: [15, 118, 110], textColor: 255 },
@@ -562,7 +579,9 @@ export function RelatorioTransferenciaModalTrigger() {
     if (oponentesAtivos.length > 0) {
       autoTable(doc, {
         startY: cursorY,
-        head: [["Registrado em", "Tipo", "Adversario", "Facção do rival", "Status"]],
+        head: [
+          ["Registrado em", "Tipo", "Adversario", "Facção do rival", "Status"],
+        ],
         body: oponentesAtivos.map((conflito) => [
           formatDate(conflito.criadoEm),
           conflito.tipo ?? "Nao informado",
@@ -577,17 +596,14 @@ export function RelatorioTransferenciaModalTrigger() {
         ((doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable
           ?.finalY ?? cursorY) + 8;
     } else {
-      addParagraph(
-        "Nao existem conflitos ativos registrados no momento.",
-        2
-      );
+      addParagraph("Nao existem conflitos ativos registrados no momento.", 2);
     }
 
     addSectionTitle("Faccoes adversarias e aliancas identificadas");
     if (detalhesFaccoes.length === 0) {
       addParagraph(
         "Os registros nao possuem faccoes adversarias descritas para os rivais.",
-        2
+        2,
       );
     } else {
       detalhesFaccoes.forEach((detalhe) => {
@@ -606,7 +622,7 @@ export function RelatorioTransferenciaModalTrigger() {
               ? "A rivalidade ocorre dentro da mesma faccao, exigindo segregacao e vigilancia especial."
               : "Ha conflito direto com integrantes dessa faccao."
           }`,
-          6
+          6,
         );
         detalhe.contextos.forEach((ctx) => {
           const texto = `${ctx.titulo.toUpperCase()}: ${ctx.detalhe}`;
@@ -619,7 +635,7 @@ export function RelatorioTransferenciaModalTrigger() {
     if (alojamentosImpactados.length === 0) {
       addParagraph(
         "Nenhum alojamento rival foi citado como risco direto para este interno.",
-        2
+        2,
       );
     } else {
       alojamentosImpactados.forEach((item) => {
@@ -638,7 +654,7 @@ export function RelatorioTransferenciaModalTrigger() {
         const ultima = formatDate(item.ultimaData);
         addParagraph(
           `Ocupado por ${adversarios}. Tipos de conflito: ${tipos}. Faccoes presentes: ${faccoes}. Ultimo registro em ${ultima}. A permanencia do adolescente em frente ou nas proximidades desse local gera risco de novo confronto.`,
-          6
+          6,
         );
       });
     }
@@ -658,12 +674,12 @@ export function RelatorioTransferenciaModalTrigger() {
         if (grupo.adversarios.length > 0) {
           const envolvidos = grupo.adversarios
             .map((adv) =>
-              adv.faccao ? `${adv.nome} (${adv.faccao})` : adv.nome
+              adv.faccao ? `${adv.nome} (${adv.faccao})` : adv.nome,
             )
             .join(", ");
           const linhas = doc.splitTextToSize(
             `Adversarios: ${envolvidos}.`,
-            170
+            170,
           );
           doc.text(linhas, 20, cursorY);
           cursorY += linhas.length * 4;
@@ -671,7 +687,7 @@ export function RelatorioTransferenciaModalTrigger() {
 
         const descricao = doc.splitTextToSize(
           `Descricao: ${grupo.descricao ?? "Nao informada"}.`,
-          170
+          170,
         );
         doc.text(descricao, 20, cursorY);
         cursorY += descricao.length * 4 + 2;
@@ -696,7 +712,10 @@ export function RelatorioTransferenciaModalTrigger() {
 
       {aberto && (
         <>
-          <div className="fixed inset-0 z-40 bg-black/40" onClick={() => setAberto(false)} />
+          <div
+            className="fixed inset-0 z-40 bg-black/40"
+            onClick={() => setAberto(false)}
+          />
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
               <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
@@ -708,7 +727,8 @@ export function RelatorioTransferenciaModalTrigger() {
                     Pedido de transferencia judicial
                   </h2>
                   <p className="text-sm text-slate-600">
-                    Utilize o relatorio para embasar solicitacoes de transferencia.
+                    Utilize o relatorio para embasar solicitacoes de
+                    transferencia.
                   </p>
                 </div>
                 <button
@@ -748,12 +768,17 @@ export function RelatorioTransferenciaModalTrigger() {
                         className="flex items-center justify-between border-b border-slate-100 px-3 py-2 last:border-b-0"
                       >
                         <div>
-                          <p className="text-sm font-semibold text-slate-900">{ado.nome}</p>
+                          <p className="text-sm font-semibold text-slate-900">
+                            {ado.nome}
+                          </p>
                           <p className="text-xs text-slate-500">
-                            SMS: {ado.numeroSms ?? "Nao informado"} • Status: {ado.status ?? "?"}
+                            SMS: {ado.numeroSms ?? "Nao informado"} • Status:{" "}
+                            {ado.status ?? "?"}
                           </p>
                           {ado.alojamento && (
-                            <p className="text-xs text-slate-500">{ado.alojamento}</p>
+                            <p className="text-xs text-slate-500">
+                              {ado.alojamento}
+                            </p>
                           )}
                         </div>
                         <button
@@ -801,14 +826,17 @@ export function RelatorioTransferenciaModalTrigger() {
                             {relatorio.adolescente.nome}
                           </p>
                           <p className="text-xs text-slate-500">
-                            SMS: {relatorio.adolescente.numeroSms ?? "Nao informado"} • Status:{" "}
-                            {relatorio.adolescente.status}
+                            SMS:{" "}
+                            {relatorio.adolescente.numeroSms ?? "Nao informado"}{" "}
+                            • Status: {relatorio.adolescente.status}
                           </p>
                           <p className="text-xs text-slate-500">
-                            {relatorio.adolescente.alojamento ?? "Alojamento nao informado"}
+                            {relatorio.adolescente.alojamento ??
+                              "Alojamento nao informado"}
                           </p>
                           <p className="text-xs text-slate-500">
-                            Faccao: {relatorio.adolescente.faccao ?? "Nao informada"}
+                            Faccao:{" "}
+                            {relatorio.adolescente.faccao ?? "Nao informada"}
                           </p>
                         </div>
                       </div>
@@ -817,7 +845,7 @@ export function RelatorioTransferenciaModalTrigger() {
                     {relatorio.protocoloRiscoSuicidio && (
                       <div className="rounded-2xl border border-rose-100 bg-rose-50/80 p-4 text-sm text-rose-900">
                         <p className="text-sm font-semibold text-rose-800">
-                          Protocolo de risco de suicidio
+                          Protocolo de risco de suicídio
                         </p>
                         <p className="text-xs">
                           {relatorio.protocoloRiscoSuicidio.ativo
@@ -827,8 +855,12 @@ export function RelatorioTransferenciaModalTrigger() {
                         {relatorio.protocoloRiscoSuicidio.ultimaEntrada && (
                           <p className="text-xs">
                             Inserido em{" "}
-                            {formatDate(relatorio.protocoloRiscoSuicidio.ultimaEntrada.data)}
-                            {relatorio.protocoloRiscoSuicidio.ultimaEntrada.descricao
+                            {formatDate(
+                              relatorio.protocoloRiscoSuicidio.ultimaEntrada
+                                .data,
+                            )}
+                            {relatorio.protocoloRiscoSuicidio.ultimaEntrada
+                              .descricao
                               ? ` — ${relatorio.protocoloRiscoSuicidio.ultimaEntrada.descricao}`
                               : ""}
                           </p>
@@ -836,8 +868,11 @@ export function RelatorioTransferenciaModalTrigger() {
                         {relatorio.protocoloRiscoSuicidio.ultimaAlta && (
                           <p className="text-xs">
                             Alta medica em{" "}
-                            {formatDate(relatorio.protocoloRiscoSuicidio.ultimaAlta.data)}
-                            {relatorio.protocoloRiscoSuicidio.ultimaAlta.descricao
+                            {formatDate(
+                              relatorio.protocoloRiscoSuicidio.ultimaAlta.data,
+                            )}
+                            {relatorio.protocoloRiscoSuicidio.ultimaAlta
+                              .descricao
                               ? ` — ${relatorio.protocoloRiscoSuicidio.ultimaAlta.descricao}`
                               : ""}
                           </p>
@@ -854,7 +889,8 @@ export function RelatorioTransferenciaModalTrigger() {
                           {relatorio.metricas.conflitosAtivos} ativos
                         </p>
                         <p className="text-sm text-slate-500">
-                          Total acumulado: {relatorio.metricas.totalConflitos} registros.
+                          Total acumulado: {relatorio.metricas.totalConflitos}{" "}
+                          registros.
                         </p>
                       </div>
                       <div className="rounded-2xl border border-slate-200 p-4">
@@ -865,7 +901,8 @@ export function RelatorioTransferenciaModalTrigger() {
                           {relatorio.metricas.alertasGraves}
                         </p>
                         <p className="text-sm text-slate-500">
-                          {relatorio.metricas.alertasTotais} alertas emitidos no total.
+                          {relatorio.metricas.alertasTotais} alertas emitidos no
+                          total.
                         </p>
                       </div>
                     </div>
@@ -877,8 +914,8 @@ export function RelatorioTransferenciaModalTrigger() {
                       <ul className="mt-2 list-disc space-y-1 pl-4 text-sm text-slate-600">
                         <li>
                           Conflitos ativos com{" "}
-                          <strong>{relatorio.metricas.conflitosAtivos}</strong> adversarios
-                          diretos.
+                          <strong>{relatorio.metricas.conflitosAtivos}</strong>{" "}
+                          adversarios diretos.
                         </li>
                         {relatorio.metricas.faccoesEnvolvidas.length > 0 && (
                           <li>
@@ -889,11 +926,14 @@ export function RelatorioTransferenciaModalTrigger() {
                             .
                           </li>
                         )}
-                        {relatorio.metricas.alojamentosEnvolvidos.length > 0 && (
+                        {relatorio.metricas.alojamentosEnvolvidos.length >
+                          0 && (
                           <li>
                             Ambientes impactados:{" "}
                             <strong>
-                              {relatorio.metricas.alojamentosEnvolvidos.join(", ")}
+                              {relatorio.metricas.alojamentosEnvolvidos.join(
+                                ", ",
+                              )}
                             </strong>
                             .
                           </li>
@@ -905,7 +945,10 @@ export function RelatorioTransferenciaModalTrigger() {
                         {relatorio.metricas.ultimaOcorrenciaAlertaGrave && (
                           <li>
                             Ultimo alerta grave em{" "}
-                            {formatDate(relatorio.metricas.ultimaOcorrenciaAlertaGrave)}.
+                            {formatDate(
+                              relatorio.metricas.ultimaOcorrenciaAlertaGrave,
+                            )}
+                            .
                           </li>
                         )}
                       </ul>
@@ -916,7 +959,9 @@ export function RelatorioTransferenciaModalTrigger() {
                         Conflitos ativos
                       </h3>
                       {oponentesAtivos.length === 0 ? (
-                        <p className="text-sm text-slate-500">Nenhum conflito ativo.</p>
+                        <p className="text-sm text-slate-500">
+                          Nenhum conflito ativo.
+                        </p>
                       ) : (
                         <div className="space-y-3">
                           {oponentesAtivos.map((conflito) => (
@@ -926,7 +971,8 @@ export function RelatorioTransferenciaModalTrigger() {
                             >
                               <p className="text-sm font-semibold text-slate-900">
                                 {conflito.tipo ?? "Sem classificacao"} •{" "}
-                                {conflito.adversario?.nome ?? "Oponente desconhecido"}
+                                {conflito.adversario?.nome ??
+                                  "Oponente desconhecido"}
                               </p>
                               {conflito.adversario?.faccao && (
                                 <p className="text-xs text-slate-500">
@@ -947,7 +993,9 @@ export function RelatorioTransferenciaModalTrigger() {
                         Alertas registrados
                       </h3>
                       {relatorio.alertas.length === 0 ? (
-                        <p className="text-sm text-slate-500">Nenhum alerta cadastrado.</p>
+                        <p className="text-sm text-slate-500">
+                          Nenhum alerta cadastrado.
+                        </p>
                       ) : (
                         <div className="space-y-2">
                           {relatorio.alertas.map((alerta) => (
@@ -961,13 +1009,17 @@ export function RelatorioTransferenciaModalTrigger() {
                                   {formatDate(alerta.criadoEm)}
                                 </span>
                                 {alerta.desativadoEm && (
-                                  <span>Encerrado {formatDate(alerta.desativadoEm)}</span>
+                                  <span>
+                                    Encerrado {formatDate(alerta.desativadoEm)}
+                                  </span>
                                 )}
                               </div>
                               <p className="text-sm font-semibold text-slate-900">
                                 {alerta.tipo ?? "Tipo nao informado"}
                               </p>
-                              <p className="text-sm text-slate-600">{alerta.descricao}</p>
+                              <p className="text-sm text-slate-600">
+                                {alerta.descricao}
+                              </p>
                             </div>
                           ))}
                         </div>
@@ -980,7 +1032,8 @@ export function RelatorioTransferenciaModalTrigger() {
                       </h3>
                       {detalhesFaccoes.length === 0 ? (
                         <p className="mt-2 text-sm text-indigo-900">
-                          Nao ha faccoes rivais identificadas nos registros consultados.
+                          Nao ha faccoes rivais identificadas nos registros
+                          consultados.
                         </p>
                       ) : (
                         <div className="mt-3 space-y-3">
@@ -998,7 +1051,8 @@ export function RelatorioTransferenciaModalTrigger() {
                                 )}
                               </p>
                               <p className="text-xs text-indigo-700">
-                                Adversarios diretos: {item.adversarios.join(", ")}
+                                Adversarios diretos:{" "}
+                                {item.adversarios.join(", ")}
                               </p>
                               <ul className="mt-2 space-y-1 pl-4 text-xs text-indigo-800">
                                 {item.contextos.map((contexto, idx) => (
@@ -1022,7 +1076,8 @@ export function RelatorioTransferenciaModalTrigger() {
                       </h3>
                       {alojamentosImpactados.length === 0 ? (
                         <p className="mt-2 text-sm text-amber-900">
-                          Nao foram citados alojamentos rivais que ampliem o risco imediato.
+                          Nao foram citados alojamentos rivais que ampliem o
+                          risco imediato.
                         </p>
                       ) : (
                         <div className="mt-3 space-y-3">
@@ -1035,18 +1090,24 @@ export function RelatorioTransferenciaModalTrigger() {
                                 <span className="font-semibold text-amber-900">
                                   {item.local}
                                 </span>
-                                <span>Ultimo registro: {formatDate(item.ultimaData)}</span>
+                                <span>
+                                  Ultimo registro: {formatDate(item.ultimaData)}
+                                </span>
                               </div>
                               <p className="text-sm text-slate-700">
                                 Ocupado por: {item.adversarios.join(", ")}
                               </p>
                               <p className="text-xs text-slate-500">
                                 Faccoes presentes:{" "}
-                                {item.faccoes.length ? item.faccoes.join(", ") : "Nao informadas"}
+                                {item.faccoes.length
+                                  ? item.faccoes.join(", ")
+                                  : "Nao informadas"}
                               </p>
                               <p className="text-xs text-slate-500">
                                 Tipos de conflito:{" "}
-                                {item.tipos.length ? item.tipos.join(", ") : "Nao classificados"}
+                                {item.tipos.length
+                                  ? item.tipos.join(", ")
+                                  : "Nao classificados"}
                               </p>
                             </div>
                           ))}
@@ -1082,7 +1143,9 @@ export function RelatorioTransferenciaModalTrigger() {
                                   Adversarios:{" "}
                                   {grupo.adversarios
                                     .map((adv) =>
-                                      adv.faccao ? `${adv.nome} (${adv.faccao})` : adv.nome
+                                      adv.faccao
+                                        ? `${adv.nome} (${adv.faccao})`
+                                        : adv.nome,
                                     )
                                     .join(", ")}
                                 </p>
@@ -1106,11 +1169,14 @@ export function RelatorioTransferenciaModalTrigger() {
                 <div className="flex items-center justify-between border-t border-slate-200 px-6 py-4">
                   <div className="text-sm text-slate-500">
                     <p>
-                      Ultimo conflito: {formatDate(relatorio.metricas.ultimaOcorrenciaConflito)}
+                      Ultimo conflito:{" "}
+                      {formatDate(relatorio.metricas.ultimaOcorrenciaConflito)}
                     </p>
                     <p>
                       Ultimo alerta grave:{" "}
-                      {formatDate(relatorio.metricas.ultimaOcorrenciaAlertaGrave)}
+                      {formatDate(
+                        relatorio.metricas.ultimaOcorrenciaAlertaGrave,
+                      )}
                     </p>
                   </div>
                   <button

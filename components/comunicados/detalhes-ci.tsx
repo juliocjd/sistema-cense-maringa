@@ -80,8 +80,12 @@ export function DetalhesCI({
   const [mostrarModalConflito, setMostrarModalConflito] = useState(false);
   const [mostrarModalAlerta, setMostrarModalAlerta] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [excluindoConflitoId, setExcluindoConflitoId] = useState<string | null>(null);
-  const [excluindoAlertaId, setExcluindoAlertaId] = useState<string | null>(null);
+  const [excluindoConflitoId, setExcluindoConflitoId] = useState<string | null>(
+    null,
+  );
+  const [excluindoAlertaId, setExcluindoAlertaId] = useState<string | null>(
+    null,
+  );
   const mostrarFotosNosCards = true;
 
   // Form de conflito
@@ -129,7 +133,7 @@ export function DetalhesCI({
       },
       RISCO_SUICIDIO: {
         cor: "bg-red-100 text-red-800 border-red-300",
-        texto: "Risco de suicidio",
+        texto: "Risco de suicídio",
       },
       PERFIL_MAPEADO: {
         cor: "bg-indigo-100 text-indigo-800 border-indigo-300",
@@ -146,44 +150,29 @@ export function DetalhesCI({
   const mapaAdolescentes = useMemo(
     () =>
       new Map(
-        ci.adolescentes.map((participante) => [participante.id, participante])
+        ci.adolescentes.map((participante) => [participante.id, participante]),
       ),
-    [ci.adolescentes]
+    [ci.adolescentes],
   );
 
   const ladosRegistrados = useMemo(() => {
     if (ci.tipoCi !== "CONFLITO") {
-
       return null;
-
     }
 
-
-
     const lado1 = ci.adolescentes.filter(
-
-      (participante) => participante.ladoConflito === "LADO_1"
-
+      (participante) => participante.ladoConflito === "LADO_1",
     );
 
     const lado2 = ci.adolescentes.filter(
-
-      (participante) => participante.ladoConflito === "LADO_2"
-
+      (participante) => participante.ladoConflito === "LADO_2",
     );
 
-
-
     if (lado1.length === 0 && lado2.length === 0) {
-
       return null;
-
     }
 
-
-
     return { lado1, lado2 };
-
   }, [ci.adolescentes, ci.tipoCi]);
 
   const participantesDisponiveis = useMemo(
@@ -191,9 +180,9 @@ export function DetalhesCI({
       ci.adolescentes.filter(
         (participante) =>
           !lado1Selecionados.includes(participante.id) &&
-          !lado2Selecionados.includes(participante.id)
+          !lado2Selecionados.includes(participante.id),
       ),
-    [ci.adolescentes, lado1Selecionados, lado2Selecionados]
+    [ci.adolescentes, lado1Selecionados, lado2Selecionados],
   );
 
   const participantesLado1Selecionados = useMemo(
@@ -201,7 +190,7 @@ export function DetalhesCI({
       lado1Selecionados
         .map((id) => mapaAdolescentes.get(id))
         .filter((item): item is ParticipanteCI => Boolean(item)),
-    [lado1Selecionados, mapaAdolescentes]
+    [lado1Selecionados, mapaAdolescentes],
   );
 
   const participantesLado2Selecionados = useMemo(
@@ -209,40 +198,27 @@ export function DetalhesCI({
       lado2Selecionados
         .map((id) => mapaAdolescentes.get(id))
         .filter((item): item is ParticipanteCI => Boolean(item)),
-    [lado2Selecionados, mapaAdolescentes]
+    [lado2Selecionados, mapaAdolescentes],
   );
 
   const ladosDerivadosDosConflitos = useMemo(() => {
     if (ci.tipoCi !== "CONFLITO" || (ci.conflitosGerados?.length ?? 0) === 0) {
-
       return null;
-
     }
 
     const lado1 = new Map<string, (typeof ci.adolescentes)[number]>();
 
     const lado2 = new Map<string, (typeof ci.adolescentes)[number]>();
 
-
-
     const resolverParticipante = (
+      participante: {
+        id: string;
 
-      participante:
+        nome: string;
+      } | null,
 
-        | {
-
-            id: string;
-
-            nome: string;
-
-          }
-
-        | null,
-
-      fallbackId: string
-
+      fallbackId: string,
     ) => {
-
       if (!participante) return null;
 
       const existente = mapaAdolescentes.get(participante.id);
@@ -250,83 +226,53 @@ export function DetalhesCI({
       if (existente) return existente;
 
       return {
-
         id: participante.id ?? fallbackId,
 
         nome: participante.nome,
 
         numeroSms: "N?o informado",
-
       };
-
     };
 
-
-
     ci.conflitosGerados.forEach((conflito, index) => {
-
       const participanteA = resolverParticipante(
-
         conflito.adolescenteA,
 
-        `${conflito.id}-A-${index}`
-
+        `${conflito.id}-A-${index}`,
       );
 
       const participanteB = resolverParticipante(
-
         conflito.adolescenteB,
 
-        `${conflito.id}-B-${index}`
-
+        `${conflito.id}-B-${index}`,
       );
 
       if (participanteA) {
-
         lado1.set(participanteA.id, participanteA);
-
       }
 
       if (participanteB) {
-
         lado2.set(participanteB.id, participanteB);
-
       }
-
     });
 
-
-
     if (lado1.size === 0 && lado2.size === 0) {
-
       return null;
-
     }
 
-
-
     return {
-
       lado1: Array.from(lado1.values()),
 
       lado2: Array.from(lado2.values()),
-
     };
-
   }, [ci, mapaAdolescentes]);
 
-
-
   const ladosConflito = useMemo(() => {
-
     if (ladosRegistrados) {
-
       return ladosRegistrados;
-
     }
 
     return ladosDerivadosDosConflitos;
-
   }, [ladosRegistrados, ladosDerivadosDosConflitos]);
 
   const exibirLadosConflito =
@@ -369,9 +315,7 @@ export function DetalhesCI({
       alert("Conflitos criados com sucesso.");
       fecharModalConflito();
     } catch (error) {
-      alert(
-        error instanceof Error ? error.message : "Erro ao criar conflito."
-      );
+      alert(error instanceof Error ? error.message : "Erro ao criar conflito.");
     } finally {
       setLoading(false);
     }
@@ -406,7 +350,7 @@ export function DetalhesCI({
   const handleExcluirConflitoGerado = async (id: string) => {
     if (!onExcluirConflito) return;
     const confirmado = window.confirm(
-      "Confirma a excluso deste conflito vinculado ao CI?"
+      "Confirma a excluso deste conflito vinculado ao CI?",
     );
     if (!confirmado) return;
     setExcluindoConflitoId(id);
@@ -417,7 +361,7 @@ export function DetalhesCI({
       alert(
         error instanceof Error
           ? error.message
-          : "Erro ao remover conflito. Tente novamente."
+          : "Erro ao remover conflito. Tente novamente.",
       );
     } finally {
       setExcluindoConflitoId(null);
@@ -427,7 +371,7 @@ export function DetalhesCI({
   const handleExcluirAlertaGerado = async (id: string) => {
     if (!onExcluirAlerta) return;
     const confirmado = window.confirm(
-      "Confirma a excluso deste alerta gerado pelo CI?"
+      "Confirma a excluso deste alerta gerado pelo CI?",
     );
     if (!confirmado) return;
     setExcluindoAlertaId(id);
@@ -438,14 +382,17 @@ export function DetalhesCI({
       alert(
         error instanceof Error
           ? error.message
-          : "Erro ao remover alerta. Tente novamente."
+          : "Erro ao remover alerta. Tente novamente.",
       );
     } finally {
       setExcluindoAlertaId(null);
     }
   };
 
-  const resetarFormConflito = (valores?: { lado1?: string[]; lado2?: string[] }) => {
+  const resetarFormConflito = (valores?: {
+    lado1?: string[];
+    lado2?: string[];
+  }) => {
     setLado1Selecionados(valores?.lado1 ?? []);
     setLado2Selecionados(valores?.lado2 ?? []);
     setNovoParticipanteLado1("");
@@ -456,23 +403,23 @@ export function DetalhesCI({
 
   const adicionarAoLado = (
     lado: "LADO_1" | "LADO_2",
-    participanteId: string
+    participanteId: string,
   ) => {
     if (!participanteId) return;
     if (lado === "LADO_1") {
       setLado2Selecionados((prev) =>
-        prev.filter((item) => item !== participanteId)
+        prev.filter((item) => item !== participanteId),
       );
       setLado1Selecionados((prev) =>
-        prev.includes(participanteId) ? prev : [...prev, participanteId]
+        prev.includes(participanteId) ? prev : [...prev, participanteId],
       );
       setNovoParticipanteLado1("");
     } else {
       setLado1Selecionados((prev) =>
-        prev.filter((item) => item !== participanteId)
+        prev.filter((item) => item !== participanteId),
       );
       setLado2Selecionados((prev) =>
-        prev.includes(participanteId) ? prev : [...prev, participanteId]
+        prev.includes(participanteId) ? prev : [...prev, participanteId],
       );
       setNovoParticipanteLado2("");
     }
@@ -481,19 +428,23 @@ export function DetalhesCI({
   const removerDoLado = (lado: "LADO_1" | "LADO_2", participanteId: string) => {
     if (lado === "LADO_1") {
       setLado1Selecionados((prev) =>
-        prev.filter((item) => item !== participanteId)
+        prev.filter((item) => item !== participanteId),
       );
     } else {
       setLado2Selecionados((prev) =>
-        prev.filter((item) => item !== participanteId)
+        prev.filter((item) => item !== participanteId),
       );
     }
   };
 
   const abrirModalConflito = () => {
     if (ladosConflito) {
-      const lado1Padrao = ladosConflito.lado1.map((participante) => participante.id);
-      const lado2Padrao = ladosConflito.lado2.map((participante) => participante.id);
+      const lado1Padrao = ladosConflito.lado1.map(
+        (participante) => participante.id,
+      );
+      const lado2Padrao = ladosConflito.lado2.map(
+        (participante) => participante.id,
+      );
       if (lado1Padrao.length > 0 || lado2Padrao.length > 0) {
         resetarFormConflito({ lado1: lado1Padrao, lado2: lado2Padrao });
       } else {
@@ -522,11 +473,11 @@ export function DetalhesCI({
           Voltar para lista
         </Link>
 
-          <div className="flex items-start justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-800 mb-2">
-                CI {ci.numero}/{ci.ano}
-              </h1>
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-800 mb-2">
+              CI {ci.numero}/{ci.ano}
+            </h1>
             <div className="flex items-center gap-2">
               <span
                 className={`px-3 py-1 rounded-full text-sm font-bold border ${badge.cor}`}
@@ -536,10 +487,10 @@ export function DetalhesCI({
             </div>
           </div>
 
-            <div className="flex flex-wrap items-center gap-3">
-              {ci.caminhoPdf && (
-                <a
-                  href={ci.caminhoPdf}
+          <div className="flex flex-wrap items-center gap-3">
+            {ci.caminhoPdf && (
+              <a
+                href={ci.caminhoPdf}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="px-5 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2 font-semibold"
@@ -627,123 +578,121 @@ export function DetalhesCI({
 
         {exibirLadosConflito && ladosConflito ? (
           <div className="grid gap-6 md:grid-cols-2">
-            {[{ titulo: "Lado 1", lista: ladosConflito.lado1 },
-              { titulo: "Lado 2", lista: ladosConflito.lado2 }].map(
-              ({ titulo, lista }) => (
-                <div
-                  key={titulo}
-                  className="rounded-2xl border border-indigo-100 bg-indigo-50/60 p-4"
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-base font-semibold text-gray-800">
-                      {titulo}
-                    </p>
-                    <span className="text-xs font-semibold text-gray-600">
-                      {lista.length} participante(s)
-                    </span>
-                  </div>
-                  {lista.length === 0 ? (
-                    <p className="text-sm text-gray-500">
-                      Nenhum adolescente neste lado.
-                    </p>
-                  ) : (
-                    <div className="space-y-2">
-                        {lista.map((participante) => (
-                          <Link
-                            key={participante.id}
-                            href={`/adolescentes/${participante.id}`}
-                            className="block rounded-lg border border-indigo-100 bg-white px-3 py-2 hover:bg-indigo-100"
-                          >
-                            <div className="flex items-center gap-3">
-                              {mostrarFotosNosCards && (
-                                participante.fotoUrl ? (
-                                  <div
-                                    title="Foto cadastrada"
-                                    className="h-9 w-9 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-sm font-semibold shrink-0"
-                                  >
-                                    <img
-                                      src={participante.fotoUrl}
-                                      alt={participante.nome}
-                                      className="h-full w-full object-cover"
-                                    />
-                                  </div>
-                                ) : (
-                                  <div
-                                    title="Sem foto cadastrada"
-                                    className="h-9 w-9 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-sm font-semibold shrink-0"
-                                  >
-                                    {participante.nome?.trim().charAt(0) ?? "?"}
-                                  </div>
-                                )
-                              )}
-                              <div>
-                                <p className="font-semibold text-gray-800">
-                                  {participante.nome}
-                                </p>
-                                <p className="text-xs text-gray-500">
-                                  SMS: {participante.numeroSms ?? "No informado"}
-                                  {participante.alojamento ? (
-                                    <span className="ml-1">
-                                      | {participante.alojamento}
-                                    </span>
-                                  ) : null}
-                                </p>
+            {[
+              { titulo: "Lado 1", lista: ladosConflito.lado1 },
+              { titulo: "Lado 2", lista: ladosConflito.lado2 },
+            ].map(({ titulo, lista }) => (
+              <div
+                key={titulo}
+                className="rounded-2xl border border-indigo-100 bg-indigo-50/60 p-4"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-base font-semibold text-gray-800">
+                    {titulo}
+                  </p>
+                  <span className="text-xs font-semibold text-gray-600">
+                    {lista.length} participante(s)
+                  </span>
+                </div>
+                {lista.length === 0 ? (
+                  <p className="text-sm text-gray-500">
+                    Nenhum adolescente neste lado.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {lista.map((participante) => (
+                      <Link
+                        key={participante.id}
+                        href={`/adolescentes/${participante.id}`}
+                        className="block rounded-lg border border-indigo-100 bg-white px-3 py-2 hover:bg-indigo-100"
+                      >
+                        <div className="flex items-center gap-3">
+                          {mostrarFotosNosCards &&
+                            (participante.fotoUrl ? (
+                              <div
+                                title="Foto cadastrada"
+                                className="h-9 w-9 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-sm font-semibold shrink-0"
+                              >
+                                <img
+                                  src={participante.fotoUrl}
+                                  alt={participante.nome}
+                                  className="h-full w-full object-cover"
+                                />
                               </div>
-                            </div>
-                          </Link>
-                        ))}
-                      </div>
-                    )}
+                            ) : (
+                              <div
+                                title="Sem foto cadastrada"
+                                className="h-9 w-9 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-sm font-semibold shrink-0"
+                              >
+                                {participante.nome?.trim().charAt(0) ?? "?"}
+                              </div>
+                            ))}
+                          <div>
+                            <p className="font-semibold text-gray-800">
+                              {participante.nome}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              SMS: {participante.numeroSms ?? "No informado"}
+                              {participante.alojamento ? (
+                                <span className="ml-1">
+                                  | {participante.alojamento}
+                                </span>
+                              ) : null}
+                            </p>
+                          </div>
+                        </div>
+                      </Link>
+                    ))}
                   </div>
-              )
-            )}
+                )}
+              </div>
+            ))}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {ci.adolescentes.map((adolescente) => (
-                <Link
-                  key={adolescente.id}
-                  href={`/adolescentes/${adolescente.id}`}
-                  className="bg-indigo-50 border-2 border-indigo-200 rounded-lg p-4 hover:bg-indigo-100 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    {mostrarFotosNosCards && (
-                      adolescente.fotoUrl ? (
-                        <div
-                          title="Foto cadastrada"
-                          className="h-9 w-9 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-sm font-semibold shrink-0"
-                        >
-                          <img
-                            src={adolescente.fotoUrl}
-                            alt={adolescente.nome}
-                            className="h-full w-full object-cover"
-                          />
-                        </div>
-                      ) : (
-                        <div
-                          title="Sem foto cadastrada"
-                          className="h-9 w-9 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-sm font-semibold shrink-0"
-                        >
-                          {adolescente.nome?.trim().charAt(0) ?? "?"}
-                        </div>
-                      )
-                    )}
-                    <div>
-                      <p className="font-bold text-gray-800 mb-1">
-                        {adolescente.nome}
-                      </p>
-                      <p className="text-sm text-gray-600">
-                        SMS: {adolescente.numeroSms || "Nao informado"}
-                        {adolescente.alojamento && (
-                          <span className="ml-1">| {adolescente.alojamento}</span>
-                        )}
-                      </p>
-                    </div>
+            {ci.adolescentes.map((adolescente) => (
+              <Link
+                key={adolescente.id}
+                href={`/adolescentes/${adolescente.id}`}
+                className="bg-indigo-50 border-2 border-indigo-200 rounded-lg p-4 hover:bg-indigo-100 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  {mostrarFotosNosCards &&
+                    (adolescente.fotoUrl ? (
+                      <div
+                        title="Foto cadastrada"
+                        className="h-9 w-9 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-sm font-semibold shrink-0"
+                      >
+                        <img
+                          src={adolescente.fotoUrl}
+                          alt={adolescente.nome}
+                          className="h-full w-full object-cover"
+                        />
+                      </div>
+                    ) : (
+                      <div
+                        title="Sem foto cadastrada"
+                        className="h-9 w-9 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-sm font-semibold shrink-0"
+                      >
+                        {adolescente.nome?.trim().charAt(0) ?? "?"}
+                      </div>
+                    ))}
+                  <div>
+                    <p className="font-bold text-gray-800 mb-1">
+                      {adolescente.nome}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      SMS: {adolescente.numeroSms || "Nao informado"}
+                      {adolescente.alojamento && (
+                        <span className="ml-1">| {adolescente.alojamento}</span>
+                      )}
+                    </p>
                   </div>
-                </Link>
-              ))}
-            </div>
-          )}
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Gatilhos Automticos */}
@@ -778,7 +727,7 @@ export function DetalhesCI({
                     className="flex items-center justify-between gap-3 text-sm text-gray-600"
                   >
                     <span>
-                      - {conflito.adolescenteA?.nome ?? "Lado 1"} {" "}
+                      - {conflito.adolescenteA?.nome ?? "Lado 1"}{" "}
                       {conflito.adolescenteB?.nome ?? "Lado 2"}
                     </span>
                     <div className="flex items-center gap-2">
@@ -791,7 +740,9 @@ export function DetalhesCI({
                       {onExcluirConflito && conflito.id && (
                         <button
                           type="button"
-                          onClick={() => handleExcluirConflitoGerado(conflito.id)}
+                          onClick={() =>
+                            handleExcluirConflitoGerado(conflito.id)
+                          }
                           disabled={excluindoConflitoId === conflito.id}
                           className="text-red-600 text-xs font-semibold hover:underline disabled:text-gray-400"
                         >
@@ -912,11 +863,13 @@ export function DetalhesCI({
 
               <div className="space-y-6">
                 <div className="rounded-2xl border border-orange-100 bg-orange-50/70 p-4 text-sm text-orange-900">
-                  <p className="font-semibold">Separe os adolescentes por lado</p>
+                  <p className="font-semibold">
+                    Separe os adolescentes por lado
+                  </p>
                   <p className="mt-1">
-                    Cada adolescente so pode aparecer em um lado do conflito. Use os
-                    campos abaixo para distribuir todos os envolvidos antes de confirmar
-                    o registro.
+                    Cada adolescente so pode aparecer em um lado do conflito.
+                    Use os campos abaixo para distribuir todos os envolvidos
+                    antes de confirmar o registro.
                   </p>
                 </div>
 
@@ -938,97 +891,117 @@ export function DetalhesCI({
                       novo: novoParticipanteLado2,
                       setNovo: setNovoParticipanteLado2,
                     },
-                  ].map(({ lado, titulo, selecionados, contador, novo, setNovo }) => (
-                    <div
-                      key={lado}
-                      className="rounded-2xl border border-orange-100 bg-orange-50/40 p-4"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-base font-semibold text-gray-800">
-                            {titulo}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            Integrantes do {titulo.toLowerCase()} nao geram alertas entre si.
-                          </p>
+                  ].map(
+                    ({
+                      lado,
+                      titulo,
+                      selecionados,
+                      contador,
+                      novo,
+                      setNovo,
+                    }) => (
+                      <div
+                        key={lado}
+                        className="rounded-2xl border border-orange-100 bg-orange-50/40 p-4"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-base font-semibold text-gray-800">
+                              {titulo}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              Integrantes do {titulo.toLowerCase()} nao geram
+                              alertas entre si.
+                            </p>
+                          </div>
+                          <span className="text-xs font-semibold text-gray-600">
+                            {contador} selecionado(s)
+                          </span>
                         </div>
-                        <span className="text-xs font-semibold text-gray-600">
-                          {contador} selecionado(s)
-                        </span>
-                      </div>
 
-                      <div className="mt-4">
-                        <label className="text-xs font-semibold text-gray-600">
-                          Adicionar participante
-                        </label>
-                        <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-                          <select
-                            value={novo}
-                            onChange={(e) => setNovo(e.target.value)}
-                            disabled={participantesDisponiveis.length === 0}
-                            className="flex-1 rounded-lg border-2 border-gray-300 px-3 py-2 text-sm focus:border-orange-500 focus:outline-none disabled:bg-gray-100"
-                          >
-                            <option value="">Selecione...</option>
-                            {participantesDisponiveis.map((participante) => (
-                              <option key={`${lado}-${participante.id}`} value={participante.id}>
-                                {participante.nome} (SMS: {participante.numeroSms})
-                              </option>
-                            ))}
-                          </select>
-                          <button
-                            type="button"
-                            onClick={() => adicionarAoLado(lado, novo)}
-                            disabled={!novo}
-                            className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-orange-700 disabled:cursor-not-allowed disabled:bg-gray-400"
-                          >
-                            Adicionar
-                          </button>
-                        </div>
-                        {participantesDisponiveis.length === 0 && (
-                          <p className="mt-2 text-xs text-gray-500">
-                            Todos os adolescentes deste CI ja foram distribuidos.
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="mt-4 space-y-2">
-                        {selecionados.length === 0 ? (
-                          <p className="text-sm text-gray-500">
-                            Nenhum adolescente neste lado.
-                          </p>
-                        ) : (
-                          selecionados.map((participante) => (
-                            <div
-                              key={participante.id}
-                              className="flex items-start justify-between gap-3 rounded-lg border border-orange-100 bg-white/80 px-3 py-2"
+                        <div className="mt-4">
+                          <label className="text-xs font-semibold text-gray-600">
+                            Adicionar participante
+                          </label>
+                          <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+                            <select
+                              value={novo}
+                              onChange={(e) => setNovo(e.target.value)}
+                              disabled={participantesDisponiveis.length === 0}
+                              className="flex-1 rounded-lg border-2 border-gray-300 px-3 py-2 text-sm focus:border-orange-500 focus:outline-none disabled:bg-gray-100"
                             >
-                              <div>
-                                <Link
-                                  href={`/adolescentes/${participante.id}`}
-                                  className="font-semibold text-gray-800 hover:text-orange-700"
+                              <option value="">Selecione...</option>
+                              {participantesDisponiveis.map((participante) => (
+                                <option
+                                  key={`${lado}-${participante.id}`}
+                                  value={participante.id}
                                 >
-                                  {participante.nome}
-                                </Link>
-                                <p className="text-xs text-gray-500">
-                                  SMS: {participante.numeroSms ?? "Nao informado"}
-                                  {participante.alojamento ? (
-                                    <span className="ml-1">| {participante.alojamento}</span>
-                                  ) : null}
-                                </p>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => removerDoLado(lado, participante.id)}
-                                className="text-xs font-semibold text-red-600 hover:underline"
+                                  {participante.nome} (SMS:{" "}
+                                  {participante.numeroSms})
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              type="button"
+                              onClick={() => adicionarAoLado(lado, novo)}
+                              disabled={!novo}
+                              className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-orange-700 disabled:cursor-not-allowed disabled:bg-gray-400"
+                            >
+                              Adicionar
+                            </button>
+                          </div>
+                          {participantesDisponiveis.length === 0 && (
+                            <p className="mt-2 text-xs text-gray-500">
+                              Todos os adolescentes deste CI ja foram
+                              distribuidos.
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="mt-4 space-y-2">
+                          {selecionados.length === 0 ? (
+                            <p className="text-sm text-gray-500">
+                              Nenhum adolescente neste lado.
+                            </p>
+                          ) : (
+                            selecionados.map((participante) => (
+                              <div
+                                key={participante.id}
+                                className="flex items-start justify-between gap-3 rounded-lg border border-orange-100 bg-white/80 px-3 py-2"
                               >
-                                Remover
-                              </button>
-                            </div>
-                          ))
-                        )}
+                                <div>
+                                  <Link
+                                    href={`/adolescentes/${participante.id}`}
+                                    className="font-semibold text-gray-800 hover:text-orange-700"
+                                  >
+                                    {participante.nome}
+                                  </Link>
+                                  <p className="text-xs text-gray-500">
+                                    SMS:{" "}
+                                    {participante.numeroSms ?? "Nao informado"}
+                                    {participante.alojamento ? (
+                                      <span className="ml-1">
+                                        | {participante.alojamento}
+                                      </span>
+                                    ) : null}
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    removerDoLado(lado, participante.id)
+                                  }
+                                  className="text-xs font-semibold text-red-600 hover:underline"
+                                >
+                                  Remover
+                                </button>
+                              </div>
+                            ))
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ),
+                  )}
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2">
@@ -1117,7 +1090,7 @@ export function DetalhesCI({
 
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                        Tipo de Alerta *
+                    Tipo de Alerta *
                   </label>
                   <select
                     value={tipoAlerta}
@@ -1169,5 +1142,3 @@ export function DetalhesCI({
     </div>
   );
 }
-
-

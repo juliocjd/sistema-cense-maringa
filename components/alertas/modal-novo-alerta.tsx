@@ -29,7 +29,7 @@ const DESCRICOES_TIPO: Record<string, string> = {
     "Permissao controlada de item nao autorizado (ex.: caneta, material de estudo), com justificativa e validade.",
   SAUDE_CONFIDENCIAL:
     "Informacao de saude sensivel que impacta cuidados e seguranca.",
-  RISCO_SUICIDIO: "Risco de suicidio identificado.",
+  RISCO_SUICIDIO: "Risco de suicídio identificado.",
   PERFIL_MAPEADO: "Protecao por ato infracional que exige sigilo.",
   FUGA: "Risco ou registro de fuga/plano de fuga/evasao.",
   AGRESSAO: "Registro de agressao ou risco iminente.",
@@ -177,7 +177,9 @@ export function ModalNovoAlerta({ onClose, onSucesso }: ModalNovoAlertaProps) {
     ? TIPO_CI_OPTIONS.find((option) => option.value === tipoSelecionado)
     : null;
   const tipoAlertaEmUso =
-    tipoSelecionadoOpcao?.label || TIPO_CI_MAP.get(tipoSelecionado) || tipoSelecionado;
+    tipoSelecionadoOpcao?.label ||
+    TIPO_CI_MAP.get(tipoSelecionado) ||
+    tipoSelecionado;
   const tipoSelecionadoNivel = tipoSelecionado
     ? sugerirNivelPorTipo(tipoSelecionado)
     : null;
@@ -188,7 +190,9 @@ export function ModalNovoAlerta({ onClose, onSucesso }: ModalNovoAlertaProps) {
         {/* Header */}
         <div className="p-6 border-b border-gray-200 flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">Criar Novo Alerta</h2>
+            <h2 className="text-2xl font-bold text-gray-900">
+              Criar Novo Alerta
+            </h2>
             <p className="text-sm text-gray-600 mt-1">
               {etapa === "selecionar"
                 ? "Selecione o adolescente para o alerta"
@@ -288,7 +292,8 @@ export function ModalNovoAlerta({ onClose, onSucesso }: ModalNovoAlertaProps) {
                       Tipo de Alerta *
                     </label>
                     <p className="text-xs text-gray-500">
-                      Categorias oficiais (as mesmas de CI). O nivel sugerido e ajustado automaticamente.
+                      Categorias oficiais (as mesmas de CI). O nivel sugerido e
+                      ajustado automaticamente.
                     </p>
                   </div>
                 </div>
@@ -374,11 +379,15 @@ export function ModalNovoAlerta({ onClose, onSucesso }: ModalNovoAlertaProps) {
                     {erros.descricaoAlerta}
                   </p>
                 )}
-                <p className="text-xs text-gray-600 mt-1">Minimo de 10 caracteres</p>
+                <p className="text-xs text-gray-600 mt-1">
+                  Minimo de 10 caracteres
+                </p>
               </div>
 
               {/* Preview */}
-              <div className={`p-4 rounded-lg border-2 ${corNivel[nivelRisco]}`}>
+              <div
+                className={`p-4 rounded-lg border-2 ${corNivel[nivelRisco]}`}
+              >
                 <div className="flex items-start gap-3">
                   <AlertTriangle size={24} className="flex-shrink-0 mt-1" />
                   <div>

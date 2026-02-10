@@ -34,7 +34,7 @@ const ensureUnique = (values: string[]) => Array.from(new Set(values));
 
 export async function coletarContextoEvento(
   grupoIds: string[],
-  adolescenteIds: string[]
+  adolescenteIds: string[],
 ): Promise<{
   contexto: EventoContexto;
   gruposNaoEncontrados: string[];
@@ -65,7 +65,9 @@ export async function coletarContextoEvento(
                       id: true,
                       tipoConflito: true,
                       adolescenteBId: true,
-                      adolescenteB: { select: { id: true, nomeCompleto: true } },
+                      adolescenteB: {
+                        select: { id: true, nomeCompleto: true },
+                      },
                     },
                   },
                   conflitosB: {
@@ -74,7 +76,9 @@ export async function coletarContextoEvento(
                       id: true,
                       tipoConflito: true,
                       adolescenteAId: true,
-                      adolescenteA: { select: { id: true, nomeCompleto: true } },
+                      adolescenteA: {
+                        select: { id: true, nomeCompleto: true },
+                      },
                     },
                   },
                 },
@@ -126,7 +130,7 @@ export async function coletarContextoEvento(
   }
 
   const extras = ensureUnique(
-    adolescenteIds.filter((id) => !participantes.has(id))
+    adolescenteIds.filter((id) => !participantes.has(id)),
   );
 
   const extrasData = extras.length
@@ -209,12 +213,12 @@ export async function coletarContextoEvento(
 
   const gruposEncontradosIds = grupos.map((grupo) => grupo.id);
   const gruposNaoEncontrados = gruposUnicos.filter(
-    (id) => !gruposEncontradosIds.includes(id)
+    (id) => !gruposEncontradosIds.includes(id),
   );
 
   const extrasEncontradosIds = extrasData.map((item) => item.id);
   const adolescentesNaoEncontrados = extras.filter(
-    (id) => !extrasEncontradosIds.includes(id)
+    (id) => !extrasEncontradosIds.includes(id),
   );
 
   const gruposResumo = grupos.map((grupo) => ({
@@ -242,7 +246,7 @@ type AvaliacaoConflito = {
 const avaliarConflito = (
   a: ParticipanteEvento,
   b: ParticipanteEvento,
-  tipo?: string | null
+  tipo?: string | null,
 ): AvaliacaoConflito => {
   const tipoUpper = (tipo ?? "").toUpperCase();
   const mesmoGrupo = a.grupoId && b.grupoId && a.grupoId === b.grupoId;
@@ -318,7 +322,7 @@ export type RiscoEventoResumo = {
 };
 
 export function calcularRiscoEvento(
-  participantes: Map<string, ParticipanteEvento>
+  participantes: Map<string, ParticipanteEvento>,
 ): RiscoEventoResumo {
   const conflitosVistos = new Set<string>();
   let score = 0;
@@ -336,7 +340,7 @@ export function calcularRiscoEvento(
       const avaliacao = avaliarConflito(
         participante,
         outro,
-        conflito.tipo ?? null
+        conflito.tipo ?? null,
       );
       score += avaliacao.peso;
       if (avaliacao.nivel === "CRITICO") {
@@ -376,7 +380,7 @@ export function calcularRiscoEvento(
   const recomendacoes: string[] = [];
   if (conflitosCriticos > 0) {
     recomendacoes.push(
-      "Separar participantes com conflito critico em horarios distintos."
+      "Separar participantes com conflito critico em horarios distintos.",
     );
   }
 
@@ -384,33 +388,27 @@ export function calcularRiscoEvento(
     recomendacoes.push("Reforcar equipe de vigilancia durante o evento.");
   }
 
-  if (
-    participantesArray.some((p) => p.alertaRiscoSuicidio)
-  ) {
+  if (participantesArray.some((p) => p.alertaRiscoSuicidio)) {
     recomendacoes.push(
-      "Garantir acompanhamento especializado para participantes com alerta de risco de suicidio."
+      "Garantir acompanhamento especializado para participantes com alerta de risco de suicídio.",
     );
   }
 
-  if (
-    participantesArray.some((p) => p.alertaPerfilMapeado)
-  ) {
+  if (participantesArray.some((p) => p.alertaPerfilMapeado)) {
     recomendacoes.push(
-      "Designar monitoramento dedicado para participantes com alerta de perfil mapeado."
+      "Designar monitoramento dedicado para participantes com alerta de perfil mapeado.",
     );
   }
 
-  if (
-    participantesArray.some((p) => p.alertaSaudeConfidencial)
-  ) {
+  if (participantesArray.some((p) => p.alertaSaudeConfidencial)) {
     recomendacoes.push(
-      "Notificar equipe de saude para acompanhar participantes com alerta confidencial."
+      "Notificar equipe de saude para acompanhar participantes com alerta confidencial.",
     );
   }
 
   if (recomendacoes.length === 0) {
     recomendacoes.push(
-      "Manter vigilancia padrao com equipe completa e monitoramento constante."
+      "Manter vigilancia padrao com equipe completa e monitoramento constante.",
     );
   }
 

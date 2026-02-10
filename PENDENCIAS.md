@@ -8,41 +8,49 @@
 ## ✅ Implementações CONCLUÍDAS Nesta Sessão
 
 ### 1. Sistema de Conflitos Externos
+
 - ✅ Agrupamento de múltiplos rivais em um único card
 - ✅ Correção do campo `bairro` vs `bairroOrigem`
 - ✅ Exibição de todos os adolescentes do bairro/facção conflitante
 
 ### 2. Motor de Risco - Cálculo de Conflitos
+
 - ✅ Conflitos de adolescentes existentes agora são carregados
 - ✅ Detecção de conflitos frontais funciona corretamente
 - ✅ API `/api/verificar-alocacao` retorna níveis corretos
 
 ### 3. Regras de Alocação por Tipo de Internação
+
 - ✅ Internação Provisória: apenas Casa 01
 - ✅ Internação Definitiva: apenas Casas 02-07
 - ✅ Exclusão automática de alojamentos INTERDITADOS
 
 ### 4. Sistema de Fallback para Alto Risco
+
 - ✅ Quando não há opções seguras, mostra as 3 menos arriscadas
 - ✅ Aviso especial "⚠️ Não há alojamentos seguros disponíveis"
 
 ### 5. Seletor de Casa Específica
+
 - ✅ Interface com botões para selecionar casa manualmente
 - ✅ Modo automático vs manual
 - ✅ Top 3 alojamentos quando casa específica selecionada
 
 ### 6. Melhorias de UI/UX
+
 - ✅ Badge colorido para níveis de risco
 - ✅ Reorganização da ordem de informações do adolescente
 - ✅ Correção do título "Conflitos e justificativas" (não "Alertas")
 
 ### 7. **NOVO** - Validação Casa 08 - Fase 3
+
 - ✅ Implementada regra: Casa 08 apenas para nível 0-1 (sem conflitos)
 - ✅ Interface especial com cor roxa e ícone de estrela
 - ✅ Tooltip explicativo sobre restrições da Casa 08
 - ✅ Validação em ambos modais (alocação e realocação)
 
 ### 8. **NOVO** - Dashboard de Tensão por Casa
+
 - ✅ Nova página `/dashboard-tensao` criada
 - ✅ Estatísticas gerais (4 cards): total, ocupados, em risco, tensão total
 - ✅ Cards individuais por casa com métricas detalhadas
@@ -54,6 +62,7 @@
 - ✅ Link "Dashboard de Tensão" adicionado no header de /estrutura
 
 ### 9. **NOVO (Sessão 2025-11-11 - Parte 1)** - Melhorias de UX e Testes
+
 - ✅ **Remoção completa de logs de debug** (3 arquivos limpos)
 - ✅ **Auto-scroll para casa específica**: Navegação do Dashboard → Estrutura com scroll suave
 - ✅ **Highlight visual temporário**: Borda indigo + pulso + ring effect por 3 segundos
@@ -61,6 +70,7 @@
 - ✅ **7 cenários de teste documentados**: Conflitos, motor de risco, validações, Dashboard
 
 ### 10. **NOVO (Sessão 2025-11-11 - Parte 2)** - Filtros e Gráficos no Dashboard
+
 - ✅ **Filtros avançados por nível de risco**: 6 opções (Crítico, Alto, Médio, Baixo, Sem Risco, Todos)
 - ✅ **Filtros por tipo de alerta**: Com conflitos, Superlotação (≥90%), Sem alertas
 - ✅ **Ordenação expandida**: 4 opções (Maior Tensão, Taxa de Ocupação, Mais Conflitos, Número da Casa)
@@ -77,6 +87,7 @@
 ## ⚠️ PENDÊNCIAS CRÍTICAS
 
 ### 1. 🔴 Testes do Sistema Completo
+
 **Status**: ROTEIRO COMPLETO DOCUMENTADO - AGUARDANDO EXECUÇÃO
 **Prioridade**: ALTA
 
@@ -85,6 +96,7 @@
 **Resumo dos 7 Testes Documentados**:
 
 #### Teste 1: Enzo (não alocado) - Internação Provisória
+
 ```
 Setup:
 - Enzo sem alocação
@@ -105,6 +117,7 @@ Resultado Esperado:
 ```
 
 #### Teste 2: Enzo - Internação Definitiva
+
 ```
 Setup: Mesmo do Teste 1
 
@@ -121,6 +134,7 @@ Resultado Esperado:
 ```
 
 #### Teste 3: Seleção de Casa Específica
+
 ```
 Setup: Mesmo do Teste 1
 
@@ -137,6 +151,7 @@ Resultado Esperado:
 ```
 
 #### Teste 4: Marcos Sanches - Conflitos Externos
+
 ```
 Setup:
 - Marcos Sanches alocado
@@ -156,6 +171,7 @@ Resultado Esperado:
 ```
 
 #### Teste 5: Alojamentos INTERDITADOS
+
 ```
 Setup:
 - Alojamento 08 da Casa 08 está INTERDITADO
@@ -171,6 +187,7 @@ Resultado Esperado:
 ```
 
 #### Teste 6: Casa 08 - Validação Fase 3
+
 ```
 Setup:
 - Ter um adolescente SEM conflitos ativos (ex: nível risco 0-1)
@@ -193,6 +210,7 @@ Resultado Esperado - Adolescente COM conflitos:
 ```
 
 #### Teste 7: Dashboard de Tensão
+
 ```
 Setup:
 - Ter dados de múltiplas casas com diferentes níveis de risco
@@ -219,22 +237,26 @@ Resultado Esperado:
 ---
 
 ### 2. ✅ Limpeza de Logs de Debug
+
 **Status**: ✅ **CONCLUÍDO** (2025-11-11)
 **Prioridade**: ~~MÉDIA~~ **COMPLETO**
 
 **Todos os logs de debug foram removidos com sucesso**:
 
 #### ✅ `components/mapa/modal-alojamento-detalhes.tsx`
+
 - ✅ Removidas linhas 326-336: Debug de conflito externo
 - ✅ Removida linha 344: Comparação de adolescentes
 - ✅ Removida linha 354: Contagem de rivais reais
 
 #### ✅ `components/estrutura/modal-analise-impacto.tsx`
+
 - ✅ Removida linha 330: Contagem de alojamentos vagos
 - ✅ Removida linha 359: Dados de avaliação
 
 #### ✅ `app/api/verificar-alocacao/route.ts`
-- ✅ Removidas linhas 368-375: Debug de conflitos de moradores
+
+- ✅ Removidas linhas 368-375: Debug de conflitos de internos
 - ✅ Removidas linhas 432-447: Debug de simulação de alocação
 - ✅ Removida linha 447: Status INTERDITADO
 - ✅ Removidas linhas 468-473: Debug de alojamento frontal
@@ -247,14 +269,17 @@ Resultado Esperado:
 ## 🔍 PENDÊNCIAS DE VALIDAÇÃO
 
 ### 1. Performance - Consulta de Todos os Alojamentos
+
 **Status**: NÃO ANALISADO
 **Prioridade**: BAIXA (monitorar em produção)
 
 **Preocupação**:
+
 - Modal "Análise de Impacto" consulta `/api/verificar-alocacao` para CADA alojamento vago
 - Se houver 50+ alojamentos vagos, são 50+ requisições HTTP simultâneas
 
 **Ações**:
+
 1. Medir tempo de resposta em ambiente real
 2. Se > 3 segundos, considerar:
    - Paginação das sugestões
@@ -262,35 +287,45 @@ Resultado Esperado:
    - Cache de resultados
 
 ### 2. Duplicatas nas Sugestões
+
 **Status**: POTENCIALMENTE CORRIGIDO (REQUER TESTE)
 **Prioridade**: MÉDIA
 
 **Relatado pelo Usuário**:
+
 > "Apareceram 3 sugestões idênticas: Casa 02, Ala A"
 
 **Possíveis Causas**:
+
 1. ✅ **CORRIGIDO**: Campo `numero` vs `numeroAlojamento` - agora usa ambos
 2. ✅ **CORRIGIDO**: Campo `casaNumero` adicionado para facilitar filtragem
 3. ❓ **A VERIFICAR**: API `/api/casas/status` pode estar retornando alojamentos duplicados
 
 **Como Testar**:
+
 ```javascript
 // Adicionar log temporário em modal-analise-impacto.tsx
-console.log('Alojamentos únicos:', new Set(alojamentosVagos.map(a => a.id)).size);
-console.log('Total alojamentos:', alojamentosVagos.length);
+console.log(
+  "Alojamentos únicos:",
+  new Set(alojamentosVagos.map((a) => a.id)).size,
+);
+console.log("Total alojamentos:", alojamentosVagos.length);
 // Se diferentes, há duplicatas na source
 ```
 
 ### 3. Conflitos Diretos vs Territoriais vs Facção
+
 **Status**: APENAS CONFLITOS DIRETOS TESTADOS
 **Prioridade**: MÉDIA
 
 **Tipos de Conflito no Sistema**:
+
 - `DIRETO`: Conflito registrado entre dois adolescentes específicos
 - `TERRITORIAL` (via bairro): Conflito entre bairros
 - `FACCAO`: Conflito entre facções
 
 **Testes Pendentes**:
+
 - ❓ Conflito direto + conflito territorial simultâneos
 - ❓ Conflito direto + conflito de facção simultâneos
 - ❓ Todos os 3 tipos simultâneos
@@ -301,10 +336,12 @@ console.log('Total alojamentos:', alojamentosVagos.length);
 ## 📚 DOCUMENTAÇÃO PENDENTE
 
 ### 1. Manual do Usuário
+
 **Status**: NÃO EXISTE
 **Prioridade**: MÉDIA
 
 **Conteúdo Necessário**:
+
 - Como usar o modal "Análise de Impacto de Conflitos"
 - Diferença entre Internação Provisória e Definitiva
 - Como interpretar níveis de risco (0-5)
@@ -313,20 +350,24 @@ console.log('Total alojamentos:', alojamentosVagos.length);
 - O que fazer quando aparecer "⚠️ Não há alojamentos seguros"
 
 ### 2. Documentação Técnica
+
 **Status**: PARCIAL (apenas CHANGELOG-SESSION.md)
 **Prioridade**: BAIXA
 
 **Documentos Sugeridos**:
+
 - Arquitetura do Motor de Risco (`lib/riscos/calcular.ts`)
 - Fluxo de dados da API `/api/verificar-alocacao`
 - Estrutura de tipos `AdolescenteRisco`, `AlojamentoRisco`, `CasaRisco`
 - Mapa de conflitos externos: como é construído
 
 ### 3. Diagramas
+
 **Status**: NÃO EXISTE
 **Prioridade**: BAIXA
 
 **Diagramas Úteis**:
+
 - Fluxo de decisão: "Qual casa sugerir?"
 - Matriz de compatibilidade: Casa x Tipo de Internação
 - Diagrama de cálculo de risco (0-5)
@@ -336,33 +377,41 @@ console.log('Total alojamentos:', alojamentosVagos.length);
 ## 🚀 MELHORIAS FUTURAS (Backlog)
 
 ### 1. Histórico de Alocações Sugeridas
+
 **Descrição**: Registrar quais alojamentos foram sugeridos vs onde foi realmente alocado
 **Benefício**: Analytics para melhorar motor de recomendação
 
 ### 2. Notificações Automáticas
+
 **Descrição**: Alertar equipe quando surgir conflito em alocação existente
 **Exemplo**: João foi alocado na Casa 01, depois Enzo (rival) também foi alocado na Casa 01
 
 ### 3. Simulação de Múltiplos Adolescentes
+
 **Descrição**: "E se eu alocar Enzo aqui E Carlos ali?"
 **Benefício**: Planejamento de realocação em massa
 
 ### 4. Recomendação Inteligente de Realocação
+
 **Descrição**: Sistema sugere trocas (swap) entre adolescentes
 **Exemplo**: "Trocar João (Casa 01, Aloj 04) com Pedro (Casa 02, Aloj 02) reduz risco geral"
 
 ### 5. ~~Dashboard de Tensão por Casa~~ ✅ **IMPLEMENTADO**
+
 **Descrição**: Visão geral do nível de risco em cada casa
 **Métrica**: Score de tensão (já calculado em `/api/casas/status`)
 **Status**: Concluído em 2025-11-11 - Ver `app/dashboard-tensao/page.tsx`
 
 ### 6. Exportação de Relatórios
+
 **Descrição**: PDF com análise completa de conflitos
 **Uso**: Reuniões, auditorias, estudos de caso
 
 ### 7. Melhorias no Dashboard de Tensão
+
 **Descrição**: Funcionalidades adicionais para o dashboard criado
 **Possíveis Adições**:
+
 - Gráficos de histórico de tensão ao longo do tempo
 - Comparação entre períodos (semana atual vs anterior)
 - Alertas automáticos quando tensão ultrapassa limites
@@ -401,6 +450,7 @@ Antes de colocar em produção, verificar:
 **Próxima Revisão**: Após execução completa dos testes documentados
 
 **Resumo desta sessão**:
+
 - ✅ Filtros avançados implementados (risco + alertas)
 - ✅ 3 gráficos visuais criados (donut, barras, mapa de calor)
 - ✅ Auto-refresh configurável com controles Play/Pause

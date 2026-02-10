@@ -28,7 +28,7 @@ export const NIVEL_RISCO_CATALOGO: Record<
     nivel: 0,
     categoria: "LIVRE",
     rotulo: "Nivel 0 - Livre",
-    descricao: "Disponivel para alocacao (sem morador).",
+    descricao: "Disponivel para alocação (sem interno).",
   },
   1: {
     nivel: 1,
@@ -140,10 +140,7 @@ export type RiscoDetalhado = {
   referenciaConflitoId?: string | null;
 };
 
-export type ConflitosExternosMapa = Record<
-  string,
-  ImpactoConflitoExterno[]
->;
+export type ConflitosExternosMapa = Record<string, ImpactoConflitoExterno[]>;
 
 export type CalcularRiscoParams = {
   alojamento: AlojamentoRisco;
@@ -188,7 +185,7 @@ const MANUAL_OVERRIDE: Record<
 
 const formatarLocalReferencia = (
   casa?: Pick<Casa, "nome" | "numero"> | null,
-  alojamento?: Pick<Alojamento, "numeroAlojamento" | "ala"> | null
+  alojamento?: Pick<Alojamento, "numeroAlojamento" | "ala"> | null,
 ) => {
   const partes: string[] = [];
   if (casa?.nome) {
@@ -203,7 +200,7 @@ const formatarLocalReferencia = (
 };
 
 const obterNomeFaccao = (
-  faccao?: { nome?: string | null; nomeFaccao?: string | null } | null
+  faccao?: { nome?: string | null; nomeFaccao?: string | null } | null,
 ) => {
   if (!faccao) {
     return null;
@@ -212,7 +209,7 @@ const obterNomeFaccao = (
 };
 
 export const criarMapaSlots = (
-  casas: CasaRisco[]
+  casas: CasaRisco[],
 ): Map<string, SlotAdolescente> => {
   const mapa = new Map<string, SlotAdolescente>();
   casas.forEach((casa) => {
@@ -231,7 +228,7 @@ export const criarMapaSlots = (
 
 const construirSlotInfo = (
   alojamento: AlojamentoRisco,
-  casa?: CasaRisco | null
+  casa?: CasaRisco | null,
 ) => ({
   alojamento: {
     id: alojamento.id,
@@ -249,7 +246,7 @@ const construirSlotInfo = (
  */
 const saoAliadosPorFaccao = (
   adolescente1: AdolescenteRisco,
-  adolescente2: AdolescenteRisco
+  adolescente2: AdolescenteRisco,
 ): boolean => {
   if (!adolescente1.faccaoGrupoId || !adolescente2.faccaoGrupoId) {
     return false;
@@ -262,7 +259,7 @@ const saoAliadosPorFaccao = (
  */
 const saoRivaisPorFaccao = (
   adolescente: AdolescenteRisco,
-  faccaoRivalId: string
+  faccaoRivalId: string,
 ): boolean => {
   if (!adolescente.faccaoGrupoId) {
     return false;
@@ -297,8 +294,7 @@ export function calcularRiscoAlojamento({
 
   if (!ocupante) {
     const override =
-      MANUAL_OVERRIDE[alojamento.corRisco ?? "livre"] ??
-      MANUAL_OVERRIDE.livre;
+      MANUAL_OVERRIDE[alojamento.corRisco ?? "livre"] ?? MANUAL_OVERRIDE.livre;
     const base = NIVEL_RISCO_CATALOGO[override.nivel];
     const descricao = override.descricao ?? base.descricao;
     return {
@@ -327,7 +323,7 @@ export function calcularRiscoAlojamento({
     { alojamento: AlojamentoRisco; casa: CasaRisco | null }
   >();
   const localizarAlojamentoComCasa = (
-    id?: string | null
+    id?: string | null,
   ): { alojamento: AlojamentoRisco; casa: CasaRisco | null } | null => {
     if (!id) return null;
     if (cacheAlojamentos.has(id)) {
@@ -335,7 +331,7 @@ export function calcularRiscoAlojamento({
     }
     const tentarRegistrar = (
       alvo?: AlojamentoRisco,
-      casaRelacionado?: CasaRisco | null
+      casaRelacionado?: CasaRisco | null,
     ) => {
       if (!alvo) return null;
       const registro = { alojamento: alvo, casa: casaRelacionado ?? null };
@@ -366,7 +362,7 @@ export function calcularRiscoAlojamento({
           adolescente: morador,
           alojamento: aloj,
           casa: casaReferencia,
-        }))
+        })),
       )
       .filter(Boolean) ?? [];
 
@@ -383,7 +379,7 @@ export function calcularRiscoAlojamento({
     mensagem: string,
     tipo: RiscoDetalhado["tipo"],
     proximidade?: Proximidade,
-    referencia?: { conflitoId?: string | null }
+    referencia?: { conflitoId?: string | null },
   ) => {
     const bucket = motivosPorNivel[nivel];
     if (!bucket.includes(mensagem)) {
@@ -394,7 +390,7 @@ export function calcularRiscoAlojamento({
       (m) =>
         m.mensagem === mensagem &&
         m.proximidade === proximidade &&
-        m.referenciaConflitoId === keyConflito
+        m.referenciaConflitoId === keyConflito,
     );
     if (!existeDetalhe) {
       motivosDetalhados.push({
@@ -421,7 +417,7 @@ export function calcularRiscoAlojamento({
       ignorarIds?: Set<string>;
       faccaoNome?: string | null;
       rivalNome?: string | null;
-    }
+    },
   ) => {
     if (!alvo.bairroId && !alvo.faccaoId) {
       return;
@@ -452,13 +448,10 @@ export function calcularRiscoAlojamento({
 
       const proximidade = classificarProximidade(
         slotAtual,
-        construirSlotInfo(outro, casa)
+        construirSlotInfo(outro, casa),
       );
 
-      if (
-        proximidade === "FORA" ||
-        proximidade === undefined
-      ) {
+      if (proximidade === "FORA" || proximidade === undefined) {
         return;
       }
 
@@ -484,7 +477,10 @@ export function calcularRiscoAlojamento({
           registrarMotivo(4, resumo, "ALIADO", proximidade);
         } else if (proximidade === "MESMA_ALA") {
           registrarMotivo(3, resumo, "ALIADO", proximidade);
-        } else if (proximidade === "MESMA_CASA" || proximidade === "ZONA_JANELA") {
+        } else if (
+          proximidade === "MESMA_CASA" ||
+          proximidade === "ZONA_JANELA"
+        ) {
           registrarMotivo(2, resumo, "ALIADO", proximidade);
         }
       } else if (mesmoBairro) {
@@ -506,7 +502,7 @@ export function calcularRiscoAlojamento({
 
   // Considerar apenas conflitos internos ainda ativos para cálculo de risco
   const conflitosInternosAtivos = conflitosInternos.filter(
-    (c) => (c.status ?? "").toUpperCase() === "ATIVO"
+    (c) => (c.status ?? "").toUpperCase() === "ATIVO",
   );
 
   conflitosInternosAtivos.forEach((conflito) => {
@@ -523,11 +519,11 @@ export function calcularRiscoAlojamento({
 
     const proximidade = classificarProximidade(
       slotAtual,
-      construirSlotInfo(adversarioSlot.alojamento, adversarioSlot.casa)
+      construirSlotInfo(adversarioSlot.alojamento, adversarioSlot.casa),
     );
     const local = formatarLocalReferencia(
       adversarioSlot.casa,
-      adversarioSlot.alojamento
+      adversarioSlot.alojamento,
     );
     const msg = `Conflito interno (${conflito.tipoConflito ?? "Sem tipo"}) com ${
       adversarioSlot.adolescente.nomeCompleto
@@ -566,7 +562,7 @@ export function calcularRiscoAlojamento({
         ignorarIds: rivaisDiretos,
         faccaoNome: obterNomeFaccao(adversarioSlot.adolescente.faccao),
         rivalNome: adversarioSlot.adolescente.nomeCompleto ?? null,
-      }
+      },
     );
   });
 
@@ -604,7 +600,7 @@ export function calcularRiscoAlojamento({
 
       const proximidade = classificarProximidade(
         slotAtual,
-        construirSlotInfo(outro, casa)
+        construirSlotInfo(outro, casa),
       );
       if (proximidade === "FORA") {
         return;
@@ -622,7 +618,7 @@ export function calcularRiscoAlojamento({
           descricao,
           "CONFLITO_EXTERNO",
           proximidade,
-          { conflitoId: impacto.conflitoId }
+          { conflitoId: impacto.conflitoId },
         );
       } else if (proximidade === "MESMA_ALA") {
         registrarMotivo(4, descricao, "CONFLITO_EXTERNO", proximidade, {
@@ -634,7 +630,7 @@ export function calcularRiscoAlojamento({
           descricao,
           "CONFLITO_EXTERNO",
           proximidade,
-          { conflitoId: impacto.conflitoId }
+          { conflitoId: impacto.conflitoId },
         );
       } else if (proximidade === "ZONA_JANELA") {
         registrarMotivo(2, descricao, "CONFLITO_EXTERNO", proximidade, {
@@ -645,46 +641,47 @@ export function calcularRiscoAlojamento({
       rivaisDiretos.add(adolescente.id);
     });
 
-  verificarAliados(
-    impacto.conflitoTipo === "BAIRRO"
-      ? { bairroId: impacto.conflitoDestino.id }
-      : { faccaoId: impacto.conflitoDestino.id },
-    contexto,
-    {
-      ignorarIds: rivaisDiretos,
-      faccaoNome:
-        impacto.conflitoTipo === "FACCAO"
-          ? impacto.conflitoDestino.nome
-          : undefined,
-    }
-  );
+    verificarAliados(
+      impacto.conflitoTipo === "BAIRRO"
+        ? { bairroId: impacto.conflitoDestino.id }
+        : { faccaoId: impacto.conflitoDestino.id },
+      contexto,
+      {
+        ignorarIds: rivaisDiretos,
+        faccaoNome:
+          impacto.conflitoTipo === "FACCAO"
+            ? impacto.conflitoDestino.nome
+            : undefined,
+      },
+    );
   });
 
   const suicidioGrave = alertaSuicidioExigeMonitoramento(
     ocupante.alertaRiscoSuicidio,
-    ocupante.alertaRiscoSuicidioNivel
+    ocupante.alertaRiscoSuicidioNivel,
   );
 
   if (suicidioGrave && alojamento.alojamentoFrontalId) {
     const frontalInfo = localizarAlojamentoComCasa(
-      alojamento.alojamentoFrontalId
+      alojamento.alojamentoFrontalId,
     );
     if (frontalInfo && frontalInfo.alojamento.adolescentes.length === 0) {
       const localFrontal = formatarLocalReferencia(
         frontalInfo.casa,
-        frontalInfo.alojamento
+        frontalInfo.alojamento,
       );
       const mensagem = `Sem vigilancia frontal: ${
         localFrontal || "alojamento frontal"
       } esta vazio.`;
       registrarMotivo(2, mensagem, "AMBIENTAL");
     } else if (frontalInfo) {
-      const frontOcupante = frontalInfo.alojamento
-        .adolescentes[0] as AdolescenteRisco | undefined;
+      const frontOcupante = frontalInfo.alojamento.adolescentes[0] as
+        | AdolescenteRisco
+        | undefined;
       if (frontOcupante?.alertaRiscoSuicidio) {
         const localFrontal = formatarLocalReferencia(
           frontalInfo.casa,
-          frontalInfo.alojamento
+          frontalInfo.alojamento,
         );
         const nivelTexto = frontOcupante.alertaRiscoSuicidioNivel
           ? frontOcupante.alertaRiscoSuicidioNivel.toLowerCase()
@@ -693,7 +690,7 @@ export function calcularRiscoAlojamento({
           frontOcupante.nomeCompleto ?? "Adolescente frontal"
         }${
           localFrontal ? ` - ${localFrontal}` : ""
-        } tambem possui alerta de risco de suicidio${
+        } tambem possui alerta de risco de suicídio${
           nivelTexto ? ` (${nivelTexto})` : ""
         }.`;
         registrarMotivo(2, mensagem, "AMBIENTAL");
@@ -711,22 +708,21 @@ export function calcularRiscoAlojamento({
   ) {
     registrarMotivo(
       2,
-      `Protocolo de risco de suicidio ativo (nivel ${suicidioNivelTexto}).`,
-      "AMBIENTAL"
+      `Protocolo de risco de suicídio ativo (nivel ${suicidioNivelTexto}).`,
+      "AMBIENTAL",
     );
   }
 
   const niveisOrdenados: Array<5 | 4 | 3 | 2> = [5, 4, 3, 2];
   const nivelDetectado = niveisOrdenados.find(
-    (nivel) => motivosPorNivel[nivel].length > 0
+    (nivel) => motivosPorNivel[nivel].length > 0,
   );
-  const nivelFinal: NivelRiscoBasico =
-    (nivelDetectado ??
-      (motivosAmbientais.length > 0 ? 2 : 1)) as NivelRiscoBasico;
+  const nivelFinal: NivelRiscoBasico = (nivelDetectado ??
+    (motivosAmbientais.length > 0 ? 2 : 1)) as NivelRiscoBasico;
   const base = NIVEL_RISCO_CATALOGO[nivelFinal];
 
   const motivosOrdenados = niveisOrdenados.flatMap(
-    (nivel) => motivosPorNivel[nivel]
+    (nivel) => motivosPorNivel[nivel],
   );
   motivosAmbientais.forEach((msg) => {
     if (!motivosOrdenados.includes(msg)) {
@@ -737,7 +733,7 @@ export function calcularRiscoAlojamento({
   const justificativa =
     (nivelDetectado ? motivosPorNivel[nivelDetectado][0] : undefined) ??
     motivosAmbientais[0] ??
-      base.descricao;
+    base.descricao;
 
   return {
     ...base,

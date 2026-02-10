@@ -7,16 +7,17 @@ export const ALERTA_NIVEL_RISCO = [
 
 export type AlertaNivelRisco = (typeof ALERTA_NIVEL_RISCO)[number];
 
-export const ALERTA_NIVEL_RISCO_VARIADIC = [
-  ...ALERTA_NIVEL_RISCO,
-] as [AlertaNivelRisco, ...AlertaNivelRisco[]];
+export const ALERTA_NIVEL_RISCO_VARIADIC = [...ALERTA_NIVEL_RISCO] as [
+  AlertaNivelRisco,
+  ...AlertaNivelRisco[],
+];
 
 export const ALERTAS_ESPECIAIS = {
   RISCO_SUICIDIO: {
     tipoAlerta: "RISCO_SUICIDIO",
-    label: "Risco de suicidio",
+    label: "Risco de suicídio",
     descricaoPadrao:
-      "Alerta de risco de suicidio registrado no cadastro do adolescente.",
+      "Alerta de risco de suicídio registrado no cadastro do adolescente.",
     nivelPadrao: "ALTO",
   },
   PERFIL_MAPEADO: {
@@ -38,20 +39,20 @@ export const ALERTAS_ESPECIAIS = {
 export type AlertaEspecialTipo = keyof typeof ALERTAS_ESPECIAIS;
 
 export const ALERTA_ESPECIAL_TIPOS = Object.keys(
-  ALERTAS_ESPECIAIS
+  ALERTAS_ESPECIAIS,
 ) as AlertaEspecialTipo[];
 
 export const ALERTA_ESPECIAL_CODIGOS = ALERTA_ESPECIAL_TIPOS.map(
-  (tipo) => ALERTAS_ESPECIAIS[tipo].tipoAlerta
+  (tipo) => ALERTAS_ESPECIAIS[tipo].tipoAlerta,
 );
 
 export function mapearTipoEspecialPorCodigo(
-  codigo?: string | null
+  codigo?: string | null,
 ): AlertaEspecialTipo | null {
   if (!codigo) return null;
   return (
     ALERTA_ESPECIAL_TIPOS.find(
-      (tipo) => ALERTAS_ESPECIAIS[tipo].tipoAlerta === codigo
+      (tipo) => ALERTAS_ESPECIAIS[tipo].tipoAlerta === codigo,
     ) ?? null
   );
 }
@@ -68,7 +69,7 @@ export function obterMetaAlertaEspecialPorCodigo(codigo?: string | null) {
 
 export function obterDescricaoPadrao(
   tipo: AlertaEspecialTipo,
-  descricao?: string | null
+  descricao?: string | null,
 ) {
   const texto = descricao?.trim();
   if (texto && texto.length > 0) {
@@ -80,12 +81,12 @@ export function obterDescricaoPadrao(
 export function ehTipoAlertaEspecial(tipo?: string | null): boolean {
   if (!tipo) return false;
   return ALERTA_ESPECIAL_TIPOS.some(
-    (chave) => ALERTAS_ESPECIAIS[chave].tipoAlerta === tipo
+    (chave) => ALERTAS_ESPECIAIS[chave].tipoAlerta === tipo,
   );
 }
 
 export function normalizarNivelRisco(
-  valor?: string | null
+  valor?: string | null,
 ): AlertaNivelRisco | null {
   if (!valor) {
     return null;
@@ -105,7 +106,7 @@ type EntradaAlertaEspecial =
   | { tipoAlerta?: string | null; nivelRisco?: string | null };
 
 export function extrairNivelRiscoSuicidio(
-  alertas?: EntradaAlertaEspecial[] | null
+  alertas?: EntradaAlertaEspecial[] | null,
 ): string | null {
   if (!alertas) return null;
   const alvo = alertas.find((alerta) => {
@@ -121,7 +122,7 @@ export function extrairNivelRiscoSuicidio(
 
 export function alertaSuicidioExigeMonitoramento(
   ativo: boolean,
-  nivel?: string | null
+  nivel?: string | null,
 ): boolean {
   if (!ativo) return false;
   if (!nivel) return true;

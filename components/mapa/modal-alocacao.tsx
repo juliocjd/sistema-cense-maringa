@@ -48,7 +48,7 @@ interface ModalAlocacaoProps {
     alojamentoId: string,
     justificativa?: string,
     motivoTransferencia?: string,
-    motivoTransferenciaObrigatorio?: boolean
+    motivoTransferenciaObrigatorio?: boolean,
   ) => Promise<void>;
 }
 
@@ -63,7 +63,7 @@ export function ModalAlocacao({
   const [adolescenteSelecionado, setAdolescenteSelecionado] =
     useState<Adolescente | null>(null);
   const [verificacao, setVerificacao] = useState<VerificacaoConflito | null>(
-    null
+    null,
   );
   const [justificativa, setJustificativa] = useState("");
   const [motivoTransferencia, setMotivoTransferencia] = useState("");
@@ -108,12 +108,24 @@ export function ModalAlocacao({
         entry.mensagens.push(msgNorm);
       }
 
-      if (alerta.conflitoId && !entry.conflitos.some((c) => c.id === alerta.conflitoId)) {
-        entry.conflitos.push({ id: alerta.conflitoId, data: alerta.conflitoCriadoEm ?? null });
+      if (
+        alerta.conflitoId &&
+        !entry.conflitos.some((c) => c.id === alerta.conflitoId)
+      ) {
+        entry.conflitos.push({
+          id: alerta.conflitoId,
+          data: alerta.conflitoCriadoEm ?? null,
+        });
       }
 
-      if (alerta.alertaId && !entry.alertas.some((a) => a.id === alerta.alertaId)) {
-        entry.alertas.push({ id: alerta.alertaId, data: alerta.alertaCriadoEm ?? null });
+      if (
+        alerta.alertaId &&
+        !entry.alertas.some((a) => a.id === alerta.alertaId)
+      ) {
+        entry.alertas.push({
+          id: alerta.alertaId,
+          data: alerta.alertaCriadoEm ?? null,
+        });
       }
     });
 
@@ -140,23 +152,23 @@ export function ModalAlocacao({
       null;
     const ala = aloj.ala ? `Ala ${aloj.ala}` : null;
     const partes = [casa, numero ? `Alojamento ${numero}` : null, ala].filter(
-      Boolean
+      Boolean,
     ) as string[];
     if (partes.length === 0) return null;
     return partes.join(" - ");
   };
 
-const riscoIndicaPerigo = (
-  nivel?: string | null,
-  nivelNumerico?: number | null
-) => {
-  if (typeof nivelNumerico === "number") {
-    return nivelNumerico >= 3;
-  }
-  const texto = (nivel ?? "").toString().trim().toUpperCase();
-  if (!texto) return false;
-  return !["LIVRE", "SEGURO", "MONITORAR"].includes(texto);
-};
+  const riscoIndicaPerigo = (
+    nivel?: string | null,
+    nivelNumerico?: number | null,
+  ) => {
+    if (typeof nivelNumerico === "number") {
+      return nivelNumerico >= 3;
+    }
+    const texto = (nivel ?? "").toString().trim().toUpperCase();
+    if (!texto) return false;
+    return !["LIVRE", "SEGURO", "MONITORAR"].includes(texto);
+  };
 
   useEffect(() => {
     if (!isOpen) {
@@ -186,7 +198,7 @@ const riscoIndicaPerigo = (
   const adolescentesFiltrados = adolescentesDisponiveis.filter(
     (a) =>
       a.nomeCompleto.toLowerCase().includes(busca.toLowerCase()) ||
-      a.numeroSms?.includes(busca)
+      a.numeroSms?.includes(busca),
   );
 
   // Verificacao de conflitos com API REAL
@@ -195,11 +207,11 @@ const riscoIndicaPerigo = (
 
     try {
       const response = await fetch(
-        `/api/verificar-alocacao?adolescenteId=${adolescente.id}&alojamentoId=${alojamento.id}`
+        `/api/verificar-alocacao?adolescenteId=${adolescente.id}&alojamentoId=${alojamento.id}`,
       );
 
       if (!response.ok) {
-        throw new Error("Erro ao verificar alocacao");
+        throw new Error("Erro ao verificar alocação");
       }
 
       const data = await response.json();
@@ -253,7 +265,7 @@ const riscoIndicaPerigo = (
     const jaAlocado = Boolean(adolescenteSelecionado.alojamentoAtualId);
     const riscoRelevante = riscoIndicaPerigo(
       verificacao?.nivel_risco,
-      verificacao?.nivel_numerico
+      verificacao?.nivel_numerico,
     );
     const exigeMotivoTransferencia = Boolean(jaAlocado && riscoRelevante);
 
@@ -286,12 +298,12 @@ const riscoIndicaPerigo = (
         exigeMotivoTransferencia
           ? motivoTransferenciaLimpo || "Transferencia interna via mapa"
           : undefined,
-        exigeMotivoTransferencia
+        exigeMotivoTransferencia,
       );
       handleFechar();
     } catch (error) {
       const errorMessage =
-        error instanceof Error ? error.message : "Erro ao realizar alocacao.";
+        error instanceof Error ? error.message : "Erro ao realizar alocação.";
       setMensagem({ tipo: "erro", texto: errorMessage });
     } finally {
       setLoading(false);
@@ -347,7 +359,7 @@ const riscoIndicaPerigo = (
           )}
           {!adolescenteSelecionado ? (
             <>
-            <div className="mb-4">
+              <div className="mb-4">
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Buscar Adolescente
                 </label>
@@ -418,16 +430,16 @@ const riscoIndicaPerigo = (
                 )}
               </div>
             </>
-            ) : (
+          ) : (
             // ETAPA 2: Verificacao e Confirmacao
             <div>
               {/* Adolescente Selecionado */}
               <div className="mb-6 p-4 bg-gray-50 rounded-lg border-2 border-gray-200">
-                  <div className="flex items-center gap-4">
-                    <div className="w-16 h-16 bg-gray-300 rounded-full flex items-center justify-center text-gray-600 font-bold text-xl">
-                      {adolescenteSelecionado.fotoUrl ? (
-                        <img
-                          src={adolescenteSelecionado.fotoUrl}
+                <div className="flex items-center gap-4">
+                  <div className="w-16 h-16 bg-gray-300 rounded-full flex items-center justify-center text-gray-600 font-bold text-xl">
+                    {adolescenteSelecionado.fotoUrl ? (
+                      <img
+                        src={adolescenteSelecionado.fotoUrl}
                         alt={adolescenteSelecionado.nomeCompleto}
                         className="w-full h-full rounded-full object-cover"
                       />
@@ -445,8 +457,9 @@ const riscoIndicaPerigo = (
                     {adolescenteSelecionado.alojamentoAtualId && (
                       <p className="text-xs font-semibold text-amber-700 mt-1">
                         {`Atualmente em: ${
-                          formatarLocalAtual(adolescenteSelecionado.alojamentoAtual) ??
-                          "Outro alojamento"
+                          formatarLocalAtual(
+                            adolescenteSelecionado.alojamentoAtual,
+                          ) ?? "Outro alojamento"
                         }`}
                       </p>
                     )}
@@ -477,7 +490,7 @@ const riscoIndicaPerigo = (
                   {/* Status Geral */}
                   <div
                     className={`mb-6 p-4 rounded-lg border-2 ${getNivelCorClass(
-                      verificacao.nivel_risco
+                      verificacao.nivel_risco,
                     )}`}
                   >
                     <div className="flex items-center gap-3">
@@ -500,7 +513,6 @@ const riscoIndicaPerigo = (
                       </div>
                     </div>
                   </div>
-
                   {/* Lista de Alertas */}
                   {alertasAgrupados.length > 0 && (
                     <div className="mb-6 space-y-3">
@@ -519,10 +531,14 @@ const riscoIndicaPerigo = (
                             />
                             <div className="flex-1">
                               <p className="font-semibold text-red-900">
-                                {alerta.tipo.replace(/_/g, " ")} - Nível {alerta.nivel}
+                                {alerta.tipo.replace(/_/g, " ")} - Nível{" "}
+                                {alerta.nivel}
                               </p>
                               {alerta.mensagens.map((msg, i) => (
-                                <p key={`msg-${index}-${i}`} className="text-sm text-red-800 mt-1">
+                                <p
+                                  key={`msg-${index}-${i}`}
+                                  className="text-sm text-red-800 mt-1 whitespace-pre-line"
+                                >
                                   {msg}
                                 </p>
                               ))}
@@ -552,9 +568,13 @@ const riscoIndicaPerigo = (
                                       : ""}
                                   </a>
                                 ))}
-                                {(!alerta.alertas || alerta.alertas.length === 0) &&
+                                {(!alerta.alertas ||
+                                  alerta.alertas.length === 0) &&
                                   alerta.tipo === "AMBIENTAL" &&
-                                  (alerta.mensagens?.some((m) => /suicid/i.test(m)) ?? false) && (
+                                  (alerta.mensagens?.some((m) =>
+                                    /suicid/i.test(m),
+                                  ) ??
+                                    false) && (
                                     <a
                                       href={`/alertas${adolescenteSelecionado?.id ? `?adolescenteId=${adolescenteSelecionado.id}` : ""}`}
                                       className="inline-flex items-center rounded-full border border-amber-300 px-2.5 py-1 text-[11px] font-semibold text-amber-800 hover:bg-amber-50"
@@ -568,7 +588,8 @@ const riscoIndicaPerigo = (
                         </div>
                       ))}
                     </div>
-                  )}                  {/* Campo de Justificativa */}
+                  )}{" "}
+                  {/* Campo de Justificativa */}
                   {verificacao.requer_justificativa && (
                     <div className="mb-6">
                       <label className="block text-sm font-semibold text-gray-800 mb-2">
@@ -587,25 +608,26 @@ const riscoIndicaPerigo = (
                       </p>
                     </div>
                   )}
-
                   {adolescenteSelecionado.alojamentoAtualId &&
                     riscoIndicaPerigo(
                       verificacao?.nivel_risco,
-                      verificacao?.nivel_numerico
+                      verificacao?.nivel_numerico,
                     ) && (
-                    <div className="mb-6">
-                      <label className="block text-sm font-semibold text-gray-800 mb-2">
-                        Motivo da transferencia *
-                      </label>
-                      <textarea
-                        value={motivoTransferencia}
-                        onChange={(e) => setMotivoTransferencia(e.target.value)}
-                        placeholder="Informe por que o adolescente sera movido do alojamento atual para este."
-                        rows={3}
-                        className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-rose-500 focus:ring-2 focus:ring-rose-200 outline-none transition-all resize-none"
-                      />
-                    </div>
-                  )}
+                      <div className="mb-6">
+                        <label className="block text-sm font-semibold text-gray-800 mb-2">
+                          Motivo da transferencia *
+                        </label>
+                        <textarea
+                          value={motivoTransferencia}
+                          onChange={(e) =>
+                            setMotivoTransferencia(e.target.value)
+                          }
+                          placeholder="Informe por que o adolescente sera movido do alojamento atual para este."
+                          rows={3}
+                          className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-rose-500 focus:ring-2 focus:ring-rose-200 outline-none transition-all resize-none"
+                        />
+                      </div>
+                    )}
                 </div>
               )}
             </div>
@@ -637,7 +659,7 @@ const riscoIndicaPerigo = (
               ) : (
                 <>
                   <CheckCircle size={20} />
-                  Confirmar Alocacao
+                  Confirmar Alocação
                 </>
               )}
             </button>
@@ -647,5 +669,3 @@ const riscoIndicaPerigo = (
     </div>
   );
 }
-
-

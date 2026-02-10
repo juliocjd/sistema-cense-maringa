@@ -17,7 +17,7 @@ export const TIPO_PROTOCOLO_ALTA = "RISCO_SUICIDIO_ALTA";
 
 export async function registrarEntradaProtocoloSuicidio(
   tx: Tx,
-  params: RegistrarEventoParams
+  params: RegistrarEventoParams,
 ) {
   if (!params.adolescenteId) return;
   await registrarMovimentacao(tx, {
@@ -25,7 +25,7 @@ export async function registrarEntradaProtocoloSuicidio(
     tipo: TIPO_PROTOCOLO_ATIVADO,
     descricao:
       params.descricao ??
-      "Ingresso no protocolo de risco de suicidio (alerta especial).",
+      "Ingresso no protocolo de risco de suicídio (alerta especial).",
     referenciaTipo: params.alertaId ? "ALERTA" : null,
     referenciaId: params.alertaId ?? null,
     operadorId: params.operadorId ?? null,
@@ -35,7 +35,7 @@ export async function registrarEntradaProtocoloSuicidio(
 
 export async function registrarAltaProtocoloSuicidio(
   tx: Tx,
-  params: RegistrarEventoParams
+  params: RegistrarEventoParams,
 ) {
   if (!params.adolescenteId) return;
   await registrarMovimentacao(tx, {
@@ -43,11 +43,10 @@ export async function registrarAltaProtocoloSuicidio(
     tipo: TIPO_PROTOCOLO_ALTA,
     descricao:
       params.descricao ??
-      "Alta medica registrada para o protocolo de risco de suicidio.",
+      "Alta medica registrada para o protocolo de risco de suicídio.",
     referenciaTipo: params.alertaId ? "ALERTA" : null,
     referenciaId: params.alertaId ?? null,
     operadorId: params.operadorId ?? null,
     registradoEm: params.registradoEm ?? null,
   });
 }
-

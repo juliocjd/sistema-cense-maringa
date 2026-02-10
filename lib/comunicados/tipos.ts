@@ -8,7 +8,7 @@ export const TIPO_CI_OPTIONS: TipoCIOption[] = [
   { value: "CONFLITO", label: "Conflito" },
   { value: "AUTORIZACAO_ESPECIAL", label: "Autorizacao de item excepcional" },
   { value: "SAUDE_CONFIDENCIAL", label: "Saude Confidencial" },
-  { value: "RISCO_SUICIDIO", label: "Risco de Suicidio" },
+  { value: "RISCO_SUICIDIO", label: "Risco de suicídio" },
   { value: "PERFIL_MAPEADO", label: "Protecao por ato infracional" },
   { value: "FUGA", label: "Fuga / Plano de Fuga / Evas\u00e3o" },
   { value: "AMEACA_SERVIDOR", label: "Ameaca contra servidor" },
@@ -31,5 +31,5 @@ export const TIPOS_ALERTA_AUTOMATICO = new Set([
 ]);
 
 export const TIPO_CI_MAP = new Map(
-  TIPO_CI_OPTIONS.map((option) => [option.value, option.label])
+  TIPO_CI_OPTIONS.map((option) => [option.value, option.label]),
 );

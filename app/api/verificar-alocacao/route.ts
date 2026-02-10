@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
           erro: "adolescenteId e alojamentoId sao obrigatorios",
           permite_alocacao: false,
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     if (!contexto) {
       return NextResponse.json(
         { erro: "Adolescente nao encontrado", permite_alocacao: false },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
           erro: resultado.erro ?? "Falha ao avaliar alojamento",
           permite_alocacao: false,
         },
-        { status: resultado.status ?? 500 }
+        { status: resultado.status ?? 500 },
       );
     }
 
@@ -52,14 +52,14 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("Erro ao verificar alocacao:", error);
+    console.error("Erro ao verificar alocação:", error);
     return NextResponse.json(
       {
-        erro: "Erro ao verificar alocacao",
+        erro: "Erro ao verificar alocação",
         detalhes: error instanceof Error ? error.message : String(error),
         permite_alocacao: false,
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

@@ -70,13 +70,9 @@ const normalizarTexto = (valor?: string | null) =>
     .trim();
 
 const obterLadosConflito = (ci: ComunicadoInterno) => {
-  if (
-    ci.tipoCi !== "CONFLITO" ||
-    !ci.conflitos ||
-    ci.conflitos.length === 0
-  ) {
+  if (ci.tipoCi !== "CONFLITO" || !ci.conflitos || ci.conflitos.length === 0) {
     const temLados = ci.adolescentes.some(
-      (participante) => participante.ladoConflito
+      (participante) => participante.ladoConflito,
     );
     if (!temLados) {
       return null;
@@ -84,15 +80,15 @@ const obterLadosConflito = (ci: ComunicadoInterno) => {
   }
 
   const participantesRegistrados = ci.adolescentes.filter(
-    (participante) => participante.ladoConflito
+    (participante) => participante.ladoConflito,
   );
 
   if (participantesRegistrados.length > 0) {
     const lado1 = participantesRegistrados.filter(
-      (participante) => participante.ladoConflito === "LADO_1"
+      (participante) => participante.ladoConflito === "LADO_1",
     );
     const lado2 = participantesRegistrados.filter(
-      (participante) => participante.ladoConflito === "LADO_2"
+      (participante) => participante.ladoConflito === "LADO_2",
     );
     return {
       lado1,
@@ -105,7 +101,7 @@ const obterLadosConflito = (ci: ComunicadoInterno) => {
   }
 
   const mapaParticipantes = new Map(
-    ci.adolescentes.map((participante) => [participante.id, participante])
+    ci.adolescentes.map((participante) => [participante.id, participante]),
   );
   const lado1 = new Map<string, AdolescenteResumo>();
   const lado2 = new Map<string, AdolescenteResumo>();
@@ -119,7 +115,7 @@ const obterLadosConflito = (ci: ComunicadoInterno) => {
         }
       | null
       | undefined,
-    fallbackId: string
+    fallbackId: string,
   ): AdolescenteResumo | null => {
     if (!registro) return null;
     if (registro.id) {
@@ -139,11 +135,11 @@ const obterLadosConflito = (ci: ComunicadoInterno) => {
   ci.conflitos.forEach((conflito, index) => {
     const participanteA = resolverParticipante(
       conflito.adolescenteA ?? null,
-      `${conflito.id}-A-${index}`
+      `${conflito.id}-A-${index}`,
     );
     const participanteB = resolverParticipante(
       conflito.adolescenteB ?? null,
-      `${conflito.id}-B-${index}`
+      `${conflito.id}-B-${index}`,
     );
 
     if (participanteA) {
@@ -194,7 +190,7 @@ export function ListagemCIs({ comunicados }: ListagemCIsProps) {
       ci.adolescentes.some(
         (a) =>
           normalizarTexto(a.nome).includes(termoBusca) ||
-          a.numeroSms.includes(busca)
+          a.numeroSms.includes(busca),
       );
 
     const matchTipo = filtroTipo === "TODOS" || ci.tipoCi === filtroTipo;
@@ -218,7 +214,7 @@ export function ListagemCIs({ comunicados }: ListagemCIsProps) {
 
   // Anos disponÃ­veis
   const anosDisponiveis = Array.from(
-    new Set(comunicados.map((c) => c.ano))
+    new Set(comunicados.map((c) => c.ano)),
   ).sort((a, b) => b - a);
 
   const getTipoBadge = (tipo: string) => {
@@ -253,7 +249,7 @@ export function ListagemCIs({ comunicados }: ListagemCIsProps) {
       },
       RISCO_SUICIDIO: {
         cor: "bg-red-100 text-red-800 border-red-300",
-        texto: "Risco de suicidio",
+        texto: "Risco de suicídio",
       },
       PERFIL_MAPEADO: {
         cor: "bg-indigo-100 text-indigo-800 border-indigo-300",
@@ -493,27 +489,27 @@ export function ListagemCIs({ comunicados }: ListagemCIsProps) {
                     </div>
                   </div>
 
-                    <div className="flex items-center gap-2">
-                      {ci.caminhoPdf && (
-                        <a
-                          href={ci.caminhoPdf}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2 font-semibold"
-                        >
-                          <Download size={18} />
-                          PDF
-                        </a>
-                      )}
-                      <Link
-                        href={`/comunicados/${ci.id}`}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 font-semibold"
+                  <div className="flex items-center gap-2">
+                    {ci.caminhoPdf && (
+                      <a
+                        href={ci.caminhoPdf}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2 font-semibold"
                       >
-                        <Eye size={18} />
-                        Ver Detalhes
-                      </Link>
-                    </div>
+                        <Download size={18} />
+                        PDF
+                      </a>
+                    )}
+                    <Link
+                      href={`/comunicados/${ci.id}`}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 font-semibold"
+                    >
+                      <Eye size={18} />
+                      Ver Detalhes
+                    </Link>
                   </div>
+                </div>
 
                 <div className="mb-4">
                   <p className="text-gray-800 line-clamp-2">{ci.resumoCi}</p>
@@ -548,13 +544,13 @@ export function ListagemCIs({ comunicados }: ListagemCIsProps) {
                     <p className="text-sm font-semibold text-gray-700 mb-2">
                       Adolescentes envolvidos:
                     </p>
-                      {exibirLados && ladosConflito ? (
-                        <div className="grid gap-4 md:grid-cols-2">
-                          {[
-                            { titulo: "Lado 1", lista: ladosConflito.lado1 },
-                            { titulo: "Lado 2", lista: ladosConflito.lado2 },
-                          ].map(({ titulo, lista }) => (
-                            <div
+                    {exibirLados && ladosConflito ? (
+                      <div className="grid gap-4 md:grid-cols-2">
+                        {[
+                          { titulo: "Lado 1", lista: ladosConflito.lado1 },
+                          { titulo: "Lado 2", lista: ladosConflito.lado2 },
+                        ].map(({ titulo, lista }) => (
+                          <div
                             key={titulo}
                             className="rounded-2xl border border-indigo-100 bg-indigo-50/70 p-3"
                           >
@@ -571,22 +567,23 @@ export function ListagemCIs({ comunicados }: ListagemCIsProps) {
                                 Nenhum adolescente neste lado.
                               </p>
                             ) : (
-                                <div className="space-y-2">
-                                  {lista.map((participante) => {
-                                    const statusNormalizado =
-                                      participante.status?.toUpperCase() ?? "ATIVO";
-                                    const inativo = statusNormalizado !== "ATIVO";
-                                    const statusLabel =
-                                      statusNormalizado === "TRANSFERIDO"
-                                        ? "Transferido"
-                                        : statusNormalizado === "LIBERADO"
+                              <div className="space-y-2">
+                                {lista.map((participante) => {
+                                  const statusNormalizado =
+                                    participante.status?.toUpperCase() ??
+                                    "ATIVO";
+                                  const inativo = statusNormalizado !== "ATIVO";
+                                  const statusLabel =
+                                    statusNormalizado === "TRANSFERIDO"
+                                      ? "Transferido"
+                                      : statusNormalizado === "LIBERADO"
                                         ? "Liberado"
                                         : statusNormalizado === "EVADIDO"
-                                        ? "Evadido"
-                                        : statusNormalizado === "ATIVO"
-                                        ? "Ativo"
-                                        : statusNormalizado;
-                                    return (
+                                          ? "Evadido"
+                                          : statusNormalizado === "ATIVO"
+                                            ? "Ativo"
+                                            : statusNormalizado;
+                                  return (
                                     <Link
                                       key={participante.id}
                                       href={`/adolescentes/${participante.id}`}
@@ -610,7 +607,9 @@ export function ListagemCIs({ comunicados }: ListagemCIsProps) {
                                             title="Sem foto cadastrada"
                                             className="h-8 w-8 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-xs font-semibold shrink-0"
                                           >
-                                            {participante.nome?.trim().charAt(0) ?? "?"}
+                                            {participante.nome
+                                              ?.trim()
+                                              .charAt(0) ?? "?"}
                                           </div>
                                         )}
                                         <div className="flex-1">
@@ -632,28 +631,28 @@ export function ListagemCIs({ comunicados }: ListagemCIsProps) {
                                     </Link>
                                   );
                                 })}
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                          {ci.adolescentes.map((adolescente) => {
-                            const statusNormalizado =
-                              adolescente.status?.toUpperCase() ?? "ATIVO";
-                            const inativo = statusNormalizado !== "ATIVO";
-                            const statusLabel =
-                              statusNormalizado === "TRANSFERIDO"
-                                ? "Transferido"
-                                : statusNormalizado === "LIBERADO"
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                        {ci.adolescentes.map((adolescente) => {
+                          const statusNormalizado =
+                            adolescente.status?.toUpperCase() ?? "ATIVO";
+                          const inativo = statusNormalizado !== "ATIVO";
+                          const statusLabel =
+                            statusNormalizado === "TRANSFERIDO"
+                              ? "Transferido"
+                              : statusNormalizado === "LIBERADO"
                                 ? "Liberado"
                                 : statusNormalizado === "EVADIDO"
-                                ? "Evadido"
-                                : statusNormalizado === "ATIVO"
-                                ? "Ativo"
-                                : statusNormalizado;
-                            return (
+                                  ? "Evadido"
+                                  : statusNormalizado === "ATIVO"
+                                    ? "Ativo"
+                                    : statusNormalizado;
+                          return (
                             <Link
                               key={adolescente.id}
                               href={`/adolescentes/${adolescente.id}`}
@@ -697,12 +696,12 @@ export function ListagemCIs({ comunicados }: ListagemCIsProps) {
                                 </div>
                               </div>
                             </Link>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  )}
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })

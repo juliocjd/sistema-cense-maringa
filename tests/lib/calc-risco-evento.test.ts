@@ -8,7 +8,7 @@ const buildMap = (participantes: ParticipanteEvento[]) =>
   new Map(participantes.map((participante) => [participante.id, participante]));
 
 const participanteBase = (
-  overrides: Partial<ParticipanteEvento>
+  overrides: Partial<ParticipanteEvento>,
 ): ParticipanteEvento => ({
   id: "default",
   nome: "Participante Default",
@@ -37,7 +37,7 @@ describe("calcularRiscoEvento", () => {
     expect(resultado.participantes_avaliados).toBe(2);
     expect(resultado.conflitos_detalhados).toHaveLength(0);
     expect(resultado.recomendacoes).toContain(
-      "Manter vigilancia padrao com equipe completa e monitoramento constante."
+      "Manter vigilancia padrao com equipe completa e monitoramento constante.",
     );
   });
 
@@ -95,14 +95,13 @@ describe("calcularRiscoEvento", () => {
     const resultado = calcularRiscoEvento(participantes);
 
     expect(resultado.recomendacoes).toContain(
-      "Garantir acompanhamento especializado para participantes com alerta de risco de suicidio."
+      "Garantir acompanhamento especializado para participantes com alerta de risco de suicídio.",
     );
     expect(resultado.recomendacoes).toContain(
-      "Designar monitoramento dedicado para participantes com alerta de perfil mapeado."
+      "Designar monitoramento dedicado para participantes com alerta de perfil mapeado.",
     );
     expect(resultado.recomendacoes).toContain(
-      "Notificar equipe de saude para acompanhar participantes com alerta confidencial."
+      "Notificar equipe de saude para acompanhar participantes com alerta confidencial.",
     );
   });
 });
-

@@ -18,11 +18,7 @@ import { InicializarEstruturaButton } from "./inicializar-button";
 import { ModalAlocacao } from "@/components/mapa/modal-alocacao";
 import ModalAlojamentoDetalhes from "@/components/mapa/modal-alojamento-detalhes";
 import { ModalAnaliseImpacto } from "@/components/estrutura/modal-analise-impacto";
-import type {
-  Casa,
-  Alojamento,
-  Adolescente as AdolescenteTipo,
-} from "@/types";
+import type { Casa, Alojamento, Adolescente as AdolescenteTipo } from "@/types";
 import type { ImpactoConflitoExterno } from "@/types/inteligencia";
 import {
   calcularRiscoAlojamento,
@@ -78,8 +74,11 @@ const obterNomeResumido = (nome?: string | null) => {
 };
 
 const construirMapaConflitosInternos = (
-  lista: AdolescenteTipo[]
-): Record<string, Array<{ id: string; adversario: { id: string; nome: string } }>> => {
+  lista: AdolescenteTipo[],
+): Record<
+  string,
+  Array<{ id: string; adversario: { id: string; nome: string } }>
+> => {
   const mapa: Record<
     string,
     Array<{ id: string; adversario: { id: string; nome: string } }>
@@ -125,7 +124,7 @@ const construirMapaConflitosInternos = (
 };
 
 const mapearAdolescenteRisco = (
-  adolescente: AdolescenteTipo
+  adolescente: AdolescenteTipo,
 ): AdolescenteRisco => ({
   id: adolescente.id,
   nomeCompleto: adolescente.nomeCompleto,
@@ -136,15 +135,17 @@ const mapearAdolescenteRisco = (
   alertaSaudeConfidencial: adolescente.alertaSaudeConfidencial,
   alertaSaudeDetalhes: adolescente.alertaSaudeDetalhes ?? null,
   alertaRiscoSuicidioNivel: adolescente.alertaRiscoSuicidioNivel ?? null,
-  atoInfracionalVinculos:
-    (adolescente.atoInfracionalVinculos ?? [])
-      .map((item: any) => ({
-        id: item?.id ?? item?.vinculoId ?? item?.vinculo?.id ?? "",
-        descricao: item?.descricao ?? item?.vinculo?.descricao ?? null,
-      }))
-      .filter((item: any) => item.id),
+  atoInfracionalVinculos: (adolescente.atoInfracionalVinculos ?? [])
+    .map((item: any) => ({
+      id: item?.id ?? item?.vinculoId ?? item?.vinculo?.id ?? "",
+      descricao: item?.descricao ?? item?.vinculo?.descricao ?? null,
+    }))
+    .filter((item: any) => item.id),
   faccao: adolescente.faccao
-    ? { id: adolescente.faccao.id ?? null, nome: adolescente.faccao.nome ?? null }
+    ? {
+        id: adolescente.faccao.id ?? null,
+        nome: adolescente.faccao.nome ?? null,
+      }
     : null,
   conflitosA: adolescente.conflitosA ?? [],
   conflitosB: adolescente.conflitosB ?? [],
@@ -154,7 +155,7 @@ const renderIconesAlerta = (
   alojamento: Alojamento,
   temConflitos: boolean,
   onClickConflito?: () => void,
-  avaliacaoRisco?: { ambiental?: { ativo: boolean } | null }
+  avaliacaoRisco?: { ambiental?: { ativo: boolean } | null },
 ): React.ReactElement | null => {
   const ocupante = alojamento.adolescentes?.[0];
   const temAliados = avaliacaoRisco?.ambiental?.ativo ?? false;
@@ -164,12 +165,18 @@ const renderIconesAlerta = (
   return (
     <div className="absolute -top-1 -right-1 z-10 flex gap-0.5">
       {ocupante?.alertaRiscoSuicidio && (
-        <div className="rounded-full bg-orange-500 p-0.5" title="Risco de suicidio">
+        <div
+          className="rounded-full bg-orange-500 p-0.5"
+          title="Risco de suicídio"
+        >
           <AlertTriangle size={10} className="text-white" />
         </div>
       )}
       {ocupante?.alertaPerfilMapeado && (
-        <div className="rounded-full bg-purple-500 p-0.5" title="Perfil mapeado">
+        <div
+          className="rounded-full bg-purple-500 p-0.5"
+          title="Perfil mapeado"
+        >
           <Lock size={10} className="text-white" />
         </div>
       )}
@@ -186,26 +193,32 @@ const renderIconesAlerta = (
   );
 };
 
-export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoGeralTabProps) {
+export function VisaoGeralTab({
+  casas: casasIniciais,
+  totalAlojamentos,
+}: VisaoGeralTabProps) {
   const searchParams = useSearchParams();
   const casaNumeroFromUrl = searchParams.get("casa");
   const [casaHighlighted, setCasaHighlighted] = useState<number | null>(null);
   const { user } = useAuth();
   const podeEditarEstrutura = useMemo(
     () => hasPermission(user?.permissions, PERMISSIONS.ESTRUTURA_EDIT),
-    [user?.permissions]
+    [user?.permissions],
   );
 
   const [casas, setCasas] = useState<Casa[]>(casasIniciais ?? []);
   const [adolescentes, setAdolescentes] = useState<AdolescenteTipo[]>([]);
-  const [avaliacoes, setAvaliacoes] = useState<
-    Record<string, ResultadoRisco>
-  >({});
+  const [avaliacoes, setAvaliacoes] = useState<Record<string, ResultadoRisco>>(
+    {},
+  );
   const [conflitosExternos, setConflitosExternos] = useState<
     Record<string, ImpactoConflitoExterno[]>
   >({});
   const [conflitosInternos, setConflitosInternos] = useState<
-    Record<string, Array<{ id: string; adversario: { id: string; nome: string } }>>
+    Record<
+      string,
+      Array<{ id: string; adversario: { id: string; nome: string } }>
+    >
   >({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -276,101 +289,116 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
   const adolescentesAtivos = useMemo(
     () =>
       adolescentes.filter(
-        (item) => (item.statusUnidade ?? "").toUpperCase() === "ATIVO"
+        (item) => (item.statusUnidade ?? "").toUpperCase() === "ATIVO",
       ),
-    [adolescentes]
+    [adolescentes],
   );
 
-  const carregarDados = useCallback(async (force = false) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const mapaUrl = force ? "/api/mapa/status?refresh=1" : "/api/mapa/status";
-      const mapaResponse = await fetch(mapaUrl, {
-        cache: "no-store",
-      });
-      if (!mapaResponse.ok) {
-        throw new Error("Erro ao carregar dados do mapa");
-      }
+  const carregarDados = useCallback(
+    async (force = false) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const mapaUrl = force
+          ? "/api/mapa/status?refresh=1"
+          : "/api/mapa/status";
+        const mapaResponse = await fetch(mapaUrl, {
+          cache: "no-store",
+        });
+        if (!mapaResponse.ok) {
+          throw new Error("Erro ao carregar dados do mapa");
+        }
 
-      const mapaData = await mapaResponse.json();
-      const casasRecebidas: Casa[] = Array.isArray(mapaData?.casas)
-        ? mapaData.casas
-        : [];
-      const adolescentesRecebidos: AdolescenteTipo[] = Array.isArray(
-        mapaData?.adolescentes
-      )
-        ? mapaData.adolescentes
-        : [];
-      const avaliacoesServidor: Record<string, ResultadoRisco> =
-        mapaData?.avaliacoes ?? {};
+        const mapaData = await mapaResponse.json();
+        const casasRecebidas: Casa[] = Array.isArray(mapaData?.casas)
+          ? mapaData.casas
+          : [];
+        const adolescentesRecebidos: AdolescenteTipo[] = Array.isArray(
+          mapaData?.adolescentes,
+        )
+          ? mapaData.adolescentes
+          : [];
+        const avaliacoesServidor: Record<string, ResultadoRisco> =
+          mapaData?.avaliacoes ?? {};
 
-      setCasas(casasRecebidas);
-      setAdolescentes(adolescentesRecebidos);
-      setAvaliacoes(avaliacoesServidor);
-      setConflitosInternos(construirMapaConflitosInternos(adolescentesRecebidos));
+        setCasas(casasRecebidas);
+        setAdolescentes(adolescentesRecebidos);
+        setAvaliacoes(avaliacoesServidor);
+        setConflitosInternos(
+          construirMapaConflitosInternos(adolescentesRecebidos),
+        );
 
-      const agoraImpactos = Date.now();
-      const deveAtualizarImpactos =
-        force ||
-        agoraImpactos - ultimoImpactosRef.current > IMPACTOS_EXTERNOS_TTL_MS ||
-        Object.keys(conflitosExternos).length === 0;
+        const agoraImpactos = Date.now();
+        const deveAtualizarImpactos =
+          force ||
+          agoraImpactos - ultimoImpactosRef.current >
+            IMPACTOS_EXTERNOS_TTL_MS ||
+          Object.keys(conflitosExternos).length === 0;
 
-      if (deveAtualizarImpactos) {
-        let impactosAtualizados = false;
-        let impactos: Record<string, ImpactoConflitoExterno[]> = conflitosExternos;
-        try {
-          const impactosResponse = await fetch(
-            "/api/inteligencia/conflitos/impacto?status=ATIVO",
-            { cache: "no-store" }
-          );
-          if (impactosResponse.ok) {
-            const impactosData = await impactosResponse.json();
-            const lista: ImpactoConflitoExterno[] = Array.isArray(
-              impactosData?.impactos
-            )
-              ? impactosData.impactos
-              : [];
-            impactos = lista.reduce((acc, impacto) => {
-              const adolescenteId = impacto?.adolescente?.id;
-              if (!adolescenteId) return acc;
-              if (!acc[adolescenteId]) {
-                acc[adolescenteId] = [];
-              }
-              acc[adolescenteId].push(impacto);
-              return acc;
-            }, {} as Record<string, ImpactoConflitoExterno[]>);
-            impactosAtualizados = true;
+        if (deveAtualizarImpactos) {
+          let impactosAtualizados = false;
+          let impactos: Record<string, ImpactoConflitoExterno[]> =
+            conflitosExternos;
+          try {
+            const impactosResponse = await fetch(
+              "/api/inteligencia/conflitos/impacto?status=ATIVO",
+              { cache: "no-store" },
+            );
+            if (impactosResponse.ok) {
+              const impactosData = await impactosResponse.json();
+              const lista: ImpactoConflitoExterno[] = Array.isArray(
+                impactosData?.impactos,
+              )
+                ? impactosData.impactos
+                : [];
+              impactos = lista.reduce(
+                (acc, impacto) => {
+                  const adolescenteId = impacto?.adolescente?.id;
+                  if (!adolescenteId) return acc;
+                  if (!acc[adolescenteId]) {
+                    acc[adolescenteId] = [];
+                  }
+                  acc[adolescenteId].push(impacto);
+                  return acc;
+                },
+                {} as Record<string, ImpactoConflitoExterno[]>,
+              );
+              impactosAtualizados = true;
+            }
+          } catch (impactoErro) {
+            console.warn("Falha ao carregar conflitos externos:", impactoErro);
           }
-        } catch (impactoErro) {
-          console.warn("Falha ao carregar conflitos externos:", impactoErro);
+          if (impactosAtualizados) {
+            setConflitosExternos(impactos);
+            ultimoImpactosRef.current = agoraImpactos;
+          }
         }
-        if (impactosAtualizados) {
-          setConflitosExternos(impactos);
-          ultimoImpactosRef.current = agoraImpactos;
-        }
+      } catch (erro) {
+        console.error("Erro ao carregar dados:", erro);
+        setError(
+          erro instanceof Error ? erro.message : "Erro ao carregar dados",
+        );
+      } finally {
+        setLoading(false);
       }
-    } catch (erro) {
-      console.error("Erro ao carregar dados:", erro);
-      setError(
-        erro instanceof Error ? erro.message : "Erro ao carregar dados"
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [conflitosExternos]);
+    },
+    [conflitosExternos],
+  );
 
-  const solicitarAtualizacao = useCallback((force = false) => {
-    const agora = Date.now();
-    if (agora - ultimoRefreshRef.current < 1000) {
-      return;
-    }
-    ultimoRefreshRef.current = agora;
-    if (force) {
-      refreshForcadoRef.current = false;
-    }
-    carregarDados(force);
-  }, [carregarDados]);
+  const solicitarAtualizacao = useCallback(
+    (force = false) => {
+      const agora = Date.now();
+      if (agora - ultimoRefreshRef.current < 1000) {
+        return;
+      }
+      ultimoRefreshRef.current = agora;
+      if (force) {
+        refreshForcadoRef.current = false;
+      }
+      carregarDados(force);
+    },
+    [carregarDados],
+  );
 
   const devePausarAtualizacao = useCallback(() => {
     return (
@@ -387,25 +415,28 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
     return force;
   }, []);
 
-  const agendarAtualizacao = useCallback((force = false) => {
-    refreshPendenteRef.current = true;
-    if (force) {
-      refreshForcadoRef.current = true;
-    }
+  const agendarAtualizacao = useCallback(
+    (force = false) => {
+      refreshPendenteRef.current = true;
+      if (force) {
+        refreshForcadoRef.current = true;
+      }
 
-    if (debounceRefreshRef.current !== null) {
-      return;
-    }
-
-    debounceRefreshRef.current = window.setTimeout(() => {
-      debounceRefreshRef.current = null;
-      if (devePausarAtualizacao()) {
+      if (debounceRefreshRef.current !== null) {
         return;
       }
-      refreshPendenteRef.current = false;
-      solicitarAtualizacao(consumirRefreshForcado());
-    }, 800);
-  }, [consumirRefreshForcado, devePausarAtualizacao, solicitarAtualizacao]);
+
+      debounceRefreshRef.current = window.setTimeout(() => {
+        debounceRefreshRef.current = null;
+        if (devePausarAtualizacao()) {
+          return;
+        }
+        refreshPendenteRef.current = false;
+        solicitarAtualizacao(consumirRefreshForcado());
+      }, 800);
+    },
+    [consumirRefreshForcado, devePausarAtualizacao, solicitarAtualizacao],
+  );
 
   useEffect(() => {
     solicitarAtualizacao();
@@ -466,7 +497,7 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
         finalizarOperacao();
       }
     },
-    [finalizarOperacao]
+    [finalizarOperacao],
   );
 
   useEffect(() => {
@@ -506,8 +537,8 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
         const elemento = document.getElementById(`casa-${casaNumero}`);
         if (elemento) {
           elemento.scrollIntoView({
-            behavior: 'smooth',
-            block: 'center'
+            behavior: "smooth",
+            block: "center",
           });
 
           // Adicionar highlight temporÃ¡rio
@@ -561,10 +592,12 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
         isolada: casa.isolada,
         alojamentos: casa.alojamentos.map((alojamento) => ({
           ...alojamento,
-          adolescentes: (alojamento.adolescentes ?? []).map(mapearAdolescenteRisco),
+          adolescentes: (alojamento.adolescentes ?? []).map(
+            mapearAdolescenteRisco,
+          ),
         })),
       })),
-    [casasNormalizadas]
+    [casasNormalizadas],
   );
 
   const alojamentosPorId = useMemo(() => {
@@ -579,7 +612,7 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
 
   const slotsPorAdolescente = useMemo(
     () => criarMapaSlots(casasParaCalculo),
-    [casasParaCalculo]
+    [casasParaCalculo],
   );
 
   const avaliarRiscoAlojamento = useCallback(
@@ -603,13 +636,13 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
 
       const nivelSeguro = Math.max(
         0,
-        Math.min(5, Math.round(resultado.nivel ?? 0))
+        Math.min(5, Math.round(resultado.nivel ?? 0)),
       ) as 0 | 1 | 2 | 3 | 4 | 5;
 
       const corClass =
         resultado.categoria === "INTERDITADO"
           ? riscoClasses.interditado
-          : classePorNivel[nivelSeguro] ?? riscoClasses.livre;
+          : (classePorNivel[nivelSeguro] ?? riscoClasses.livre);
 
       return {
         ...resultado,
@@ -622,7 +655,7 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
       casasParaCalculo,
       conflitosExternos,
       slotsPorAdolescente,
-    ]
+    ],
   );
 
   // Mapa de nÃ­veis de risco por adolescente (para filtrar dropdown)
@@ -684,7 +717,7 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
     alojamentoId: string,
     justificativa?: string,
     motivoTransferencia?: string,
-    motivoTransferenciaObrigatorio?: boolean
+    motivoTransferenciaObrigatorio?: boolean,
   ) => {
     await executarOperacao(async () => {
       const response = await fetch("/api/alocar", {
@@ -698,7 +731,7 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
           justificativa,
           motivoTransferencia,
           motivoTransferenciaObrigatorio: Boolean(
-            motivoTransferenciaObrigatorio
+            motivoTransferenciaObrigatorio,
           ),
           medidas_adicionais: [],
         }),
@@ -718,7 +751,7 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
   const handleDesalocar = async (
     alojamentoId: string,
     adolescenteId: string,
-    motivo?: string
+    motivo?: string,
   ): Promise<string> => {
     return executarOperacao(async () => {
       const response = await fetch("/api/alocar", {
@@ -781,7 +814,7 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
     destinoAlojamentoId: string,
     justificativa?: string,
     motivoTransferencia?: string,
-    motivoTransferenciaObrigatorio?: boolean
+    motivoTransferenciaObrigatorio?: boolean,
   ) => {
     const motivoLimpo = motivoTransferencia?.trim() ?? "";
     if (motivoTransferenciaObrigatorio && motivoLimpo.length === 0) {
@@ -821,7 +854,7 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
     status: "LIVRE" | "INTERDITADO",
     justificativa: string,
     documentoTipo: "CI" | "DECISAO_JUDICIAL" | "OUTRO",
-    documentoReferencia: string
+    documentoReferencia: string,
   ) => {
     await executarOperacao(async () => {
       const response = await fetch(`/api/alojamentos?id=${alojamentoId}`, {
@@ -862,29 +895,49 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
           <div className="flex items-center gap-2">
             <Bed className="text-green-600" size={18} />
             <div>
-              <p className="text-xs uppercase tracking-wide text-green-600 font-semibold">Total de alojamentos</p>
-              <p className="text-2xl font-bold text-green-900 leading-tight">{totalAlojamentosCard}</p>
+              <p className="text-xs uppercase tracking-wide text-green-600 font-semibold">
+                Total de alojamentos
+              </p>
+              <p className="text-2xl font-bold text-green-900 leading-tight">
+                {totalAlojamentosCard}
+              </p>
             </div>
           </div>
           <div className="flex flex-wrap gap-3 text-xs">
             <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2">
-              <p className="text-[11px] uppercase text-green-600 font-semibold">Disponiveis</p>
-              <p className="text-lg font-bold text-green-800 leading-tight">{resumoAlojamentos.livres}</p>
+              <p className="text-[11px] uppercase text-green-600 font-semibold">
+                Disponiveis
+              </p>
+              <p className="text-lg font-bold text-green-800 leading-tight">
+                {resumoAlojamentos.livres}
+              </p>
             </div>
             <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
-              <p className="text-[11px] uppercase text-emerald-600 font-semibold">Ocupados</p>
-              <p className="text-lg font-bold text-emerald-800 leading-tight">{resumoAlojamentos.ocupados}</p>
+              <p className="text-[11px] uppercase text-emerald-600 font-semibold">
+                Ocupados
+              </p>
+              <p className="text-lg font-bold text-emerald-800 leading-tight">
+                {resumoAlojamentos.ocupados}
+              </p>
             </div>
             <div className="rounded-lg border border-gray-300 bg-gray-50 px-3 py-2">
-              <p className="text-[11px] uppercase text-gray-600 font-semibold">Interditados</p>
-              <p className="text-lg font-bold text-gray-700 leading-tight">{resumoAlojamentos.interditados}</p>
+              <p className="text-[11px] uppercase text-gray-600 font-semibold">
+                Interditados
+              </p>
+              <p className="text-lg font-bold text-gray-700 leading-tight">
+                {resumoAlojamentos.interditados}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-2 text-purple-700 ml-auto">
             <User size={18} />
             <div>
-              <p className="text-xs uppercase tracking-wide font-semibold text-purple-600">Adolescentes ativos</p>
-              <p className="text-2xl font-bold text-purple-900 leading-tight">{adolescentesAtivos.length}</p>
+              <p className="text-xs uppercase tracking-wide font-semibold text-purple-600">
+                Adolescentes ativos
+              </p>
+              <p className="text-2xl font-bold text-purple-900 leading-tight">
+                {adolescentesAtivos.length}
+              </p>
             </div>
           </div>
         </div>
@@ -899,7 +952,7 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
                 Legenda de risco (niveis 0 a 5)
               </p>
               <p className="text-[11px] text-slate-500">
-                Use as cores para priorizar intervencoes.
+                Use as cores para priorizar intervenções.
               </p>
             </div>
             <div className="flex flex-wrap gap-3 text-[11px]">
@@ -938,7 +991,7 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
               <span className="bg-orange-500 rounded-full p-1">
                 <AlertTriangle size={12} className="text-white" />
               </span>
-              Risco de suicidio
+              Risco de suicÍdio
             </div>
             <div className="flex items-center gap-1">
               <span className="bg-purple-500 rounded-full p-1">
@@ -987,25 +1040,27 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
               </div>
             </div>
           )}
-        <div className={`space-y-4 ${loading ? "opacity-40 pointer-events-none" : ""}`}>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              {loading && (
-                <div className="flex items-center gap-2 text-indigo-600">
-                  <Loader2 className="animate-spin" size={16} />
-                  <span className="text-sm">Atualizando...</span>
-                </div>
+          <div
+            className={`space-y-4 ${loading ? "opacity-40 pointer-events-none" : ""}`}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                {loading && (
+                  <div className="flex items-center gap-2 text-indigo-600">
+                    <Loader2 className="animate-spin" size={16} />
+                    <span className="text-sm">Atualizando...</span>
+                  </div>
+                )}
+              </div>
+              {!podeEditarEstrutura && (
+                <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                  Acesso somente leitura
+                </span>
               )}
             </div>
-            {!podeEditarEstrutura && (
-              <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
-                Acesso somente leitura
-              </span>
-            )}
-          </div>
 
-          {/* Adolescentes com conflitos nÃ£o alocados */}
-          {/*
+            {/* Adolescentes com conflitos nÃ£o alocados */}
+            {/*
             REGRA DE NEGÃ“CIO: Conflitos e status de internaÃ§Ã£o
 
             1. Apenas adolescentes com status ATIVO/INTERNADO devem aparecer em listas de conflitos
@@ -1017,189 +1072,197 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
             4. Conflitos internos: registros diretos na tabela Conflito
             5. Conflitos externos: rivalidades de bairro/facÃ§Ã£o detectadas pela inteligÃªncia
           */}
-          {(() => {
-            const adolescentesComConflitosNaoAlocados = adolescentes.filter(
-              (a) =>
-                !a.alojamentoAtualId &&
-                a.statusUnidade === "ATIVO" &&
-                (conflitosInternos[a.id]?.length > 0 ||
-                  conflitosExternos[a.id]?.length > 0)
-            );
+            {(() => {
+              const adolescentesComConflitosNaoAlocados = adolescentes.filter(
+                (a) =>
+                  !a.alojamentoAtualId &&
+                  a.statusUnidade === "ATIVO" &&
+                  (conflitosInternos[a.id]?.length > 0 ||
+                    conflitosExternos[a.id]?.length > 0),
+              );
 
-            if (adolescentesComConflitosNaoAlocados.length === 0) return null;
+              if (adolescentesComConflitosNaoAlocados.length === 0) return null;
 
-            return (
-              <div className="bg-gradient-to-r from-red-50 to-orange-50 border-2 border-red-200 rounded-xl p-6 shadow-lg">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center">
-                    <AlertTriangle className="text-red-600" size={24} />
+              return (
+                <div className="bg-gradient-to-r from-red-50 to-orange-50 border-2 border-red-200 rounded-xl p-6 shadow-lg">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center">
+                      <AlertTriangle className="text-red-600" size={24} />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-xl text-red-900">
+                        Adolescentes com Conflitos NÃ£o Alocados
+                      </h3>
+                      <p className="text-sm text-red-700">
+                        {adolescentesComConflitosNaoAlocados.length}{" "}
+                        adolescente(s) aguardando alocaÃ§Ã£o com conflitos
+                        ativos
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-bold text-xl text-red-900">
-                      Adolescentes com Conflitos NÃ£o Alocados
-                    </h3>
-                    <p className="text-sm text-red-700">
-                      {adolescentesComConflitosNaoAlocados.length} adolescente(s)
-                      aguardando alocaÃ§Ã£o com conflitos ativos
-                    </p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {adolescentesComConflitosNaoAlocados.map((adolescente) => (
-                    <button
-                      key={adolescente.id}
-                      onClick={() =>
-                        setModalAnaliseImpacto({
-                          aberto: true,
-                          adolescenteId: adolescente.id,
-                          adolescenteNome:
-                            adolescente.nomeCompleto || "Desconhecido",
-                          adolescenteAlocado: !!adolescente.alojamentoAtualId,
-                          conflitos: conflitosInternos[adolescente.id] || [],
-                        })
-                      }
-                      className="bg-white border-2 border-red-300 rounded-lg p-4 hover:shadow-lg hover:border-red-400 transition-all text-left"
-                    >
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex-1">
-                          <h4 className="font-bold text-gray-900">
-                            {adolescente.nomeCompleto}
-                          </h4>
-                          {adolescente.numeroSms && (
-                            <p className="text-xs text-gray-600">
-                              SMS: {adolescente.numeroSms}
-                            </p>
-                          )}
-                        </div>
-                        <span className="px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs font-semibold">
-                          {conflitosInternos[adolescente.id]?.length || 0}{" "}
-                          conflito(s)
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs text-red-600">
-                        <AlertCircle size={14} />
-                        <span>Clique para analisar e sugerir alocaÃ§Ã£o</span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            );
-          })()}
-
-          <div className="grid gap-4">
-            {casasNormalizadas.map((casa) => (
-              <div
-                key={casa.id}
-                id={`casa-${casa.numero}`}
-                className={`rounded-xl bg-white border-2 shadow-md hover:shadow-lg transition-all duration-500 p-6 ${
-                  casaHighlighted === casa.numero
-                    ? 'border-indigo-500 ring-4 ring-indigo-300 ring-opacity-50 animate-pulse'
-                    : 'border-gray-200'
-                }`}
-              >
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center">
-                    <Building2 className="text-indigo-600" size={24} />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="font-bold text-xl text-gray-800">
-                      {casa.nome}
-                    </h3>
-                    <p className="text-sm text-gray-600">
-                      {casa.alojamentos.length} alojamentos
-                      {casa.isolada && (
-                        <span className="ml-2 px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs font-semibold">
-                          Isolada
-                        </span>
-                      )}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-5 gap-2 sm:grid-cols-10">
-                  {casa.alojamentos.map((aloj) => {
-                    const avaliacao = avaliarRiscoAlojamento(aloj);
-                    const ocupante = aloj.adolescentes[0];
-                    const interditado = aloj.statusManutencao === "INTERDITADO";
-                    const nomePreferencial =
-                      ocupante?.nomeSocial || ocupante?.nomeCompleto || "";
-                    const nomeResumido = obterNomeResumido(nomePreferencial);
-                    const temConflitos = ocupante
-                      ? ((conflitosInternos[ocupante.id]?.length || 0) > 0 ||
-                         (conflitosExternos[ocupante.id]?.length || 0) > 0)
-                      : false;
-
-                    const handleClickConflito = () => {
-                      if (ocupante) {
-                        setModalAnaliseImpacto({
-                          aberto: true,
-                          adolescenteId: ocupante.id,
-                          adolescenteNome: ocupante.nomeCompleto || "Desconhecido",
-                          adolescenteAlocado: !!ocupante.alojamentoAtualId,
-                          conflitos: conflitosInternos[ocupante.id] || [],
-                        });
-                      }
-                    };
-
-                    const handleClick = () => {
-                      handleCliqueAlojamento(casa, aloj);
-                    };
-
-                    return (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {adolescentesComConflitosNaoAlocados.map((adolescente) => (
                       <button
-                        key={aloj.id}
-                        onClick={handleClick}
-                        disabled={loading}
-                        className={`
+                        key={adolescente.id}
+                        onClick={() =>
+                          setModalAnaliseImpacto({
+                            aberto: true,
+                            adolescenteId: adolescente.id,
+                            adolescenteNome:
+                              adolescente.nomeCompleto || "Desconhecido",
+                            adolescenteAlocado: !!adolescente.alojamentoAtualId,
+                            conflitos: conflitosInternos[adolescente.id] || [],
+                          })
+                        }
+                        className="bg-white border-2 border-red-300 rounded-lg p-4 hover:shadow-lg hover:border-red-400 transition-all text-left"
+                      >
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex-1">
+                            <h4 className="font-bold text-gray-900">
+                              {adolescente.nomeCompleto}
+                            </h4>
+                            {adolescente.numeroSms && (
+                              <p className="text-xs text-gray-600">
+                                SMS: {adolescente.numeroSms}
+                              </p>
+                            )}
+                          </div>
+                          <span className="px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs font-semibold">
+                            {conflitosInternos[adolescente.id]?.length || 0}{" "}
+                            conflito(s)
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-red-600">
+                          <AlertCircle size={14} />
+                          <span>Clique para analisar e sugerir alocaÃ§Ã£o</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
+            <div className="grid gap-4">
+              {casasNormalizadas.map((casa) => (
+                <div
+                  key={casa.id}
+                  id={`casa-${casa.numero}`}
+                  className={`rounded-xl bg-white border-2 shadow-md hover:shadow-lg transition-all duration-500 p-6 ${
+                    casaHighlighted === casa.numero
+                      ? "border-indigo-500 ring-4 ring-indigo-300 ring-opacity-50 animate-pulse"
+                      : "border-gray-200"
+                  }`}
+                >
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center">
+                      <Building2 className="text-indigo-600" size={24} />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-bold text-xl text-gray-800">
+                        {casa.nome}
+                      </h3>
+                      <p className="text-sm text-gray-600">
+                        {casa.alojamentos.length} alojamentos
+                        {casa.isolada && (
+                          <span className="ml-2 px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs font-semibold">
+                            Isolada
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-5 gap-2 sm:grid-cols-10">
+                    {casa.alojamentos.map((aloj) => {
+                      const avaliacao = avaliarRiscoAlojamento(aloj);
+                      const ocupante = aloj.adolescentes[0];
+                      const interditado =
+                        aloj.statusManutencao === "INTERDITADO";
+                      const nomePreferencial =
+                        ocupante?.nomeSocial || ocupante?.nomeCompleto || "";
+                      const nomeResumido = obterNomeResumido(nomePreferencial);
+                      const temConflitos = ocupante
+                        ? (conflitosInternos[ocupante.id]?.length || 0) > 0 ||
+                          (conflitosExternos[ocupante.id]?.length || 0) > 0
+                        : false;
+
+                      const handleClickConflito = () => {
+                        if (ocupante) {
+                          setModalAnaliseImpacto({
+                            aberto: true,
+                            adolescenteId: ocupante.id,
+                            adolescenteNome:
+                              ocupante.nomeCompleto || "Desconhecido",
+                            adolescenteAlocado: !!ocupante.alojamentoAtualId,
+                            conflitos: conflitosInternos[ocupante.id] || [],
+                          });
+                        }
+                      };
+
+                      const handleClick = () => {
+                        handleCliqueAlojamento(casa, aloj);
+                      };
+
+                      return (
+                        <button
+                          key={aloj.id}
+                          onClick={handleClick}
+                          disabled={loading}
+                          className={`
                           relative p-3 rounded-lg text-xs font-bold
                           transition-all hover:scale-105 border-2 h-full
                           flex flex-col items-center justify-center gap-1
                           ${avaliacao.corClass}
                           ${loading ? "opacity-70 cursor-not-allowed" : "cursor-pointer"}
                         `}
-                        title={
-                          interditado
-                            ? `Alojamento ${aloj.numeroAlojamento} - Interditado`
-                            : ocupante && temConflitos
-                            ? `${ocupante.nomeCompleto} - Clique para visualizar | Clique no Ã­cone vermelho para analisar conflitos`
-                            : ocupante
-                            ? `${ocupante.nomeCompleto} - Clique para visualizar`
-                            : `Alojamento ${aloj.numeroAlojamento} - Clique para alocar`
-                        }
-                      >
-                        {renderIconesAlerta(aloj, temConflitos, handleClickConflito, avaliacao)}
-                        <span className="text-base font-extrabold text-gray-800">
-                          {aloj.numeroAlojamento}
-                        </span>
-                        {ocupante ? (
-                          <div className="text-center text-[10px] font-semibold leading-tight text-gray-800 max-w-[4.25rem]">
-                            <span className="block truncate">
-                              {nomeResumido?.primeiro ?? nomePreferencial}
-                            </span>
-                            {nomeResumido?.ultimo && (
-                              <span className="block truncate text-[9px] font-medium text-gray-600">
-                                {nomeResumido.ultimo}
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          <span
-                            className={`text-[10px] font-semibold ${
-                              interditado ? "text-red-600" : "text-gray-500"
-                            }`}
-                          >
-                            {interditado ? "Interditado" : "Livre"}
+                          title={
+                            interditado
+                              ? `Alojamento ${aloj.numeroAlojamento} - Interditado`
+                              : ocupante && temConflitos
+                                ? `${ocupante.nomeCompleto} - Clique para visualizar | Clique no Ã­cone vermelho para analisar conflitos`
+                                : ocupante
+                                  ? `${ocupante.nomeCompleto} - Clique para visualizar`
+                                  : `Alojamento ${aloj.numeroAlojamento} - Clique para alocar`
+                          }
+                        >
+                          {renderIconesAlerta(
+                            aloj,
+                            temConflitos,
+                            handleClickConflito,
+                            avaliacao,
+                          )}
+                          <span className="text-base font-extrabold text-gray-800">
+                            {aloj.numeroAlojamento}
                           </span>
-                        )}
-                      </button>
-                    );
-                  })}
+                          {ocupante ? (
+                            <div className="text-center text-[10px] font-semibold leading-tight text-gray-800 max-w-[4.25rem]">
+                              <span className="block truncate">
+                                {nomeResumido?.primeiro ?? nomePreferencial}
+                              </span>
+                              {nomeResumido?.ultimo && (
+                                <span className="block truncate text-[9px] font-medium text-gray-600">
+                                  {nomeResumido.ultimo}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span
+                              className={`text-[10px] font-semibold ${
+                                interditado ? "text-red-600" : "text-gray-500"
+                              }`}
+                            >
+                              {interditado ? "Interditado" : "Livre"}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
         </div>
       )}
 
@@ -1223,22 +1286,32 @@ export function VisaoGeralTab({ casas: casasIniciais, totalAlojamentos }: VisaoG
           }
           fecharModalDetalhes();
         }}
-        onInterditar={(alojamentoId, justificativa, documentoTipo, documentoReferencia) =>
+        onInterditar={(
+          alojamentoId,
+          justificativa,
+          documentoTipo,
+          documentoReferencia,
+        ) =>
           handleAlterarStatusAlojamento(
             alojamentoId,
             "INTERDITADO",
             justificativa,
             documentoTipo,
-            documentoReferencia
+            documentoReferencia,
           )
         }
-        onLiberarInterdicao={(alojamentoId, justificativa, documentoTipo, documentoReferencia) =>
+        onLiberarInterdicao={(
+          alojamentoId,
+          justificativa,
+          documentoTipo,
+          documentoReferencia,
+        ) =>
           handleAlterarStatusAlojamento(
             alojamentoId,
             "LIVRE",
             justificativa,
             documentoTipo,
-            documentoReferencia
+            documentoReferencia,
           )
         }
       />

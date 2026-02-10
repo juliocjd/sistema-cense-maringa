@@ -68,9 +68,9 @@ const ALERTAS_ESPECIAIS_UI: Record<
   }
 > = {
   RISCO_SUICIDIO: {
-    titulo: "Risco de suicidio",
+    titulo: "Risco de suicídio",
     descricao:
-      "Adolescente apresenta historico ou comportamento de risco para autolesao.",
+      "Adolescente apresenta histórico ou comportamento de risco para autolesão.",
     destaque:
       "Priorizar alojamentos 1, 6, 7 ou 10 e garantir monitoramento constante.",
     corClasse: "border-orange-200 bg-orange-50",
@@ -232,6 +232,26 @@ const normalizarTexto = (valor: string) =>
     .toLowerCase()
     .trim();
 
+const calcularIdade = (data?: string | null) => {
+  if (!data) return null;
+  const partes = data.split("-");
+  if (partes.length !== 3) return null;
+  const [anoStr, mesStr, diaStr] = partes;
+  const ano = Number.parseInt(anoStr, 10);
+  const mes = Number.parseInt(mesStr, 10);
+  const dia = Number.parseInt(diaStr, 10);
+  if (!Number.isFinite(ano) || !Number.isFinite(mes) || !Number.isFinite(dia)) {
+    return null;
+  }
+  const hoje = new Date();
+  let idade = hoje.getFullYear() - ano;
+  const aniversario = new Date(hoje.getFullYear(), mes - 1, dia);
+  if (hoje < aniversario) {
+    idade -= 1;
+  }
+  return idade >= 0 ? idade : null;
+};
+
 interface CadastroAdolescenteProps {
   onSalvar: (
     adolescente: AdolescenteCadastroPayload,
@@ -315,6 +335,10 @@ export function CadastroAdolescente({
     numeroInterno: "",
     dataEntrada: new Date().toISOString().split("T")[0],
   });
+  const idadeAdolescente = useMemo(
+    () => calcularIdade(dadosPessoais.dataNascimento),
+    [dadosPessoais.dataNascimento]
+  );
 
   const [atoInfracional, setAtoInfracional] = useState({
     catalogoId: "",
@@ -2859,7 +2883,7 @@ export function CadastroAdolescente({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Nome Completo *
+                    Nome *
                   </label>
                   <input
                     type="text"
@@ -2913,21 +2937,31 @@ export function CadastroAdolescente({
                   </p>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Data de Nascimento
-                  </label>
-                  <input
-                    type="date"
-                    value={dadosPessoais.dataNascimento}
-                    onChange={(e) =>
-                      setDadosPessoais({
-                        ...dadosPessoais,
-                        dataNascimento: e.target.value,
-                      })
-                    }
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_120px] gap-3">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Data de Nascimento
+                    </label>
+                    <input
+                      type="date"
+                      value={dadosPessoais.dataNascimento}
+                      onChange={(e) =>
+                        setDadosPessoais({
+                          ...dadosPessoais,
+                          dataNascimento: e.target.value,
+                        })
+                      }
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Idade
+                    </label>
+                    <div className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg bg-gray-50 text-sm text-gray-600 flex items-center justify-center">
+                      {idadeAdolescente !== null ? `${idadeAdolescente} anos` : "--"}
+                    </div>
+                  </div>
                 </div>
 
                 <div>

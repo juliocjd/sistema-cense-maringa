@@ -384,7 +384,7 @@ export function RelatorioFase3ModalTrigger() {
         doc.roundedRect(14, startY, 182, blocoAltura, 3, 3, "FD");
         doc.setFont("helvetica", "bold");
         doc.setTextColor(190, 18, 60);
-        doc.text("PROTOCOLO DE RISCO DE SUICIDIO", 105, startY + 7, {
+        doc.text("PROTOCOLO DE RISCO DE SUICÍDIO", 105, startY + 7, {
           align: "center" as const,
         });
         doc.setFont("helvetica", "normal");
@@ -702,7 +702,7 @@ export function RelatorioFase3ModalTrigger() {
                   {analise.protocoloRiscoSuicidio && (
                     <div className="rounded-2xl border border-rose-100 bg-rose-50/70 p-5 text-sm text-rose-900">
                       <p className="text-base font-semibold text-rose-800">
-                        Protocolo de risco de suicidio
+                        Protocolo de risco de suicídio
                       </p>
                       <p className="text-xs">
                         {analise.protocoloRiscoSuicidio.ativo

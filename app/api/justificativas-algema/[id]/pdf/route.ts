@@ -833,7 +833,7 @@ export async function GET(
       doc.setFontSize(11);
       doc.setTextColor(157, 23, 77);
       doc.text(
-        "PROTOCOLO DE RISCO DE SUICIDIO / ALTA MEDICA",
+        "PROTOCOLO DE RISCO DE SUICÍDIO / ALTA MEDICA",
         pageWidth / 2,
         yPosition + 8,
         { align: "center" },
