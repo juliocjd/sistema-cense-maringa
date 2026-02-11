@@ -409,6 +409,100 @@ export function calcularRiscoAlojamento({
   };
 
   const rivaisDiretos = new Set<string>();
+  const aliadosPorFaccao = new Map<
+    string,
+    {
+      adolescente: AdolescenteRisco;
+      local: string | null;
+      faccaoNome: string;
+      rivalNomes: Set<string>;
+      contextos: Set<string>;
+      proximidade: Proximidade;
+    }
+  >();
+  const aliadosPorBairro = new Map<
+    string,
+    {
+      adolescente: AdolescenteRisco;
+      local: string | null;
+      contextos: Set<string>;
+      proximidade: Proximidade;
+    }
+  >();
+
+  const prioridadeProximidade: Record<Proximidade, number> = {
+    FRONTAL: 4,
+    MESMA_ALA: 3,
+    MESMA_CASA: 2,
+    ZONA_JANELA: 2,
+    FORA: 0,
+  };
+
+  const escolherProximidadeMaisAlta = (
+    atual: Proximidade,
+    nova: Proximidade,
+  ) => (prioridadeProximidade[nova] > prioridadeProximidade[atual] ? nova : atual);
+
+  const formatarLista = (itens: string[]) => {
+    if (itens.length === 0) return "";
+    if (itens.length === 1) return itens[0];
+    if (itens.length === 2) return `${itens[0]} e ${itens[1]}`;
+    return `${itens.slice(0, -1).join(", ")} e ${itens[itens.length - 1]}`;
+  };
+
+  const registrarAliadosAgrupados = () => {
+    aliadosPorFaccao.forEach((entrada) => {
+      const nomesRivais = Array.from(entrada.rivalNomes).filter(Boolean);
+      const contextos = Array.from(entrada.contextos).filter(Boolean);
+      const localTexto = entrada.local ? ` - ${entrada.local}` : "";
+      const nomesTexto = formatarLista(nomesRivais);
+      const contextoTexto = contextos.join("; ");
+      const plural = nomesRivais.length > 1;
+      const resumo =
+        nomesRivais.length > 0
+          ? `ALIANÇA FORTE (Facção): ${entrada.adolescente.nomeCompleto}${localTexto} pertence à facção ${entrada.faccaoNome}, mesma facção de ${nomesTexto}, que ${plural ? "possuem conflitos" : "possui conflito"} ativo${plural ? "s" : ""} com este adolescente.`
+          : `ALIANÇA FORTE (Facção): ${entrada.adolescente.nomeCompleto}${localTexto} pertence à facção ${entrada.faccaoNome}, citada em ${contextoTexto}.`;
+
+      if (entrada.proximidade === "FRONTAL") {
+        registrarMotivo(4, resumo, "ALIADO", entrada.proximidade);
+      } else if (entrada.proximidade === "MESMA_ALA") {
+        registrarMotivo(3, resumo, "ALIADO", entrada.proximidade);
+      } else if (
+        entrada.proximidade === "MESMA_CASA" ||
+        entrada.proximidade === "ZONA_JANELA"
+      ) {
+        registrarMotivo(2, resumo, "ALIADO", entrada.proximidade);
+      }
+    });
+
+    aliadosPorBairro.forEach((entrada) => {
+      const contextos = Array.from(entrada.contextos).filter(Boolean);
+      const rivalNomes = new Set<string>();
+      const contextosSemRival: string[] = [];
+
+      contextos.forEach((contexto) => {
+        const matchRival = contexto.match(/conflito interno com (.+)$/i);
+        if (matchRival?.[1]) {
+          rivalNomes.add(matchRival[1]);
+          return;
+        }
+        contextosSemRival.push(contexto);
+      });
+
+      const localTexto = entrada.local ? ` - ${entrada.local}` : "";
+      const nomesRivais = Array.from(rivalNomes).filter(Boolean);
+      const nomesTexto = formatarLista(nomesRivais);
+      const plural = nomesRivais.length > 1;
+      const contextoTexto = contextosSemRival.join("; ");
+
+      const resumo =
+        nomesRivais.length > 0
+          ? `ALIANÇA FRACA (Bairro): ${entrada.adolescente.nomeCompleto}${localTexto} do mesmo bairro que ${plural ? "os rivais" : "o rival"} ${nomesTexto} - Tensão ambiental leve, monitoramento recomendado${contextoTexto ? ` - ${contextoTexto}` : ""}`
+          : `ALIANÇA FRACA (Bairro): ${entrada.adolescente.nomeCompleto}${localTexto} do mesmo bairro que o rival - Tensão ambiental leve, monitoramento recomendado - ${contextoTexto}`;
+
+      registrarMotivo(2, resumo, "ALIADO", entrada.proximidade);
+    });
+  };
 
   const verificarAliados = (
     alvo: { bairroId?: string | null; faccaoId?: string | null },
@@ -464,33 +558,53 @@ export function calcularRiscoAlojamento({
           obterNomeFaccao(adolescente.faccao) ??
           opts?.faccaoNome ??
           "facção não identificada";
-        const rivalReferencia = opts?.rivalNome ?? null;
-        const resumo = rivalReferencia
-          ? `ALIANÇA FORTE (Facção): ${adolescente.nomeCompleto}${
-              localAliado ? ` - ${localAliado}` : ""
-            } pertence à facção ${faccaoAliado}, mesma facção de ${rivalReferencia}, que possui conflito ativo com este adolescente.`
-          : `ALIANÇA FORTE (Facção): ${adolescente.nomeCompleto}${
-              localAliado ? ` - ${localAliado}` : ""
-            } pertence à facção ${faccaoAliado}, citada em ${contexto}.`;
-
-        if (proximidade === "FRONTAL") {
-          registrarMotivo(4, resumo, "ALIADO", proximidade);
-        } else if (proximidade === "MESMA_ALA") {
-          registrarMotivo(3, resumo, "ALIADO", proximidade);
-        } else if (
-          proximidade === "MESMA_CASA" ||
-          proximidade === "ZONA_JANELA"
-        ) {
-          registrarMotivo(2, resumo, "ALIADO", proximidade);
+        const existente = aliadosPorFaccao.get(adolescente.id);
+        if (!existente) {
+          aliadosPorFaccao.set(adolescente.id, {
+            adolescente,
+            local: localAliado || null,
+            faccaoNome: faccaoAliado,
+            rivalNomes: new Set(opts?.rivalNome ? [opts.rivalNome] : []),
+            contextos: new Set(contexto ? [contexto] : []),
+            proximidade,
+          });
+        } else {
+          existente.proximidade = escolherProximidadeMaisAlta(
+            existente.proximidade,
+            proximidade,
+          );
+          if (!existente.local && localAliado) {
+            existente.local = localAliado;
+          }
+          if (opts?.rivalNome) {
+            existente.rivalNomes.add(opts.rivalNome);
+          } else if (contexto) {
+            existente.contextos.add(contexto);
+          }
         }
       } else if (mesmoBairro) {
         // ALIANÇA FRACA: Bairro (coincidência geográfica)
         // Sempre nível 2, independente da proximidade
-        const resumo = `ALIANÇA FRACA (Bairro): ${adolescente.nomeCompleto}${
-          localAliado ? ` - ${localAliado}` : ""
-        } do mesmo bairro que o rival - Tensão ambiental leve, monitoramento recomendado - ${contexto}`;
-
-        registrarMotivo(2, resumo, "ALIADO", proximidade);
+        const existente = aliadosPorBairro.get(adolescente.id);
+        if (!existente) {
+          aliadosPorBairro.set(adolescente.id, {
+            adolescente,
+            local: localAliado || null,
+            contextos: new Set(contexto ? [contexto] : []),
+            proximidade,
+          });
+        } else {
+          existente.proximidade = escolherProximidadeMaisAlta(
+            existente.proximidade,
+            proximidade,
+          );
+          if (!existente.local && localAliado) {
+            existente.local = localAliado;
+          }
+          if (contexto) {
+            existente.contextos.add(contexto);
+          }
+        }
       }
     });
   };
@@ -655,6 +769,8 @@ export function calcularRiscoAlojamento({
       },
     );
   });
+
+  registrarAliadosAgrupados();
 
   const suicidioGrave = alertaSuicidioExigeMonitoramento(
     ocupante.alertaRiscoSuicidio,

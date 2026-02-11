@@ -295,6 +295,47 @@ const buildHistoricoKey = (entrada: HistoricoEntrada) =>
     entrada.observacoes ?? "",
   ].join("|");
 
+const compensarCadastroAdolescente = async (
+  adolescenteId: string,
+  vinculoIdsCriados: string[],
+) => {
+  try {
+    await prisma.adolescente.update({
+      where: { id: adolescenteId },
+      data: { faccaoVinculoAtualId: null },
+    });
+  } catch {}
+
+  await prisma.adolescenteTatuagem.deleteMany({
+    where: { adolescenteId },
+  });
+  await prisma.adolescenteHistoricoInfracional.deleteMany({
+    where: { adolescenteId },
+  });
+  await (prisma as any).adolescenteFaccaoHistorico.deleteMany({
+    where: { adolescenteId },
+  });
+  await prisma.adolescenteTecnicoReferencia.deleteMany({
+    where: { adolescenteId },
+  });
+  await prisma.alertaAtivo.deleteMany({
+    where: { adolescenteId },
+  });
+  await prisma.atoInfracionalVinculoAdolescente.deleteMany({
+    where: { adolescenteId },
+  });
+
+  if (vinculoIdsCriados.length > 0) {
+    await prisma.atoInfracionalVinculo.deleteMany({
+      where: { id: { in: vinculoIdsCriados } },
+    });
+  }
+
+  await prisma.adolescente.delete({
+    where: { id: adolescenteId },
+  });
+};
+
 const buildWhere = (params: URLSearchParams): Prisma.AdolescenteWhereInput => {
   const status = sanitizeNullableString(params.get("status"));
   const busca = sanitizeNullableString(params.get("busca"));
@@ -672,20 +713,25 @@ export async function POST(request: NextRequest) {
     const numeroParaValidar =
       statusCriado === "ATIVO" ? (numeroInternoInformado ?? null) : null;
 
-    const criado = await prisma.$transaction(async (tx) => {
+    const vinculosCriados: string[] = [];
+    let baseId: string | null = null;
+    let criado: any | null = null;
+
+    try {
       if (numeroParaValidar) {
-        await garantirNumeroInternoDisponivel(tx, numeroParaValidar);
+        await garantirNumeroInternoDisponivel(prisma as any, numeroParaValidar);
       }
 
-      const base = await tx.adolescente.create({ data });
+      const base = await prisma.adolescente.create({ data });
+      baseId = base.id;
 
-      // Histórico de facção (primeira declaração)
+      // Hist?rico de fac??o (primeira declara??o)
       if (
         validated.faccaoGrupoId ||
         faccaoFuncaoSanitizada ||
         origemFaccaoNormalizada
       ) {
-        const hist = await (tx as any).adolescenteFaccaoHistorico.create({
+        const hist = await (prisma as any).adolescenteFaccaoHistorico.create({
           data: {
             adolescenteId: base.id,
             faccaoId: validated.faccaoGrupoId ?? null,
@@ -701,14 +747,14 @@ export async function POST(request: NextRequest) {
             criadoPorId: operadorId ?? null,
           },
         });
-        await tx.adolescente.update({
+        await prisma.adolescente.update({
           where: { id: base.id },
           data: { faccaoVinculoAtualId: hist.id } as any,
         });
       }
 
       if (validated.tatuagens && validated.tatuagens.length > 0) {
-        await tx.adolescenteTatuagem.createMany({
+        await prisma.adolescenteTatuagem.createMany({
           data: validated.tatuagens.map((tat) => ({
             adolescenteId: base.id,
             tatuagemCatalogoId: tat.catalogoId,
@@ -724,7 +770,7 @@ export async function POST(request: NextRequest) {
       }
 
       if (historicoNovos.length > 0) {
-        await tx.adolescenteHistoricoInfracional.createMany({
+        await prisma.adolescenteHistoricoInfracional.createMany({
           data: historicoNovos.map((entrada) => ({
             adolescenteId: base.id,
             atoInfracionalDescricao: entrada.atoInfracionalDescricao,
@@ -748,7 +794,7 @@ export async function POST(request: NextRequest) {
           if (participantes.length < 2) {
             continue;
           }
-          await tx.atoInfracionalVinculo.create({
+          const vinculoCriado = await prisma.atoInfracionalVinculo.create({
             data: {
               descricao: entrada.descricao,
               adolescentes: {
@@ -757,23 +803,42 @@ export async function POST(request: NextRequest) {
                 })),
               },
             },
+            select: { id: true },
           });
+          vinculosCriados.push(vinculoCriado.id);
         }
       }
 
-      await aplicarAlertasEspeciais(tx, base.id, alertasEspeciaisSelecionados, {
-        operadorId,
-        ipOrigem: request.headers.get("x-forwarded-for") ?? "unknown",
-      });
+      await aplicarAlertasEspeciais(
+        prisma,
+        base.id,
+        alertasEspeciaisSelecionados,
+        {
+          operadorId,
+          ipOrigem: request.headers.get("x-forwarded-for") ?? "unknown",
+        },
+      );
 
-      return tx.adolescente.findUnique({
+      criado = await prisma.adolescente.findUnique({
         where: { id: base.id },
         include: INCLUDE_ADOLESCENTE_DEFAULT as any,
       });
-    });
 
-    if (!criado) {
-      throw new Error("Falha ao carregar adolescente apos cadastro");
+      if (!criado) {
+        throw new Error("Falha ao carregar adolescente apos cadastro");
+      }
+    } catch (error) {
+      if (baseId) {
+        try {
+          await compensarCadastroAdolescente(baseId, vinculosCriados);
+        } catch (cleanupError) {
+          console.error(
+            "Erro ao compensar cadastro de adolescente:",
+            cleanupError,
+          );
+        }
+      }
+      throw error;
     }
 
     await prisma.logAuditoria.create({
