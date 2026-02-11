@@ -1,7 +1,14 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Camera, X, RotateCcw, Check, AlertCircle } from "lucide-react";
+import {
+  Camera,
+  X,
+  RotateCcw,
+  RotateCw,
+  Check,
+  AlertCircle,
+} from "lucide-react";
 import { useWebcam } from "@/hooks/useWebcam";
 import {
   detectFaceEmbeddings,
@@ -30,12 +37,20 @@ export function CameraCapture({
   title = "Captura Facial",
   subtitle = "Posicione seu rosto no centro da câmera",
 }: CameraCaptureProps) {
-  const { videoRef, isStreaming, error, startCamera, stopCamera, captureImage } =
-    useWebcam({ width, height });
+  const {
+    videoRef,
+    isStreaming,
+    error,
+    startCamera,
+    stopCamera,
+    captureImage,
+    switchCamera,
+  } = useWebcam({ width, height });
 
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [hasMultipleCameras, setHasMultipleCameras] = useState(false);
   const [guidance, setGuidance] = useState<{
     status: "ok" | "warn" | "bad" | "idle";
     message: string;
@@ -49,6 +64,27 @@ export function CameraCapture({
     startCamera();
     return () => stopCamera();
   }, [startCamera, stopCamera]);
+
+  useEffect(() => {
+    const verificarCameras = async () => {
+      if (!navigator.mediaDevices?.enumerateDevices) {
+        setHasMultipleCameras(false);
+        return;
+      }
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoInputs = devices.filter(
+          (device) => device.kind === "videoinput"
+        );
+        setHasMultipleCameras(videoInputs.length > 1);
+      } catch (error) {
+        console.error("Erro ao listar cameras:", error);
+        setHasMultipleCameras(false);
+      }
+    };
+
+    verificarCameras();
+  }, [isStreaming]);
 
   useEffect(() => {
     if (!isStreaming || capturedImage) {
@@ -440,6 +476,17 @@ export function CameraCapture({
               <Camera size={20} />
               {processing ? "Processando..." : "Capturar Foto"}
             </button>
+
+            {hasMultipleCameras && (
+              <button
+                onClick={switchCamera}
+                disabled={!isStreaming || processing}
+                className="flex items-center gap-2 px-5 py-3 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors font-semibold shadow-md"
+              >
+                <RotateCw size={18} />
+                Virar câmera
+              </button>
+            )}
 
             {/* Botão cancelar */}
             {onCancel && (
