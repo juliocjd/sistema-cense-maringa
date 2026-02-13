@@ -96,6 +96,18 @@ export function useWebcam(options: UseWebcamOptions = {}): UseWebcamReturn {
     }
   }, []);
 
+  const isAbortError = (err: unknown) => {
+    const message = err instanceof Error ? err.message.toLowerCase() : "";
+    const name =
+      typeof err === "object" && err && "name" in err
+        ? String((err as { name?: string }).name)
+        : "";
+    return name === "AbortError" || message.includes("abort");
+  };
+
+  const delay = (ms: number) =>
+    new Promise((resolve) => setTimeout(resolve, ms));
+
   const requestStream = useCallback(
     async (
       constraints: MediaStreamConstraints,
@@ -104,20 +116,29 @@ export function useWebcam(options: UseWebcamOptions = {}): UseWebcamReturn {
       try {
         return await navigator.mediaDevices.getUserMedia(constraints);
       } catch (err) {
-        const message = err instanceof Error ? err.message.toLowerCase() : "";
-        const nome =
-          typeof err === "object" && err && "name" in err
-            ? String((err as { name?: string }).name)
-            : "";
-        const isAbort = nome === "AbortError" || message.includes("abort");
-        if (attempts > 1 && isAbort) {
-          await new Promise((resolve) => setTimeout(resolve, 250));
+        if (attempts > 1 && isAbortError(err)) {
+          await delay(250);
           return requestStream(constraints, attempts - 1);
         }
         throw err;
       }
     },
-    []
+    [delay, isAbortError]
+  );
+
+  const playVideo = useCallback(
+    async (video: HTMLVideoElement, attempts = 2) => {
+      try {
+        await video.play();
+      } catch (err) {
+        if (attempts > 1 && isAbortError(err)) {
+          await delay(200);
+          return playVideo(video, attempts - 1);
+        }
+        throw err;
+      }
+    },
+    [delay, isAbortError]
   );
 
   /**
@@ -154,12 +175,22 @@ export function useWebcam(options: UseWebcamOptions = {}): UseWebcamReturn {
 
       // Conectar stream ao elemento de vídeo
       if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+        const video = videoRef.current;
+        video.srcObject = stream;
+        video.addEventListener("playing", () => setError(null), {
+          once: true,
+        });
+        await playVideo(video);
         setIsStreaming(true);
+        setError(null);
       }
       atualizarZoomCapabilities();
     } catch (err) {
+      if (isAbortError(err)) {
+        setIsStreaming(false);
+        setError(null);
+        return;
+      }
       const errorMessage =
         err instanceof Error ? err.message : "Erro desconhecido ao acessar câmera";
 
@@ -183,6 +214,7 @@ export function useWebcam(options: UseWebcamOptions = {}): UseWebcamReturn {
     facingMode,
     audio,
     atualizarZoomCapabilities,
+    playVideo,
     requestStream,
   ]);
 
