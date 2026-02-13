@@ -190,7 +190,7 @@ export function useWebcam(options: UseWebcamOptions = {}): UseWebcamReturn {
    * Inicia a câmera com as configurações especificadas
    */
   const startCamera = useCallback(async () => {
-    if (startingRef.current || streamRef.current) {
+    if (startingRef.current) {
       return;
     }
     startingRef.current = true;
