@@ -45,6 +45,7 @@ export function CameraCapture({
     stopCamera,
     captureImage,
     switchCamera,
+    hasMultipleCameras,
     canZoom,
     zoom,
     zoomRange,
@@ -54,7 +55,6 @@ export function CameraCapture({
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
-  const [hasMultipleCameras, setHasMultipleCameras] = useState(false);
   const [guidance, setGuidance] = useState<{
     status: "ok" | "warn" | "bad" | "idle";
     message: string;
@@ -173,26 +173,7 @@ export function CameraCapture({
     return () => stopCamera();
   }, [startCamera, stopCamera]);
 
-  useEffect(() => {
-    const verificarCameras = async () => {
-      if (!navigator.mediaDevices?.enumerateDevices) {
-        setHasMultipleCameras(false);
-        return;
-      }
-      try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const videoInputs = devices.filter(
-          (device) => device.kind === "videoinput"
-        );
-        setHasMultipleCameras(videoInputs.length > 1);
-      } catch (error) {
-        console.error("Erro ao listar cameras:", error);
-        setHasMultipleCameras(false);
-      }
-    };
-
-    verificarCameras();
-  }, [isStreaming]);
+  // A detecção de múltiplas câmeras fica no hook useWebcam.
 
   useEffect(() => {
     if (!isStreaming || capturedImage) {

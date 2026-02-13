@@ -11,6 +11,7 @@ export interface UseWebcamReturn {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   isStreaming: boolean;
   error: string | null;
+  hasMultipleCameras: boolean;
   canZoom: boolean;
   zoom: number;
   zoomRange: { min: number; max: number; step: number } | null;
@@ -35,11 +36,16 @@ export function useWebcam(options: UseWebcamOptions = {}): UseWebcamReturn {
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const startingRef = useRef(false);
+  const retryTimeoutRef = useRef<number | null>(null);
+  const retryCountRef = useRef(0);
+  const currentDeviceIdRef = useRef<string | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [facingMode, setFacingMode] = useState<"user" | "environment">(
     initialFacingMode
   );
+  const [cameraDevices, setCameraDevices] = useState<MediaDeviceInfo[]>([]);
   const [canZoom, setCanZoom] = useState(false);
   const [zoomRange, setZoomRange] = useState<{
     min: number;
@@ -96,17 +102,31 @@ export function useWebcam(options: UseWebcamOptions = {}): UseWebcamReturn {
     }
   }, []);
 
-  const isAbortError = (err: unknown) => {
+  const isAbortError = useCallback((err: unknown) => {
     const message = err instanceof Error ? err.message.toLowerCase() : "";
     const name =
       typeof err === "object" && err && "name" in err
         ? String((err as { name?: string }).name)
         : "";
     return name === "AbortError" || message.includes("abort");
-  };
+  }, []);
 
-  const delay = (ms: number) =>
-    new Promise((resolve) => setTimeout(resolve, ms));
+  const delay = useCallback(
+    (ms: number) => new Promise((resolve) => setTimeout(resolve, ms)),
+    [],
+  );
+
+  const limparRetry = useCallback(() => {
+    if (retryTimeoutRef.current !== null) {
+      clearTimeout(retryTimeoutRef.current);
+      retryTimeoutRef.current = null;
+    }
+    retryCountRef.current = 0;
+  }, []);
+
+  const atualizarCurrentDeviceId = useCallback((id: string | null) => {
+    currentDeviceIdRef.current = id;
+  }, []);
 
   const requestStream = useCallback(
     async (
@@ -141,10 +161,39 @@ export function useWebcam(options: UseWebcamOptions = {}): UseWebcamReturn {
     [delay, isAbortError]
   );
 
+  const listarCameras = useCallback(async () => {
+    if (!navigator.mediaDevices?.enumerateDevices) {
+      setCameraDevices([]);
+      return [];
+    }
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const videoInputs = devices.filter(
+      (device) =>
+        device.kind === "videoinput" &&
+        device.deviceId &&
+        device.deviceId !== "default" &&
+        device.deviceId !== "communications"
+    );
+    const unique = new Map<string, MediaDeviceInfo>();
+    videoInputs.forEach((device) => {
+      const key = device.groupId || device.deviceId;
+      if (!unique.has(key)) {
+        unique.set(key, device);
+      }
+    });
+    const lista = Array.from(unique.values());
+    setCameraDevices(lista);
+    return lista;
+  }, []);
+
   /**
    * Inicia a câmera com as configurações especificadas
    */
   const startCamera = useCallback(async () => {
+    if (startingRef.current || streamRef.current) {
+      return;
+    }
+    startingRef.current = true;
     try {
       setError(null);
 
@@ -161,12 +210,16 @@ export function useWebcam(options: UseWebcamOptions = {}): UseWebcamReturn {
       }
 
       // Solicitar acesso à câmera
+      const preferredDeviceId = currentDeviceIdRef.current;
+      const videoConstraints: MediaTrackConstraints = {
+        width: { ideal: width },
+        height: { ideal: height },
+        ...(preferredDeviceId
+          ? { deviceId: { exact: preferredDeviceId } }
+          : { facingMode: { ideal: facingMode } }),
+      };
       const constraints: MediaStreamConstraints = {
-        video: {
-          width: { ideal: width },
-          height: { ideal: height },
-          facingMode: { ideal: facingMode },
-        },
+        video: videoConstraints,
         audio,
       };
 
@@ -184,11 +237,27 @@ export function useWebcam(options: UseWebcamOptions = {}): UseWebcamReturn {
         setIsStreaming(true);
         setError(null);
       }
+      const track = stream.getVideoTracks()[0];
+      if (track && typeof track.getSettings === "function") {
+        const settings = track.getSettings();
+        atualizarCurrentDeviceId(settings.deviceId ?? null);
+      }
+      await listarCameras();
       atualizarZoomCapabilities();
+      limparRetry();
     } catch (err) {
       if (isAbortError(err)) {
         setIsStreaming(false);
         setError(null);
+        if (retryCountRef.current < 2) {
+          retryCountRef.current += 1;
+          retryTimeoutRef.current = window.setTimeout(() => {
+            startingRef.current = false;
+            void startCamera();
+          }, 300);
+          return;
+        }
+        limparRetry();
         return;
       }
       const errorMessage =
@@ -207,21 +276,29 @@ export function useWebcam(options: UseWebcamOptions = {}): UseWebcamReturn {
 
       console.error("Erro ao iniciar câmera:", err);
       setIsStreaming(false);
+      limparRetry();
+    } finally {
+      startingRef.current = false;
     }
   }, [
     width,
     height,
     facingMode,
     audio,
+    atualizarCurrentDeviceId,
     atualizarZoomCapabilities,
+    listarCameras,
     playVideo,
     requestStream,
+    limparRetry,
   ]);
 
   /**
    * Para a câmera e libera recursos
    */
   const stopCamera = useCallback(() => {
+    limparRetry();
+    startingRef.current = false;
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
@@ -275,17 +352,29 @@ export function useWebcam(options: UseWebcamOptions = {}): UseWebcamReturn {
    * Alterna entre câmera frontal e traseira (útil em dispositivos móveis)
    */
   const switchCamera = useCallback(async () => {
-    const newFacingMode = facingMode === "user" ? "environment" : "user";
-    setFacingMode(newFacingMode);
+    const devices = cameraDevices.length > 0 ? cameraDevices : await listarCameras();
+    if (devices.length < 2) {
+      return;
+    }
+    const atual = currentDeviceIdRef.current ?? devices[0].deviceId;
+    const index = devices.findIndex((device) => device.deviceId === atual);
+    const proximo = devices[(index + 1) % devices.length];
+    atualizarCurrentDeviceId(proximo.deviceId);
 
-    // Reiniciar câmera com novo facingMode
     if (isStreaming) {
       stopCamera();
-      // Pequeno delay para garantir que a câmera foi liberada
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await delay(200);
       await startCamera();
     }
-  }, [facingMode, isStreaming, startCamera, stopCamera]);
+  }, [
+    cameraDevices,
+    isStreaming,
+    listarCameras,
+    startCamera,
+    stopCamera,
+    delay,
+    atualizarCurrentDeviceId,
+  ]);
 
   /**
    * Cleanup: parar câmera quando componente for desmontado
@@ -296,10 +385,17 @@ export function useWebcam(options: UseWebcamOptions = {}): UseWebcamReturn {
     };
   }, [stopCamera]);
 
+  useEffect(() => {
+    if (isStreaming) {
+      setError(null);
+    }
+  }, [isStreaming]);
+
   return {
     videoRef,
     isStreaming,
     error,
+    hasMultipleCameras: cameraDevices.length > 1,
     startCamera,
     stopCamera,
     captureImage,
