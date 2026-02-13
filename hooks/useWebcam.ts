@@ -11,10 +11,14 @@ export interface UseWebcamReturn {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   isStreaming: boolean;
   error: string | null;
+  canZoom: boolean;
+  zoom: number;
+  zoomRange: { min: number; max: number; step: number } | null;
   startCamera: () => Promise<void>;
   stopCamera: () => void;
   captureImage: () => string | null;
   switchCamera: () => Promise<void>;
+  setZoom: (value: number) => Promise<void>;
 }
 
 /**
@@ -36,6 +40,61 @@ export function useWebcam(options: UseWebcamOptions = {}): UseWebcamReturn {
   const [facingMode, setFacingMode] = useState<"user" | "environment">(
     initialFacingMode
   );
+  const [canZoom, setCanZoom] = useState(false);
+  const [zoomRange, setZoomRange] = useState<{
+    min: number;
+    max: number;
+    step: number;
+  } | null>(null);
+  const [zoom, setZoomState] = useState(1);
+
+  const atualizarZoom = useCallback(async (value: number) => {
+    const stream = streamRef.current;
+    if (!stream) return;
+    const track = stream.getVideoTracks()[0];
+    if (!track || typeof track.applyConstraints !== "function") return;
+    await track.applyConstraints({
+      advanced: [{ zoom: value } as unknown as MediaTrackConstraintSet],
+    });
+    setZoomState(value);
+  }, []);
+
+  const atualizarZoomCapabilities = useCallback(() => {
+    const stream = streamRef.current;
+    if (!stream) return;
+    const track = stream.getVideoTracks()[0];
+    if (!track || typeof track.getCapabilities !== "function") {
+      setCanZoom(false);
+      setZoomRange(null);
+      return;
+    }
+
+    const capabilities = track.getCapabilities() as MediaTrackCapabilities & {
+      zoom?: { min?: number; max?: number; step?: number };
+    };
+    if (!capabilities.zoom) {
+      setCanZoom(false);
+      setZoomRange(null);
+      return;
+    }
+
+    const min = capabilities.zoom.min ?? 1;
+    const max = capabilities.zoom.max ?? min;
+    const step =
+      capabilities.zoom.step ?? Math.max((max - min) / 50, 0.1);
+    setCanZoom(max > min);
+    setZoomRange({ min, max, step });
+
+    if (typeof track.getSettings === "function") {
+      const settings = track.getSettings() as MediaTrackSettings & {
+        zoom?: number;
+      };
+      const current = settings.zoom ?? min;
+      setZoomState(current);
+    } else {
+      setZoomState(min);
+    }
+  }, []);
 
   /**
    * Inicia a câmera com as configurações especificadas
@@ -75,6 +134,7 @@ export function useWebcam(options: UseWebcamOptions = {}): UseWebcamReturn {
         await videoRef.current.play();
         setIsStreaming(true);
       }
+      atualizarZoomCapabilities();
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : "Erro desconhecido ao acessar câmera";
@@ -93,7 +153,7 @@ export function useWebcam(options: UseWebcamOptions = {}): UseWebcamReturn {
       console.error("Erro ao iniciar câmera:", err);
       setIsStreaming(false);
     }
-  }, [width, height, facingMode, audio]);
+  }, [width, height, facingMode, audio, atualizarZoomCapabilities]);
 
   /**
    * Para a câmera e libera recursos
@@ -110,6 +170,9 @@ export function useWebcam(options: UseWebcamOptions = {}): UseWebcamReturn {
 
     setIsStreaming(false);
     setError(null);
+    setCanZoom(false);
+    setZoomRange(null);
+    setZoomState(1);
   }, []);
 
   /**
@@ -178,5 +241,9 @@ export function useWebcam(options: UseWebcamOptions = {}): UseWebcamReturn {
     stopCamera,
     captureImage,
     switchCamera,
+    canZoom,
+    zoom,
+    zoomRange,
+    setZoom: atualizarZoom,
   };
 }

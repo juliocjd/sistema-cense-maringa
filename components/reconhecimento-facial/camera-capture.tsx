@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, type PointerEvent } from "react";
 import {
   Camera,
   X,
@@ -45,6 +45,10 @@ export function CameraCapture({
     stopCamera,
     captureImage,
     switchCamera,
+    canZoom,
+    zoom,
+    zoomRange,
+    setZoom,
   } = useWebcam({ width, height });
 
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
@@ -58,6 +62,88 @@ export function CameraCapture({
   }>({ status: "idle", message: "Aguardando câmera..." });
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const guidanceBusyRef = useRef(false);
+  const pinchStateRef = useRef<{ distance: number; zoom: number } | null>(
+    null,
+  );
+  const activePointersRef = useRef<Map<number, { x: number; y: number }>>(
+    new Map(),
+  );
+  const lastZoomRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    lastZoomRef.current = zoom;
+  }, [zoom]);
+
+  const clampZoom = (value: number) => {
+    if (!zoomRange) return value;
+    return Math.min(zoomRange.max, Math.max(zoomRange.min, value));
+  };
+
+  const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    if (!canZoom || capturedImage) return;
+    if (event.pointerType !== "touch") return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    activePointersRef.current.set(event.pointerId, {
+      x: event.clientX,
+      y: event.clientY,
+    });
+    if (activePointersRef.current.size === 2 && zoomRange) {
+      const points = Array.from(activePointersRef.current.values());
+      const distance = Math.hypot(
+        points[0].x - points[1].x,
+        points[0].y - points[1].y,
+      );
+      pinchStateRef.current = {
+        distance,
+        zoom,
+      };
+    }
+  };
+
+  const handlePointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    if (!canZoom || capturedImage || !zoomRange) return;
+    if (event.pointerType !== "touch") return;
+    if (!activePointersRef.current.has(event.pointerId)) return;
+
+    activePointersRef.current.set(event.pointerId, {
+      x: event.clientX,
+      y: event.clientY,
+    });
+
+    if (activePointersRef.current.size !== 2 || !pinchStateRef.current) {
+      return;
+    }
+
+    const points = Array.from(activePointersRef.current.values());
+    const distance = Math.hypot(
+      points[0].x - points[1].x,
+      points[0].y - points[1].y,
+    );
+    if (pinchStateRef.current.distance <= 0) return;
+
+    const delta = (distance - pinchStateRef.current.distance) / 300;
+    const nextZoom = clampZoom(
+      pinchStateRef.current.zoom +
+        delta * (zoomRange.max - zoomRange.min),
+    );
+    const step = zoomRange.step ?? 0.1;
+    if (
+      lastZoomRef.current !== null &&
+      Math.abs(nextZoom - lastZoomRef.current) < step / 2
+    ) {
+      return;
+    }
+    lastZoomRef.current = nextZoom;
+    void setZoom(nextZoom);
+  };
+
+  const handlePointerUp = (event: PointerEvent<HTMLDivElement>) => {
+    if (event.pointerType !== "touch") return;
+    activePointersRef.current.delete(event.pointerId);
+    if (activePointersRef.current.size < 2) {
+      pinchStateRef.current = null;
+    }
+  };
 
   // Iniciar câmera ao montar componente
   useEffect(() => {
@@ -389,7 +475,13 @@ export function CameraCapture({
       </div>
 
       {/* Área de vídeo/imagem */}
-      <div className="relative bg-gray-900 rounded-lg overflow-hidden shadow-xl">
+      <div
+        className="relative bg-gray-900 rounded-lg overflow-hidden shadow-xl touch-none"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+      >
         {!capturedImage ? (
           <>
             {/* Vídeo ao vivo */}
@@ -455,6 +547,24 @@ export function CameraCapture({
         <canvas ref={canvasRef} className="hidden" />
       </div>
 
+      {!capturedImage && canZoom && zoomRange && (
+        <div className="flex items-center gap-3 text-xs text-slate-600 w-full max-w-md">
+          <span className="text-slate-500">Zoom</span>
+          <input
+            type="range"
+            min={zoomRange.min}
+            max={zoomRange.max}
+            step={zoomRange.step}
+            value={zoom}
+            onChange={(event) => void setZoom(Number(event.target.value))}
+            className="flex-1 accent-indigo-600"
+          />
+          <span className="w-10 text-right text-slate-500">
+            {zoom.toFixed(1)}x
+          </span>
+        </div>
+      )}
+
       {/* Mensagens de erro */}
       {(error || validationError) && (
         <div className="flex items-center gap-2 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 max-w-md">
@@ -464,14 +574,14 @@ export function CameraCapture({
       )}
 
       {/* Botões de ação */}
-      <div className="flex gap-3">
+      <div className="flex w-full max-w-md flex-col gap-3 sm:flex-row sm:justify-center">
         {!capturedImage ? (
           <>
             {/* Botão capturar */}
             <button
               onClick={handleCapture}
               disabled={!isStreaming || processing}
-              className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-semibold shadow-md"
+              className="flex w-full items-center justify-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-semibold shadow-md sm:w-auto"
             >
               <Camera size={20} />
               {processing ? "Processando..." : "Capturar Foto"}
@@ -481,7 +591,7 @@ export function CameraCapture({
               <button
                 onClick={switchCamera}
                 disabled={!isStreaming || processing}
-                className="flex items-center gap-2 px-5 py-3 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors font-semibold shadow-md"
+                className="flex w-full items-center justify-center gap-2 px-5 py-3 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors font-semibold shadow-md sm:w-auto"
               >
                 <RotateCw size={18} />
                 Virar câmera
@@ -495,7 +605,7 @@ export function CameraCapture({
                   stopCamera();
                   onCancel();
                 }}
-                className="flex items-center gap-2 px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors font-semibold shadow-md"
+                className="flex w-full items-center justify-center gap-2 px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors font-semibold shadow-md sm:w-auto"
               >
                 <X size={20} />
                 Cancelar
@@ -508,7 +618,7 @@ export function CameraCapture({
             <button
               onClick={handleConfirm}
               disabled={processing}
-              className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-semibold shadow-md"
+              className="flex w-full items-center justify-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-semibold shadow-md sm:w-auto"
             >
               <Check size={20} />
               {processing ? "Processando..." : "Confirmar"}
@@ -518,7 +628,7 @@ export function CameraCapture({
             <button
               onClick={handleRetake}
               disabled={processing}
-              className="flex items-center gap-2 px-6 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-semibold shadow-md"
+              className="flex w-full items-center justify-center gap-2 px-6 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-semibold shadow-md sm:w-auto"
             >
               <RotateCcw size={20} />
               Tirar Outra
@@ -532,7 +642,7 @@ export function CameraCapture({
                   onCancel();
                 }}
                 disabled={processing}
-                className="flex items-center gap-2 px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors font-semibold shadow-md"
+                className="flex w-full items-center justify-center gap-2 px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors font-semibold shadow-md sm:w-auto"
               >
                 <X size={20} />
                 Cancelar
