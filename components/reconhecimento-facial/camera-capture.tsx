@@ -69,10 +69,32 @@ export function CameraCapture({
     new Map(),
   );
   const lastZoomRef = useRef<number | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const media = window.matchMedia("(max-width: 640px)");
+    const update = () => setIsMobile(media.matches);
+    update();
+    const legacyMedia = media as MediaQueryList & {
+      addListener?: (listener: () => void) => void;
+      removeListener?: (listener: () => void) => void;
+    };
+    if (legacyMedia.addListener) {
+      legacyMedia.addListener(update);
+      return () => legacyMedia.removeListener?.(update);
+    }
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
 
   useEffect(() => {
     lastZoomRef.current = zoom;
   }, [zoom]);
+
+  const mediaStyle = isMobile
+    ? { width: "100%", height: "100%" }
+    : { maxWidth: `${width}px`, maxHeight: `${height}px` };
 
   const clampZoom = (value: number) => {
     if (!zoomRange) return value;
@@ -464,9 +486,9 @@ export function CameraCapture({
   };
 
   return (
-    <div className="flex flex-col items-center gap-4 p-6 bg-white rounded-xl shadow-lg">
+    <div className="fixed inset-0 z-50 flex flex-col bg-black sm:static sm:rounded-xl sm:bg-white sm:p-6 sm:shadow-lg sm:items-center sm:gap-4">
       {/* Header */}
-      <div className="text-center">
+      <div className="hidden text-center sm:block">
         <h2 className="text-2xl font-bold text-gray-900 flex items-center justify-center gap-2">
           <Camera className="text-indigo-600" size={28} />
           {title}
@@ -476,7 +498,8 @@ export function CameraCapture({
 
       {/* Área de vídeo/imagem */}
       <div
-        className="relative bg-gray-900 rounded-lg overflow-hidden shadow-xl touch-none"
+        className="relative flex-1 w-full bg-gray-900 overflow-hidden shadow-xl touch-none sm:flex-none sm:w-auto sm:rounded-lg"
+        style={!isMobile ? mediaStyle : undefined}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
@@ -490,12 +513,12 @@ export function CameraCapture({
               autoPlay
               playsInline
               muted
-              className="w-full h-auto"
-              style={{ maxWidth: `${width}px`, maxHeight: `${height}px` }}
+              className="w-full h-full object-cover sm:h-auto sm:object-contain"
+              style={mediaStyle}
             />
 
             {/* Overlay de guia */}
-            <div className="absolute inset-0 pointer-events-none">
+            <div className="absolute inset-0 pointer-events-none hidden sm:block">
               <div className="absolute left-3 top-3">
                 <div
                   className={`rounded-full border px-3 py-1 text-[11px] font-semibold shadow-sm backdrop-blur ${
@@ -539,8 +562,8 @@ export function CameraCapture({
           <img
             src={capturedImage}
             alt="Foto capturada"
-            className="w-full h-auto"
-            style={{ maxWidth: `${width}px`, maxHeight: `${height}px` }}
+            className="w-full h-full object-cover sm:h-auto sm:object-contain"
+            style={mediaStyle}
           />
         )}
 
@@ -548,7 +571,7 @@ export function CameraCapture({
       </div>
 
       {!capturedImage && canZoom && zoomRange && (
-        <div className="flex items-center gap-3 text-xs text-slate-600 w-full max-w-md">
+        <div className="hidden items-center gap-3 text-xs text-slate-600 w-full max-w-md sm:flex">
           <span className="text-slate-500">Zoom</span>
           <input
             type="range"
@@ -574,7 +597,7 @@ export function CameraCapture({
       )}
 
       {/* Botões de ação */}
-      <div className="flex w-full max-w-md flex-col gap-3 sm:flex-row sm:justify-center">
+      <div className="mt-auto flex w-full max-w-md flex-col gap-3 px-4 pb-6 sm:mt-0 sm:flex-row sm:justify-center sm:px-0 sm:pb-0">
         {!capturedImage ? (
           <>
             {/* Botão capturar */}
@@ -654,7 +677,7 @@ export function CameraCapture({
 
       {/* Instruções */}
       {!capturedImage && isStreaming && (
-        <div className="text-center text-sm text-gray-600 max-w-md">
+        <div className="hidden text-center text-sm text-gray-600 max-w-md sm:block">
           <p>✓ Posicione seu rosto no centro do círculo</p>
           <p>✓ Certifique-se de que há boa iluminação</p>
           <p>✓ Evite usar óculos escuros ou chapéus</p>

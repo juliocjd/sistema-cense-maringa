@@ -96,6 +96,30 @@ export function useWebcam(options: UseWebcamOptions = {}): UseWebcamReturn {
     }
   }, []);
 
+  const requestStream = useCallback(
+    async (
+      constraints: MediaStreamConstraints,
+      attempts = 2
+    ): Promise<MediaStream> => {
+      try {
+        return await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (err) {
+        const message = err instanceof Error ? err.message.toLowerCase() : "";
+        const nome =
+          typeof err === "object" && err && "name" in err
+            ? String((err as { name?: string }).name)
+            : "";
+        const isAbort = nome === "AbortError" || message.includes("abort");
+        if (attempts > 1 && isAbort) {
+          await new Promise((resolve) => setTimeout(resolve, 250));
+          return requestStream(constraints, attempts - 1);
+        }
+        throw err;
+      }
+    },
+    []
+  );
+
   /**
    * Inicia a câmera com as configurações especificadas
    */
@@ -125,7 +149,7 @@ export function useWebcam(options: UseWebcamOptions = {}): UseWebcamReturn {
         audio,
       };
 
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      const stream = await requestStream(constraints);
       streamRef.current = stream;
 
       // Conectar stream ao elemento de vídeo
@@ -153,7 +177,14 @@ export function useWebcam(options: UseWebcamOptions = {}): UseWebcamReturn {
       console.error("Erro ao iniciar câmera:", err);
       setIsStreaming(false);
     }
-  }, [width, height, facingMode, audio, atualizarZoomCapabilities]);
+  }, [
+    width,
+    height,
+    facingMode,
+    audio,
+    atualizarZoomCapabilities,
+    requestStream,
+  ]);
 
   /**
    * Para a câmera e libera recursos
@@ -219,7 +250,7 @@ export function useWebcam(options: UseWebcamOptions = {}): UseWebcamReturn {
     if (isStreaming) {
       stopCamera();
       // Pequeno delay para garantir que a câmera foi liberada
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 200));
       await startCamera();
     }
   }, [facingMode, isStreaming, startCamera, stopCamera]);
