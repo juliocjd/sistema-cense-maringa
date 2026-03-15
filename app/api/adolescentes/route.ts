@@ -143,6 +143,16 @@ const sanitizeNullableString = (value: string | null | undefined) => {
   return trimmed.length > 0 ? trimmed : undefined;
 };
 
+const normalizarTextoBusca = (value: string | null | undefined) => {
+  if (!value) {
+    return "";
+  }
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+};
+
 const toDateOrUndefined = (value?: string | null) => {
   const sanitized = sanitizeNullableString(value ?? undefined);
   if (!sanitized) {
@@ -336,7 +346,10 @@ const compensarCadastroAdolescente = async (
   });
 };
 
-const buildWhere = (params: URLSearchParams): Prisma.AdolescenteWhereInput => {
+const buildWhere = (
+  params: URLSearchParams,
+  options?: { aplicarBuscaTexto?: boolean },
+): Prisma.AdolescenteWhereInput => {
   const status = sanitizeNullableString(params.get("status"));
   const busca = sanitizeNullableString(params.get("busca"));
   const casaId = sanitizeNullableString(params.get("casa_id"));
@@ -344,6 +357,7 @@ const buildWhere = (params: URLSearchParams): Prisma.AdolescenteWhereInput => {
   const numeroInternoParam = sanitizeNullableString(
     params.get("numero_interno"),
   );
+  const aplicarBuscaTexto = options?.aplicarBuscaTexto ?? true;
 
   const where: Prisma.AdolescenteWhereInput = {};
 
@@ -365,16 +379,21 @@ const buildWhere = (params: URLSearchParams): Prisma.AdolescenteWhereInput => {
   }
 
   if (busca) {
-    const or: Prisma.AdolescenteWhereInput[] = [
-      { nomeCompleto: { contains: busca, mode: "insensitive" } },
-      { numeroSms: { contains: busca } },
-      { numeroProcesso: { contains: busca, mode: "insensitive" } },
-    ];
+    const or: Prisma.AdolescenteWhereInput[] = [];
+    if (aplicarBuscaTexto) {
+      or.push(
+        { nomeCompleto: { contains: busca, mode: "insensitive" } },
+        { numeroSms: { contains: busca } },
+        { numeroProcesso: { contains: busca, mode: "insensitive" } },
+      );
+    }
     const numeroBusca = Number.parseInt(busca, 10);
     if (Number.isFinite(numeroBusca)) {
       or.push({ numeroInterno: numeroBusca });
     }
-    where.OR = or;
+    if (or.length > 0) {
+      where.OR = or;
+    }
   }
 
   if (numeroInternoParam) {
@@ -417,10 +436,107 @@ export async function GET(
 ): Promise<NextResponse<ListaAdolescentesResponse | { erro: string }>> {
   try {
     const { searchParams } = new URL(request.url);
-    const where = buildWhere(searchParams);
+    const busca = sanitizeNullableString(searchParams.get("busca"));
+    const ignorarAcentos = searchParams.get("ignorar_acentos") === "true";
+    const usarBuscaSemAcento = Boolean(busca && ignorarAcentos);
+    const where = buildWhere(searchParams, {
+      aplicarBuscaTexto: !usarBuscaSemAcento,
+    });
     const { page, limit } = parsePagination(searchParams);
     const modo = searchParams.get("modo");
     const modoLista = modo === "lista" || modo === "resumo";
+
+    if (usarBuscaSemAcento && busca) {
+      const termoNormalizado = normalizarTextoBusca(busca);
+      const candidatos = await prisma.adolescente.findMany({
+        where,
+        orderBy: { nomeCompleto: "asc" },
+        select: {
+          id: true,
+          nomeCompleto: true,
+          numeroSms: true,
+          numeroProcesso: true,
+          numeroInterno: true,
+        },
+      });
+
+      const idsFiltrados = candidatos
+        .filter((item) => {
+          const nome = normalizarTextoBusca(item.nomeCompleto);
+          const sms = normalizarTextoBusca(item.numeroSms);
+          const processo = normalizarTextoBusca(item.numeroProcesso);
+          const numeroInterno = item.numeroInterno
+            ? String(item.numeroInterno)
+            : "";
+
+          return (
+            nome.includes(termoNormalizado) ||
+            sms.includes(termoNormalizado) ||
+            processo.includes(termoNormalizado) ||
+            numeroInterno.includes(termoNormalizado)
+          );
+        })
+        .map((item) => item.id);
+
+      const total = idsFiltrados.length;
+      const inicio = (page - 1) * limit;
+      const idsPaginados = idsFiltrados.slice(inicio, inicio + limit);
+
+      if (idsPaginados.length === 0) {
+        const meta: ListaAdolescentesMeta = {
+          total,
+          page,
+          limit,
+          hasMore: false,
+        };
+        return NextResponse.json({ data: [], meta });
+      }
+
+      const records = await prisma.adolescente.findMany({
+        where: { id: { in: idsPaginados } },
+        ...(modoLista
+          ? { select: SELECT_ADOLESCENTE_LISTA }
+          : { include: INCLUDE_ADOLESCENTE_DEFAULT }),
+      });
+
+      const ordemIds = new Map(idsPaginados.map((id, index) => [id, index]));
+      records.sort(
+        (a, b) =>
+          (ordemIds.get(a.id) ?? Number.MAX_SAFE_INTEGER) -
+          (ordemIds.get(b.id) ?? Number.MAX_SAFE_INTEGER),
+      );
+
+      const alertasPendentesMap = new Map<string, number>();
+      if (!modoLista && records.length > 0) {
+        const pendentes = await prisma.alertaAtivo.groupBy({
+          by: ["adolescenteId"],
+          where: {
+            adolescenteId: { in: records.map((record) => record.id) },
+            desativadoEm: { not: null },
+          },
+          _count: { _all: true },
+        });
+
+        pendentes.forEach((item) => {
+          alertasPendentesMap.set(item.adolescenteId, item._count._all);
+        });
+      }
+
+      const data = records.map<Adolescente>((record) => {
+        const mapped = mapPrismaAdolescente(record);
+        mapped.alertasPendentes = alertasPendentesMap.get(record.id) ?? 0;
+        return mapped;
+      });
+
+      const meta: ListaAdolescentesMeta = {
+        total,
+        page,
+        limit,
+        hasMore: page * limit < total,
+      };
+
+      return NextResponse.json({ data, meta });
+    }
 
     const [records, total] = await Promise.all([
       prisma.adolescente.findMany({

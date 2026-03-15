@@ -77,19 +77,19 @@ const ALERTAS_ESPECIAIS_UI: Record<
     Icone: AlertTriangle,
   },
   PERFIL_MAPEADO: {
-    titulo: "Perfil mapeado (protecao)",
-    descricao: "Ato infracional que necessita sigilo e protecao especial.",
+    titulo: "Perfil mapeado (proteção)",
+    descricao: "Ato infracional que necessita sigilo e proteção especial.",
     destaque:
-      "Informa aos demais modulos que este perfil requer tratamento reservado.",
+      "Informa aos demais módulos que este perfil requer tratamento reservado.",
     corClasse: "border-purple-200 bg-purple-50",
     Icone: Lock,
   },
   SAUDE_CONFIDENCIAL: {
-    titulo: "Alerta de saude confidencial",
+    titulo: "Alerta de saúde confidencial",
     descricao:
-      "Condicao de saude que requer atencao e acompanhamento diferenciado.",
+      "Condição de saúde que requer atençãoo e acompanhamento diferenciado.",
     destaque:
-      "Utilize este campo para orientar equipes de plantao sobre cuidados especificos.",
+      "Utilize este campo para orientar equipes de plantão sobre cuidados específicos.",
     corClasse: "border-blue-200 bg-blue-50",
     Icone: Activity,
     fullWidth: true,
@@ -232,6 +232,8 @@ const normalizarTexto = (valor: string) =>
     .toLowerCase()
     .trim();
 
+const forcarNomeMaiusculo = (valor: string) => valor.toLocaleUpperCase("pt-BR");
+
 const calcularIdade = (data?: string | null) => {
   if (!data) return null;
   const partes = data.split("-");
@@ -337,7 +339,7 @@ export function CadastroAdolescente({
   });
   const idadeAdolescente = useMemo(
     () => calcularIdade(dadosPessoais.dataNascimento),
-    [dadosPessoais.dataNascimento]
+    [dadosPessoais.dataNascimento],
   );
 
   const [atoInfracional, setAtoInfracional] = useState({
@@ -633,7 +635,7 @@ export function CadastroAdolescente({
     temAlteracaoRef.current = false;
 
     setDadosPessoais({
-      nomeCompleto: initialData.nomeCompleto ?? "",
+      nomeCompleto: forcarNomeMaiusculo(initialData.nomeCompleto ?? ""),
       nomeSocial: initialData.nomeSocial ?? "",
       vulgo: initialData.vulgo ?? "",
       dataNascimento: formatarDataInput(initialData.dataNascimento),
@@ -1649,7 +1651,7 @@ export function CadastroAdolescente({
     () => [
       {
         id: "",
-        nome: "Sem faccao / nao informado",
+        nome: "Sem facção / não informado",
         total: undefined,
       },
       ...referencias.faccoes.map((faccao) => ({
@@ -1693,7 +1695,7 @@ export function CadastroAdolescente({
   const faccaoAtualNome =
     faccaoHistoricoAtivo?.faccaoNome ??
     faccoesDisponiveis.find((f) => f.id === vinculacoes.faccaoId)?.nome ??
-    "Sem faccao / nao informado";
+    "Sem facção / não informado";
   const faccaoAtualFuncao =
     faccaoHistoricoAtivo?.funcao ?? vinculacoes.faccaoFuncao ?? "";
   const faccaoAtualOrigem =
@@ -2508,7 +2510,7 @@ export function CadastroAdolescente({
       }));
 
       const adolescente: AdolescenteCadastroPayload = {
-        nomeCompleto: dadosPessoais.nomeCompleto.trim(),
+        nomeCompleto: forcarNomeMaiusculo(dadosPessoais.nomeCompleto.trim()),
         nomeSocial: sanitizeOrNull(dadosPessoais.nomeSocial) ?? undefined,
         vulgo: vulgoSanitizado ?? undefined,
         dataNascimento: sanitize(dadosPessoais.dataNascimento),
@@ -2883,7 +2885,7 @@ export function CadastroAdolescente({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Nome *
+                    Nome no Cronograma *
                   </label>
                   <input
                     type="text"
@@ -2891,7 +2893,7 @@ export function CadastroAdolescente({
                     onChange={(e) =>
                       setDadosPessoais({
                         ...dadosPessoais,
-                        nomeCompleto: e.target.value,
+                        nomeCompleto: forcarNomeMaiusculo(e.target.value),
                       })
                     }
                     className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
@@ -2959,7 +2961,9 @@ export function CadastroAdolescente({
                       Idade
                     </label>
                     <div className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg bg-gray-50 text-sm text-gray-600 flex items-center justify-center">
-                      {idadeAdolescente !== null ? `${idadeAdolescente} anos` : "--"}
+                      {idadeAdolescente !== null
+                        ? `${idadeAdolescente} anos`
+                        : "--"}
                     </div>
                   </div>
                 </div>
@@ -3396,7 +3400,7 @@ export function CadastroAdolescente({
                       onClick={() => limparFormularioVinculo()}
                       className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
                     >
-                      Cancelar edicao
+                      Cancelar edição
                     </button>
                   )}
                 </div>
@@ -3946,7 +3950,7 @@ export function CadastroAdolescente({
                         >
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="font-semibold text-slate-800">
-                              {h.faccaoNome || "Sem faccao / nao informado"}
+                              {h.faccaoNome || "Sem facção / não informado"}
                             </span>
                             <span className="rounded-full bg-slate-100 px-2 py-[2px] text-[10px] font-semibold uppercase text-slate-600">
                               {h.statusRegistro}

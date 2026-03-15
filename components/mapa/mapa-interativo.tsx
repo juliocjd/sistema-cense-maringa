@@ -25,6 +25,8 @@ type AvaliacaoRiscoAlojamento = ResultadoRisco & {
   corClass: string;
 };
 
+type StatusSaidaUnidade = "TRANSFERIDO" | "LIBERADO" | "EVADIDO";
+
 interface MapaInterativoProps {
   casas: Casa[];
   adolescentes: Adolescente[];
@@ -42,7 +44,10 @@ interface MapaInterativoProps {
     adolescenteId: string,
     motivo?: string,
   ) => Promise<string>;
-  onDesinternar: (adolescenteId: string) => Promise<void>;
+  onDesinternar: (
+    adolescenteId: string,
+    statusSaida?: StatusSaidaUnidade,
+  ) => Promise<void>;
   onTransferir: (
     adolescente: Adolescente,
     destinoAlojamentoId: string,
@@ -337,8 +342,11 @@ export function MapaInterativo({
     );
   };
 
-  const handleDesinternarDoDetalhe = async (adolescenteId: string) => {
-    await onDesinternar(adolescenteId);
+  const handleDesinternarDoDetalhe = async (
+    adolescenteId: string,
+    statusSaida: StatusSaidaUnidade,
+  ) => {
+    await onDesinternar(adolescenteId, statusSaida);
     fecharModalDetalhes();
   };
 

@@ -841,6 +841,21 @@ export function mapPrismaAdolescenteMapa(
       ) ?? [];
   const alertaSuicidioNivel = extrairNivelRiscoSuicidio(alertasEspeciais);
   const atoCatalogo = (adolescente as any).atoInfracionalAtualCatalogo ?? null;
+  const atoInfracionalVinculos =
+    adolescente.atoInfracionalVinculos
+      ?.map((item: any) => {
+        const vinculo = item?.vinculo ?? item;
+        const id = vinculo?.id ?? item?.vinculoId ?? item?.id;
+        if (!id) {
+          return null;
+        }
+        return {
+          id: String(id),
+          descricao: vinculo?.descricao ?? "",
+          adolescentes: [],
+        };
+      })
+      .filter((v: any) => Boolean(v)) ?? [];
 
   return {
     id: adolescente.id,
@@ -1019,6 +1034,7 @@ export function mapPrismaAdolescenteMapa(
           };
         }) ?? [],
     historicoInfracional: [],
+    atoInfracionalVinculos,
     alertasEspeciais,
     alertasPendentes: 0,
     criadoEm: formatDate(adolescente.criadoEm),

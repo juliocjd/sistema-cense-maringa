@@ -25,6 +25,17 @@ import { ALERTAS_ESPECIAIS } from "@/lib/alertas/especiais";
 
 type TabKey = "ocupacao" | "transferencia" | "interdicao";
 
+type StatusSaidaUnidade = "TRANSFERIDO" | "LIBERADO" | "EVADIDO";
+
+const STATUS_SAIDA_UNIDADE_OPCOES: Array<{
+  value: StatusSaidaUnidade;
+  label: string;
+}> = [
+  { value: "TRANSFERIDO", label: "Transferido" },
+  { value: "LIBERADO", label: "Liberado" },
+  { value: "EVADIDO", label: "Evadido" },
+];
+
 const INTERDICAO_TIPOS = [
   { value: "CI", label: "Comunicado Interno (CI)" },
   { value: "DECISAO_JUDICIAL", label: "Decisao judicial" },
@@ -148,6 +159,13 @@ type MotivoAmbientalDetalhado = {
   ehSuicidio: boolean;
 };
 
+type VinculoMesmoAtoCasaInfo = {
+  adolescenteId: string;
+  nome: string;
+  local: string;
+  vinculos: string[];
+};
+
 interface ModalAlojamentoDetalhesProps {
   isOpen: boolean;
   alojamento: (Alojamento & { casa?: Casa }) | null;
@@ -173,7 +191,10 @@ interface ModalAlojamentoDetalhesProps {
     motivo?: string,
   ) => Promise<void>;
   desinternandoId?: string | null;
-  onDesinternar: (adolescenteId: string) => Promise<void>;
+  onDesinternar: (
+    adolescenteId: string,
+    statusSaida: StatusSaidaUnidade,
+  ) => Promise<void>;
   onTransferir: (
     adolescente: Adolescente,
     destinoAlojamentoId: string,
@@ -252,6 +273,13 @@ const formatarMensagemSuicidio = (
     ? `Sem vigilancia frontal: ${complemento}`
     : "Sem vigilancia frontal identificado.";
 };
+
+const extrairIdsVinculosMesmoAto = (
+  adolescente?: Pick<Adolescente, "atoInfracionalVinculos"> | null,
+): string[] =>
+  (adolescente?.atoInfracionalVinculos ?? [])
+    .map((item: any) => item?.id ?? item?.vinculoId ?? item?.vinculo?.id ?? "")
+    .filter((id: string) => Boolean(id));
 
 const numeroParaNivelBadge = (valor?: number | null): NivelBadge => {
   if (!valor || valor <= 2) return "BAIXO";
@@ -420,6 +448,10 @@ export default function ModalAlojamentoDetalhes({
   const [diagnosticoErro, setDiagnosticoErro] = useState<string | null>(null);
   const [mostrarBreakdownRisco, setMostrarBreakdownRisco] = useState(false);
   const [desinternandoLocal, setDesinternandoLocal] = useState(false);
+  const [statusSaidaUnidade, setStatusSaidaUnidade] =
+    useState<StatusSaidaUnidade>("LIBERADO");
+  const [confirmandoDesinternacao, setConfirmandoDesinternacao] =
+    useState(false);
 
   const statusInterditado = alojamento?.statusManutencao === "INTERDITADO";
   const podeInterditar = !ocupante;
@@ -453,12 +485,16 @@ export default function ModalAlojamentoDetalhes({
       setSugestoes([]);
       setErroSugestoes(null);
       setCarregandoSugestoes(false);
+      setStatusSaidaUnidade("LIBERADO");
+      setConfirmandoDesinternacao(false);
       return;
     }
 
     resetarFluxoTransferencia();
     resetarFluxoInterdicao();
     setAbaAtiva("ocupacao");
+    setStatusSaidaUnidade("LIBERADO");
+    setConfirmandoDesinternacao(false);
   }, [isOpen, alojamento?.id]);
 
   // Fecha modal com ESC
@@ -824,6 +860,70 @@ export default function ModalAlojamentoDetalhes({
     return Array.from(mapa.values());
   }, [ocupante, conflitosInternos]);
 
+  const vinculosMesmoAtoNaCasa = useMemo<VinculoMesmoAtoCasaInfo[]>(() => {
+    if (!ocupante || !alojamento) {
+      return [];
+    }
+
+    const casaAtual = casas.find((casa) => casa.id === alojamento.casaId);
+    if (!casaAtual) {
+      return [];
+    }
+
+    const idsOcupante = new Set(extrairIdsVinculosMesmoAto(ocupante));
+    if (idsOcupante.size === 0) {
+      return [];
+    }
+
+    const descricoesPorId = new Map<string, string>();
+    (ocupante.atoInfracionalVinculos ?? []).forEach((item: any) => {
+      const id = item?.id ?? item?.vinculoId ?? item?.vinculo?.id ?? "";
+      const descricao =
+        item?.descricao ?? item?.vinculo?.descricao ?? "Vinculo infracional";
+      if (id && !descricoesPorId.has(id)) {
+        descricoesPorId.set(id, descricao);
+      }
+    });
+
+    const lista: VinculoMesmoAtoCasaInfo[] = [];
+
+    casaAtual.alojamentos.forEach((alojamentoCasa) => {
+      (alojamentoCasa.adolescentes ?? []).forEach((adolescenteCasa: any) => {
+        if (!adolescenteCasa?.id || adolescenteCasa.id === ocupante.id) {
+          return;
+        }
+
+        const compartilhados = extrairIdsVinculosMesmoAto(
+          adolescenteCasa,
+        ).filter((id) => idsOcupante.has(id));
+        if (compartilhados.length === 0) {
+          return;
+        }
+
+        const vinculos = Array.from(
+          new Set(
+            compartilhados.map(
+              (id) => descricoesPorId.get(id) ?? "Vinculo infracional",
+            ),
+          ),
+        );
+
+        const local = `Aloj. ${alojamentoCasa.numeroAlojamento}${
+          alojamentoCasa.ala ? ` - Ala ${alojamentoCasa.ala}` : ""
+        }`;
+
+        lista.push({
+          adolescenteId: adolescenteCasa.id,
+          nome: adolescenteCasa.nomeCompleto ?? "Adolescente",
+          local,
+          vinculos,
+        });
+      });
+    });
+
+    return lista;
+  }, [alojamento, casas, ocupante]);
+
   const conflitosAvaliacaoDetalhados = useMemo<RiscoDetalhadoResumo[]>(() => {
     if (!avaliacaoRisco?.detalhes?.length) {
       return [];
@@ -1113,6 +1213,16 @@ export default function ModalAlojamentoDetalhes({
   );
   const somenteSuicidioAmbiental =
     possuiSuicidioAmbiental && !possuiAmbientalNaoSuicidio;
+
+  const temConteudoBreakdown = useMemo(() => {
+    const temDetalhes = (avaliacaoRisco?.detalhes?.length ?? 0) > 0;
+    const temAmbiental = Boolean(avaliacaoRisco?.ambiental?.ativo);
+    return temDetalhes || temAmbiental || vinculosMesmoAtoNaCasa.length > 0;
+  }, [
+    avaliacaoRisco?.detalhes,
+    avaliacaoRisco?.ambiental?.ativo,
+    vinculosMesmoAtoNaCasa.length,
+  ]);
 
   const alojamentosDisponiveis = useMemo(() => {
     if (!transferenciaCasaId) return [];
@@ -1604,233 +1714,251 @@ export default function ModalAlojamentoDetalhes({
                             </span>
                           </button>
 
-                          {mostrarBreakdownRisco &&
-                            avaliacaoRisco.detalhes &&
-                            avaliacaoRisco.detalhes.length > 0 && (
-                              <div className="mt-4 pt-4 border-t border-slate-200 space-y-4">
-                                <div className="flex items-center gap-2 mb-3">
-                                  <p className="text-xs font-semibold uppercase text-slate-600">
-                                    📊 Breakdown do Cálculo
-                                  </p>
-                                </div>
+                          {mostrarBreakdownRisco && temConteudoBreakdown && (
+                            <div className="mt-4 pt-4 border-t border-slate-200 space-y-4">
+                              <div className="flex items-center gap-2 mb-3">
+                                <p className="text-xs font-semibold uppercase text-slate-600">
+                                  📊 Breakdown do Cálculo
+                                </p>
+                              </div>
 
-                                {/* Agrupar detalhes por nível e renderizar em ordem decrescente */}
-                                {[5, 4, 3, 2].map((nivel) => {
-                                  const detalhesDoNivel =
-                                    avaliacaoRisco.detalhes?.filter(
-                                      (d) => d.nivel === nivel,
-                                    ) ?? [];
+                              {/* Agrupar detalhes por nível e renderizar em ordem decrescente */}
+                              {[5, 4, 3, 2].map((nivel) => {
+                                const detalhesDoNivel =
+                                  avaliacaoRisco.detalhes?.filter(
+                                    (d) => d.nivel === nivel,
+                                  ) ?? [];
 
-                                  if (detalhesDoNivel.length === 0) return null;
+                                if (detalhesDoNivel.length === 0) return null;
 
-                                  const corNivel =
-                                    nivel === 5
-                                      ? "border-red-300 bg-red-50"
-                                      : nivel === 4
-                                        ? "border-orange-300 bg-orange-50"
-                                        : nivel === 3
-                                          ? "border-yellow-300 bg-yellow-50"
-                                          : "border-lime-300 bg-lime-50";
+                                const corNivel =
+                                  nivel === 5
+                                    ? "border-red-300 bg-red-50"
+                                    : nivel === 4
+                                      ? "border-orange-300 bg-orange-50"
+                                      : nivel === 3
+                                        ? "border-yellow-300 bg-yellow-50"
+                                        : "border-lime-300 bg-lime-50";
 
-                                  const labelNivel =
-                                    nivel === 5
-                                      ? "CRÍTICO"
-                                      : nivel === 4
-                                        ? "ELEVADO"
-                                        : nivel === 3
-                                          ? "ATENÇÃO"
-                                          : "MONITORAR";
+                                const labelNivel =
+                                  nivel === 5
+                                    ? "CRÍTICO"
+                                    : nivel === 4
+                                      ? "ELEVADO"
+                                      : nivel === 3
+                                        ? "ATENÇÃO"
+                                        : "MONITORAR";
 
-                                  return (
-                                    <div key={nivel} className="space-y-2">
-                                      <p className="text-xs font-semibold text-slate-700">
-                                        ⚠️ Fatores de Nível {nivel} (
-                                        {labelNivel})
-                                      </p>
-                                      {detalhesDoNivel.map((detalhe, idx) => {
-                                        // Parser para extrair informações estruturadas da mensagem
-                                        const precisaReescreverSuicidio =
-                                          detalhe.tipo === "AMBIENTAL" &&
-                                          ehMotivoSuicidio(
-                                            detalhe.mensagem ?? "",
-                                          );
+                                return (
+                                  <div key={nivel} className="space-y-2">
+                                    <p className="text-xs font-semibold text-slate-700">
+                                      ⚠️ Fatores de Nível {nivel} ({labelNivel})
+                                    </p>
+                                    {detalhesDoNivel.map((detalhe, idx) => {
+                                      // Parser para extrair informações estruturadas da mensagem
+                                      const precisaReescreverSuicidio =
+                                        detalhe.tipo === "AMBIENTAL" &&
+                                        ehMotivoSuicidio(
+                                          detalhe.mensagem ?? "",
+                                        );
 
-                                        const mensagemDetalhe =
-                                          precisaReescreverSuicidio
-                                            ? formatarMensagemSuicidio(
-                                                detalhe.mensagem ?? "",
-                                                somenteSuicidioAmbiental,
-                                                possuiAmbientalNaoSuicidio,
-                                              )
-                                            : (detalhe.mensagem ?? "");
+                                      const mensagemDetalhe =
+                                        precisaReescreverSuicidio
+                                          ? formatarMensagemSuicidio(
+                                              detalhe.mensagem ?? "",
+                                              somenteSuicidioAmbiental,
+                                              possuiAmbientalNaoSuicidio,
+                                            )
+                                          : (detalhe.mensagem ?? "");
 
-                                        const parsed =
-                                          parseDetalheMensagem(mensagemDetalhe);
+                                      const parsed =
+                                        parseDetalheMensagem(mensagemDetalhe);
 
-                                        return (
-                                          <div
-                                            key={`${nivel}-${idx}`}
-                                            className={`rounded-lg border p-3 ${corNivel}`}
-                                          >
-                                            <div className="flex items-start gap-2">
-                                              {detalhe.proximidade && (
-                                                <span
-                                                  className="text-lg"
-                                                  title={
-                                                    labelProximidade[
-                                                      detalhe.proximidade
-                                                    ]
-                                                  }
-                                                >
-                                                  {
-                                                    iconeProximidade[
-                                                      detalhe.proximidade
-                                                    ]
-                                                  }
-                                                </span>
-                                              )}
-                                              <div className="flex-1 space-y-1">
-                                                <div className="flex items-center gap-2">
-                                                  <p className="text-xs font-bold text-slate-800">
-                                                    {labelTipoRisco[
-                                                      detalhe.tipo
-                                                    ] || detalhe.tipo}
-                                                  </p>
-                                                  {parsed.tipo ===
-                                                    "alianca" && (
-                                                    <span
-                                                      className={`px-2 py-0.5 rounded text-xs font-semibold ${
-                                                        parsed.badge.includes(
-                                                          "FORTE",
-                                                        )
-                                                          ? "bg-red-100 text-red-800 border border-red-300"
-                                                          : "bg-amber-100 text-amber-800 border border-amber-300"
-                                                      }`}
-                                                    >
-                                                      {parsed.badge}
-                                                    </span>
-                                                  )}
-                                                </div>
-
+                                      return (
+                                        <div
+                                          key={`${nivel}-${idx}`}
+                                          className={`rounded-lg border p-3 ${corNivel}`}
+                                        >
+                                          <div className="flex items-start gap-2">
+                                            {detalhe.proximidade && (
+                                              <span
+                                                className="text-lg"
+                                                title={
+                                                  labelProximidade[
+                                                    detalhe.proximidade
+                                                  ]
+                                                }
+                                              >
+                                                {
+                                                  iconeProximidade[
+                                                    detalhe.proximidade
+                                                  ]
+                                                }
+                                              </span>
+                                            )}
+                                            <div className="flex-1 space-y-1">
+                                              <div className="flex items-center gap-2">
+                                                <p className="text-xs font-bold text-slate-800">
+                                                  {labelTipoRisco[
+                                                    detalhe.tipo
+                                                  ] || detalhe.tipo}
+                                                </p>
                                                 {parsed.tipo === "alianca" && (
-                                                  <div className="space-y-0.5">
-                                                    <p className="text-xs text-slate-900 font-semibold">
-                                                      👤 {parsed.nome}
-                                                    </p>
-                                                    <p className="text-xs text-slate-700">
-                                                      📍 {parsed.local}
-                                                    </p>
-                                                    <p className="text-xs text-slate-600 italic">
-                                                      🔗 {parsed.vinculo}
-                                                    </p>
-                                                    <p className="text-xs text-slate-500 mt-1">
-                                                      ℹ️ {parsed.contexto}
-                                                    </p>
-                                                  </div>
-                                                )}
-
-                                                {parsed.tipo ===
-                                                  "conflito_interno" && (
-                                                  <div className="space-y-0.5">
-                                                    <p className="text-xs text-slate-900 font-semibold">
-                                                      ⚔️ Conflito tipo:{" "}
-                                                      {parsed.tipoConflito}
-                                                    </p>
-                                                    <p className="text-xs text-slate-900 font-semibold">
-                                                      👤 Rival:{" "}
-                                                      {parsed.nomeRival}
-                                                    </p>
-                                                    <p className="text-xs text-slate-700">
-                                                      📍 {parsed.local}
-                                                    </p>
-                                                  </div>
-                                                )}
-
-                                                {parsed.tipo ===
-                                                  "conflito_externo" && (
-                                                  <div className="space-y-0.5">
-                                                    <p className="text-xs text-slate-900 font-semibold">
-                                                      🌍 Origem: {parsed.origem}
-                                                    </p>
-                                                    <p className="text-xs text-slate-900 font-semibold">
-                                                      👤 Rival:{" "}
-                                                      {parsed.nomeRival}
-                                                    </p>
-                                                    <p className="text-xs text-slate-700">
-                                                      📍 {parsed.local}
-                                                    </p>
-                                                  </div>
-                                                )}
-
-                                                {parsed.tipo === "outro" && (
-                                                  <p className="text-xs text-slate-700">
-                                                    {parsed.mensagem}
-                                                  </p>
-                                                )}
-
-                                                {detalhe.proximidade && (
-                                                  <div className="mt-1 pt-1 border-t border-slate-200">
-                                                    <p className="text-xs text-slate-600 font-medium">
-                                                      📏 Proximidade:{" "}
-                                                      {
-                                                        labelProximidade[
-                                                          detalhe.proximidade
-                                                        ]
-                                                      }
-                                                    </p>
-                                                  </div>
+                                                  <span
+                                                    className={`px-2 py-0.5 rounded text-xs font-semibold ${
+                                                      parsed.badge.includes(
+                                                        "FORTE",
+                                                      )
+                                                        ? "bg-red-100 text-red-800 border border-red-300"
+                                                        : "bg-amber-100 text-amber-800 border border-amber-300"
+                                                    }`}
+                                                  >
+                                                    {parsed.badge}
+                                                  </span>
                                                 )}
                                               </div>
+
+                                              {parsed.tipo === "alianca" && (
+                                                <div className="space-y-0.5">
+                                                  <p className="text-xs text-slate-900 font-semibold">
+                                                    👤 {parsed.nome}
+                                                  </p>
+                                                  <p className="text-xs text-slate-700">
+                                                    📍 {parsed.local}
+                                                  </p>
+                                                  <p className="text-xs text-slate-600 italic">
+                                                    🔗 {parsed.vinculo}
+                                                  </p>
+                                                  <p className="text-xs text-slate-500 mt-1">
+                                                    ℹ️ {parsed.contexto}
+                                                  </p>
+                                                </div>
+                                              )}
+
+                                              {parsed.tipo ===
+                                                "conflito_interno" && (
+                                                <div className="space-y-0.5">
+                                                  <p className="text-xs text-slate-900 font-semibold">
+                                                    ⚔️ Conflito tipo:{" "}
+                                                    {parsed.tipoConflito}
+                                                  </p>
+                                                  <p className="text-xs text-slate-900 font-semibold">
+                                                    👤 Rival: {parsed.nomeRival}
+                                                  </p>
+                                                  <p className="text-xs text-slate-700">
+                                                    📍 {parsed.local}
+                                                  </p>
+                                                </div>
+                                              )}
+
+                                              {parsed.tipo ===
+                                                "conflito_externo" && (
+                                                <div className="space-y-0.5">
+                                                  <p className="text-xs text-slate-900 font-semibold">
+                                                    🌍 Origem: {parsed.origem}
+                                                  </p>
+                                                  <p className="text-xs text-slate-900 font-semibold">
+                                                    👤 Rival: {parsed.nomeRival}
+                                                  </p>
+                                                  <p className="text-xs text-slate-700">
+                                                    📍 {parsed.local}
+                                                  </p>
+                                                </div>
+                                              )}
+
+                                              {parsed.tipo === "outro" && (
+                                                <p className="text-xs text-slate-700">
+                                                  {parsed.mensagem}
+                                                </p>
+                                              )}
+
+                                              {detalhe.proximidade && (
+                                                <div className="mt-1 pt-1 border-t border-slate-200">
+                                                  <p className="text-xs text-slate-600 font-medium">
+                                                    📏 Proximidade:{" "}
+                                                    {
+                                                      labelProximidade[
+                                                        detalhe.proximidade
+                                                      ]
+                                                    }
+                                                  </p>
+                                                </div>
+                                              )}
                                             </div>
                                           </div>
-                                        );
-                                      })}
-                                    </div>
-                                  );
-                                })}
-
-                                {/* Tensão Ambiental */}
-                                {avaliacaoRisco.ambiental?.ativo && (
-                                  <div className="border-t border-slate-200 pt-3">
-                                    <p className="text-xs font-semibold text-slate-700 mb-2">
-                                      🌡️ Tensão Ambiental (Nível{" "}
-                                      {avaliacaoRisco.ambiental.nivel})
-                                    </p>
-                                    <ul className="space-y-1 text-xs text-amber-700">
-                                      {motivosAmbientaisDetalhados.map(
-                                        (motivo, idx) => (
-                                          <li
-                                            key={`ambiental-breakdown-${idx}`}
-                                          >
-                                            • {motivo.exibicao}
-                                          </li>
-                                        ),
-                                      )}
-                                    </ul>
+                                        </div>
+                                      );
+                                    })}
                                   </div>
-                                )}
+                                );
+                              })}
 
-                                {/* Legenda de Proximidade */}
+                              {/* Tensão Ambiental */}
+                              {avaliacaoRisco.ambiental?.ativo && (
                                 <div className="border-t border-slate-200 pt-3">
                                   <p className="text-xs font-semibold text-slate-700 mb-2">
-                                    📍 Legenda de Proximidade
+                                    🌡️ Tensão Ambiental (Nível{" "}
+                                    {avaliacaoRisco.ambiental.nivel})
                                   </p>
-                                  <div className="grid grid-cols-2 gap-2 text-xs text-slate-600">
-                                    {Object.entries(labelProximidade).map(
-                                      ([key, label]) => (
-                                        <div
-                                          key={key}
-                                          className="flex items-center gap-1"
-                                        >
-                                          <span>{iconeProximidade[key]}</span>
-                                          <span>{label}</span>
-                                        </div>
+                                  <ul className="space-y-1 text-xs text-amber-700">
+                                    {motivosAmbientaisDetalhados.map(
+                                      (motivo, idx) => (
+                                        <li key={`ambiental-breakdown-${idx}`}>
+                                          • {motivo.exibicao}
+                                        </li>
                                       ),
                                     )}
+                                  </ul>
+                                </div>
+                              )}
+
+                              {vinculosMesmoAtoNaCasa.length > 0 && (
+                                <div className="border-t border-slate-200 pt-3">
+                                  <p className="text-xs font-semibold text-slate-700 mb-2">
+                                    🔗 Mesmo ato infracional na mesma casa
+                                  </p>
+                                  <div className="space-y-2">
+                                    {vinculosMesmoAtoNaCasa.map((item) => (
+                                      <div
+                                        key={`mesmo-ato-${item.adolescenteId}`}
+                                        className="rounded-lg border border-cyan-200 bg-cyan-50 p-2 text-xs text-cyan-800"
+                                      >
+                                        <p className="font-semibold">
+                                          {item.nome}
+                                        </p>
+                                        <p className="text-cyan-700 mt-0.5">
+                                          📍 {item.local}
+                                        </p>
+                                        <p className="text-cyan-700 mt-0.5">
+                                          Vínculo: {item.vinculos.join("; ")}
+                                        </p>
+                                      </div>
+                                    ))}
                                   </div>
                                 </div>
+                              )}
+
+                              {/* Legenda de Proximidade */}
+                              <div className="border-t border-slate-200 pt-3">
+                                <p className="text-xs font-semibold text-slate-700 mb-2">
+                                  📍 Legenda de Proximidade
+                                </p>
+                                <div className="grid grid-cols-2 gap-2 text-xs text-slate-600">
+                                  {Object.entries(labelProximidade).map(
+                                    ([key, label]) => (
+                                      <div
+                                        key={key}
+                                        className="flex items-center gap-1"
+                                      >
+                                        <span>{iconeProximidade[key]}</span>
+                                        <span>{label}</span>
+                                      </div>
+                                    ),
+                                  )}
+                                </div>
                               </div>
-                            )}
+                            </div>
+                          )}
                         </div>
                       )}
                       {avaliacaoRisco?.ambiental?.ativo && (
@@ -2150,57 +2278,138 @@ export default function ModalAlojamentoDetalhes({
                         bloqueadas para seu perfil.
                       </div>
                     ) : (
-                      <div className="flex flex-wrap gap-3 items-center">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            onDesalocar(
-                              alojamento.id,
-                              ocupante.id,
-                              "Remocao manual",
-                            )
-                          }
-                          disabled={
-                            desinternandoLocal ||
-                            desinternandoId === ocupante.id
-                          }
-                          className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-60 disabled:cursor-not-allowed"
-                        >
-                          Remover do alojamento
-                        </button>
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            setDesinternandoLocal(true);
-                            try {
-                              await onDesinternar(ocupante.id);
-                              onClose();
-                            } finally {
-                              setDesinternandoLocal(false);
+                      <div className="space-y-3">
+                        <div className="flex flex-wrap gap-3 items-center">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              onDesalocar(
+                                alojamento.id,
+                                ocupante.id,
+                                "Remocao manual",
+                              )
                             }
-                          }}
-                          disabled={
-                            desinternandoLocal ||
-                            desinternandoId === ocupante.id
-                          }
-                          className="rounded-lg border border-amber-300 px-4 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-60 disabled:cursor-not-allowed"
-                        >
-                          <span className="inline-flex items-center gap-2">
-                            {(desinternandoLocal ||
-                              desinternandoId === ocupante.id) && (
-                              <Activity className="h-4 w-4 animate-spin" />
-                            )}
-                            {desinternandoLocal ||
-                            desinternandoId === ocupante.id
-                              ? "Processando..."
-                              : "Desinternar"}
-                          </span>
-                        </button>
-                        {(desinternandoLocal ||
-                          desinternandoId === ocupante.id) && (
-                          <span className="text-xs text-amber-700">
-                            Aguarde, estamos registrando a desinternacao.
-                          </span>
+                            disabled={
+                              desinternandoLocal ||
+                              desinternandoId === ocupante.id
+                            }
+                            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-60 disabled:cursor-not-allowed"
+                          >
+                            Remover do alojamento
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (
+                                desinternandoLocal ||
+                                desinternandoId === ocupante.id
+                              ) {
+                                return;
+                              }
+                              if (confirmandoDesinternacao) {
+                                setConfirmandoDesinternacao(false);
+                                setStatusSaidaUnidade("LIBERADO");
+                                return;
+                              }
+                              setConfirmandoDesinternacao(true);
+                            }}
+                            disabled={
+                              desinternandoLocal ||
+                              desinternandoId === ocupante.id
+                            }
+                            className="rounded-lg border border-amber-300 px-4 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-60 disabled:cursor-not-allowed"
+                          >
+                            <span className="inline-flex items-center gap-2">
+                              {(desinternandoLocal ||
+                                desinternandoId === ocupante.id) && (
+                                <Activity className="h-4 w-4 animate-spin" />
+                              )}
+                              {desinternandoLocal ||
+                              desinternandoId === ocupante.id
+                                ? "Processando..."
+                                : confirmandoDesinternacao
+                                  ? "Cancelar desinternacao"
+                                  : "Desinternar"}
+                            </span>
+                          </button>
+                          {(desinternandoLocal ||
+                            desinternandoId === ocupante.id) && (
+                            <span className="text-xs text-amber-700">
+                              Aguarde, estamos registrando a desinternacao.
+                            </span>
+                          )}
+                        </div>
+                        {confirmandoDesinternacao && (
+                          <div className="rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 px-3 py-3">
+                            <p className="text-xs text-amber-800">
+                              Defina a situação na Unidade antes de confirmar a
+                              desinternação.
+                            </p>
+                            <div className="mt-2 flex flex-wrap items-end gap-3">
+                              <div className="flex flex-col gap-1 min-w-[220px]">
+                                <label
+                                  htmlFor="status-saida-unidade"
+                                  className="text-xs font-semibold text-amber-900"
+                                >
+                                  Situação na Unidade
+                                </label>
+                                <select
+                                  id="status-saida-unidade"
+                                  value={statusSaidaUnidade}
+                                  onChange={(event) =>
+                                    setStatusSaidaUnidade(
+                                      event.target.value as StatusSaidaUnidade,
+                                    )
+                                  }
+                                  disabled={
+                                    desinternandoLocal ||
+                                    desinternandoId === ocupante.id
+                                  }
+                                  className="rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-400 disabled:opacity-60 disabled:cursor-not-allowed"
+                                >
+                                  {STATUS_SAIDA_UNIDADE_OPCOES.map((opcao) => (
+                                    <option
+                                      key={opcao.value}
+                                      value={opcao.value}
+                                    >
+                                      {opcao.label}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  setDesinternandoLocal(true);
+                                  try {
+                                    await onDesinternar(
+                                      ocupante.id,
+                                      statusSaidaUnidade,
+                                    );
+                                    onClose();
+                                  } finally {
+                                    setDesinternandoLocal(false);
+                                  }
+                                }}
+                                disabled={
+                                  desinternandoLocal ||
+                                  desinternandoId === ocupante.id
+                                }
+                                className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-500 disabled:opacity-60 disabled:cursor-not-allowed"
+                              >
+                                <span className="inline-flex items-center gap-2">
+                                  {(desinternandoLocal ||
+                                    desinternandoId === ocupante.id) && (
+                                    <Activity className="h-4 w-4 animate-spin" />
+                                  )}
+                                  {desinternandoLocal ||
+                                  desinternandoId === ocupante.id
+                                    ? "Confirmando..."
+                                    : "Confirmar desinternação"}
+                                </span>
+                              </button>
+                            </div>
+                          </div>
                         )}
                       </div>
                     )}

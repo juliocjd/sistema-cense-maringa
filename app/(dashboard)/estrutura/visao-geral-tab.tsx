@@ -13,6 +13,7 @@ import {
   Lock,
   Activity,
   ChevronDown,
+  Link2,
 } from "lucide-react";
 import { InicializarEstruturaButton } from "./inicializar-button";
 import { ModalAlocacao } from "@/components/mapa/modal-alocacao";
@@ -36,6 +37,14 @@ type VisaoGeralTabProps = {
   totalAlojamentos: number;
 };
 
+type StatusSaidaUnidade = "TRANSFERIDO" | "LIBERADO" | "EVADIDO";
+
+const STATUS_SAIDA_UNIDADE_LABEL: Record<StatusSaidaUnidade, string> = {
+  TRANSFERIDO: "Transferido",
+  LIBERADO: "Liberado",
+  EVADIDO: "Evadido",
+};
+
 interface ModalDetalhesState {
   aberto: boolean;
   alojamento: (Alojamento & { casa?: Casa }) | null;
@@ -44,6 +53,7 @@ interface ModalDetalhesState {
 
 const VISIBILITY_REFRESH_COOLDOWN_MS = 60000;
 const IMPACTOS_EXTERNOS_TTL_MS = 120000;
+const FETCH_TIMEOUT_MS = 15000;
 
 const riscoClasses = {
   livre: "bg-gray-50 border-gray-300 hover:bg-gray-100",
@@ -151,16 +161,39 @@ const mapearAdolescenteRisco = (
   conflitosB: adolescente.conflitosB ?? [],
 });
 
+const extrairIdsVinculosMesmoAto = (
+  adolescente?: Pick<AdolescenteTipo, "atoInfracionalVinculos"> | null,
+): string[] =>
+  (adolescente?.atoInfracionalVinculos ?? [])
+    .map(
+      (item: any) => item?.id ?? item?.vinculoId ?? item?.vinculo?.id ?? "",
+    )
+    .filter((id: string) => Boolean(id));
+
+const temInterseccaoVinculos = (idsA: Set<string>, idsB: Set<string>) => {
+  if (idsA.size === 0 || idsB.size === 0) {
+    return false;
+  }
+  const [menor, maior] = idsA.size <= idsB.size ? [idsA, idsB] : [idsB, idsA];
+  for (const id of menor) {
+    if (maior.has(id)) {
+      return true;
+    }
+  }
+  return false;
+};
+
 const renderIconesAlerta = (
   alojamento: Alojamento,
   temConflitos: boolean,
   onClickConflito?: () => void,
   avaliacaoRisco?: { ambiental?: { ativo: boolean } | null },
+  temMesmoAtoInfracional = false,
 ): React.ReactElement | null => {
   const ocupante = alojamento.adolescentes?.[0];
   const temAliados = avaliacaoRisco?.ambiental?.ativo ?? false;
 
-  if (!ocupante && !temAliados) return null;
+  if (!ocupante && !temAliados && !temMesmoAtoInfracional) return null;
 
   return (
     <div className="absolute -top-1 -right-1 z-10 flex gap-0.5">
@@ -183,6 +216,14 @@ const renderIconesAlerta = (
       {ocupante?.alertaSaudeConfidencial && (
         <div className="rounded-full bg-blue-500 p-0.5" title="Alerta de saude">
           <Activity size={10} className="text-white" />
+        </div>
+      )}
+      {ocupante && temMesmoAtoInfracional && (
+        <div
+          className="rounded-full bg-cyan-500 p-0.5"
+          title="Mesmo Ato Infracional"
+        >
+          <Link2 size={10} className="text-white" />
         </div>
       )}
       {/*
@@ -257,6 +298,7 @@ export function VisaoGeralTab({
   const refreshForcadoRef = useRef(false);
   const debounceRefreshRef = useRef<number | null>(null);
   const ultimoImpactosRef = useRef(0);
+  const ultimaRequisicaoIdRef = useRef(0);
 
   const totalCasas = casas.length;
 
@@ -294,17 +336,41 @@ export function VisaoGeralTab({
     [adolescentes],
   );
 
+  const fetchComTimeout = useCallback(
+    async (input: RequestInfo | URL, init?: RequestInit) => {
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => {
+        // Evita AbortError "without reason" no console e identifica timeout.
+        controller.abort("timeout");
+      }, FETCH_TIMEOUT_MS);
+      try {
+        return await fetch(input, {
+          ...init,
+          signal: controller.signal,
+        });
+      } finally {
+        window.clearTimeout(timeoutId);
+      }
+    },
+    [],
+  );
+
   const carregarDados = useCallback(
     async (force = false) => {
+      const requestId = Date.now() + Math.random();
+      ultimaRequisicaoIdRef.current = requestId;
       setLoading(true);
       setError(null);
       try {
         const mapaUrl = force
           ? "/api/mapa/status?refresh=1"
           : "/api/mapa/status";
-        const mapaResponse = await fetch(mapaUrl, {
+        const mapaResponse = await fetchComTimeout(mapaUrl, {
           cache: "no-store",
         });
+        if (ultimaRequisicaoIdRef.current !== requestId) {
+          return;
+        }
         if (!mapaResponse.ok) {
           throw new Error("Erro ao carregar dados do mapa");
         }
@@ -340,10 +406,13 @@ export function VisaoGeralTab({
           let impactos: Record<string, ImpactoConflitoExterno[]> =
             conflitosExternos;
           try {
-            const impactosResponse = await fetch(
+            const impactosResponse = await fetchComTimeout(
               "/api/inteligencia/conflitos/impacto?status=ATIVO",
               { cache: "no-store" },
             );
+            if (ultimaRequisicaoIdRef.current !== requestId) {
+              return;
+            }
             if (impactosResponse.ok) {
               const impactosData = await impactosResponse.json();
               const lista: ImpactoConflitoExterno[] = Array.isArray(
@@ -374,15 +443,32 @@ export function VisaoGeralTab({
           }
         }
       } catch (erro) {
-        console.error("Erro ao carregar dados:", erro);
+        if (ultimaRequisicaoIdRef.current !== requestId) {
+          return;
+        }
+        const foiAbortTimeout =
+          erro instanceof DOMException
+            ? erro.name === "AbortError"
+            : (erro as any) === "timeout";
+        if (!foiAbortTimeout) {
+          console.error("Erro ao carregar dados:", erro);
+        }
+        const mensagem =
+          foiAbortTimeout
+            ? "Tempo limite excedido ao carregar estrutura. Verifique a conexao e tente novamente."
+            : erro instanceof Error
+              ? erro.message
+              : "Erro ao carregar dados";
         setError(
-          erro instanceof Error ? erro.message : "Erro ao carregar dados",
+          mensagem,
         );
       } finally {
-        setLoading(false);
+        if (ultimaRequisicaoIdRef.current === requestId) {
+          setLoading(false);
+        }
       }
     },
-    [conflitosExternos],
+    [conflitosExternos, fetchComTimeout],
   );
 
   const solicitarAtualizacao = useCallback(
@@ -437,6 +523,12 @@ export function VisaoGeralTab({
     },
     [consumirRefreshForcado, devePausarAtualizacao, solicitarAtualizacao],
   );
+
+  const reforcarAtualizacaoPosOperacao = useCallback(() => {
+    window.setTimeout(() => {
+      agendarAtualizacao(true);
+    }, 1200);
+  }, [agendarAtualizacao]);
 
   useEffect(() => {
     solicitarAtualizacao();
@@ -583,6 +675,32 @@ export function VisaoGeralTab({
     }));
   }, [casas, adolescentesLookup]);
 
+  const adolescentesMesmoAtoNaCasaIds = useMemo(() => {
+    const ids = new Set<string>();
+
+    casasNormalizadas.forEach((casa) => {
+      const moradores = casa.alojamentos
+        .flatMap((alojamento) =>
+          (alojamento.adolescentes ?? []).map((adolescente) => ({
+            adolescente,
+            vinculos: new Set(extrairIdsVinculosMesmoAto(adolescente)),
+          })),
+        )
+        .filter((item) => item.adolescente?.id);
+
+      for (let i = 0; i < moradores.length; i += 1) {
+        for (let j = i + 1; j < moradores.length; j += 1) {
+          if (temInterseccaoVinculos(moradores[i].vinculos, moradores[j].vinculos)) {
+            ids.add(moradores[i].adolescente.id);
+            ids.add(moradores[j].adolescente.id);
+          }
+        }
+      }
+    });
+
+    return ids;
+  }, [casasNormalizadas]);
+
   const casasParaCalculo = useMemo<CasaRisco[]>(
     () =>
       casasNormalizadas.map((casa) => ({
@@ -688,7 +806,10 @@ export function VisaoGeralTab({
     setModalAlocacaoAberto(false);
     setAlojamentoSelecionado(null);
     modalAlocacaoAbertoRef.current = false;
-    refreshPendenteRef.current = false;
+    if (refreshPendenteRef.current && !devePausarAtualizacao()) {
+      refreshPendenteRef.current = false;
+      solicitarAtualizacao(consumirRefreshForcado());
+    }
   };
 
   const fecharModalDetalhes = () => {
@@ -745,6 +866,7 @@ export function VisaoGeralTab({
       await response.json();
       fecharModalAlocacao();
       await carregarDados(true);
+      reforcarAtualizacaoPosOperacao();
     });
   };
 
@@ -773,11 +895,15 @@ export function VisaoGeralTab({
 
       const data = await response.json();
       await carregarDados(true);
+      reforcarAtualizacaoPosOperacao();
       return data.mensagem || "Adolescente removido do alojamento";
     });
   };
 
-  const handleDesinternar = async (adolescenteId: string) => {
+  const handleDesinternar = async (
+    adolescenteId: string,
+    statusSaida: StatusSaidaUnidade,
+  ) => {
     await executarOperacao(async () => {
       setDesinternandoId(adolescenteId);
       try {
@@ -788,7 +914,7 @@ export function VisaoGeralTab({
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            statusUnidade: "LIBERADO",
+            statusUnidade: statusSaida,
             alojamentoAtualId: null,
             dataDesinternacao: hojeISO,
           }),
@@ -802,7 +928,10 @@ export function VisaoGeralTab({
         await response.json();
         fecharModalDetalhes();
         await carregarDados(true);
-        alert("Adolescente desinternado com sucesso.");
+        reforcarAtualizacaoPosOperacao();
+        alert(
+          `Situacao atualizada para ${STATUS_SAIDA_UNIDADE_LABEL[statusSaida]} com sucesso.`,
+        );
       } finally {
         setDesinternandoId(null);
       }
@@ -846,6 +975,7 @@ export function VisaoGeralTab({
 
       await response.json();
       await carregarDados(true);
+      reforcarAtualizacaoPosOperacao();
     });
   };
 
@@ -877,6 +1007,7 @@ export function VisaoGeralTab({
 
       await response.json();
       await carregarDados(true);
+      reforcarAtualizacaoPosOperacao();
     });
   };
 
@@ -1004,6 +1135,12 @@ export function VisaoGeralTab({
                 <Activity size={12} className="text-white" />
               </span>
               Alerta de saude
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="bg-cyan-500 rounded-full p-1">
+                <Link2 size={12} className="text-white" />
+              </span>
+              Mesmo Ato Infracional
             </div>
           </div>
         </div>
@@ -1181,6 +1318,9 @@ export function VisaoGeralTab({
                       const nomePreferencial =
                         ocupante?.nomeSocial || ocupante?.nomeCompleto || "";
                       const nomeResumido = obterNomeResumido(nomePreferencial);
+                      const temMesmoAtoInfracional = ocupante
+                        ? adolescentesMesmoAtoNaCasaIds.has(ocupante.id)
+                        : false;
                       const temConflitos = ocupante
                         ? (conflitosInternos[ocupante.id]?.length || 0) > 0 ||
                           (conflitosExternos[ocupante.id]?.length || 0) > 0
@@ -1230,6 +1370,7 @@ export function VisaoGeralTab({
                             temConflitos,
                             handleClickConflito,
                             avaliacao,
+                            temMesmoAtoInfracional,
                           )}
                           <span className="text-base font-extrabold text-gray-800">
                             {aloj.numeroAlojamento}

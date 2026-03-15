@@ -22,16 +22,16 @@ export const ALERTAS_ESPECIAIS = {
   },
   PERFIL_MAPEADO: {
     tipoAlerta: "PERFIL_MAPEADO",
-    label: "Perfil mapeado (protecao)",
+    label: "Perfil mapeado (proteção)",
     descricaoPadrao:
-      "Perfil mapeado pela inteligencia. Requer sigilo e protecao especial.",
+      "Perfil mapeado pela inteligência. Requer sigilo e proteção especial.",
     nivelPadrao: "ALTO",
   },
   SAUDE_CONFIDENCIAL: {
     tipoAlerta: "SAUDE_CONFIDENCIAL",
-    label: "Alerta de saude confidencial",
+    label: "Alerta de saúde confidencial",
     descricaoPadrao:
-      "Condicao de saude confidencial que exige acompanhamento especializado.",
+      "Condição de saúde que requer atençãoo e acompanhamento diferenciado.",
     nivelPadrao: "MEDIO",
   },
 } as const;

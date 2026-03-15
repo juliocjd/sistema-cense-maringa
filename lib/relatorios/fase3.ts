@@ -30,7 +30,7 @@ const normalizarNivel = (valor?: string | null) => {
 
 const atendeNivelMinimo = (
   valor?: string | null,
-  minimo?: (typeof NIVEL_ORDEM)[number] | null
+  minimo?: (typeof NIVEL_ORDEM)[number] | null,
 ) => {
   if (!minimo) return true;
   const nivel = normalizarNivel(valor);
@@ -42,13 +42,11 @@ const formatarDataIso = (valor?: Date | null) =>
   valor ? valor.toISOString() : null;
 
 const formatarAlojamento = (
-  registro?:
-    | {
-        numeroAlojamento: string | null;
-        ala: string | null;
-        casa?: { nome: string | null; numero: number | null } | null;
-      }
-    | null
+  registro?: {
+    numeroAlojamento: string | null;
+    ala: string | null;
+    casa?: { nome: string | null; numero: number | null } | null;
+  } | null,
 ) => {
   if (!registro) return null;
   const partes: string[] = [];
@@ -119,10 +117,7 @@ type ConflitoSelecionado = Prisma.ConflitoGetPayload<{
   select: typeof SELETOR_CONFLITO;
 }>;
 
-const mapConflito = (
-  conflito: ConflitoSelecionado,
-  adolescenteId: string
-) => {
+const mapConflito = (conflito: ConflitoSelecionado, adolescenteId: string) => {
   const lado = conflito.adolescenteAId === adolescenteId ? "LADO_1" : "LADO_2";
   const adversario =
     lado === "LADO_1" ? conflito.adolescenteB : conflito.adolescenteA;
@@ -185,7 +180,7 @@ const analisarAlertas = (
       criadoEm: true;
       desativadoEm: true;
     };
-  }>[]
+  }>[],
 ): AnalisarAlertasResultado => {
   const ativos: AnalisarAlertasResultado["relevantesAtivos"] = [];
   const historico: AnalisarAlertasResultado["relevantesHistorico"] = [];
@@ -197,7 +192,7 @@ const analisarAlertas = (
     const base = {
       id: alerta.id,
       tipo,
-      tipoLabel: tipo ? TIPO_CI_MAP.get(tipo) ?? tipo : "Nao informado",
+      tipoLabel: tipo ? (TIPO_CI_MAP.get(tipo) ?? tipo) : "Nao informado",
       descricao: alerta.descricaoAlerta,
       nivel,
       criadoEm: formatarDataIso(alerta.criadoEm) ?? "",
@@ -240,9 +235,7 @@ const analisarAlertas = (
   return { relevantesAtivos: ativos, relevantesHistorico: historico, fuga };
 };
 
-export type RelatorioFase3 = Awaited<
-  ReturnType<typeof carregarRelatorioFase3>
->;
+export type RelatorioFase3 = Awaited<ReturnType<typeof carregarRelatorioFase3>>;
 
 export async function carregarRelatorioFase3(adolescenteId: string) {
   const adolescente = await prisma.adolescente.findUnique({
@@ -289,76 +282,70 @@ export async function carregarRelatorioFase3(adolescenteId: string) {
           OR: [
             { adolescenteAId: adolescenteId },
             { adolescenteBId: adolescenteId },
-        ],
-      },
-      orderBy: { criadoEm: "desc" },
-      select: SELETOR_CONFLITO,
-    }),
-    prisma.alertaAtivo.findMany({
-      where: { adolescenteId },
-      orderBy: { criadoEm: "desc" },
-      select: {
-        id: true,
-        tipoAlerta: true,
-        descricaoAlerta: true,
-        nivelRisco: true,
-        criadoEm: true,
-        desativadoEm: true,
-      },
-    }),
-    prisma.casa.findFirst({
-      where: { numero: 8 },
-      select: {
-        id: true,
-        nome: true,
-        alojamentos: {
-          orderBy: { numeroAlojamento: "asc" },
-          select: {
-            id: true,
-            numeroAlojamento: true,
-            ala: true,
-            adolescentes: {
-              where: { statusUnidade: "ATIVO" },
-              select: {
-                id: true,
-                nomeCompleto: true,
-                statusUnidade: true,
-                faccao: { select: { id: true, nomeFaccao: true } },
+          ],
+        },
+        orderBy: { criadoEm: "desc" },
+        select: SELETOR_CONFLITO,
+      }),
+      prisma.alertaAtivo.findMany({
+        where: { adolescenteId },
+        orderBy: { criadoEm: "desc" },
+        select: {
+          id: true,
+          tipoAlerta: true,
+          descricaoAlerta: true,
+          nivelRisco: true,
+          criadoEm: true,
+          desativadoEm: true,
+        },
+      }),
+      prisma.casa.findFirst({
+        where: { numero: 8 },
+        select: {
+          id: true,
+          nome: true,
+          alojamentos: {
+            orderBy: { numeroAlojamento: "asc" },
+            select: {
+              id: true,
+              numeroAlojamento: true,
+              ala: true,
+              adolescentes: {
+                where: { statusUnidade: "ATIVO" },
+                select: {
+                  id: true,
+                  nomeCompleto: true,
+                  statusUnidade: true,
+                  faccao: { select: { id: true, nomeFaccao: true } },
+                },
               },
             },
           },
         },
-      },
-    }),
-    prisma.historicoMovimentacao.findFirst({
-      where: { adolescenteId, tipo: "RISCO_FUGA_ALERTA" },
-      orderBy: [
-        { registradoEm: "desc" },
-        { criadoEm: "desc" },
-      ],
-      select: {
-        descricao: true,
-        registradoEm: true,
-        criadoEm: true,
-        referenciaTipo: true,
-        referenciaId: true,
-      },
-    }),
-    prisma.historicoMovimentacao.findMany({
-      where: {
-        adolescenteId,
-        tipo: { in: [TIPO_PROTOCOLO_ATIVADO, TIPO_PROTOCOLO_ALTA] },
-      },
-      orderBy: [
-        { registradoEm: "desc" },
-        { criadoEm: "desc" },
-      ],
-      take: 10,
-    }),
-  ]);
+      }),
+      prisma.historicoMovimentacao.findFirst({
+        where: { adolescenteId, tipo: "RISCO_FUGA_ALERTA" },
+        orderBy: [{ registradoEm: "desc" }, { criadoEm: "desc" }],
+        select: {
+          descricao: true,
+          registradoEm: true,
+          criadoEm: true,
+          referenciaTipo: true,
+          referenciaId: true,
+        },
+      }),
+      prisma.historicoMovimentacao.findMany({
+        where: {
+          adolescenteId,
+          tipo: { in: [TIPO_PROTOCOLO_ATIVADO, TIPO_PROTOCOLO_ALTA] },
+        },
+        orderBy: [{ registradoEm: "desc" }, { criadoEm: "desc" }],
+        take: 10,
+      }),
+    ]);
 
   const conflitosDetalhados = conflitos.map((conflito) =>
-    mapConflito(conflito, adolescenteId)
+    mapConflito(conflito, adolescenteId),
   );
 
   const casaOitoOcupantes = (casaOito?.alojamentos ?? []).flatMap((aloj) => {
@@ -379,17 +366,19 @@ export async function carregarRelatorioFase3(adolescenteId: string) {
     }));
   });
 
-  const idsCasaOito = new Set(casaOitoOcupantes.map((item) => item.adolescente.id));
+  const idsCasaOito = new Set(
+    casaOitoOcupantes.map((item) => item.adolescente.id),
+  );
 
   const conflitosCasaOito = conflitosDetalhados.filter(
     (conflito) =>
-      conflito.adversario && idsCasaOito.has(conflito.adversario.id)
+      conflito.adversario && idsCasaOito.has(conflito.adversario.id),
   );
 
   const conflitosAtivosOutros = conflitosDetalhados.filter(
     (conflito) =>
       (conflito.status ?? "").toUpperCase() === "ATIVO" &&
-      (!conflito.adversario || !idsCasaOito.has(conflito.adversario.id))
+      (!conflito.adversario || !idsCasaOito.has(conflito.adversario.id)),
   );
 
   const alertasResumo = analisarAlertas(alertas);
@@ -402,7 +391,7 @@ export async function carregarRelatorioFase3(adolescenteId: string) {
     .forEach((conflito) => {
       if (conflito.adversario) {
         impeditivos.push(
-          `Conflito ativo contra ${conflito.adversario.nome} (${conflito.adversario.faccao ?? "sem faccao"}) atualmente na Casa 08.`
+          `Conflito ativo contra ${conflito.adversario.nome} (${conflito.adversario.faccao ?? "sem facção"}) atualmente na Casa 08.`,
         );
       }
     });
@@ -410,11 +399,11 @@ export async function carregarRelatorioFase3(adolescenteId: string) {
   if (
     conflitosCasaOito.length > 0 &&
     !conflitosCasaOito.some(
-      (conflito) => conflito.status?.toUpperCase() === "ATIVO"
+      (conflito) => conflito.status?.toUpperCase() === "ATIVO",
     )
   ) {
     observacoes.push(
-      "Historico de conflitos com adolescentes que hoje ocupam a Casa 08."
+      "Historico de conflitos com adolescentes que hoje ocupam a Casa 08.",
     );
   }
 
@@ -426,28 +415,28 @@ export async function carregarRelatorioFase3(adolescenteId: string) {
     impeditivos.push(
       `Conflitos internos ativos contra outros adolescentes (${nomes}${
         conflitosAtivosOutros.length > 5 ? ", ..." : ""
-      }).`
+      }).`,
     );
     const qualificacao =
       conflitosAtivosOutros.length >= 5
         ? "diversos"
         : conflitosAtivosOutros.length >= 3
-        ? "varios"
-        : "um";
+          ? "varios"
+          : "um";
     observacoes.push(
-      `Possui ${qualificacao} conflito(s) ativo(s) fora da Casa 08 (total: ${conflitosAtivosOutros.length}), indicando baixa maturidade ou dificuldade de convivencia em ambientes com vigilancia reduzida, o que pode produzir riscos graves de agressao.`
+      `Possui ${qualificacao} conflito(s) ativo(s) fora da Casa 08 (total: ${conflitosAtivosOutros.length}), indicando baixa maturidade ou dificuldade de convivencia em ambientes com vigilancia reduzida, o que pode produzir riscos graves de agressao.`,
     );
   }
 
   if (alertasResumo.relevantesAtivos.length > 0) {
     impeditivos.push(
-      "Alertas graves Ativos detectados (disciplinar, agressao, fuga ou ameaca)."
+      "Alertas graves Ativos detectados (disciplinar, agressao, fuga ou ameaca).",
     );
   }
 
   if (alertasResumo.relevantesHistorico.length > 0) {
     observacoes.push(
-      "Historico de alertas graves foi encontrado. Avaliar reincidencia antes da promocao."
+      "Historico de alertas graves foi encontrado. Avaliar reincidencia antes da promocao.",
     );
   }
 
@@ -455,7 +444,7 @@ export async function carregarRelatorioFase3(adolescenteId: string) {
     impeditivos.push("Alerta de fuga/evasao ativo vinculado ao adolescente.");
   } else if (alertasResumo.fuga.length > 0) {
     observacoes.push(
-      "Ja houve registro de fuga/evasao para este adolescente. Planejar monitoramento reforcado."
+      "Ja houve registro de fuga/evasao para este adolescente. Planejar monitoramento reforcado.",
     );
   }
 
@@ -474,7 +463,7 @@ export async function carregarRelatorioFase3(adolescenteId: string) {
           "Risco de fuga elevado automaticamente por alerta/CI.",
         registradoEm:
           formatarDataIso(
-            riscoFugaRegistro.registradoEm ?? riscoFugaRegistro.criadoEm
+            riscoFugaRegistro.registradoEm ?? riscoFugaRegistro.criadoEm,
           ) ?? null,
         referenciaTipo: riscoFugaRegistro.referenciaTipo ?? null,
         referenciaId: riscoFugaRegistro.referenciaId ?? null,
@@ -484,23 +473,25 @@ export async function carregarRelatorioFase3(adolescenteId: string) {
   const casaOitoDetalhada = casaOitoOcupantes.map((ocupante) => ({
     ...ocupante,
     conflitos: conflitosCasaOito.filter(
-      (conflito) => conflito.adversario?.id === ocupante.adolescente.id
+      (conflito) => conflito.adversario?.id === ocupante.adolescente.id,
     ),
   }));
 
   const alertaSuicidioAtivo =
     alertas.find(
       (alerta) =>
-        alerta.tipoAlerta === "RISCO_SUICIDIO" && alerta.desativadoEm === null
+        alerta.tipoAlerta === "RISCO_SUICIDIO" && alerta.desativadoEm === null,
     ) ?? null;
   const eventoEntrada = suicidioEventos.find(
-    (item) => item.tipo === TIPO_PROTOCOLO_ATIVADO
+    (item) => item.tipo === TIPO_PROTOCOLO_ATIVADO,
   );
   const eventoAlta = suicidioEventos.find(
-    (item) => item.tipo === TIPO_PROTOCOLO_ALTA
+    (item) => item.tipo === TIPO_PROTOCOLO_ALTA,
   );
   const possuiRegistroProtocolo =
-    Boolean(alertaSuicidioAtivo) || Boolean(eventoEntrada) || Boolean(eventoAlta);
+    Boolean(alertaSuicidioAtivo) ||
+    Boolean(eventoEntrada) ||
+    Boolean(eventoAlta);
   const protocoloRiscoSuicidio = !possuiRegistroProtocolo
     ? null
     : {
@@ -537,9 +528,7 @@ export async function carregarRelatorioFase3(adolescenteId: string) {
       numeroSms: adolescente.numeroSms ?? null,
       status: adolescente.statusUnidade,
       faccao: adolescente.faccao?.nomeFaccao ?? null,
-      fase:
-        adolescente.faseInternacaoAtual?.nomeFase ??
-        "Nao informado",
+      fase: adolescente.faseInternacaoAtual?.nomeFase ?? "Nao informado",
       alojamentoAtual: formatarAlojamento(adolescente.alojamentoAtual),
       riscoFuga: riscoFugaAtual,
     },
