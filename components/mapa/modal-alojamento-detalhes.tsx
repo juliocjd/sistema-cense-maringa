@@ -22,6 +22,7 @@ import type {
 import type { ImpactoConflitoExterno } from "@/types/inteligencia";
 import type { RiscoDetalhado as RiscoDetalhadoCalculo } from "@/lib/riscos/calcular";
 import { ALERTAS_ESPECIAIS } from "@/lib/alertas/especiais";
+import { RelatorioProcessoSocioeducativoModalTrigger } from "@/components/relatorios/relatorio-processo-socioeducativo-modal";
 
 type TabKey = "ocupacao" | "transferencia" | "interdicao";
 
@@ -344,6 +345,19 @@ export default function ModalAlojamentoDetalhes({
 }: ModalAlojamentoDetalhesProps) {
   const somenteLeitura = readOnly;
   const ocupante = alojamento?.adolescentes?.[0] ?? null;
+  const adolescenteInicialRelatorio = ocupante
+    ? {
+        id: ocupante.id,
+        nome: ocupante.nomeCompleto ?? "Adolescente",
+        numeroSms: ocupante.numeroSms ?? null,
+        status: ocupante.statusUnidade ?? null,
+        alojamento: alojamento
+          ? `Aloj. ${alojamento.numeroAlojamento}${
+              alojamento.ala ? ` - Ala ${alojamento.ala}` : ""
+            }`
+          : null,
+      }
+    : null;
   const alertasEspeciaisPorTipo = useMemo(() => {
     if (!ocupante?.alertasEspeciais?.length) {
       return {};
@@ -944,7 +958,7 @@ export default function ModalAlojamentoDetalhes({
           : null;
         const tituloBase = labelTipoRisco[detalhe.tipo] ?? "Risco identificado";
         const titulo = proximidadeLabel
-          ? `${tituloBase} • ${proximidadeLabel}`
+          ? `${tituloBase} - ${proximidadeLabel}`
           : tituloBase;
 
         let descricao = detalhe.mensagem;
@@ -1528,7 +1542,7 @@ export default function ModalAlojamentoDetalhes({
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-xs uppercase tracking-widest text-indigo-500">
-                  Alojamento {alojamento.numeroAlojamento} •{" "}
+                  Alojamento {alojamento.numeroAlojamento} -{" "}
                   {alojamento.casa?.nome ?? ""}
                 </p>
               </div>
@@ -1605,7 +1619,7 @@ export default function ModalAlojamentoDetalhes({
                       label: "Transferir / realocar",
                       disabled: statusInterditado,
                     },
-                    { id: "interdicao", label: "Interdicao", disabled: false },
+                    { id: "interdicao", label: "Interdição", disabled: false },
                   ] as Array<{ id: TabKey; label: string; disabled: boolean }>
                 ).map((tab) => {
                   const isDisabled = tab.disabled;
@@ -1669,8 +1683,8 @@ export default function ModalAlojamentoDetalhes({
             )}
             {somenteLeitura && (
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-xs text-slate-600">
-                Acesso somente leitura: operações de alocação, transferencia e
-                interdicao estao bloqueadas.
+                Acesso somente leitura: operações de alocação, transferencia
+                e interdicao estao bloqueadas.
               </div>
             )}
 
@@ -1709,8 +1723,8 @@ export default function ModalAlojamentoDetalhes({
                             </div>
                             <span className="text-xs text-indigo-600 font-medium">
                               {mostrarBreakdownRisco
-                                ? "Ocultar cálculo ▲"
-                                : "Ver cálculo ▼"}
+                                ? "Ocultar cálculo"
+                                : "Ver cálculo"}
                             </span>
                           </button>
 
@@ -1752,7 +1766,8 @@ export default function ModalAlojamentoDetalhes({
                                 return (
                                   <div key={nivel} className="space-y-2">
                                     <p className="text-xs font-semibold text-slate-700">
-                                      ⚠️ Fatores de Nível {nivel} ({labelNivel})
+                                      ⚠️ Fatores de Nível {nivel} (
+                                      {labelNivel})
                                     </p>
                                     {detalhesDoNivel.map((detalhe, idx) => {
                                       // Parser para extrair informações estruturadas da mensagem
@@ -1843,7 +1858,8 @@ export default function ModalAlojamentoDetalhes({
                                                     {parsed.tipoConflito}
                                                   </p>
                                                   <p className="text-xs text-slate-900 font-semibold">
-                                                    👤 Rival: {parsed.nomeRival}
+                                                    👤 Rival:{" "}
+                                                    {parsed.nomeRival}
                                                   </p>
                                                   <p className="text-xs text-slate-700">
                                                     📍 {parsed.local}
@@ -1858,7 +1874,8 @@ export default function ModalAlojamentoDetalhes({
                                                     🌍 Origem: {parsed.origem}
                                                   </p>
                                                   <p className="text-xs text-slate-900 font-semibold">
-                                                    👤 Rival: {parsed.nomeRival}
+                                                    👤 Rival:{" "}
+                                                    {parsed.nomeRival}
                                                   </p>
                                                   <p className="text-xs text-slate-700">
                                                     📍 {parsed.local}
@@ -2274,8 +2291,8 @@ export default function ModalAlojamentoDetalhes({
 
                     {somenteLeitura ? (
                       <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                        Acesso somente leitura: remoção e desinternação estão
-                        bloqueadas para seu perfil.
+                        Acesso somente leitura: remoção e desinternação
+                        estão bloqueadas para seu perfil.
                       </div>
                     ) : (
                       <div className="space-y-3">
@@ -2332,6 +2349,11 @@ export default function ModalAlojamentoDetalhes({
                                   : "Desinternar"}
                             </span>
                           </button>
+                          <RelatorioProcessoSocioeducativoModalTrigger
+                            adolescenteInicial={adolescenteInicialRelatorio}
+                            buttonLabel="Abrir relatorio socioeducativo"
+                            buttonClassName="rounded-lg border border-indigo-300 px-4 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-50"
+                          />
                           {(desinternandoLocal ||
                             desinternandoId === ocupante.id) && (
                             <span className="text-xs text-amber-700">
@@ -2342,8 +2364,8 @@ export default function ModalAlojamentoDetalhes({
                         {confirmandoDesinternacao && (
                           <div className="rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 px-3 py-3">
                             <p className="text-xs text-amber-800">
-                              Defina a situação na Unidade antes de confirmar a
-                              desinternação.
+                              Defina a situação na Unidade antes de confirmar
+                              a desinternação.
                             </p>
                             <div className="mt-2 flex flex-wrap items-end gap-3">
                               <div className="flex flex-col gap-1 min-w-[220px]">
@@ -2422,8 +2444,8 @@ export default function ModalAlojamentoDetalhes({
                     </p>
                     {somenteLeitura ? (
                       <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                        Acesso somente leitura: alocação está bloqueada para seu
-                        perfil.
+                        Acesso somente leitura: alocação está bloqueada para
+                        seu perfil.
                       </div>
                     ) : (
                       <button
@@ -2797,26 +2819,26 @@ export default function ModalAlojamentoDetalhes({
             {abaAtiva === "interdicao" && (
               <section className="rounded-2xl border border-slate-200 p-4">
                 <h3 className="text-lg font-semibold text-slate-900 mb-3">
-                  Interdicao do alojamento
+                  Interdição do alojamento
                 </h3>
                 <p className="text-sm text-slate-600 mb-3">
-                  Registre ou atualize os dados da interdicao informando
-                  justificativa, tipo e referencia do documento (CI, decisao
+                  Registre ou atualize os dados da interdição informando
+                  justificativa, tipo e referencia do documento (CI, decisão
                   judicial ou outro).
                 </p>
                 <p className="text-xs text-slate-500 mb-3">
                   Apenas alojamentos livres podem ser interditados. Se houver
-                  ocupante, realize a transferencia antes.
+                  ocupante, realize a transferência antes.
                 </p>
                 {!podeInterditar && (
                   <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
                     Remova ou transfira o adolescente atual antes de prosseguir
-                    com a interdicao.
+                    com a interdição.
                   </div>
                 )}
                 {somenteLeitura && (
                   <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
-                    Acesso somente leitura: interdição está bloqueada para seu
+                    Acesso somente leitura: interdição esta blocked para seu
                     perfil.
                   </div>
                 )}

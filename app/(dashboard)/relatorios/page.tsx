@@ -20,6 +20,7 @@ import { RelatorioTransferenciaModalTrigger } from "@/components/relatorios/rela
 import { RelatorioVisitasModalTrigger } from "@/components/relatorios/relatorio-visitas-modal";
 import { RelatorioFase3ModalTrigger } from "@/components/relatorios/relatorio-fase3-modal";
 import { RelatorioInterdicoesModalTrigger } from "@/components/relatorios/relatorio-interdicoes-modal";
+import { RelatorioProcessoSocioeducativoModalTrigger } from "@/components/relatorios/relatorio-processo-socioeducativo-modal";
 import { calcularImpactosExternos } from "@/lib/inteligencia/conflitos";
 
 export default async function RelatoriosPage() {
@@ -72,6 +73,16 @@ export default async function RelatoriosPage() {
       description:
         "Documento completo mostrando o histórico de conflitos e alertas para subsidiar decisões sobre desinternação.",
       action: <RelatorioHistoricoModalTrigger />,
+    },
+    {
+      id: "processo-socioeducativo",
+      tone: "slate",
+      label: "Planejamento",
+      icon: FileText,
+      title: "Historico do processo socioeducativo",
+      description:
+        "Consolida mes a mes comunicados, conflitos e alertas sem duplicidade (CI como evento mestre), incluindo envolvidos desinternados.",
+      action: <RelatorioProcessoSocioeducativoModalTrigger />,
     },
     {
       id: "transferencia",
