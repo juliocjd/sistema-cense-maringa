@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { prisma } from "@/lib/prisma";
 import { EstruturaTabsComponent } from "./estrutura-tabs";
 import { getEstruturaSnapshot } from "@/lib/estrutura/snapshot";

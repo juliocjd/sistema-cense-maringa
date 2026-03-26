@@ -1,34 +1,49 @@
-// app/api/casas/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
-// Schema de validação
+import { destinacaoOperacionalUsaPrazo } from "@/lib/casas/configuracao-operacional";
+import { prisma } from "@/lib/prisma";
+
+const destinacaoOperacionalSchema = z.enum([
+  "PROVISORIA",
+  "DEFINITIVA",
+  "FASE_EXCLUSIVA",
+  "ABRIGAMENTO",
+]);
+
 const createCasaSchema = z.object({
-  nome: z.string().min(1, "Nome é obrigatório"),
+  nome: z.string().min(1, "Nome e obrigatorio"),
   numero: z.number().int().min(1).max(8),
   isolada: z.boolean().default(false),
   observacoes: z.string().optional(),
+  destinacaoOperacional: destinacaoOperacionalSchema
+    .optional()
+    .default("DEFINITIVA"),
+  faseExclusivaId: z.string().uuid().optional().nullable(),
+  prazoMaximoDias: z.number().int().positive().optional().nullable(),
+  riscoMaximoPermitido: z.number().int().min(0).max(5).optional().nullable(),
 });
 
-// GET /api/casas - Listar todas as casas
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     const casas = await prisma.casa.findMany({
       include: {
         alojamentos: true,
+        faseExclusiva: {
+          select: {
+            id: true,
+            nomeFase: true,
+          },
+        },
       },
       orderBy: {
         numero: "asc",
       },
     });
 
-    // Calcular ocupação de cada casa
     const casasComOcupacao = await Promise.all(
       casas.map(async (casa) => {
         const totalAlojamentos = casa.alojamentos.length;
-
-        // Contar alojamentos ocupados
         const alojamentosOcupados = await prisma.adolescente.count({
           where: {
             alojamentoAtualId: {
@@ -43,6 +58,11 @@ export async function GET(request: NextRequest) {
           numero: casa.numero,
           isolada: casa.isolada,
           observacoes: casa.observacoes,
+          destinacao_operacional: casa.destinacaoOperacional,
+          fase_exclusiva_id: casa.faseExclusivaId,
+          fase_exclusiva: casa.faseExclusiva,
+          prazo_maximo_dias: casa.prazoMaximoDias,
+          risco_maximo_permitido: casa.riscoMaximoPermitido,
           total_alojamentos: totalAlojamentos,
           alojamentos_ocupados: alojamentosOcupados,
           alojamentos_livres: totalAlojamentos - alojamentosOcupados,
@@ -52,7 +72,7 @@ export async function GET(request: NextRequest) {
                 "%"
               : "0%",
         };
-      })
+      }),
     );
 
     return NextResponse.json({
@@ -65,41 +85,51 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/casas - Criar nova casa
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-
-    // Validar dados
     const validatedData = createCasaSchema.parse(body);
 
-    // Verificar se número da casa já existe
     const casaExistente = await prisma.casa.findFirst({
       where: { numero: validatedData.numero },
     });
 
     if (casaExistente) {
       return NextResponse.json(
-        { erro: `Casa ${validatedData.numero} já existe` },
-        { status: 409 }
+        { erro: `Casa ${validatedData.numero} ja existe` },
+        { status: 409 },
       );
     }
 
-    // Criar casa
     const casa = await prisma.casa.create({
-      data: validatedData,
+      data: {
+        nome: validatedData.nome,
+        numero: validatedData.numero,
+        isolada: validatedData.isolada,
+        observacoes: validatedData.observacoes,
+        destinacaoOperacional: validatedData.destinacaoOperacional,
+        faseExclusiva: validatedData.destinacaoOperacional === "FASE_EXCLUSIVA" &&
+          validatedData.faseExclusivaId
+          ? { connect: { id: validatedData.faseExclusivaId } }
+          : undefined,
+        prazoMaximoDias: destinacaoOperacionalUsaPrazo(
+          validatedData.destinacaoOperacional,
+        )
+          ? validatedData.prazoMaximoDias ?? null
+          : null,
+        riscoMaximoPermitido: validatedData.riscoMaximoPermitido ?? null,
+      },
     });
 
-    // Log de auditoria
     await prisma.logAuditoria.create({
       data: {
-        // operadorId: request.user?.id,
         acao: "INSERT",
         tabelaAfetada: "Casas",
         registroIdAfetado: casa.id,
         detalhesAlteracao: {
           nome: casa.nome,
           numero: casa.numero,
+          destinacaoOperacional: casa.destinacaoOperacional,
         },
       },
     });
@@ -110,15 +140,16 @@ export async function POST(request: NextRequest) {
         nome: casa.nome,
         numero: casa.numero,
         isolada: casa.isolada,
+        destinacao_operacional: casa.destinacaoOperacional,
         mensagem: "Casa criada com sucesso",
       },
-      { status: 201 }
+      { status: 201 },
     );
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { erro: "Dados inválidos", detalhes: error.errors },
-        { status: 400 }
+        { erro: "Dados invalidos", detalhes: error.errors },
+        { status: 400 },
       );
     }
 

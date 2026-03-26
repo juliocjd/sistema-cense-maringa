@@ -1,7 +1,19 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, AlertTriangle, CheckCircle, Info, Home, TrendingUp } from "lucide-react";
+import {
+  X,
+  AlertTriangle,
+  CheckCircle,
+  Info,
+  Home,
+  TrendingUp,
+} from "lucide-react";
+import {
+  casaCompativelComInternacao,
+  filtrarCasasCompativeis,
+  obterEtiquetaCasaOperacional,
+} from "@/lib/casas/configuracao-operacional";
 
 type TipoInternacao = "PROVISORIA" | "DEFINITIVA";
 
@@ -71,6 +83,17 @@ type ResultadoAnalise = {
   }>;
 };
 
+type CasaOperacionalAnalise = {
+  id: string;
+  nome: string;
+  numero: number;
+  destinacaoOperacional?: string | null;
+  faseExclusivaId?: string | null;
+  faseExclusiva?: { id: string; nomeFase: string } | null;
+  prazoMaximoDias?: number | null;
+  riscoMaximoPermitido?: number | null;
+};
+
 export function ModalAnaliseImpacto({
   isOpen,
   onClose,
@@ -79,11 +102,19 @@ export function ModalAnaliseImpacto({
   adolescenteAlocado,
   conflitos = [],
 }: ModalAnaliseImpactoProps) {
-  const [tipoInternacao, setTipoInternacao] = useState<TipoInternacao | null>(null);
+  const [tipoInternacao, setTipoInternacao] = useState<TipoInternacao | null>(
+    null,
+  );
   const [casaEspecifica, setCasaEspecifica] = useState<number | null>(null);
   const [analisando, setAnalisando] = useState(false);
   const [resultados, setResultados] = useState<ResultadoAnalise[]>([]);
   const [erro, setErro] = useState<string | null>(null);
+  const [casasOperacionais, setCasasOperacionais] = useState<
+    CasaOperacionalAnalise[]
+  >([]);
+  const [faseInternacaoAtualId, setFaseInternacaoAtualId] = useState<
+    string | null
+  >(null);
 
   // Limpar state quando o modal abre com um novo adolescente
   useEffect(() => {
@@ -96,7 +127,79 @@ export function ModalAnaliseImpacto({
     }
   }, [isOpen, adolescenteId]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+
+    let ativo = true;
+
+    const carregarContexto = async () => {
+      try {
+        const [casasResponse, adolescenteResponse] = await Promise.all([
+          fetch("/api/casas"),
+          fetch(`/api/adolescentes/${adolescenteId}`),
+        ]);
+
+        if (!ativo) return;
+
+        if (casasResponse.ok) {
+          const payload = await casasResponse.json();
+          const casas = Array.isArray(payload?.casas)
+            ? payload.casas.map((casa: any) => ({
+                id: casa.id,
+                nome: casa.nome,
+                numero:
+                  typeof casa.numero === "number"
+                    ? casa.numero
+                    : Number(casa.numero ?? 0),
+                destinacaoOperacional:
+                  casa.destinacao_operacional ??
+                  casa.destinacaoOperacional ??
+                  null,
+                faseExclusivaId:
+                  casa.fase_exclusiva_id ?? casa.faseExclusivaId ?? null,
+                faseExclusiva:
+                  casa.fase_exclusiva ?? casa.faseExclusiva ?? null,
+                prazoMaximoDias:
+                  typeof (casa.prazo_maximo_dias ?? casa.prazoMaximoDias) ===
+                  "number"
+                    ? (casa.prazo_maximo_dias ?? casa.prazoMaximoDias)
+                    : null,
+                riscoMaximoPermitido:
+                  typeof (
+                    casa.risco_maximo_permitido ?? casa.riscoMaximoPermitido
+                  ) === "number"
+                    ? (casa.risco_maximo_permitido ?? casa.riscoMaximoPermitido)
+                    : null,
+              }))
+            : [];
+          setCasasOperacionais(casas);
+        }
+
+        if (adolescenteResponse.ok) {
+          const adolescente = await adolescenteResponse.json();
+          setFaseInternacaoAtualId(adolescente?.faseInternacaoAtualId ?? null);
+        } else {
+          setFaseInternacaoAtualId(null);
+        }
+      } catch (error) {
+        console.error("Erro ao carregar contexto da analise:", error);
+      }
+    };
+
+    carregarContexto();
+
+    return () => {
+      ativo = false;
+    };
+  }, [isOpen, adolescenteId]);
+
   if (!isOpen) return null;
+
+  const casasCompativeis = filtrarCasasCompativeis({
+    casas: [...casasOperacionais].sort((a, b) => a.numero - b.numero),
+    tipoInternacao,
+    faseInternacaoAtualId,
+  });
 
   const handleAnalisar = async () => {
     if (!tipoInternacao) {
@@ -116,7 +219,9 @@ export function ModalAnaliseImpacto({
         // Usar motor centralizado para analisar risco do alojamento atual
 
         // 1. Buscar informações do adolescente
-        const adolescenteResponse = await fetch(`/api/adolescentes/${adolescenteId}`);
+        const adolescenteResponse = await fetch(
+          `/api/adolescentes/${adolescenteId}`,
+        );
         if (!adolescenteResponse.ok) {
           throw new Error("Erro ao buscar dados do adolescente");
         }
@@ -129,7 +234,7 @@ export function ModalAnaliseImpacto({
         // 2. Analisar risco do alojamento ATUAL usando motor completo
         const riscoAtualResponse = await fetch(
           `/api/verificar-alocacao?adolescenteId=${adolescenteId}&alojamentoId=${adolescente.alojamentoAtualId}`,
-          { method: "GET" }
+          { method: "GET" },
         );
 
         if (!riscoAtualResponse.ok) {
@@ -151,12 +256,14 @@ export function ModalAnaliseImpacto({
         casas.forEach((casa: any) => {
           casa.alojamentos?.forEach((aloj: any) => {
             // API retorna status_manutencao em snake_case
-            const statusManutencao = aloj.status_manutencao || aloj.statusManutencao;
+            const statusManutencao =
+              aloj.status_manutencao || aloj.statusManutencao;
             if (
               statusManutencao !== "INTERDITADO" &&
               aloj.id !== adolescente.alojamentoAtualId && // Excluir alojamento atual
-              (!aloj.ocupante && !aloj.adolescentes ||
-               (Array.isArray(aloj.adolescentes) && aloj.adolescentes.length === 0))
+              ((!aloj.ocupante && !aloj.adolescentes) ||
+                (Array.isArray(aloj.adolescentes) &&
+                  aloj.adolescentes.length === 0))
             ) {
               alojamentosVagos.push({
                 ...aloj,
@@ -168,98 +275,84 @@ export function ModalAnaliseImpacto({
 
         // 5. Se risco atual >= 3 (ATENÇÃO), avaliar opções de realocação
         let sugestoes: any[] = [];
-          if (riscoAtual.nivel_numerico >= 3) {
-            const batchResponse = await fetch(
-              "/api/verificar-alocacao/batch",
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  adolescenteId,
-                  alojamentoIds: alojamentosVagos.map((aloj) => aloj.id),
-                }),
-              }
-            );
+        if (riscoAtual.nivel_numerico >= 3) {
+          const batchResponse = await fetch("/api/verificar-alocacao/batch", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              adolescenteId,
+              alojamentoIds: alojamentosVagos.map((aloj) => aloj.id),
+            }),
+          });
 
-            if (!batchResponse.ok) {
-              const erroBatch = await batchResponse.json().catch(() => null);
-              throw new Error(
-                erroBatch?.erro ||
-                  "Erro ao avaliar alojamentos para realocação"
-              );
+          if (!batchResponse.ok) {
+            const erroBatch = await batchResponse.json().catch(() => null);
+            throw new Error(
+              erroBatch?.erro || "Erro ao avaliar alojamentos para realocação",
+            );
+          }
+
+          const batchData = await batchResponse.json();
+
+          const resultadosBatch: Array<{
+            alojamentoId: string;
+            sucesso: boolean;
+            erro?: string;
+            dados?: any;
+          }> = Array.isArray(batchData?.resultados) ? batchData.resultados : [];
+
+          const avaliacoes = resultadosBatch.map((item) => {
+            const aloj = alojamentosVagos.find(
+              (a) => a.id === item.alojamentoId,
+            );
+            if (!item.sucesso || !item.dados || !aloj) {
+              return null;
             }
 
-            const batchData = await batchResponse.json();
-
-            const resultadosBatch: Array<{
-              alojamentoId: string;
-              sucesso: boolean;
-              erro?: string;
-              dados?: any;
-            }> = Array.isArray(batchData?.resultados)
-              ? batchData.resultados
-              : [];
-
-            const avaliacoes = resultadosBatch.map((item) => {
-              const aloj = alojamentosVagos.find((a) => a.id === item.alojamentoId);
-              if (!item.sucesso || !item.dados || !aloj) {
-                return null;
-              }
-
-              return {
-                alojamento: {
-                  id: aloj.id,
-                  numero: aloj.numero || aloj.numeroAlojamento,
-                  ala: aloj.ala,
-                  casa:
-                    aloj.casa.nome ||
-                    `Casa ${String(aloj.casa.numero).padStart(2, "0")}`,
-                  casaNumero: aloj.casa.numero,
-                },
-                nivelRisco: item.dados.nivel_numerico ?? 3,
-                categoria: item.dados.nivel_risco ?? "DESCONHECIDO",
-                motivos: item.dados.motivos ?? [],
-                permiteAlocacao: item.dados.permite_alocacao ?? false,
-              };
-            });
+            return {
+              alojamento: {
+                id: aloj.id,
+                numero: aloj.numero || aloj.numeroAlojamento,
+                ala: aloj.ala,
+                casa:
+                  aloj.casa.nome ||
+                  `Casa ${String(aloj.casa.numero).padStart(2, "0")}`,
+                casaNumero: aloj.casa.numero,
+              },
+              nivelRisco: item.dados.nivel_numerico ?? 3,
+              categoria: item.dados.nivel_risco ?? "DESCONHECIDO",
+              motivos: item.dados.motivos ?? [],
+              permiteAlocacao: item.dados.permite_alocacao ?? false,
+            };
+          });
 
           // Filtrar sugestões válidas que melhoram o risco atual
           let sugestoesValidas = avaliacoes.filter(
             (a): a is NonNullable<typeof a> =>
               a !== null &&
               a.permiteAlocacao &&
-              a.nivelRisco < riscoAtual.nivel_numerico
+              a.nivelRisco < riscoAtual.nivel_numerico,
           );
 
           // Aplicar filtro de casa
           if (casaEspecifica !== null) {
             sugestoesValidas = sugestoesValidas.filter(
-              (a) => a.alojamento.casaNumero === casaEspecifica
+              (a) => a.alojamento.casaNumero === casaEspecifica,
             );
           } else {
-            // Aplicar regras de casa padrão (mesmo em realocação)
-            if (tipoInternacao === "PROVISORIA") {
-              sugestoesValidas = sugestoesValidas.filter(
-                (a) => a.alojamento.casaNumero === 1
+            sugestoesValidas = sugestoesValidas.filter((a) => {
+              const casa = casasOperacionais.find(
+                (item) => item.numero === a.alojamento.casaNumero,
               );
-            } else if (tipoInternacao === "DEFINITIVA") {
-              sugestoesValidas = sugestoesValidas.filter((a) => {
-                const casaNum = a.alojamento.casaNumero;
-
-                // Casas 02-07: sempre permitidas
-                if (casaNum >= 2 && casaNum <= 7) {
-                  return true;
-                }
-
-                // Casa 08: apenas se não houver conflitos (Fase 3)
-                if (casaNum === 8) {
-                  return a.nivelRisco <= 1; // Apenas LIVRE ou SEGURO
-                }
-
-                // Casa 01: excluir (é provisória)
-                return false;
-              });
-            }
+              return casa
+                ? casaCompativelComInternacao({
+                    casa,
+                    tipoInternacao,
+                    faseInternacaoAtualId,
+                    nivelRisco: a.nivelRisco,
+                  })
+                : false;
+            });
           }
 
           // Separar seguras e arriscadas
@@ -316,9 +409,10 @@ export function ModalAnaliseImpacto({
             },
             risco: riscoAtual.nivel_risco || "DESCONHECIDO",
             requerAcao: riscoAtual.nivel_numerico >= 3,
-            mensagem: riscoAtual.nivel_numerico >= 3
-              ? `ATENÇÃO: Risco ${riscoAtual.nivel_risco} detectado no alojamento atual (${riscoAtual.alertas?.length || 0} alerta(s))`
-              : `Situação sob controle - Risco ${riscoAtual.nivel_risco}`,
+            mensagem:
+              riscoAtual.nivel_numerico >= 3
+                ? `ATENÇÃO: Risco ${riscoAtual.nivel_risco} detectado no alojamento atual (${riscoAtual.alertas?.length || 0} alerta(s))`
+                : `Situação sob controle - Risco ${riscoAtual.nivel_risco}`,
             analiseProximidade: null,
             sugestoes,
             alertasDetalhados: riscoAtual.alertas || [],
@@ -339,11 +433,13 @@ export function ModalAnaliseImpacto({
         casas.forEach((casa: any) => {
           casa.alojamentos?.forEach((aloj: any) => {
             // API retorna status_manutencao em snake_case
-            const statusManutencao = aloj.status_manutencao || aloj.statusManutencao;
+            const statusManutencao =
+              aloj.status_manutencao || aloj.statusManutencao;
             if (
               statusManutencao !== "INTERDITADO" &&
-              (!aloj.ocupante && !aloj.adolescentes ||
-               (Array.isArray(aloj.adolescentes) && aloj.adolescentes.length === 0))
+              ((!aloj.ocupante && !aloj.adolescentes) ||
+                (Array.isArray(aloj.adolescentes) &&
+                  aloj.adolescentes.length === 0))
             ) {
               alojamentosVagos.push({
                 ...aloj,
@@ -388,7 +484,7 @@ export function ModalAnaliseImpacto({
             ? batchData.resultados
             : [];
           const mapaAlojamentos = new Map(
-            alojamentosVagos.map((aloj) => [aloj.id, aloj])
+            alojamentosVagos.map((aloj) => [aloj.id, aloj]),
           );
 
           avaliacoes = resultados
@@ -415,50 +511,36 @@ export function ModalAnaliseImpacto({
               };
             })
             .filter(
-              (avaliacao: AvaliacaoSugestao | null): avaliacao is AvaliacaoSugestao =>
-                avaliacao !== null
+              (
+                avaliacao: AvaliacaoSugestao | null,
+              ): avaliacao is AvaliacaoSugestao => avaliacao !== null,
             );
         }
 
         // Filtrar sugestões por tipo de internação
         let sugestoesValidas = avaliacoes.filter(
-          (a): a is NonNullable<typeof a> => a !== null && a.permiteAlocacao
+          (a): a is NonNullable<typeof a> => a !== null && a.permiteAlocacao,
         );
 
         // Se uma casa específica foi selecionada, filtrar apenas por ela
         if (casaEspecifica !== null) {
           sugestoesValidas = sugestoesValidas.filter(
-            (a) => a.alojamento.casaNumero === casaEspecifica
+            (a) => a.alojamento.casaNumero === casaEspecifica,
           );
         } else {
-          // REGRA 1: Internação Provisória = APENAS Casa 01
-          // REGRA 2: Internação Definitiva = Casas 02-07
-          // REGRA 3: Casa 08 (Fase 3) = Apenas sem conflitos ativos
-          if (tipoInternacao === "PROVISORIA") {
-            sugestoesValidas = sugestoesValidas.filter(
-              (a) => a.alojamento.casaNumero === 1
+          sugestoesValidas = sugestoesValidas.filter((a) => {
+            const casa = casasOperacionais.find(
+              (item) => item.numero === a.alojamento.casaNumero,
             );
-          } else if (tipoInternacao === "DEFINITIVA") {
-            sugestoesValidas = sugestoesValidas.filter((a) => {
-              const casaNum = a.alojamento.casaNumero;
-
-              // Casas 02-07: sempre permitidas
-              if (casaNum >= 2 && casaNum <= 7) {
-                return true;
-              }
-
-              // Casa 08: apenas se não houver conflitos
-              // (Fase 3 é para progressão positiva, sem conflitos ativos)
-              if (casaNum === 8) {
-                // Verificar se adolescente tem conflitos
-                // Se chegou aqui com nível <= 3, significa sem conflitos graves
-                return a.nivelRisco <= 1; // Apenas LIVRE ou SEGURO
-              }
-
-              // Casa 01: excluir (é provisória)
-              return false;
-            });
-          }
+            return casa
+              ? casaCompativelComInternacao({
+                  casa,
+                  tipoInternacao,
+                  faseInternacaoAtualId,
+                  nivelRisco: a.nivelRisco,
+                })
+              : false;
+          });
         }
 
         // Separar sugestões seguras (0-3) e arriscadas (4-5)
@@ -506,7 +588,8 @@ export function ModalAnaliseImpacto({
               sms: null,
               alocado: false,
             },
-            risco: sugestoes.length > 0 ? sugestoes[0].categoria : "DESCONHECIDO",
+            risco:
+              sugestoes.length > 0 ? sugestoes[0].categoria : "DESCONHECIDO",
             requerAcao: true,
             mensagem:
               sugestoes.length > 0
@@ -529,21 +612,27 @@ export function ModalAnaliseImpacto({
         if (tipoInternacao === "PROVISORIA") {
           // Priorizar Casa 01
           sugestoesFiltradas = sugestoesFiltradas.sort((a, b) => {
-            const aCasa01 = a.alojamento.casa.includes("Casa 01") || a.alojamento.casa.includes("Casa 1");
-            const bCasa01 = b.alojamento.casa.includes("Casa 01") || b.alojamento.casa.includes("Casa 1");
+            const aCasa01 =
+              a.alojamento.casa.includes("Casa 01") ||
+              a.alojamento.casa.includes("Casa 1");
+            const bCasa01 =
+              b.alojamento.casa.includes("Casa 01") ||
+              b.alojamento.casa.includes("Casa 1");
 
             if (aCasa01 && !bCasa01) return -1;
             if (!aCasa01 && bCasa01) return 1;
 
             // Se nenhum é Casa 01, priorizar Casa 02 e 03
-            const aCasa0203 = a.alojamento.casa.includes("Casa 02") ||
-                             a.alojamento.casa.includes("Casa 2") ||
-                             a.alojamento.casa.includes("Casa 03") ||
-                             a.alojamento.casa.includes("Casa 3");
-            const bCasa0203 = b.alojamento.casa.includes("Casa 02") ||
-                             b.alojamento.casa.includes("Casa 2") ||
-                             b.alojamento.casa.includes("Casa 03") ||
-                             b.alojamento.casa.includes("Casa 3");
+            const aCasa0203 =
+              a.alojamento.casa.includes("Casa 02") ||
+              a.alojamento.casa.includes("Casa 2") ||
+              a.alojamento.casa.includes("Casa 03") ||
+              a.alojamento.casa.includes("Casa 3");
+            const bCasa0203 =
+              b.alojamento.casa.includes("Casa 02") ||
+              b.alojamento.casa.includes("Casa 2") ||
+              b.alojamento.casa.includes("Casa 03") ||
+              b.alojamento.casa.includes("Casa 3");
 
             if (aCasa0203 && !bCasa0203) return -1;
             if (!aCasa0203 && bCasa0203) return 1;
@@ -553,7 +642,9 @@ export function ModalAnaliseImpacto({
 
           // Adicionar alertas se sugerindo fora da Casa 01
           sugestoesFiltradas = sugestoesFiltradas.map((sug) => {
-            const ehCasa01 = sug.alojamento.casa.includes("Casa 01") || sug.alojamento.casa.includes("Casa 1");
+            const ehCasa01 =
+              sug.alojamento.casa.includes("Casa 01") ||
+              sug.alojamento.casa.includes("Casa 1");
             if (!ehCasa01) {
               return {
                 ...sug,
@@ -569,8 +660,12 @@ export function ModalAnaliseImpacto({
         } else if (tipoInternacao === "DEFINITIVA") {
           // Evitar Casa 01
           sugestoesFiltradas = sugestoesFiltradas.sort((a, b) => {
-            const aCasa01 = a.alojamento.casa.includes("Casa 01") || a.alojamento.casa.includes("Casa 1");
-            const bCasa01 = b.alojamento.casa.includes("Casa 01") || b.alojamento.casa.includes("Casa 1");
+            const aCasa01 =
+              a.alojamento.casa.includes("Casa 01") ||
+              a.alojamento.casa.includes("Casa 1");
+            const bCasa01 =
+              b.alojamento.casa.includes("Casa 01") ||
+              b.alojamento.casa.includes("Casa 1");
 
             if (aCasa01 && !bCasa01) return 1;
             if (!aCasa01 && bCasa01) return -1;
@@ -580,7 +675,9 @@ export function ModalAnaliseImpacto({
 
           // Adicionar alertas se sugerindo Casa 01
           sugestoesFiltradas = sugestoesFiltradas.map((sug) => {
-            const ehCasa01 = sug.alojamento.casa.includes("Casa 01") || sug.alojamento.casa.includes("Casa 1");
+            const ehCasa01 =
+              sug.alojamento.casa.includes("Casa 01") ||
+              sug.alojamento.casa.includes("Casa 1");
             if (ehCasa01) {
               return {
                 ...sug,
@@ -608,18 +705,18 @@ export function ModalAnaliseImpacto({
           conflitos.map(async (conflito) => {
             const resposta = await fetch(
               `/api/conflitos/${conflito.id}/analisar-impacto`,
-              { method: "POST" }
+              { method: "POST" },
             );
             const payload = await resposta.json().catch(() => null);
 
             if (!resposta.ok) {
               throw new Error(
-                payload?.erro || `Erro ao analisar conflito ${conflito.id}`
+                payload?.erro || `Erro ao analisar conflito ${conflito.id}`,
               );
             }
 
             return payload as ResultadoAnalise;
-          })
+          }),
         );
 
         const sucesso = analisesConflitos
@@ -627,7 +724,7 @@ export function ModalAnaliseImpacto({
           .map((item) => (item as any).value as ResultadoAnalise);
 
         const falhas = analisesConflitos.filter(
-          (item) => item.status === "rejected"
+          (item) => item.status === "rejected",
         );
 
         if (falhas.length > 0) {
@@ -647,7 +744,7 @@ export function ModalAnaliseImpacto({
       setErro(
         error instanceof Error
           ? error.message
-          : "Erro ao analisar impacto dos conflitos"
+          : "Erro ao analisar impacto dos conflitos",
       );
     } finally {
       setAnalisando(false);
@@ -710,28 +807,31 @@ export function ModalAnaliseImpacto({
 
         {/* Content */}
         <div className="p-6 overflow-y-auto flex-1">
-          {/* Seleção de Tipo de Internação */}
           {!resultados.length && (
             <div className="mb-6">
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
                 <div className="flex items-start gap-3">
-                  <Info className="text-blue-600 mt-0.5 flex-shrink-0" size={20} />
+                  <Info
+                    className="text-blue-600 mt-0.5 flex-shrink-0"
+                    size={20}
+                  />
                   <div>
                     <h3 className="font-semibold text-blue-900 mb-1">
-                      Tipo de Internação
+                      Tipo de Internacao
                     </h3>
                     <p className="text-sm text-blue-700">
-                      Selecione o tipo de internação do adolescente para receber
-                      recomendações adequadas de alocação:
+                      Selecione o tipo de internacao para aplicar as regras
+                      operacionais configuradas para cada casa.
                     </p>
                     <ul className="text-sm text-blue-700 mt-2 ml-4 list-disc space-y-1">
                       <li>
-                        <strong>Internação Provisória:</strong> Prioriza Casa 01
-                        (exceto em casos de alto risco)
+                        <strong>Internação Provisória:</strong> usa apenas casas
+                        configuradas para provisoria.
                       </li>
                       <li>
-                        <strong>Internação Definitiva:</strong> Evita Casa 01
-                        (reservada para provisórios)
+                        <strong>Internação Definitiva:</strong> usa casas
+                        definitivas e, quando compativel, casas exclusivas de
+                        fase.
                       </li>
                     </ul>
                   </div>
@@ -767,7 +867,7 @@ export function ModalAnaliseImpacto({
                     </h3>
                   </div>
                   <p className="text-sm text-gray-600">
-                    Prazo máximo de 45 dias. Prioridade na Casa 01.
+                    Prioriza as casas configuradas para provisoria.
                   </p>
                 </button>
 
@@ -795,32 +895,43 @@ export function ModalAnaliseImpacto({
                           : "text-gray-700"
                       }`}
                     >
-                      Internação Definitiva
+                      Internacao Definitiva
                     </h3>
                   </div>
                   <p className="text-sm text-gray-600">
-                    Sentença judicial. Evitar Casa 01 (reservada para provisórios).
+                    Usa casas definitivas e, se houver compatibilidade, casa
+                    exclusiva de fase.
                   </p>
                 </button>
               </div>
 
-              {/* Seleção de Casa Específica (Opcional) */}
               {tipoInternacao && (
                 <div className="mt-6 bg-amber-50 border border-amber-200 rounded-lg p-4">
                   <div className="flex items-start gap-3 mb-3">
-                    <Home className="text-amber-600 mt-0.5 flex-shrink-0" size={20} />
+                    <Home
+                      className="text-amber-600 mt-0.5 flex-shrink-0"
+                      size={20}
+                    />
                     <div>
                       <h3 className="font-semibold text-amber-900 mb-1">
-                        Filtro por Casa Específica (Opcional)
+                        Filtro por Casa Especifica (Opcional)
                       </h3>
                       <p className="text-sm text-amber-700 mb-2">
-                        Selecione uma casa para ver apenas os 3 melhores alojamentos disponíveis nessa casa, ordenados por nível de risco.
+                        Selecione uma casa compativel para ver apenas os 3
+                        melhores alojamentos disponiveis nela, ordenados por
+                        nivel de risco.
                       </p>
-                      {tipoInternacao === "DEFINITIVA" && (
-                        <p className="text-xs text-purple-700 bg-purple-50 border border-purple-200 rounded px-2 py-1 mt-2">
-                          <strong>★ Casa 08 (Fase 3):</strong> Aceita apenas adolescentes SEM conflitos ativos (nível 0-1)
-                        </p>
-                      )}
+                      {tipoInternacao === "DEFINITIVA" &&
+                        casasCompativeis.some(
+                          (casa) =>
+                            casa.destinacaoOperacional === "FASE_EXCLUSIVA",
+                        ) && (
+                          <p className="text-xs text-purple-700 bg-purple-50 border border-purple-200 rounded px-2 py-1 mt-2">
+                            <strong>Casa exclusiva de fase:</strong> so aparece
+                            quando a fase atual do adolescente for compativel e
+                            respeitar o risco maximo configurado.
+                          </p>
+                        )}
                     </div>
                   </div>
 
@@ -833,38 +944,33 @@ export function ModalAnaliseImpacto({
                           : "border-gray-300 bg-white text-gray-700 hover:border-amber-400"
                       }`}
                     >
-                      Automático
+                      Automatico
                     </button>
-                    {tipoInternacao === "PROVISORIA" ? (
-                      <button
-                        onClick={() => setCasaEspecifica(1)}
-                        className={`px-4 py-2 rounded-lg border-2 text-sm font-medium transition-all ${
-                          casaEspecifica === 1
-                            ? "border-amber-600 bg-amber-100 text-amber-900"
-                            : "border-gray-300 bg-white text-gray-700 hover:border-amber-400"
-                        }`}
-                      >
-                        Casa 01
-                      </button>
-                    ) : (
-                      <>
-                        {[2, 3, 4, 5, 6, 7, 8].map((casa) => (
-                          <button
-                            key={casa}
-                            onClick={() => setCasaEspecifica(casa)}
-                            className={`px-4 py-2 rounded-lg border-2 text-sm font-medium transition-all ${
-                              casaEspecifica === casa
-                                ? "border-amber-600 bg-amber-100 text-amber-900"
-                                : "border-gray-300 bg-white text-gray-700 hover:border-amber-400"
-                            } ${casa === 8 ? 'border-purple-300 bg-purple-50 hover:border-purple-400' : ''}`}
-                            title={casa === 8 ? 'Casa 08 - Fase 3 (apenas sem conflitos)' : ''}
-                          >
-                            Casa {String(casa).padStart(2, '0')}
-                            {casa === 8 && <span className="ml-1 text-xs text-purple-600">★</span>}
-                          </button>
-                        ))}
-                      </>
-                    )}
+                    {casasCompativeis.map((casa) => {
+                      const destaqueFase =
+                        casa.destinacaoOperacional === "FASE_EXCLUSIVA";
+                      return (
+                        <button
+                          key={casa.id}
+                          onClick={() => setCasaEspecifica(casa.numero)}
+                          className={`px-4 py-2 rounded-lg border-2 text-sm font-medium transition-all ${
+                            casaEspecifica === casa.numero
+                              ? "border-amber-600 bg-amber-100 text-amber-900"
+                              : "border-gray-300 bg-white text-gray-700 hover:border-amber-400"
+                          } ${
+                            destaqueFase
+                              ? "border-purple-300 bg-purple-50 hover:border-purple-400"
+                              : ""
+                          }`}
+                          title={obterEtiquetaCasaOperacional(casa)}
+                        >
+                          Casa {String(casa.numero).padStart(2, "0")}
+                          <span className="ml-1 text-xs text-slate-500">
+                            {obterEtiquetaCasaOperacional(casa)}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -919,19 +1025,25 @@ export function ModalAnaliseImpacto({
                         <div>
                           <span className="text-gray-600">Mesma Casa:</span>{" "}
                           <strong>
-                            {resultado.analiseProximidade.mesmaCasa ? "SIM" : "NÃO"}
+                            {resultado.analiseProximidade.mesmaCasa
+                              ? "SIM"
+                              : "NÃO"}
                           </strong>
                         </div>
                         <div>
                           <span className="text-gray-600">Mesma Ala:</span>{" "}
                           <strong>
-                            {resultado.analiseProximidade.mesmaAla ? "SIM" : "NÃO"}
+                            {resultado.analiseProximidade.mesmaAla
+                              ? "SIM"
+                              : "NÃO"}
                           </strong>
                         </div>
                         <div>
                           <span className="text-gray-600">Frontais:</span>{" "}
                           <strong>
-                            {resultado.analiseProximidade.saoFrontais ? "SIM" : "NÃO"}
+                            {resultado.analiseProximidade.saoFrontais
+                              ? "SIM"
+                              : "NÃO"}
                           </strong>
                         </div>
                       </div>
@@ -955,12 +1067,13 @@ export function ModalAnaliseImpacto({
                               <div>
                                 <h5 className="font-semibold text-gray-900">
                                   {sug.alojamento.casa} - Alojamento{" "}
-                                  {sug.alojamento.numero} (Ala {sug.alojamento.ala})
+                                  {sug.alojamento.numero} (Ala{" "}
+                                  {sug.alojamento.ala})
                                 </h5>
                               </div>
                               <span
                                 className={`px-3 py-1 rounded-full text-xs font-semibold ${getCategoriaCor(
-                                  sug.categoria
+                                  sug.categoria,
                                 )}`}
                               >
                                 {sug.categoria}
@@ -968,7 +1081,8 @@ export function ModalAnaliseImpacto({
                             </div>
                             <div className="text-sm text-gray-600">
                               <p className="mb-1">
-                                <strong>Nível de Risco:</strong> {sug.nivelRisco}
+                                <strong>Nível de Risco:</strong>{" "}
+                                {sug.nivelRisco}
                               </p>
                               <ul className="list-disc ml-5 space-y-1">
                                 {sug.motivos.map((motivo, mIdx) => (
@@ -988,8 +1102,9 @@ export function ModalAnaliseImpacto({
                       <div className="p-4">
                         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                           <p className="text-yellow-800 text-sm">
-                            ⚠️ Não foram encontradas sugestões de realocação segura.
-                            Considere revisar manualmente as opções disponíveis.
+                            ⚠️ Não foram encontradas sugestões de realocação
+                            segura. Considere revisar manualmente as opções
+                            disponíveis.
                           </p>
                         </div>
                       </div>

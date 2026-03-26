@@ -11,6 +11,13 @@ export async function GET(request: NextRequest) {
   const limite = Number(searchParams.get("limite") ?? 3);
   const casaId = searchParams.get("casaId") ?? undefined;
   const diagnostico = searchParams.get("diagnostico") === "1";
+  const tipoInternacao =
+    searchParams.get("tipoInternacao") === "PROVISORIA" ||
+    searchParams.get("tipoInternacao") === "DEFINITIVA"
+      ? (searchParams.get("tipoInternacao") as "PROVISORIA" | "DEFINITIVA")
+      : null;
+  const faseInternacaoAtualId =
+    searchParams.get("faseInternacaoAtualId") ?? undefined;
 
   if (!adolescenteId) {
     return NextResponse.json(
@@ -23,6 +30,8 @@ export async function GET(request: NextRequest) {
     const resultado = await gerarSugestoesParaAlocacao({
       adolescenteId,
       limite: Number.isFinite(limite) && limite > 0 ? limite : 3,
+      tipoInternacao,
+      faseInternacaoAtualId,
     });
 
     const diagnosticoCasa =
@@ -30,6 +39,8 @@ export async function GET(request: NextRequest) {
         ? await gerarDiagnosticoCasaParaAlocacao({
             adolescenteId,
             casaId,
+            tipoInternacao,
+            faseInternacaoAtualId,
           })
         : null;
 
@@ -70,6 +81,15 @@ export async function POST(request: NextRequest) {
         typeof body.limite === "number" && body.limite > 0
           ? body.limite
           : 3,
+      tipoInternacao:
+        body.tipoInternacao === "PROVISORIA" ||
+        body.tipoInternacao === "DEFINITIVA"
+          ? body.tipoInternacao
+          : null,
+      faseInternacaoAtualId:
+        typeof body.faseInternacaoAtualId === "string"
+          ? body.faseInternacaoAtualId
+          : null,
     });
 
     const diagnosticoCasa =
@@ -79,6 +99,15 @@ export async function POST(request: NextRequest) {
             bairroId: body.bairroId ?? null,
             faccaoId: body.faccaoId ?? null,
             casaId: body.casaId,
+            tipoInternacao:
+              body.tipoInternacao === "PROVISORIA" ||
+              body.tipoInternacao === "DEFINITIVA"
+                ? body.tipoInternacao
+                : null,
+            faseInternacaoAtualId:
+              typeof body.faseInternacaoAtualId === "string"
+                ? body.faseInternacaoAtualId
+                : null,
           })
         : null;
 

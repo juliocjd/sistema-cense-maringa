@@ -29,6 +29,10 @@ import {
   type CasaRisco,
   type ResultadoRisco,
 } from "@/lib/riscos/calcular";
+import {
+  normalizarDestinacaoOperacionalCasa,
+  obterEtiquetaCasaOperacional,
+} from "@/lib/casas/configuracao-operacional";
 import { useAuth } from "@/hooks/useAuth";
 import { hasPermission, PERMISSIONS } from "@/lib/auth/permissions";
 
@@ -72,6 +76,20 @@ const classePorNivel: Record<0 | 1 | 2 | 3 | 4 | 5, string> = {
   3: riscoClasses.nivel3,
   4: riscoClasses.nivel4,
   5: riscoClasses.nivel5,
+};
+
+const obterClassesDestinacao = (destinacao?: string | null) => {
+  const normalizada = normalizarDestinacaoOperacionalCasa(destinacao);
+  if (normalizada === "PROVISORIA") {
+    return "bg-sky-100 text-sky-700";
+  }
+  if (normalizada === "ABRIGAMENTO") {
+    return "bg-amber-100 text-amber-700";
+  }
+  if (normalizada === "FASE_EXCLUSIVA") {
+    return "bg-violet-100 text-violet-700";
+  }
+  return "bg-emerald-100 text-emerald-700";
 };
 
 const obterNomeResumido = (nome?: string | null) => {
@@ -669,11 +687,54 @@ export function VisaoGeralTab({
         const detalhado = adolescentesLookup.get(ocupante.id) ?? ocupante;
         return {
           ...alojamento,
-          adolescentes: [detalhado],
+          adolescentes: [
+            {
+              ...detalhado,
+              prazoOperacionalAtual:
+                ocupante.prazoOperacionalAtual ??
+                detalhado.prazoOperacionalAtual ??
+                null,
+            },
+          ],
         };
       }),
     }));
   }, [casas, adolescentesLookup]);
+
+  const prazosOperacionais = useMemo(() => {
+    const monitorados = casasNormalizadas.flatMap((casa) =>
+      casa.alojamentos.flatMap((alojamento) => {
+        const prazo = alojamento.prazoOperacional;
+        const ocupante = alojamento.adolescentes?.[0];
+        if (!prazo || !ocupante) {
+          return [];
+        }
+        return [
+          {
+            adolescenteId: ocupante.id,
+            nome: ocupante.nomeCompleto,
+            casaNome: casa.nome,
+            casaNumero: casa.numero,
+            alojamentoNumero: alojamento.numeroAlojamento,
+            ...prazo,
+          },
+        ];
+      }),
+    );
+
+    return {
+      monitorados,
+      vencidos: monitorados.filter((item) => item.vencido),
+      vencendoHoje: monitorados.filter((item) => {
+        if (!item.dataLimite || item.vencido) {
+          return false;
+        }
+        const limite = new Date(item.dataLimite).getTime();
+        const diferenca = limite - Date.now();
+        return diferenca >= 0 && diferenca <= 24 * 60 * 60 * 1000;
+      }),
+    };
+  }, [casasNormalizadas]);
 
   const adolescentesMesmoAtoNaCasaIds = useMemo(() => {
     const ids = new Set<string>();
@@ -1074,6 +1135,52 @@ export function VisaoGeralTab({
         </div>
       </div>
 
+      {(prazosOperacionais.vencidos.length > 0 ||
+        prazosOperacionais.vencendoHoje.length > 0) && (
+        <div className="mb-6 rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 to-red-50 p-4 shadow">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 className="text-base font-bold text-slate-900">
+                Prazos operacionais das casas
+              </h3>
+              <p className="mt-1 text-sm text-slate-600">
+                {prazosOperacionais.vencidos.length > 0
+                  ? `${prazosOperacionais.vencidos.length} adolescente(s) acima do prazo maximo configurado.`
+                  : `${prazosOperacionais.vencendoHoje.length} adolescente(s) vencem hoje.`}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2 text-xs font-semibold">
+              <span className="rounded-full bg-red-100 px-3 py-1 text-red-700">
+                Vencidos: {prazosOperacionais.vencidos.length}
+              </span>
+              <span className="rounded-full bg-amber-100 px-3 py-1 text-amber-700">
+                Vencem hoje: {prazosOperacionais.vencendoHoje.length}
+              </span>
+            </div>
+          </div>
+
+          {prazosOperacionais.vencidos.length > 0 && (
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {prazosOperacionais.vencidos.slice(0, 6).map((item) => (
+                <div
+                  key={`${item.adolescenteId}-${item.alojamentoNumero}`}
+                  className="rounded-lg border border-red-200 bg-white px-4 py-3"
+                >
+                  <p className="font-semibold text-slate-900">{item.nome}</p>
+                  <p className="mt-1 text-sm text-slate-600">
+                    {item.casaNome} / alojamento {item.alojamentoNumero}
+                  </p>
+                  <p className="mt-1 text-sm font-medium text-red-700">
+                    {item.diasAtraso} dia(s) acima do prazo de{" "}
+                    {item.prazoMaximoDias} dia(s)
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Legenda de risco e Í­cones de alerta */}
       <div className="bg-white rounded-xl shadow p-4 border border-gray-200 text-xs">
         <div className="flex flex-col gap-3">
@@ -1290,6 +1397,13 @@ export function VisaoGeralTab({
                       : "border-gray-200"
                   }`}
                 >
+                  {(() => {
+                    const etiquetaDestinacao = obterEtiquetaCasaOperacional(casa);
+                    const classesDestinacao = obterClassesDestinacao(
+                      casa.destinacaoOperacional,
+                    );
+
+                    return (
                   <div className="flex items-center gap-3 mb-4">
                     <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center">
                       <Building2 className="text-indigo-600" size={24} />
@@ -1300,6 +1414,11 @@ export function VisaoGeralTab({
                       </h3>
                       <p className="text-sm text-gray-600">
                         {casa.alojamentos.length} alojamentos
+                        <span
+                          className={`ml-2 px-2 py-0.5 rounded-full text-xs font-semibold ${classesDestinacao}`}
+                        >
+                          {etiquetaDestinacao}
+                        </span>
                         {casa.isolada && (
                           <span className="ml-2 px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs font-semibold">
                             Isolada
@@ -1308,6 +1427,8 @@ export function VisaoGeralTab({
                       </p>
                     </div>
                   </div>
+                    );
+                  })()}
 
                   <div className="grid grid-cols-5 gap-2 sm:grid-cols-10">
                     {casa.alojamentos.map((aloj) => {

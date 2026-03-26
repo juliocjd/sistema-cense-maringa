@@ -14,6 +14,7 @@ import {
   type CasaRisco,
   type ResultadoRisco,
 } from "@/lib/riscos/calcular";
+import { obterEtiquetaCasaOperacional } from "@/lib/casas/configuracao-operacional";
 
 type AvaliacaoAmbiental = {
   ativo: boolean;
@@ -420,8 +421,13 @@ export function MapaInterativo({
 
   const CasaPadrao = ({ casa }: { casa: Casa }) => (
     <div className="bg-white rounded-2xl shadow-2xl p-4 border-4 border-rose-600 hover:shadow-rose-200 transition-shadow">
-      <div className="flex items-center justify-center mb-4 pb-3 border-b-2 border-rose-200">
-        <h3 className="font-bold text-rose-700 text-lg">{casa.nome}</h3>
+      <div className="flex items-center justify-between mb-4 pb-3 border-b-2 border-rose-200">
+        <div className="flex items-center gap-2">
+          <h3 className="font-bold text-rose-700 text-lg">{casa.nome}</h3>
+          <span className="text-xs bg-slate-100 text-slate-700 px-3 py-1 rounded-full font-semibold">
+            {obterEtiquetaCasaOperacional(casa)}
+          </span>
+        </div>
         {casa.isolada && (
           <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded-full font-semibold">
             Isolada
@@ -506,7 +512,7 @@ export function MapaInterativo({
           <div className="flex items-center gap-3">
             <h3 className="font-bold text-indigo-700 text-lg">{casa.nome}</h3>
             <span className="text-xs bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full font-semibold">
-              Fase 3
+              {obterEtiquetaCasaOperacional(casa)}
             </span>
           </div>
           {casa.isolada && (

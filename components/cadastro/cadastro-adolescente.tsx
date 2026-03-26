@@ -44,6 +44,11 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { hasPermission, PERMISSIONS } from "@/lib/auth/permissions";
 import { ESTADOS_BRASIL } from "@/lib/geo/estados";
+import {
+  filtrarCasasCompativeis,
+  filtrarSugestoesCompativeis,
+  obterEtiquetaCasaOperacional,
+} from "@/lib/casas/configuracao-operacional";
 
 const STATUS_OPCOES: Array<{ value: StatusUnidade; label: string }> = [
   { value: "ATIVO", label: "Ativo / Internado" },
@@ -221,6 +226,17 @@ type ResultadoFiltroSugestoes = {
   aviso: string | null;
 };
 
+type CasaCatalogoOperacional = {
+  id: string;
+  nome: string;
+  numero: number;
+  destinacaoOperacional?: string | null;
+  faseExclusivaId?: string | null;
+  faseExclusiva?: { id: string; nomeFase: string } | null;
+  prazoMaximoDias?: number | null;
+  riscoMaximoPermitido?: number | null;
+};
+
 type SmsDuplicadoInfo = {
   id: string;
   nomeCompleto: string;
@@ -230,28 +246,20 @@ type SmsDuplicadoInfo = {
 const aplicarFiltroSugestoes = (
   sugestoes: SugestaoAlojamentoCadastro[],
   tipo: TipoInternacao | null,
+  casasCatalogo: CasaCatalogoOperacional[],
+  faseInternacaoAtualId?: string | null,
   casaPreferenciaId?: string | null,
 ): ResultadoFiltroSugestoes => {
   if (sugestoes.length === 0) {
     return { lista: [], aviso: null };
   }
 
-  let filtradas = [...sugestoes];
-
-  if (tipo === "PROVISORIA") {
-    filtradas = filtradas.filter((item) => item.casaNumero === 1);
-  } else if (tipo === "DEFINITIVA") {
-    filtradas = filtradas.filter((item) => {
-      const casa = item.casaNumero;
-      if (casa >= 2 && casa <= 7) {
-        return true;
-      }
-      if (casa === 8) {
-        return item.nivel <= 1;
-      }
-      return false;
-    });
-  }
+  let filtradas = filtrarSugestoesCompativeis({
+    sugestoes,
+    casas: casasCatalogo,
+    tipoInternacao: tipo,
+    faseInternacaoAtualId,
+  });
 
   if (casaPreferenciaId) {
     filtradas = filtradas.filter((item) => item.casaId === casaPreferenciaId);
@@ -733,12 +741,14 @@ export function CadastroAdolescente({
       descricao: initialData.atoInfracionalAtual ?? "",
       gravidadeCatalogo: initialData.atoInfracionalCatalogoGravidade ?? "",
       violenciaCatalogo: initialData.atoInfracionalCatalogoViolencia ?? null,
-      ano: (initialData.casoInfracionalAtual?.anoFato ?? initialData.atoInfracionalAno)
-        ? String(
-            initialData.casoInfracionalAtual?.anoFato ??
-              initialData.atoInfracionalAno,
-          )
-        : "",
+      ano:
+        (initialData.casoInfracionalAtual?.anoFato ??
+        initialData.atoInfracionalAno)
+          ? String(
+              initialData.casoInfracionalAtual?.anoFato ??
+                initialData.atoInfracionalAno,
+            )
+          : "",
       processo:
         initialData.casoInfracionalAtual?.numeroProcesso ??
         initialData.atoInfracionalProcesso ??
@@ -887,9 +897,9 @@ export function CadastroAdolescente({
   const [tipoInternacao, setTipoInternacao] = useState<TipoInternacao | null>(
     null,
   );
-  const [casasCatalogo, setCasasCatalogo] = useState<
-    { id: string; nome: string; numero: number }[]
-  >([]);
+  const [casasCatalogo, setCasasCatalogo] = useState<CasaCatalogoOperacional[]>(
+    [],
+  );
   const [casaPreferenciaId, setCasaPreferenciaId] = useState("");
   const [sugestoesOriginais, setSugestoesOriginais] = useState<
     SugestaoAlojamentoCadastro[]
@@ -905,6 +915,15 @@ export function CadastroAdolescente({
   const [diagnosticoAberto, setDiagnosticoAberto] = useState(false);
   const [diagnosticoLoading, setDiagnosticoLoading] = useState(false);
   const [diagnosticoErro, setDiagnosticoErro] = useState<string | null>(null);
+  const casasCompativeisTipoInternacao = useMemo(
+    () =>
+      filtrarCasasCompativeis({
+        casas: casasCatalogo,
+        tipoInternacao,
+        faseInternacaoAtualId: initialData?.faseInternacaoAtualId ?? null,
+      }),
+    [casasCatalogo, tipoInternacao, initialData?.faseInternacaoAtualId],
+  );
 
   useEffect(() => {
     const carregarAlojamentosLivres = async () => {
@@ -966,6 +985,24 @@ export function CadastroAdolescente({
                 typeof casa.numero === "number"
                   ? casa.numero
                   : Number(casa.numero ?? 0),
+              destinacaoOperacional:
+                casa.destinacao_operacional ??
+                casa.destinacaoOperacional ??
+                null,
+              faseExclusivaId:
+                casa.fase_exclusiva_id ?? casa.faseExclusivaId ?? null,
+              faseExclusiva: casa.fase_exclusiva ?? casa.faseExclusiva ?? null,
+              prazoMaximoDias:
+                typeof (casa.prazo_maximo_dias ?? casa.prazoMaximoDias) ===
+                "number"
+                  ? (casa.prazo_maximo_dias ?? casa.prazoMaximoDias)
+                  : null,
+              riscoMaximoPermitido:
+                typeof (
+                  casa.risco_maximo_permitido ?? casa.riscoMaximoPermitido
+                ) === "number"
+                  ? (casa.risco_maximo_permitido ?? casa.riscoMaximoPermitido)
+                  : null,
             }))
           : [];
         setCasasCatalogo(lista);
@@ -1012,6 +1049,8 @@ export function CadastroAdolescente({
     const { lista, aviso } = aplicarFiltroSugestoes(
       sugestoesOriginais,
       tipoInternacao,
+      casasCatalogo,
+      initialData?.faseInternacaoAtualId ?? null,
       casaPreferenciaId || null,
     );
     setSugestoesAlojamento(lista);
@@ -1025,7 +1064,14 @@ export function CadastroAdolescente({
     ) {
       setErroSugestoes(null);
     }
-  }, [sugestoesOriginais, tipoInternacao, casaPreferenciaId, erroSugestoes]);
+  }, [
+    sugestoesOriginais,
+    tipoInternacao,
+    casasCatalogo,
+    initialData?.faseInternacaoAtualId,
+    casaPreferenciaId,
+    erroSugestoes,
+  ]);
 
   const buscarSugestoesAlojamento = async () => {
     if (!podeGerarSugestoes) {
@@ -1067,6 +1113,8 @@ export function CadastroAdolescente({
           bairroId: vinculacoes.bairroId || null,
           faccaoId: vinculacoes.faccaoId || null,
           limite: limiteSugestoes,
+          tipoInternacao,
+          faseInternacaoAtualId: initialData?.faseInternacaoAtualId ?? null,
         }),
       });
 
@@ -1249,6 +1297,8 @@ export function CadastroAdolescente({
           faccaoId: vinculacoes.faccaoId || null,
           casaId: casaPreferenciaId,
           diagnostico: true,
+          tipoInternacao,
+          faseInternacaoAtualId: initialData?.faseInternacaoAtualId ?? null,
         }),
       });
       const payload = await response.json().catch(() => null);
@@ -3874,8 +3924,8 @@ export function CadastroAdolescente({
                                           className="h-full w-full object-cover"
                                         />
                                       ) : (
-                                        item.nomeCompleto?.trim().charAt(0) ??
-                                        "?"
+                                        (item.nomeCompleto?.trim().charAt(0) ??
+                                        "?")
                                       )}
                                     </span>
                                     <span className="flex flex-col">
@@ -3886,8 +3936,7 @@ export function CadastroAdolescente({
                                         {item.numeroSms
                                           ? `SMS ${item.numeroSms}`
                                           : "SMS nao informado"}{" "}
-                                        •{" "}
-                                        {obterStatusLabel(item.statusUnidade)}
+                                        • {obterStatusLabel(item.statusUnidade)}
                                       </span>
                                     </span>
                                   </button>
@@ -3910,7 +3959,7 @@ export function CadastroAdolescente({
                                       className="h-full w-full object-cover"
                                     />
                                   ) : (
-                                    item.nomeCompleto?.trim().charAt(0) ?? "?"
+                                    (item.nomeCompleto?.trim().charAt(0) ?? "?")
                                   )}
                                 </span>
                                 <span className="max-w-[140px] truncate">
@@ -4001,9 +4050,9 @@ export function CadastroAdolescente({
                                           className="h-full w-full object-cover"
                                         />
                                       ) : (
-                                        adolescente.nomeCompleto
+                                        (adolescente.nomeCompleto
                                           ?.trim()
-                                          .charAt(0) ?? "?"
+                                          .charAt(0) ?? "?")
                                       )}
                                     </span>
                                     <span>
@@ -4035,9 +4084,7 @@ export function CadastroAdolescente({
                               </button>
                               <button
                                 type="button"
-                                onClick={() =>
-                                  removerVinculoInfracional(index)
-                                }
+                                onClick={() => removerVinculoInfracional(index)}
                                 className="text-[11px] font-semibold text-red-600 hover:text-red-700"
                               >
                                 Remover
@@ -4873,12 +4920,12 @@ export function CadastroAdolescente({
                     {
                       label: "Provisoria",
                       value: "PROVISORIA" as TipoInternacao,
-                      dica: "Prioriza Casa 01",
+                      dica: "Usa as casas configuradas para internação provisória",
                     },
                     {
                       label: "Definitiva",
                       value: "DEFINITIVA" as TipoInternacao,
-                      dica: "Casas 02-07 (Casa 08 apenas segura)",
+                      dica: "Usa casas definitivas e, se compativel, casa exclusiva de fase",
                     },
                   ].map((opcao) => {
                     const ativo = tipoInternacao === opcao.value;
@@ -4935,15 +4982,16 @@ export function CadastroAdolescente({
                     disabled={!podeGerarSugestoes}
                   >
                     <option value="">Sem preferencia</option>
-                    {casasCatalogo.map((casa) => (
+                    {casasCompativeisTipoInternacao.map((casa) => (
                       <option key={casa.id} value={casa.id}>
                         {casa.nome} (Casa {String(casa.numero).padStart(2, "0")}
-                        )
+                        ) - {obterEtiquetaCasaOperacional(casa)}
                       </option>
                     ))}
                   </select>
                   <p className="mt-1 text-xs text-slate-500">
-                    Se informado, as sugestoes serao filtradas para esta casa.
+                    Se informado, as sugestoes serao filtradas para uma casa
+                    compativel com a configuracao operacional atual.
                   </p>
                 </div>
               )}

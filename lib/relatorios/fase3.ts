@@ -6,6 +6,7 @@ import {
   TIPO_PROTOCOLO_ALTA,
   TIPO_PROTOCOLO_ATIVADO,
 } from "@/lib/alertas/protocolo-risco-suicidio";
+import { obterCasaFaseExclusiva } from "@/lib/casas/configuracao-operacional";
 
 const NIVEL_ORDEM = ["BAIXO", "MEDIO", "ALTO", "CRITICO"] as const;
 
@@ -246,6 +247,7 @@ export async function carregarRelatorioFase3(adolescenteId: string) {
       numeroSms: true,
       statusUnidade: true,
       riscoFuga: true,
+      faseInternacaoAtualId: true,
       faseInternacaoAtual: {
         select: {
           nomeFase: true,
@@ -275,7 +277,7 @@ export async function carregarRelatorioFase3(adolescenteId: string) {
     return null;
   }
 
-  const [conflitos, alertas, casaOito, riscoFugaRegistro, suicidioEventos] =
+  const [conflitos, alertas, casasFaseExclusiva, riscoFugaRegistro, suicidioEventos] =
     await Promise.all([
       prisma.conflito.findMany({
         where: {
@@ -299,11 +301,20 @@ export async function carregarRelatorioFase3(adolescenteId: string) {
           desativadoEm: true,
         },
       }),
-      prisma.casa.findFirst({
-        where: { numero: 8 },
+      prisma.casa.findMany({
+        where: { destinacaoOperacional: "FASE_EXCLUSIVA" },
         select: {
           id: true,
           nome: true,
+          numero: true,
+          faseExclusivaId: true,
+          riscoMaximoPermitido: true,
+          faseExclusiva: {
+            select: {
+              id: true,
+              nomeFase: true,
+            },
+          },
           alojamentos: {
             orderBy: { numeroAlojamento: "asc" },
             select: {
@@ -343,6 +354,11 @@ export async function carregarRelatorioFase3(adolescenteId: string) {
         take: 10,
       }),
     ]);
+
+  const casaOito = obterCasaFaseExclusiva(
+    casasFaseExclusiva,
+    adolescente.faseInternacaoAtualId ?? null,
+  );
 
   const conflitosDetalhados = conflitos.map((conflito) =>
     mapConflito(conflito, adolescenteId),
@@ -385,13 +401,25 @@ export async function carregarRelatorioFase3(adolescenteId: string) {
 
   const impeditivos: string[] = [];
   const observacoes: string[] = [];
+  const faseCasaExclusiva = casaOito?.faseExclusiva?.nomeFase ?? null;
+
+  if (!casaOito) {
+    impeditivos.push("Nenhuma casa de fase exclusiva esta configurada.");
+  } else if (
+    casaOito.faseExclusivaId &&
+    adolescente.faseInternacaoAtualId !== casaOito.faseExclusivaId
+  ) {
+    impeditivos.push(
+      `Fase atual do adolescente (${adolescente.faseInternacaoAtual?.nomeFase ?? "nao informada"}) nao corresponde a fase exigida para ${casaOito.nome}.`,
+    );
+  }
 
   conflitosCasaOito
     .filter((conflito) => conflito.status?.toUpperCase() === "ATIVO")
     .forEach((conflito) => {
       if (conflito.adversario) {
         impeditivos.push(
-          `Conflito ativo contra ${conflito.adversario.nome} (${conflito.adversario.faccao ?? "sem facção"}) atualmente na Casa 08.`,
+          `Conflito ativo contra ${conflito.adversario.nome} (${conflito.adversario.faccao ?? "sem faccao"}) atualmente na ${casaOito?.nome ?? "casa de fase"}.`,
         );
       }
     });
@@ -403,7 +431,7 @@ export async function carregarRelatorioFase3(adolescenteId: string) {
     )
   ) {
     observacoes.push(
-      "Historico de conflitos com adolescentes que hoje ocupam a Casa 08.",
+      `Historico de conflitos com adolescentes que hoje ocupam ${casaOito?.nome ?? "a casa de fase"}.`,
     );
   }
 
@@ -424,7 +452,7 @@ export async function carregarRelatorioFase3(adolescenteId: string) {
           ? "varios"
           : "um";
     observacoes.push(
-      `Possui ${qualificacao} conflito(s) ativo(s) fora da Casa 08 (total: ${conflitosAtivosOutros.length}), indicando baixa maturidade ou dificuldade de convivencia em ambientes com vigilancia reduzida, o que pode produzir riscos graves de agressao.`,
+      `Possui ${qualificacao} conflito(s) ativo(s) fora de ${casaOito?.nome ?? "a casa de fase"} (total: ${conflitosAtivosOutros.length}), indicando baixa maturidade ou dificuldade de convivencia em ambientes com vigilancia reduzida, o que pode produzir riscos graves de agressao.`,
     );
   }
 
@@ -529,11 +557,15 @@ export async function carregarRelatorioFase3(adolescenteId: string) {
       status: adolescente.statusUnidade,
       faccao: adolescente.faccao?.nomeFaccao ?? null,
       fase: adolescente.faseInternacaoAtual?.nomeFase ?? "Nao informado",
+      faseId: adolescente.faseInternacaoAtualId ?? null,
       alojamentoAtual: formatarAlojamento(adolescente.alojamentoAtual),
       riscoFuga: riscoFugaAtual,
     },
     casa08: {
-      nome: casaOito?.nome ?? "Casa 08",
+      nome: casaOito?.nome ?? "Casa de fase",
+      numero: casaOito?.numero ?? null,
+      etiqueta: faseCasaExclusiva ?? null,
+      riscoMaximoPermitido: casaOito?.riscoMaximoPermitido ?? null,
       ocupantes: casaOitoDetalhada,
     },
     conflitosCasa08: conflitosCasaOito,

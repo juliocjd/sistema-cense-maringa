@@ -25,11 +25,10 @@ export async function GET(
 
     return NextResponse.json(relatorio);
   } catch (error) {
-    console.error("Erro ao gerar analise da Casa 08:", error);
+    console.error("Erro ao gerar analise da casa de fase:", error);
     return NextResponse.json(
-      { erro: "Falha ao gerar relatorio da Casa 08" },
+      { erro: "Falha ao gerar relatorio da casa de fase" },
       { status: 500 }
     );
   }
 }
-

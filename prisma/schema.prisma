@@ -95,7 +95,12 @@ model Casa {
   numero                       Int                     @unique
   isolada                      Boolean                 @default(false)
   observacoes                  String?
+  destinacaoOperacional        String                  @default("DEFINITIVA") @map("destinacao_operacional") @db.VarChar(32)
+  faseExclusivaId              String?                 @map("fase_exclusiva_id")
+  prazoMaximoDias              Int?                    @map("prazo_maximo_dias")
+  riscoMaximoPermitido         Int?                    @map("risco_maximo_permitido")
   alojamentos                  Alojamento[]
+  faseExclusiva                FaseInternacao?         @relation("CasaFaseExclusiva", fields: [faseExclusivaId], references: [id])
   grupos                       Grupo[]
   gruposEspeciaisCasa          GrupoEspecialCasa[]
   historicoDestinoMovimentacao HistoricoMovimentacao[] @relation("HistoricoDestinoCasa")
@@ -271,8 +276,10 @@ model FaseInternacao {
   nomeFase      String        @unique @map("nome_fase")
   descricaoFase String?       @map("descricao_fase")
   ordem         Int?
+  ativa         Boolean       @default(true)
   permiteCasa08 Boolean       @default(false) @map("permite_casa_08")
   adolescentes  Adolescente[]
+  casasExclusivas Casa[]      @relation("CasaFaseExclusiva")
 
   @@map("fases_internacao")
 }

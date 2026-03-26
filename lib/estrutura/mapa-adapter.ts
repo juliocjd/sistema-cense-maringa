@@ -99,6 +99,27 @@ const mapearOcupanteParaAdolescente = (
     vulgo: null,
     faseInternacaoAtualId: (ocupante as Record<string, any>).fase_internacao_atual_id ?? null,
     dataDesinternacao: (ocupante as Record<string, any>).data_desinternacao ?? null,
+    prazoOperacionalAtual:
+      (ocupante as Record<string, any>).prazo_operacional_atual
+        ? {
+            destinacao: (ocupante as Record<string, any>).prazo_operacional_atual
+              .destinacao,
+            prazoMaximoDias: (ocupante as Record<string, any>)
+              .prazo_operacional_atual.prazo_maximo_dias,
+            dataInicio: (ocupante as Record<string, any>).prazo_operacional_atual
+              .data_inicio,
+            dataLimite: (ocupante as Record<string, any>).prazo_operacional_atual
+              .data_limite,
+            diasPermanencia: (ocupante as Record<string, any>)
+              .prazo_operacional_atual.dias_permanencia,
+            vencido: Boolean(
+              (ocupante as Record<string, any>).prazo_operacional_atual.vencido,
+            ),
+            diasAtraso:
+              (ocupante as Record<string, any>).prazo_operacional_atual
+                .dias_atraso ?? 0,
+          }
+        : null,
   };
 };
 
@@ -123,6 +144,13 @@ export function construirPayloadMapa({
     nome: casa.nome,
     isolada: casa.isolada,
     observacoes: null,
+    destinacaoOperacional:
+      (casa as Record<string, any>).destinacao_operacional ?? null,
+    faseExclusivaId: (casa as Record<string, any>).fase_exclusiva_id ?? null,
+    faseExclusiva: (casa as Record<string, any>).fase_exclusiva ?? null,
+    prazoMaximoDias: (casa as Record<string, any>).prazo_maximo_dias ?? null,
+    riscoMaximoPermitido:
+      (casa as Record<string, any>).risco_maximo_permitido ?? null,
     alojamentos: casa.alojamentos.map((aloj) => {
       const avaliacao = aloj.avaliacao_risco;
       avaliacoes[aloj.id] = avaliacao;
@@ -135,6 +163,22 @@ export function construirPayloadMapa({
       const ocupanteDetalhado = ocupanteDetalhadoRaw
         ? ({
             ...ocupanteDetalhadoRaw,
+            prazoOperacionalAtual: aloj.ocupante?.prazo_operacional_atual
+              ? {
+                  destinacao: aloj.ocupante.prazo_operacional_atual.destinacao,
+                  prazoMaximoDias:
+                    aloj.ocupante.prazo_operacional_atual.prazo_maximo_dias,
+                  dataInicio:
+                    aloj.ocupante.prazo_operacional_atual.data_inicio,
+                  dataLimite:
+                    aloj.ocupante.prazo_operacional_atual.data_limite,
+                  diasPermanencia:
+                    aloj.ocupante.prazo_operacional_atual.dias_permanencia,
+                  vencido: aloj.ocupante.prazo_operacional_atual.vencido,
+                  diasAtraso:
+                    aloj.ocupante.prazo_operacional_atual.dias_atraso,
+                }
+              : ocupanteDetalhadoRaw.prazoOperacionalAtual ?? null,
             conflitosA: (ocupanteDetalhadoRaw.conflitosA ?? []).filter(
               (c) => (c.status ?? "").toUpperCase() === "ATIVO"
             ),
@@ -163,6 +207,17 @@ export function construirPayloadMapa({
         ),
         interdicaoDocumentoReferencia:
           aloj.interdicao_documento_referencia ?? null,
+        prazoOperacional: aloj.prazo_operacional
+          ? {
+              destinacao: aloj.prazo_operacional.destinacao,
+              prazoMaximoDias: aloj.prazo_operacional.prazo_maximo_dias,
+              dataInicio: aloj.prazo_operacional.data_inicio,
+              dataLimite: aloj.prazo_operacional.data_limite,
+              diasPermanencia: aloj.prazo_operacional.dias_permanencia,
+              vencido: aloj.prazo_operacional.vencido,
+              diasAtraso: aloj.prazo_operacional.dias_atraso,
+            }
+          : null,
         adolescentes: ocupanteDetalhado ? [ocupanteDetalhado] : [],
       };
     }),

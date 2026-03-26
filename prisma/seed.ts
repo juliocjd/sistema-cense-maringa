@@ -4,10 +4,25 @@ const prisma = new PrismaClient();
 
 const casasBase = Array.from({ length: 8 }, (_, idx) => {
   const numero = idx + 1;
+  const configuracaoBase =
+    numero === 1
+      ? { destinacaoOperacional: "PROVISORIA" }
+      : numero === 7
+        ? {
+            destinacaoOperacional: "FASE_EXCLUSIVA",
+            riscoMaximoPermitido: 1,
+          }
+        : numero === 8
+          ? {
+              destinacaoOperacional: "ABRIGAMENTO",
+              prazoMaximoDias: 5,
+            }
+          : { destinacaoOperacional: "DEFINITIVA" };
   return {
     numero,
     nome: `Casa ${numero.toString().padStart(2, "0")}`,
     isolada: numero === 1 || numero === 8,
+    ...configuracaoBase,
   };
 });
 
@@ -58,6 +73,14 @@ const zonasVinculos: Array<
 ];
 
 async function seedCasasEAlojamentos() {
+  const faseExclusivaPadrao = await prisma.faseInternacao.findFirst({
+    where: {
+      ativa: true,
+      OR: [{ nomeFase: "Fase 3" }, { ordem: 3 }],
+    },
+    orderBy: [{ ordem: "asc" }, { nomeFase: "asc" }],
+  });
+
   for (const casa of casasBase) {
     const existente = await prisma.casa.findFirst({
       where: { numero: casa.numero },
@@ -65,9 +88,27 @@ async function seedCasasEAlojamentos() {
     const registroCasa = existente
       ? await prisma.casa.update({
           where: { id: existente.id },
-          data: { nome: casa.nome, isolada: casa.isolada },
+          data: {
+            nome: casa.nome,
+            isolada: casa.isolada,
+            destinacaoOperacional: casa.destinacaoOperacional,
+            faseExclusivaId:
+              casa.destinacaoOperacional === "FASE_EXCLUSIVA"
+                ? faseExclusivaPadrao?.id ?? null
+                : null,
+            prazoMaximoDias: casa.prazoMaximoDias ?? null,
+            riscoMaximoPermitido: casa.riscoMaximoPermitido ?? null,
+          },
         })
-      : await prisma.casa.create({ data: casa });
+      : await prisma.casa.create({
+          data: {
+            ...casa,
+            faseExclusivaId:
+              casa.destinacaoOperacional === "FASE_EXCLUSIVA"
+                ? faseExclusivaPadrao?.id ?? null
+                : null,
+          },
+        });
 
     const alojamentos = alojamentosPorCasa(casa.numero);
     for (const alojamento of alojamentos) {

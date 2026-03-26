@@ -10,15 +10,66 @@ export async function POST() {
     }
 
     // Criar as 8 casas
+    const faseExclusivaPadrao = await prisma.faseInternacao.findFirst({
+      where: {
+        ativa: true,
+        OR: [{ nomeFase: "Fase 3" }, { ordem: 3 }],
+      },
+      orderBy: [{ ordem: "asc" }, { nomeFase: "asc" }],
+    });
+
     const casasData = [
-      { nome: "Casa 01", numero: 1, isolada: true },
-      { nome: "Casa 02", numero: 2, isolada: false },
-      { nome: "Casa 03", numero: 3, isolada: false },
-      { nome: "Casa 04", numero: 4, isolada: false },
-      { nome: "Casa 05", numero: 5, isolada: false },
-      { nome: "Casa 06", numero: 6, isolada: false },
-      { nome: "Casa 07", numero: 7, isolada: false },
-      { nome: "Casa 08", numero: 8, isolada: true },
+      {
+        nome: "Casa 01",
+        numero: 1,
+        isolada: true,
+        destinacaoOperacional: "PROVISORIA",
+      },
+      {
+        nome: "Casa 02",
+        numero: 2,
+        isolada: false,
+        destinacaoOperacional: "DEFINITIVA",
+      },
+      {
+        nome: "Casa 03",
+        numero: 3,
+        isolada: false,
+        destinacaoOperacional: "DEFINITIVA",
+      },
+      {
+        nome: "Casa 04",
+        numero: 4,
+        isolada: false,
+        destinacaoOperacional: "DEFINITIVA",
+      },
+      {
+        nome: "Casa 05",
+        numero: 5,
+        isolada: false,
+        destinacaoOperacional: "DEFINITIVA",
+      },
+      {
+        nome: "Casa 06",
+        numero: 6,
+        isolada: false,
+        destinacaoOperacional: "DEFINITIVA",
+      },
+      {
+        nome: "Casa 07",
+        numero: 7,
+        isolada: false,
+        destinacaoOperacional: "FASE_EXCLUSIVA",
+        faseExclusivaId: faseExclusivaPadrao?.id ?? null,
+        riscoMaximoPermitido: 1,
+      },
+      {
+        nome: "Casa 08",
+        numero: 8,
+        isolada: true,
+        destinacaoOperacional: "ABRIGAMENTO",
+        prazoMaximoDias: 5,
+      },
     ];
 
     const casas = await Promise.all(

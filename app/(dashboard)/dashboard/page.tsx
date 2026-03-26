@@ -43,6 +43,25 @@ type DashboardStats = {
     leve: number;
     total: number;
   };
+  prazosOperacionais: {
+    monitorados: number;
+    vencidos: number;
+    vencendo_hoje: number;
+    proximos_vencer: number;
+    alertas_vencidos: Array<{
+      adolescente_id: string;
+      nome: string;
+      casa_id: string;
+      casa_nome: string;
+      casa_numero: number | null;
+      alojamento_id: string;
+      alojamento_numero: string;
+      destinacao: "PROVISORIA" | "ABRIGAMENTO";
+      prazo_maximo_dias: number;
+      data_limite: string | null;
+      dias_atraso: number;
+    }>;
+  };
 };
 
 export default function DashboardPage() {
@@ -171,6 +190,24 @@ export default function DashboardPage() {
       valor: stats.alojamentosInterditados,
       icone: AlertTriangle,
       link: "/estrutura",
+    },
+    {
+      titulo: "Prazos Operacionais",
+      valor: stats.prazosOperacionais.vencidos,
+      icone: AlertTriangle,
+      link: "/estrutura",
+      cor:
+        stats.prazosOperacionais.vencidos > 0
+          ? "red"
+          : stats.prazosOperacionais.vencendo_hoje > 0
+            ? "orange"
+            : "green",
+      subtitulo:
+        stats.prazosOperacionais.vencidos > 0
+          ? `${stats.prazosOperacionais.vencidos} vencido(s)`
+          : stats.prazosOperacionais.vencendo_hoje > 0
+            ? `${stats.prazosOperacionais.vencendo_hoje} vence(m) hoje`
+            : `${stats.prazosOperacionais.monitorados} monitorado(s)`,
     },
   ];
 
@@ -443,6 +480,54 @@ export default function DashboardPage() {
           );
         })}
       </div>
+
+      {(stats.prazosOperacionais.vencidos > 0 ||
+        stats.prazosOperacionais.vencendo_hoje > 0) && (
+        <div className="rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-red-50 p-4 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 className="text-lg font-bold text-slate-900">
+                Monitoramento de Prazos Operacionais
+              </h3>
+              <p className="mt-1 text-sm text-slate-600">
+                {stats.prazosOperacionais.vencidos > 0
+                  ? `${stats.prazosOperacionais.vencidos} adolescente(s) acima do prazo maximo da casa.`
+                  : `${stats.prazosOperacionais.vencendo_hoje} adolescente(s) vencem hoje.`}
+              </p>
+            </div>
+            <Link
+              href="/estrutura"
+              className="rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-50"
+            >
+              Abrir estrutura
+            </Link>
+          </div>
+
+          {stats.prazosOperacionais.alertas_vencidos.length > 0 && (
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {stats.prazosOperacionais.alertas_vencidos
+                .slice(0, 4)
+                .map((alerta) => (
+                  <div
+                    key={`${alerta.adolescente_id}-${alerta.alojamento_id}`}
+                    className="rounded-xl border border-red-200 bg-white px-4 py-3"
+                  >
+                    <p className="font-semibold text-slate-900">
+                      {alerta.nome}
+                    </p>
+                    <p className="mt-1 text-sm text-slate-600">
+                      {alerta.casa_nome} / alojamento {alerta.alojamento_numero}
+                    </p>
+                    <p className="mt-1 text-sm font-medium text-red-700">
+                      {alerta.dias_atraso} dia(s) acima do prazo de{" "}
+                      {alerta.prazo_maximo_dias} dia(s)
+                    </p>
+                  </div>
+                ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Ações Rápidas */}
       <div>

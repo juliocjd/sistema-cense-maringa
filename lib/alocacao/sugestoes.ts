@@ -22,6 +22,10 @@ import {
   alertaSuicidioExigeMonitoramento,
   extrairNivelRiscoSuicidio,
 } from "@/lib/alertas/especiais";
+import {
+  casaCompativelComInternacao,
+  type TipoInternacaoOperacional,
+} from "@/lib/casas/configuracao-operacional";
 
 type AdolescenteComConflitos = NonNullable<
   Awaited<ReturnType<typeof carregarAdolescenteParaSugestoes>>
@@ -87,6 +91,8 @@ interface SugestaoParams {
   bairroId?: string | null;
   faccaoId?: string | null;
   limite?: number;
+  tipoInternacao?: TipoInternacaoOperacional | null;
+  faseInternacaoAtualId?: string | null;
 }
 
 async function carregarAdolescenteParaSugestoes(adolescenteId: string) {
@@ -143,6 +149,12 @@ async function carregarCasasComAlojamentos() {
   const casas = await prisma.casa.findMany({
     orderBy: { numero: "asc" },
     include: {
+      faseExclusiva: {
+        select: {
+          id: true,
+          nomeFase: true,
+        },
+      },
       alojamentos: {
         include: {
           alojamentoFrontal: {
@@ -518,6 +530,8 @@ export async function gerarSugestoesParaAlocacao({
   bairroId,
   faccaoId,
   limite = 3,
+  tipoInternacao = null,
+  faseInternacaoAtualId,
 }: SugestaoParams) {
   let adolescente: AdolescenteComConflitos | null = adolescenteId
     ? await carregarAdolescenteParaSugestoes(adolescenteId)
@@ -552,6 +566,8 @@ export async function gerarSugestoesParaAlocacao({
   }
 
   const adolescenteAvaliado = adolescente;
+  const faseParaAnalise =
+    faseInternacaoAtualId ?? adolescenteAvaliado.faseInternacaoAtualId ?? null;
 
   const casas = await carregarCasasComAlojamentos();
   const mapaAlojamentos = construirMapaAlojamentos(casas);
@@ -606,6 +622,17 @@ export async function gerarSugestoesParaAlocacao({
         adolescenteAvaliado,
         conflitosExternos
       );
+
+      if (
+        !casaCompativelComInternacao({
+          casa,
+          tipoInternacao,
+          faseInternacaoAtualId: faseParaAnalise,
+          nivelRisco: avaliacao.nivel,
+        })
+      ) {
+        return;
+      }
 
       if (avisosVigilancia.length > 0) {
         const combinado = new Set(avaliacao.alertas);
@@ -664,6 +691,8 @@ export async function gerarDiagnosticoCasaParaAlocacao({
   casaId,
   bairroId,
   faccaoId,
+  tipoInternacao = null,
+  faseInternacaoAtualId,
 }: SugestaoParams & { casaId: string }) {
   let adolescente: AdolescenteComConflitos | null = adolescenteId
     ? await carregarAdolescenteParaSugestoes(adolescenteId)
@@ -696,11 +725,23 @@ export async function gerarDiagnosticoCasaParaAlocacao({
   }
 
   const adolescenteAvaliado = adolescente;
+  const faseParaAnalise =
+    faseInternacaoAtualId ?? adolescenteAvaliado.faseInternacaoAtualId ?? null;
   const casas = await carregarCasasComAlojamentos();
   const casaSelecionada = casas.find((casa) => casa.id === casaId);
 
   if (!casaSelecionada) {
     throw new Error("Casa nao encontrada para diagnostico");
+  }
+
+  if (
+    !casaCompativelComInternacao({
+      casa: casaSelecionada,
+      tipoInternacao,
+      faseInternacaoAtualId: faseParaAnalise,
+    })
+  ) {
+    throw new Error("Casa incompatível com o tipo de internacao informado.");
   }
 
   const mapaAlojamentos = construirMapaAlojamentos(casas);

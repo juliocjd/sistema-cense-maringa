@@ -83,6 +83,9 @@ type RelatorioFase3Response = {
   };
   casa08: {
     nome: string | null;
+    numero?: number | null;
+    etiqueta?: string | null;
+    riscoMaximoPermitido?: number | null;
     ocupantes: Casa08Ocupante[];
   };
   protocoloRiscoSuicidio?: {
@@ -149,6 +152,9 @@ export function RelatorioFase3ModalTrigger() {
   const [erro, setErro] = useState<string | null>(null);
   const [baixando, setBaixando] = useState(false);
   const conflitosOutros = analise?.conflitosOutros ?? [];
+  const nomeCasa = analise?.casa08?.nome ?? "Casa de fase";
+  const etiquetaCasa =
+    analise?.casa08?.etiqueta ?? analise?.adolescente?.fase ?? "Fase exclusiva";
 
   useEffect(() => {
     if (!aberto) return;
@@ -233,7 +239,7 @@ export function RelatorioFase3ModalTrigger() {
       const doc = new jsPDF();
       doc.setFontSize(16);
       doc.setFont("helvetica", "bold");
-      doc.text("Análise para progressao - Casa 08 (Fase 3)", 105, 18, {
+      doc.text(`Analise para ${nomeCasa} (${etiquetaCasa})`, 105, 18, {
         align: "center",
       });
       doc.setFontSize(11);
@@ -308,7 +314,7 @@ export function RelatorioFase3ModalTrigger() {
       cursorY += 6;
 
       const resultadoTitulo = analise.avaliacao.apto
-        ? "Apto para Casa 08"
+        ? `Apto para ${nomeCasa}`
         : "Necessita avaliacao detalhada";
       doc.setFontSize(12);
       doc.text(resultadoTitulo, 18, cursorY);
@@ -433,7 +439,7 @@ export function RelatorioFase3ModalTrigger() {
         startY: (doc as any).lastAutoTable.finalY + 8,
         head: [
           [
-            "Conflitos com Casa 08",
+            `Conflitos com ${nomeCasa}`,
             "Tipo",
             "Status",
             "Registrado em",
@@ -505,7 +511,7 @@ export function RelatorioFase3ModalTrigger() {
         startY: (doc as any).lastAutoTable.finalY + 8,
         head: [
           [
-            "Ocupante Casa 08",
+            `Ocupante ${nomeCasa}`,
             "Alojamento",
             "Lado",
             "Faccao",
@@ -526,7 +532,7 @@ export function RelatorioFase3ModalTrigger() {
             conflito.adversario?.alojamento ?? "Nao informado",
             formatarData(conflito.criadoEm),
           ])
-        : [["Sem conflitos ativos fora da Casa 08", "-", "-", "-"]];
+        : [[`Sem conflitos ativos fora de ${nomeCasa}`, "-", "-", "-"]];
 
       autoTable(doc, {
         startY: (doc as any).lastAutoTable.finalY + 8,
@@ -568,14 +574,13 @@ export function RelatorioFase3ModalTrigger() {
             <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
               <div>
                 <p className="text-xs font-semibold uppercase text-indigo-600">
-                  Casa 08 · Fase 3
+                  {nomeCasa} - {etiquetaCasa}
                 </p>
                 <h2 className="text-2xl font-bold text-gray-900">
                   Analise de compatibilidade
                 </h2>
                 <p className="text-sm text-gray-600">
-                  Verifique se o adolescente pode ingressar na Casa 08 sem gerar
-                  riscos
+                  {`Verifique se o adolescente pode ingressar em ${nomeCasa} sem gerar riscos.`}
                 </p>
               </div>
               <button
@@ -655,7 +660,7 @@ export function RelatorioFase3ModalTrigger() {
                         }`}
                       >
                         {analise.avaliacao.apto
-                          ? "Apto para Casa 08"
+                          ? `Apto para ${nomeCasa}`
                           : "Necessita avaliacao detalhada"}
                       </h3>
                       <p className="mt-2 text-sm text-gray-600">
@@ -739,13 +744,12 @@ export function RelatorioFase3ModalTrigger() {
                     <div className="flex items-center gap-2">
                       <Shield className="text-indigo-600" size={20} />
                       <h4 className="text-base font-semibold text-indigo-800">
-                        Conflitos com ocupantes da Casa 08
+                        Conflitos com ocupantes
                       </h4>
                     </div>
                     {analise.conflitosCasa08.length === 0 ? (
                       <p className="text-sm text-gray-700">
-                        Nao ha conflitos registrados com internos atualmente na
-                        Casa 08.
+                        {`Nao ha conflitos registrados com internos atualmente em ${nomeCasa}.`}
                       </p>
                     ) : (
                       <div className="space-y-2">
@@ -796,9 +800,9 @@ export function RelatorioFase3ModalTrigger() {
                         </h4>
                       </div>
                       <p className="text-sm text-gray-700">
-                        Mesmo fora da Casa 08, estes conflitos demonstram
-                        dificuldades de convivência que podem repercutir na Fase
-                        3.
+                        {`Mesmo fora de ${nomeCasa}, estes conflitos demonstram dificuldades de convivencia que podem repercutir na fase exclusiva.`}
+
+
                       </p>
                       <div className="space-y-2">
                         {conflitosOutros.map((conflito) => (
@@ -926,12 +930,12 @@ export function RelatorioFase3ModalTrigger() {
                     <div className="flex items-center gap-2">
                       <User className="text-indigo-500" size={20} />
                       <h4 className="text-base font-semibold text-indigo-900">
-                        Ocupantes atuais da Casa 08
+                        Ocupantes atuais
                       </h4>
                     </div>
                     {analise.casa08.ocupantes.length === 0 ? (
                       <p className="text-sm text-gray-600">
-                        Nenhum adolescente ativo na Casa 08 para confronto.
+                        {`Nenhum adolescente ativo em ${nomeCasa} para confronto.`}
                       </p>
                     ) : (
                       <div className="grid gap-3 md:grid-cols-2">

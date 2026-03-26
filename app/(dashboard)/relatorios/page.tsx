@@ -99,9 +99,9 @@ export default async function RelatoriosPage() {
       tone: "slate",
       label: "Planejamento",
       icon: Shield,
-      title: "Analise para Casa 08 (Fase 3)",
+      title: "Analise para casa exclusiva de fase",
       description:
-        "Cruza conflitos, alertas e risco de fuga para avaliar se o adolescente pode ingressar na Casa 08 e gera um PDF com os achados.",
+        "Cruza conflitos, alertas e risco de fuga para avaliar se o adolescente pode ingressar na casa configurada para sua fase e gera um PDF com os achados.",
       action: <RelatorioFase3ModalTrigger />,
     },
     {

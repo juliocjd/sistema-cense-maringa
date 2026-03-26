@@ -297,6 +297,7 @@ export async function GET(request: NextRequest) {
             gravidadeAlertas.baixo +
             gravidadeAlertas.leve,
         },
+        prazosOperacionais: snapshot.estatisticas.prazos_operacionais,
         conflitosPorTipo,
       } as Record<string, unknown>;
     })();

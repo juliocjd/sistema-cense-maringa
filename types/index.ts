@@ -7,6 +7,11 @@ export type StatusUnidade = "ATIVO" | "TRANSFERIDO" | "LIBERADO" | "EVADIDO";
 export type StatusManutencao = "LIVRE" | "INTERDITADO";
 export type Ala = "A" | "B" | null;
 export type RiscoFuga = "BAIXO" | "MEDIO" | "ALTO";
+export type DestinacaoOperacionalCasa =
+  | "PROVISORIA"
+  | "DEFINITIVA"
+  | "FASE_EXCLUSIVA"
+  | "ABRIGAMENTO";
 export type FaccaoInformacaoOrigem =
   | "CONFESSADA"
   | "OBSERVACAO"
@@ -19,6 +24,21 @@ export interface CasaResumo {
   id: string;
   nome: string;
   numero: number | string | null;
+  destinacaoOperacional?: DestinacaoOperacionalCasa | string | null;
+  faseExclusivaId?: string | null;
+  faseExclusiva?: { id: string; nomeFase: string } | null;
+  prazoMaximoDias?: number | null;
+  riscoMaximoPermitido?: number | null;
+}
+
+export interface PrazoOperacionalResumo {
+  destinacao: "PROVISORIA" | "ABRIGAMENTO";
+  prazoMaximoDias: number;
+  dataInicio: string | null;
+  dataLimite: string | null;
+  diasPermanencia: number | null;
+  vencido: boolean;
+  diasAtraso: number;
 }
 
 export interface AdolescenteAlojamentoResumo {
@@ -355,6 +375,7 @@ export interface Adolescente {
     criadoEm?: string | null;
   }>;
   alertasPendentes?: number;
+  prazoOperacionalAtual?: PrazoOperacionalResumo | null;
 
   criadoEm?: string;
   atualizadoEm?: string;
@@ -446,6 +467,7 @@ export interface Alojamento {
   interdicaoJustificativa?: string | null;
   interdicaoDocumentoTipo?: "CI" | "DECISAO_JUDICIAL" | "OUTRO" | null;
   interdicaoDocumentoReferencia?: string | null;
+  prazoOperacional?: PrazoOperacionalResumo | null;
   adolescentes: Adolescente[];
 }
 
@@ -455,6 +477,11 @@ export interface Casa {
   nome: string;
   isolada: boolean;
   observacoes?: string | null;
+  destinacaoOperacional?: DestinacaoOperacionalCasa | string | null;
+  faseExclusivaId?: string | null;
+  faseExclusiva?: { id: string; nomeFase: string } | null;
+  prazoMaximoDias?: number | null;
+  riscoMaximoPermitido?: number | null;
   alojamentos: Alojamento[];
 }
 
