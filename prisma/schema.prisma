@@ -224,8 +224,8 @@ model AtoInfracionalCatalogo {
   criadoEm      DateTime    @default(now()) @map("criado_em")
   criadoPorId   String?     @map("criado_por_id")
   criadoPor     Operador?   @relation("AtoInfracionalCatalogoCriador", fields: [criadoPorId], references: [id])
-  adolescentes  Adolescente[]
   historicos    AdolescenteHistoricoInfracional[]
+  casoTipificacoes AdolescenteCasoInfracionalTipificacao[]
 
   @@map("atos_infracionais_catalogo")
   @@index([ativo])
@@ -285,8 +285,6 @@ model Adolescente {
   numeroSms                  String?                           @map("numero_sms")
   dataNascimento             DateTime?                         @map("data_nascimento") @db.Date
   dataEntrada                DateTime?                         @map("data_entrada")
-  numeroProcesso             String?                           @map("numero_processo")
-  atoInfracionalAtualId      String?                           @map("ato_infracional_atual_id")
   statusUnidade              String                            @default("ATIVO") @map("status_unidade")
   faccaoGrupoId              String?                           @map("faccao_grupo_id")
   bairroOrigemId             String?                           @map("bairro_origem_id")
@@ -299,9 +297,6 @@ model Adolescente {
   faseInternacaoAtualId      String?                           @map("fase_internacao_atual_id")
   criadoEm                   DateTime                          @default(now()) @map("criado_em")
   atualizadoEm               DateTime                          @updatedAt @map("atualizado_em")
-  atoInfracionalAno          Int?                              @map("ato_infracional_ano")
-  atoInfracionalProcesso     String?                           @map("ato_infracional_processo")
-  atoInfracionalObservacoes  String?                           @map("ato_infracional_observacoes")
   atoInfracionalGravidade    Boolean                           @default(false) @map("ato_infracional_gravidade")
   atoInfracionalGravidadeObs String?                           @map("ato_infracional_gravidade_obs")
   dataDesinternacao          DateTime?                         @map("data_desinternacao")
@@ -317,7 +312,6 @@ model Adolescente {
   faccao                     Faccao?                           @relation(fields: [faccaoGrupoId], references: [id])
   faccaoVinculoAtual         AdolescenteFaccaoHistorico?       @relation("FaccaoVinculoAtual", fields: [faccaoVinculoAtualId], references: [id])
   faseInternacaoAtual        FaseInternacao?                   @relation(fields: [faseInternacaoAtualId], references: [id])
-  atoInfracionalAtualCatalogo AtoInfracionalCatalogo?          @relation(fields: [atoInfracionalAtualId], references: [id])
   historicoInfracional       AdolescenteHistoricoInfracional[]
   tatuagens                  AdolescenteTatuagem[]
   visitantesLink             AdolescenteVisitanteLink[]
@@ -337,8 +331,45 @@ model Adolescente {
   faccaoInformacoesPrestadas AdolescenteFaccaoHistorico[]      @relation("FaccaoInformante")
   visitasRegistro            VisitaRegistro[]
   atoInfracionalVinculos     AtoInfracionalVinculoAdolescente[]
+  casosInfracionais          AdolescenteCasoInfracional[]
 
   @@map("adolescentes")
+}
+
+model AdolescenteCasoInfracional {
+  id                 String                         @id @default(uuid())
+  adolescenteId      String                         @map("adolescente_id")
+  status             String                         @default("ATUAL")
+  numeroProcesso     String?                        @map("numero_processo")
+  anoFato            Int?                           @map("ano_fato")
+  comarca            String?
+  narrativa          String?
+  criadoEm           DateTime                       @default(now()) @map("criado_em")
+  atualizadoEm       DateTime                       @updatedAt @map("atualizado_em")
+  adolescente        Adolescente                    @relation(fields: [adolescenteId], references: [id], onDelete: Cascade)
+  tipificacoes       AdolescenteCasoInfracionalTipificacao[]
+
+  @@index([adolescenteId, status])
+  @@map("adolescentes_casos_infracionais")
+}
+
+model AdolescenteCasoInfracionalTipificacao {
+  id                      String                          @id @default(uuid())
+  casoId                  String                          @map("caso_id")
+  ordem                   Int                             @default(1)
+  atoInfracionalCatalogoId String?                       @map("ato_infracional_catalogo_id")
+  descricaoManual         String?                         @map("descricao_manual")
+  principal               Boolean                         @default(false)
+  qualificadora           String?
+  majorante               String?
+  observacoes             String?
+  criadoEm                DateTime                        @default(now()) @map("criado_em")
+  atualizadoEm            DateTime                        @updatedAt @map("atualizado_em")
+  caso                    AdolescenteCasoInfracional      @relation(fields: [casoId], references: [id], onDelete: Cascade)
+  atoInfracionalCatalogo  AtoInfracionalCatalogo?         @relation(fields: [atoInfracionalCatalogoId], references: [id])
+
+  @@index([casoId, ordem])
+  @@map("adolescentes_casos_infracionais_tipificacoes")
 }
 
 model AdolescenteFaccaoHistorico {

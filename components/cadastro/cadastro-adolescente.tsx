@@ -23,6 +23,7 @@ import type { LucideIcon } from "lucide-react";
 import type {
   Adolescente,
   AdolescenteCadastroPayload,
+  AdolescenteCasoInfracionalItem,
   AdolescenteHistoricoInfracionalItem,
   AdolescenteHistoricoRegistroInput,
   AdolescenteAtoInfracionalVinculoItem,
@@ -150,6 +151,70 @@ type DiagnosticoCasaApi = {
     };
   }>;
 };
+
+type AtoCatalogoOption = {
+  id: string;
+  nome: string;
+  ativo: boolean;
+  gravidade?: string | null;
+  violenciaOuGraveAmeaca?: boolean | null;
+};
+
+type CasoTipificacaoFormState = {
+  id?: string;
+  ordem: number;
+  catalogoId: string;
+  descricao: string;
+  principal: boolean;
+  qualificadora: string;
+  majorante: string;
+  observacoes: string;
+};
+
+type CasoInfracionalFormState = {
+  id?: string;
+  status?: string | null;
+  comarca: string;
+  narrativa: string;
+  tipificacoes: CasoTipificacaoFormState[];
+};
+
+const criarTipificacaoCasoVazia = (
+  ordem: number = 1,
+): CasoTipificacaoFormState => ({
+  ordem,
+  catalogoId: "",
+  descricao: "",
+  principal: ordem === 1,
+  qualificadora: "",
+  majorante: "",
+  observacoes: "",
+});
+
+const normalizarCasoInfracionalFormulario = (
+  caso?: AdolescenteCasoInfracionalItem | null,
+): CasoInfracionalFormState => ({
+  id: caso?.id,
+  status: caso?.status ?? null,
+  comarca: caso?.comarca ?? "",
+  narrativa: caso?.narrativa ?? "",
+  tipificacoes: (() => {
+    const tipificacoesBase = caso?.tipificacoes ?? [];
+    if (tipificacoesBase.length === 0) {
+      return [criarTipificacaoCasoVazia(1)];
+    }
+    return tipificacoesBase.map((tipificacao, indiceTip) => ({
+      id: tipificacao.id,
+      ordem: tipificacao.ordem ?? indiceTip + 1,
+      catalogoId: tipificacao.catalogoId ?? "",
+      descricao: tipificacao.descricao ?? "",
+      principal: tipificacao.principal ?? indiceTip === 0,
+      qualificadora: tipificacao.qualificadora ?? "",
+      majorante: tipificacao.majorante ?? "",
+      observacoes: tipificacao.observacoes ?? "",
+    }));
+  })(),
+});
 
 type ResultadoFiltroSugestoes = {
   lista: SugestaoAlojamentoCadastro[];
@@ -362,6 +427,10 @@ export function CadastroAdolescente({
       catalogoId?: string;
     }[],
   });
+  const [casoInfracionalAtual, setCasoInfracionalAtual] =
+    useState<CasoInfracionalFormState>(() =>
+      normalizarCasoInfracionalFormulario(initialData?.casoInfracionalAtual),
+    );
   const [historicoExistente, setHistoricoExistente] = useState<
     AdolescenteHistoricoInfracionalItem[]
   >([]);
@@ -654,20 +723,38 @@ export function CadastroAdolescente({
     );
 
     setAtoInfracional({
-      catalogoId: initialData.atoInfracionalAtualId ?? "",
+      catalogoId:
+        initialData.casoInfracionalAtual?.tipificacoes?.find(
+          (tipificacao) => tipificacao.principal,
+        )?.catalogoId ??
+        initialData.casoInfracionalAtual?.tipificacoes?.[0]?.catalogoId ??
+        initialData.atoInfracionalAtualId ??
+        "",
       descricao: initialData.atoInfracionalAtual ?? "",
       gravidadeCatalogo: initialData.atoInfracionalCatalogoGravidade ?? "",
       violenciaCatalogo: initialData.atoInfracionalCatalogoViolencia ?? null,
-      ano: initialData.atoInfracionalAno
-        ? String(initialData.atoInfracionalAno)
+      ano: (initialData.casoInfracionalAtual?.anoFato ?? initialData.atoInfracionalAno)
+        ? String(
+            initialData.casoInfracionalAtual?.anoFato ??
+              initialData.atoInfracionalAno,
+          )
         : "",
       processo:
-        initialData.atoInfracionalProcesso ?? initialData.numeroProcesso ?? "",
-      observacoesComplementares: initialData.atoInfracionalObservacoes ?? "",
+        initialData.casoInfracionalAtual?.numeroProcesso ??
+        initialData.atoInfracionalProcesso ??
+        initialData.numeroProcesso ??
+        "",
+      observacoesComplementares:
+        initialData.casoInfracionalAtual?.narrativa ??
+        initialData.atoInfracionalObservacoes ??
+        "",
       gravidade: initialData.atoInfracionalGravidade ?? false,
       gravidadeDescricao: initialData.atoInfracionalGravidadeObs ?? "",
       historico: [],
     });
+    setCasoInfracionalAtual(
+      normalizarCasoInfracionalFormulario(initialData.casoInfracionalAtual),
+    );
     setHistoricoExistente(initialData.historicoInfracional ?? []);
     setAtoInfracionalVinculos(
       (initialData.atoInfracionalVinculos ?? []).map((vinculo) => ({
@@ -1195,23 +1282,9 @@ export function CadastroAdolescente({
     cidades: [],
     tatuagens: [],
   });
-  const [atoSugestoes, setAtoSugestoes] = useState<
-    Array<{
-      id: string;
-      nome: string;
-      ativo: boolean;
-      gravidade?: string | null;
-      violenciaOuGraveAmeaca?: boolean | null;
-    }>
-  >([]);
+  const [atoSugestoes, setAtoSugestoes] = useState<AtoCatalogoOption[]>([]);
   const [atosCatalogoCache, setAtosCatalogoCache] = useState<
-    Array<{
-      id: string;
-      nome: string;
-      ativo: boolean;
-      gravidade?: string | null;
-      violenciaOuGraveAmeaca?: boolean | null;
-    }>
+    AtoCatalogoOption[]
   >([]);
   const [buscandoAto, setBuscandoAto] = useState(false);
   const [mostrarSugestoesAto, setMostrarSugestoesAto] = useState(false);
@@ -1251,6 +1324,9 @@ export function CadastroAdolescente({
     erro: null,
     salvando: false,
   });
+  const [contextoNovoAtoTipificacao, setContextoNovoAtoTipificacao] = useState<{
+    tipificacaoIndex: number;
+  } | null>(null);
 
   useEffect(() => {
     if (statusUnidade !== "ATIVO") {
@@ -1265,6 +1341,29 @@ export function CadastroAdolescente({
       setTipoInternacao(null);
     }
   }, [statusUnidade]);
+
+  useEffect(() => {
+    if (atosCatalogoCache.length > 0) {
+      return;
+    }
+
+    const carregarCatalogoBase = async () => {
+      try {
+        const response = await fetch("/api/atos-infracionais");
+        if (!response.ok) {
+          return;
+        }
+        const payload = await response.json().catch(() => null);
+        if (Array.isArray(payload?.atos)) {
+          setAtosCatalogoCache(payload.atos);
+        }
+      } catch (error) {
+        console.error("Erro ao carregar catálogo base de atos", error);
+      }
+    };
+
+    void carregarCatalogoBase();
+  }, [atosCatalogoCache.length]);
 
   useEffect(() => {
     const termo = atoInfracional.descricao.trim();
@@ -1507,6 +1606,7 @@ export function CadastroAdolescente({
         statusUnidade,
         dataStatus,
         atoInfracional,
+        casoInfracionalAtual,
         atoInfracionalVinculos,
         vinculoDescricao,
         vinculoSelecionados,
@@ -1523,6 +1623,7 @@ export function CadastroAdolescente({
       statusUnidade,
       dataStatus,
       atoInfracional,
+      casoInfracionalAtual,
       atoInfracionalVinculos,
       vinculoDescricao,
       vinculoSelecionados,
@@ -1703,6 +1804,83 @@ export function CadastroAdolescente({
   const faccaoAtualObs =
     faccaoHistoricoAtivo?.observacao ?? vinculacoes.faccaoOrigemDetalhe ?? "";
 
+  const tipificacaoTemConteudo = (tipificacao: CasoTipificacaoFormState) =>
+    Boolean(
+      tipificacao.catalogoId.trim() ||
+      tipificacao.descricao.trim() ||
+      tipificacao.qualificadora.trim() ||
+      tipificacao.majorante.trim() ||
+      tipificacao.observacoes.trim(),
+    );
+
+  const tipificacoesCasoPreenchidas = useMemo(
+    () =>
+      casoInfracionalAtual.tipificacoes.filter((tipificacao) =>
+        tipificacaoTemConteudo(tipificacao),
+      ),
+    [casoInfracionalAtual.tipificacoes],
+  );
+
+  const tipificacaoPrincipalAtual = useMemo(() => {
+    if (tipificacoesCasoPreenchidas.length > 0) {
+      return (
+        tipificacoesCasoPreenchidas.find(
+          (tipificacao) => tipificacao.principal,
+        ) ?? tipificacoesCasoPreenchidas[0]
+      );
+    }
+
+    return casoInfracionalAtual.tipificacoes[0] ?? null;
+  }, [casoInfracionalAtual.tipificacoes, tipificacoesCasoPreenchidas]);
+
+  const atoPrincipalCatalogoAtual = useMemo(() => {
+    const catalogoId = tipificacaoPrincipalAtual?.catalogoId?.trim();
+    if (!catalogoId) return null;
+
+    return atosCatalogoCache.find((item) => item.id === catalogoId) ?? null;
+  }, [atosCatalogoCache, tipificacaoPrincipalAtual]);
+
+  const atualizarTipificacoesCaso = (
+    atualizador: (
+      tipificacoes: CasoTipificacaoFormState[],
+    ) => CasoTipificacaoFormState[],
+  ) => {
+    setCasoInfracionalAtual((prev) => ({
+      ...prev,
+      tipificacoes: atualizador(prev.tipificacoes),
+    }));
+  };
+
+  const adicionarTipificacaoCaso = () => {
+    atualizarTipificacoesCaso((tipificacoes) => [
+      ...tipificacoes,
+      criarTipificacaoCasoVazia(tipificacoes.length + 1),
+    ]);
+  };
+
+  const removerTipificacaoCaso = (tipificacaoIndex: number) => {
+    atualizarTipificacoesCaso((tipificacoes) => {
+      const atualizadas = tipificacoes
+        .filter((_, itemIndex) => itemIndex !== tipificacaoIndex)
+        .map((tipificacao, itemIndex) => ({
+          ...tipificacao,
+          ordem: itemIndex + 1,
+          principal: itemIndex === 0 ? true : tipificacao.principal,
+        }));
+
+      return atualizadas.length > 0
+        ? atualizadas
+        : [criarTipificacaoCasoVazia(1)];
+    });
+  };
+
+  const atualizarCampoCasoInfracional = (campo: "narrativa", valor: string) => {
+    setCasoInfracionalAtual((prev) => ({
+      ...prev,
+      [campo]: valor,
+    }));
+  };
+
   const selecionarAtoCatalogo = (ato: {
     id: string;
     nome: string;
@@ -1721,6 +1899,7 @@ export function CadastroAdolescente({
   };
 
   const abrirModalNovoAto = () => {
+    setContextoNovoAtoTipificacao(null);
     setModalNovoAto({
       aberto: true,
       nome: atoInfracional.descricao,
@@ -1731,7 +1910,25 @@ export function CadastroAdolescente({
     });
   };
 
+  const abrirModalNovoAtoParaTipificacao = (
+    tipificacaoIndex: number,
+    nomeInicial = "",
+  ) => {
+    setContextoNovoAtoTipificacao({
+      tipificacaoIndex,
+    });
+    setModalNovoAto({
+      aberto: true,
+      nome: nomeInicial,
+      gravidade: "",
+      violenciaOuGraveAmeaca: false,
+      erro: null,
+      salvando: false,
+    });
+  };
+
   const fecharModalNovoAto = () => {
+    setContextoNovoAtoTipificacao(null);
     setModalNovoAto({
       aberto: false,
       nome: "",
@@ -1783,7 +1980,25 @@ export function CadastroAdolescente({
         violenciaOuGraveAmeaca: payload.violenciaOuGraveAmeaca ?? false,
       };
       setAtoSugestoes((prev) => [novo, ...prev]);
-      selecionarAtoCatalogo(novo);
+      setAtosCatalogoCache((prev) => {
+        const semDuplicado = prev.filter((item) => item.id !== novo.id);
+        return [novo, ...semDuplicado];
+      });
+      if (contextoNovoAtoTipificacao) {
+        atualizarTipificacoesCaso((tipificacoes) =>
+          tipificacoes.map((tipificacao, tipificacaoIndex) =>
+            tipificacaoIndex !== contextoNovoAtoTipificacao.tipificacaoIndex
+              ? tipificacao
+              : {
+                  ...tipificacao,
+                  catalogoId: novo.id,
+                  descricao: novo.nome,
+                },
+          ),
+        );
+      } else {
+        selecionarAtoCatalogo(novo);
+      }
       fecharModalNovoAto();
     } catch (error) {
       console.error("Erro ao salvar novo ato infracional:", error);
@@ -2343,24 +2558,6 @@ export function CadastroAdolescente({
       }
     }
 
-    const descricaoAto = atoInfracional.descricao.trim();
-    const atoSelecionadoId = atoInfracional.catalogoId?.trim() ?? "";
-    if (statusUnidade === "ATIVO") {
-      if (!atoSelecionadoId) {
-        mensagens.push(
-          "Selecione o ato infracional atual a partir do catalogo.",
-        );
-        etapaErro = Math.max(etapaErro, 2);
-      }
-    } else if (descricaoAto || atoSelecionadoId) {
-      if (!atoSelecionadoId) {
-        mensagens.push(
-          "Selecione o ato infracional atual a partir do catalogo.",
-        );
-        etapaErro = Math.max(etapaErro, 2);
-      }
-    }
-
     if (atoInfracional.ano.trim()) {
       const anoNumero = Number.parseInt(atoInfracional.ano.trim(), 10);
       if (
@@ -2378,6 +2575,60 @@ export function CadastroAdolescente({
         "Detalhe a repercussao ou gravidade quando o indicador estiver marcado.",
       );
       etapaErro = Math.max(etapaErro, 2);
+    }
+
+    const casoTemConteudo = Boolean(
+      atoInfracional.processo.trim() ||
+      atoInfracional.ano.trim() ||
+      casoInfracionalAtual.comarca.trim() ||
+      casoInfracionalAtual.narrativa.trim() ||
+      tipificacoesCasoPreenchidas.length > 0,
+    );
+
+    if (statusUnidade === "ATIVO" && tipificacoesCasoPreenchidas.length === 0) {
+      mensagens.push(
+        "Informe ao menos um ato infracional vinculado ao caso atual.",
+      );
+      etapaErro = Math.max(etapaErro, 2);
+    }
+
+    if (casoTemConteudo) {
+      if (!casoInfracionalAtual.narrativa.trim()) {
+        mensagens.push(
+          "Informe a narrativa do fato principal no caso infracional.",
+        );
+        etapaErro = Math.max(etapaErro, 2);
+      }
+
+      if (tipificacoesCasoPreenchidas.length === 0) {
+        mensagens.push(
+          "Informe ao menos um ato infracional vinculado ao caso.",
+        );
+        etapaErro = Math.max(etapaErro, 2);
+      } else {
+        const tipificacaoSemCatalogo = tipificacoesCasoPreenchidas.find(
+          (tipificacao) => !tipificacao.catalogoId.trim(),
+        );
+
+        if (tipificacaoSemCatalogo) {
+          mensagens.push(
+            "Selecione o ato infracional no catálogo para cada tipificação preenchida.",
+          );
+          etapaErro = Math.max(etapaErro, 2);
+        }
+
+        const principalPreenchida =
+          tipificacoesCasoPreenchidas.find(
+            (tipificacao) => tipificacao.principal,
+          ) ?? null;
+
+        if (!principalPreenchida) {
+          mensagens.push(
+            "Defina qual ato infracional deve ser tratado como principal no caso.",
+          );
+          etapaErro = Math.max(etapaErro, 2);
+        }
+      }
     }
 
     if (statusUnidade === "ATIVO") {
@@ -2446,9 +2697,6 @@ export function CadastroAdolescente({
           : undefined;
 
       const processoSanitizado = sanitize(atoInfracional.processo);
-      const observacoesComplementaresSanitizadas = sanitize(
-        atoInfracional.observacoesComplementares,
-      );
       const gravidadeDescricaoSanitizada = sanitize(
         atoInfracional.gravidadeDescricao,
       );
@@ -2500,6 +2748,51 @@ export function CadastroAdolescente({
           .filter(
             (item): item is AdolescenteHistoricoRegistroInput => item !== null,
           );
+      const narrativaCasoSanitizada = sanitize(casoInfracionalAtual.narrativa);
+      const tipificacoesCasoPayload = casoInfracionalAtual.tipificacoes
+        .map((tipificacao, indiceTipificacao) => {
+          const catalogoId = sanitize(tipificacao.catalogoId);
+          const descricao = sanitize(tipificacao.descricao);
+          const qualificadora = sanitizeOrNull(tipificacao.qualificadora);
+          const majorante = sanitizeOrNull(tipificacao.majorante);
+          const observacoes = sanitizeOrNull(tipificacao.observacoes);
+
+          if (
+            !catalogoId &&
+            !descricao &&
+            !qualificadora &&
+            !majorante &&
+            !observacoes
+          ) {
+            return null;
+          }
+
+          return {
+            id: tipificacao.id,
+            ordem: indiceTipificacao + 1,
+            catalogoId: catalogoId ?? null,
+            descricao: descricao ?? null,
+            principal: tipificacao.principal,
+            qualificadora,
+            majorante,
+            observacoes,
+          };
+        })
+        .filter((item): item is NonNullable<typeof item> => item !== null);
+      const tipificacaoPrincipalPayload =
+        tipificacoesCasoPayload.find((tipificacao) => tipificacao.principal) ??
+        tipificacoesCasoPayload[0] ??
+        null;
+      const comarcaCasoSanitizada = sanitizeOrNull(
+        casoInfracionalAtual.comarca,
+      );
+      const enviarCasoInfracionalAtual = Boolean(
+        processoSanitizado ||
+        anoValido !== undefined ||
+        comarcaCasoSanitizada ||
+        narrativaCasoSanitizada ||
+        tipificacoesCasoPayload.length > 0,
+      );
 
       const alertasEspeciaisSelecionados = ALERTAS_ESPECIAIS_ORDEM.filter(
         (tipo) => alertasEspeciais[tipo]?.ativo,
@@ -2519,13 +2812,8 @@ export function CadastroAdolescente({
           ? Number.parseInt(numeroInternoSanitizado, 10)
           : undefined,
         dataEntrada: sanitize(dadosPessoais.dataEntrada),
-        atoInfracionalAtualId: atoInfracional.catalogoId?.trim() || undefined,
-        atoInfracionalAno: anoValido,
-        atoInfracionalProcesso: processoSanitizado,
-        atoInfracionalObservacoes: observacoesComplementaresSanitizadas,
         atoInfracionalGravidade: atoInfracional.gravidade,
         atoInfracionalGravidadeObs: gravidadeDescricaoSanitizada,
-        numeroProcesso: processoSanitizado,
         fotoUrl: foto,
         alertaRiscoSuicidio: alertasEspeciais.RISCO_SUICIDIO.ativo,
         alertaPerfilMapeado: alertasEspeciais.PERFIL_MAPEADO.ativo,
@@ -2567,6 +2855,18 @@ export function CadastroAdolescente({
 
       if (historicoPayload.length > 0) {
         adolescente.historicoInfracional = historicoPayload;
+      }
+
+      if (enviarCasoInfracionalAtual) {
+        adolescente.casoInfracionalAtual = {
+          id: casoInfracionalAtual.id,
+          status: statusUnidade === "ATIVO" ? "ATUAL" : "HISTORICO",
+          numeroProcesso: processoSanitizado ?? null,
+          anoFato: anoValido ?? null,
+          comarca: comarcaCasoSanitizada,
+          narrativa: narrativaCasoSanitizada ?? null,
+          tipificacoes: tipificacoesCasoPayload,
+        };
       }
 
       const vinculosPayload = atoInfracionalVinculos
@@ -3112,199 +3412,497 @@ export function CadastroAdolescente({
               </div>
             </div>
           )}
-          {/* ETAPA 2: Ato Infracional */}
+          {/* ETAPA 2: Caso Infracional */}
           {etapaAtual === 2 && (
             <div className="space-y-6">
               <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
                 <FileText className="text-indigo-600" />
-                Ato Infracional
+                Caso Infracional
               </h2>
 
-              <div className="space-y-2">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <label className="block text-sm font-semibold text-gray-700">
-                    Ato Infracional Atual
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={abrirModalNovoAto}
-                      className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
-                    >
-                      Cadastrar novo ato
-                    </button>
-                    <button
-                      type="button"
-                      onClick={abrirGestaoAtos}
-                      className="rounded-lg border border-indigo-200 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50"
-                    >
-                      Gerenciar Atos Infracionais
-                    </button>
+              <div className="space-y-4">
+                <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-indigo-50/40 p-5 space-y-5">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-base font-semibold text-slate-900">
+                        Caso infracional atual
+                      </h3>
+                      <p className="text-sm text-slate-600">
+                        Organize o registro em tres etapas: identificacao do
+                        processo, narrativa unica do fato e atos infracionais
+                        vinculados.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold text-slate-600">
+                        1. Processo
+                      </span>
+                      <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold text-slate-600">
+                        2. Narrativa
+                      </span>
+                      <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold text-slate-600">
+                        3. Atos vinculados
+                      </span>
+                    </div>
                   </div>
-                </div>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={atoInfracional.descricao}
-                    onFocus={() => setMostrarSugestoesAto(true)}
-                    onChange={(e) => {
-                      setAtoInfracional({
-                        ...atoInfracional,
-                        descricao: e.target.value,
-                        catalogoId: "",
-                        gravidadeCatalogo: "",
-                        violenciaCatalogo: null,
-                      });
-                      setMostrarSugestoesAto(true);
-                    }}
-                    onBlur={() =>
-                      window.setTimeout(
-                        () => setMostrarSugestoesAto(false),
-                        120,
-                      )
-                    }
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
-                    placeholder="Digite para buscar no catalogo"
-                  />
-                  {buscandoAto && (
-                    <Loader2 className="absolute right-3 top-3 h-5 w-5 animate-spin text-indigo-500" />
-                  )}
-                  {mostrarSugestoesAto &&
-                    (atoSugestoes.length > 0 ||
-                      atoInfracional.descricao.trim().length >= 2) && (
-                      <div className="absolute z-30 mt-1 max-h-52 w-full overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg">
-                        {atoSugestoes.length === 0 && (
-                          <p className="px-3 py-2 text-sm text-slate-500">
-                            {buscandoAto
-                              ? "Buscando..."
-                              : "Nenhum ato encontrado para o termo informado."}
-                          </p>
-                        )}
-                        {atoSugestoes.map((ato) => (
-                          <button
-                            type="button"
-                            key={ato.id}
-                            onMouseDown={() => selecionarAtoCatalogo(ato)}
-                            className="flex w-full items-start gap-2 px-3 py-2 text-left hover:bg-indigo-50"
-                          >
-                            <div className="flex flex-col">
-                              <span className="font-semibold text-slate-800">
-                                {ato.nome}
-                              </span>
-                              {ato.gravidade && (
-                                <span className="text-[11px] font-semibold uppercase text-slate-500">
-                                  Gravidade: {ato.gravidade}
-                                </span>
-                              )}
-                              {ato.violenciaOuGraveAmeaca && (
-                                <span className="text-[11px] font-semibold uppercase text-rose-600">
-                                  Violencia ou grave ameaca
-                                </span>
-                              )}
-                            </div>
-                            {!ato.ativo && (
-                              <span className="rounded-full bg-amber-100 px-2 text-[10px] font-semibold uppercase text-amber-700">
-                                inativo
-                              </span>
-                            )}
-                          </button>
-                        ))}
-                        <div className="border-t border-slate-100 bg-slate-50 px-3 py-2">
-                          <button
-                            type="button"
-                            onMouseDown={abrirModalNovoAto}
-                            className="text-sm font-semibold text-indigo-700 hover:text-indigo-600"
-                          >
-                            + Cadastrar novo ato
-                          </button>
+
+                  <div className="grid gap-4 xl:grid-cols-[0.95fr_1.35fr]">
+                    <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-4 shadow-sm">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-indigo-600">
+                          Etapa 1
+                        </p>
+                        <h4 className="mt-1 text-base font-semibold text-slate-900">
+                          Dados do processo
+                        </h4>
+                        <p className="text-xs text-slate-500">
+                          Preencha os dados objetivos que identificam o processo
+                          e o julgamento do fato.
+                        </p>
+                      </div>
+
+                      <div className="grid gap-4">
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 mb-2">
+                            Número do processo
+                          </label>
+                          <input
+                            type="text"
+                            value={atoInfracional.processo}
+                            onChange={(e) =>
+                              setAtoInfracional({
+                                ...atoInfracional,
+                                processo: e.target.value,
+                              })
+                            }
+                            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
+                            placeholder="Ex: 0001234-56.2024.8.16.0000"
+                          />
+                        </div>
+
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-2">
+                              Ano do fato
+                            </label>
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              value={atoInfracional.ano}
+                              onChange={(e) =>
+                                setAtoInfracional({
+                                  ...atoInfracional,
+                                  ano: e.target.value,
+                                })
+                              }
+                              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
+                              placeholder="Ex: 2024"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-2">
+                              Comarca
+                            </label>
+                            <input
+                              type="text"
+                              value={casoInfracionalAtual.comarca}
+                              onChange={(e) =>
+                                setCasoInfracionalAtual((prev) => ({
+                                  ...prev,
+                                  comarca: e.target.value,
+                                }))
+                              }
+                              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
+                              placeholder="Ex: Maringa/PR"
+                            />
+                          </div>
                         </div>
                       </div>
-                    )}
-                </div>
-                <p className="text-xs text-gray-500">
-                  Digite para buscar e selecione um ato do catalogo. Se nao
-                  encontrar, cadastre um novo.
-                </p>
-                {atoInfracional.gravidadeCatalogo && (
-                  <p className="text-xs font-semibold text-slate-600">
-                    Gravidade catalogo: {atoInfracional.gravidadeCatalogo}
-                  </p>
-                )}
-                <p className="text-xs font-semibold text-slate-600">
-                  Violencia ou grave ameaca (catálogo):{" "}
-                  {atoInfracional.violenciaCatalogo === null
-                    ? "—"
-                    : atoInfracional.violenciaCatalogo
-                      ? "Sim"
-                      : "Não"}
-                </p>
-              </div>
+                    </div>
 
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div>
-                    <h3 className="text-sm font-semibold text-slate-800">
-                      Vínculos no mesmo ato infracional
-                    </h3>
-                    <p className="text-[11px] text-slate-500">
-                      Registre outros adolescentes envolvidos no mesmo ato
-                      infracional. O alerta de alocação aparece apenas quando
-                      estiverem na mesma ala.
-                    </p>
-                  </div>
-                  <span className="text-[11px] font-semibold text-slate-500">
-                    {atoInfracionalVinculos.length} registrado(s)
-                  </span>
-                </div>
+                    <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-4 shadow-sm">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-indigo-600">
+                          Etapa 2
+                        </p>
+                        <h4 className="mt-1 text-base font-semibold text-slate-900">
+                          Narrativa do fato
+                        </h4>
+                        <p className="text-xs text-slate-500">
+                          Use um único texto para descrever a dinâmica completa.
+                          Período, local, meio de execução e papel do
+                          adolescente devem aparecer dentro da própria
+                          narrativa.
+                        </p>
+                      </div>
 
-                <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                      Adolescentes envolvidos
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        value={vinculoBusca}
-                        onFocus={() => setMostrandoSugestoesVinculo(true)}
-                        onChange={(e) => setVinculoBusca(e.target.value)}
-                        onBlur={() =>
-                          window.setTimeout(
-                            () => setMostrandoSugestoesVinculo(false),
-                            120,
+                      <textarea
+                        value={casoInfracionalAtual.narrativa}
+                        onChange={(e) =>
+                          atualizarCampoCasoInfracional(
+                            "narrativa",
+                            e.target.value,
                           )
                         }
-                        className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
-                        placeholder="Busque pelo nome ou SMS"
+                        rows={12}
+                        className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-relaxed focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none resize-none"
+                        placeholder="Descreva toda a dinamica fatica do processo, com contexto, periodo, local, vitimas, coautoria, forma de execucao e demais elementos relevantes."
                       />
-                      {buscandoVinculo && (
-                        <Loader2 className="absolute right-3 top-2.5 h-4 w-4 animate-spin text-indigo-500" />
-                      )}
-                      {mostrandoSugestoesVinculo &&
-                        vinculoBusca.trim().length >= 2 && (
-                          <div className="absolute z-30 mt-1 max-h-52 w-full overflow-auto rounded-md border border-slate-200 bg-white shadow-lg">
-                            {vinculoSugestoes.length === 0 && (
-                              <p className="px-3 py-2 text-sm text-slate-500">
-                                {buscandoVinculo
-                                  ? "Buscando..."
-                                  : "Nenhum adolescente encontrado."}
-                              </p>
-                            )}
-                            {vinculoSugestoes.map((item) => (
+
+                      <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+                        Esta narrativa e a base principal do caso. Evite criar
+                        campos paralelos para informações que ja cabem aqui.
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-4 shadow-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-indigo-600">
+                          Etapa 3
+                        </p>
+                        <h4 className="mt-1 text-base font-semibold text-slate-900">
+                          Atos infracionais vinculados
+                        </h4>
+                        <p className="text-xs text-slate-500">
+                          Vincule todos os atos ao mesmo fato/processo e marque
+                          qual deles deve ser tratado como principal.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => adicionarTipificacaoCaso()}
+                        className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                      >
+                        + Ato infracional
+                      </button>
+                    </div>
+
+                    <div className="space-y-3">
+                      {casoInfracionalAtual.tipificacoes.map(
+                        (tipificacao, tipificacaoIndex) => (
+                          <div
+                            key={tipificacao.id ?? `tip-${tipificacaoIndex}`}
+                            className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-4"
+                          >
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <div>
+                                <p className="text-sm font-semibold text-slate-800">
+                                  Ato infracional {tipificacaoIndex + 1}
+                                </p>
+                                <p className="text-[11px] text-slate-500">
+                                  Defina o enquadramento e complemente com
+                                  qualificadoras, majorantes e observacoes
+                                  tecnicas quando necessario.
+                                </p>
+                              </div>
                               <button
                                 type="button"
-                                key={item.id}
-                                onMouseDown={() => {
-                                  setVinculoSelecionados((prev) => [
-                                    ...prev,
-                                    item,
-                                  ]);
-                                  setVinculoBusca("");
-                                  setMostrandoSugestoesVinculo(false);
-                                }}
-                                className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-indigo-50"
+                                onClick={() =>
+                                  removerTipificacaoCaso(tipificacaoIndex)
+                                }
+                                className="text-[11px] font-semibold text-red-600 hover:text-red-700"
                               >
-                                <span className="h-8 w-8 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-[10px] font-semibold">
+                                Remover
+                              </button>
+                            </div>
+
+                            <div className="grid gap-3 md:grid-cols-2">
+                              <div>
+                                <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+                                  <label className="block text-[11px] font-semibold text-slate-600">
+                                    Ato infracional no catalogo
+                                  </label>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        abrirModalNovoAtoParaTipificacao(
+                                          tipificacaoIndex,
+                                          tipificacao.descricao,
+                                        )
+                                      }
+                                      className="text-[11px] font-semibold text-indigo-700 hover:text-indigo-600"
+                                    >
+                                      Cadastrar novo ato
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={abrirGestaoAtos}
+                                      className="text-[11px] font-semibold text-slate-600 hover:text-slate-800"
+                                    >
+                                      Gerenciar atos
+                                    </button>
+                                  </div>
+                                </div>
+                                <select
+                                  value={tipificacao.catalogoId}
+                                  onChange={(e) => {
+                                    const catalogoId = e.target.value;
+                                    const atoSelecionado =
+                                      atosCatalogoCache.find(
+                                        (item) => item.id === catalogoId,
+                                      );
+                                    atualizarTipificacoesCaso((tipificacoes) =>
+                                      tipificacoes.map((item, index) =>
+                                        index !== tipificacaoIndex
+                                          ? item
+                                          : {
+                                              ...item,
+                                              catalogoId,
+                                              descricao:
+                                                atoSelecionado?.nome ??
+                                                item.descricao,
+                                            },
+                                      ),
+                                    );
+                                  }}
+                                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none"
+                                >
+                                  <option value="">Selecione um ato</option>
+                                  {atosCatalogoCache.map((ato) => (
+                                    <option key={ato.id} value={ato.id}>
+                                      {ato.nome}
+                                      {ato.ativo ? "" : " (inativo)"}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              <div>
+                                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                                  Descricao manual
+                                </label>
+                                <input
+                                  type="text"
+                                  value={tipificacao.descricao}
+                                  onChange={(e) =>
+                                    atualizarTipificacoesCaso((tipificacoes) =>
+                                      tipificacoes.map((item, index) =>
+                                        index !== tipificacaoIndex
+                                          ? item
+                                          : {
+                                              ...item,
+                                              descricao: e.target.value,
+                                            },
+                                      ),
+                                    )
+                                  }
+                                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none"
+                                  placeholder="Use apenas se precisar detalhar manualmente"
+                                />
+                              </div>
+
+                              <div>
+                                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                                  Qualificadora
+                                </label>
+                                <input
+                                  type="text"
+                                  value={tipificacao.qualificadora}
+                                  onChange={(e) =>
+                                    atualizarTipificacoesCaso((tipificacoes) =>
+                                      tipificacoes.map((item, index) =>
+                                        index !== tipificacaoIndex
+                                          ? item
+                                          : {
+                                              ...item,
+                                              qualificadora: e.target.value,
+                                            },
+                                      ),
+                                    )
+                                  }
+                                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none"
+                                  placeholder="Ex: vitima menor de 14 anos"
+                                />
+                              </div>
+
+                              <div>
+                                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                                  Majorante / causa de aumento
+                                </label>
+                                <input
+                                  type="text"
+                                  value={tipificacao.majorante}
+                                  onChange={(e) =>
+                                    atualizarTipificacoesCaso((tipificacoes) =>
+                                      tipificacoes.map((item, index) =>
+                                        index !== tipificacaoIndex
+                                          ? item
+                                          : {
+                                              ...item,
+                                              majorante: e.target.value,
+                                            },
+                                      ),
+                                    )
+                                  }
+                                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none"
+                                  placeholder="Ex: concurso de pessoas, internet"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <input
+                                id={`tip-principal-${tipificacaoIndex}`}
+                                type="checkbox"
+                                checked={tipificacao.principal}
+                                onChange={(e) =>
+                                  atualizarTipificacoesCaso((tipificacoes) =>
+                                    tipificacoes.map((item, index) => ({
+                                      ...item,
+                                      principal:
+                                        index === tipificacaoIndex
+                                          ? e.target.checked
+                                          : e.target.checked
+                                            ? false
+                                            : item.principal,
+                                    })),
+                                  )
+                                }
+                                className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                              />
+                              <label
+                                htmlFor={`tip-principal-${tipificacaoIndex}`}
+                                className="text-xs font-semibold text-slate-700"
+                              >
+                                Marcar como ato principal do caso
+                              </label>
+                            </div>
+
+                            <div>
+                              <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                                Observacoes da tipificacao
+                              </label>
+                              <textarea
+                                value={tipificacao.observacoes}
+                                onChange={(e) =>
+                                  atualizarTipificacoesCaso((tipificacoes) =>
+                                    tipificacoes.map((item, index) =>
+                                      index !== tipificacaoIndex
+                                        ? item
+                                        : {
+                                            ...item,
+                                            observacoes: e.target.value,
+                                          },
+                                    ),
+                                  )
+                                }
+                                rows={2}
+                                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none resize-none"
+                                placeholder="Detalhes complementares da tipificacao."
+                              />
+                            </div>
+                          </div>
+                        ),
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-4 shadow-sm">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <h4 className="text-base font-semibold text-slate-900">
+                          Vinculação no mesmo ato infracional
+                        </h4>
+                        <p className="text-xs text-slate-500">
+                          Registre outros adolescentes envolvidos no mesmo
+                          caso/processo. O alerta de alocação aparece apenas
+                          quando estiverem na mesma ala.
+                        </p>
+                      </div>
+                      <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold text-slate-600">
+                        {atoInfracionalVinculos.length} registrado(s)
+                      </span>
+                    </div>
+
+                    <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                          Adolescentes envolvidos
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={vinculoBusca}
+                            onFocus={() => setMostrandoSugestoesVinculo(true)}
+                            onChange={(e) => setVinculoBusca(e.target.value)}
+                            onBlur={() =>
+                              window.setTimeout(
+                                () => setMostrandoSugestoesVinculo(false),
+                                120,
+                              )
+                            }
+                            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
+                            placeholder="Busque pelo nome ou SMS"
+                          />
+                          {buscandoVinculo && (
+                            <Loader2 className="absolute right-3 top-3.5 h-4 w-4 animate-spin text-indigo-500" />
+                          )}
+                          {mostrandoSugestoesVinculo &&
+                            vinculoBusca.trim().length >= 2 && (
+                              <div className="absolute z-30 mt-1 max-h-52 w-full overflow-auto rounded-xl border border-slate-200 bg-white shadow-lg">
+                                {vinculoSugestoes.length === 0 && (
+                                  <p className="px-3 py-2 text-sm text-slate-500">
+                                    {buscandoVinculo
+                                      ? "Buscando..."
+                                      : "Nenhum adolescente encontrado."}
+                                  </p>
+                                )}
+                                {vinculoSugestoes.map((item) => (
+                                  <button
+                                    type="button"
+                                    key={item.id}
+                                    onMouseDown={() => {
+                                      setVinculoSelecionados((prev) => [
+                                        ...prev,
+                                        item,
+                                      ]);
+                                      setVinculoBusca("");
+                                      setMostrandoSugestoesVinculo(false);
+                                    }}
+                                    className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-indigo-50"
+                                  >
+                                    <span className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white text-[10px] font-semibold text-slate-500 shadow-sm">
+                                      {item.fotoUrl ? (
+                                        <img
+                                          src={item.fotoUrl}
+                                          alt={item.nomeCompleto}
+                                          className="h-full w-full object-cover"
+                                        />
+                                      ) : (
+                                        item.nomeCompleto?.trim().charAt(0) ??
+                                        "?"
+                                      )}
+                                    </span>
+                                    <span className="flex flex-col">
+                                      <span className="text-sm font-semibold text-slate-800">
+                                        {item.nomeCompleto}
+                                      </span>
+                                      <span className="text-[11px] text-slate-500">
+                                        {item.numeroSms
+                                          ? `SMS ${item.numeroSms}`
+                                          : "SMS nao informado"}{" "}
+                                        •{" "}
+                                        {obterStatusLabel(item.statusUnidade)}
+                                      </span>
+                                    </span>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                        </div>
+                        {vinculoSelecionados.length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {vinculoSelecionados.map((item) => (
+                              <span
+                                key={item.id}
+                                className="inline-flex items-center gap-2 rounded-full bg-indigo-50 px-2.5 py-1 text-[11px] font-semibold text-indigo-700"
+                              >
+                                <span className="flex h-5 w-5 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white text-[9px] font-semibold text-slate-500 shadow-sm">
                                   {item.fotoUrl ? (
                                     <img
                                       src={item.fotoUrl}
@@ -3312,223 +3910,145 @@ export function CadastroAdolescente({
                                       className="h-full w-full object-cover"
                                     />
                                   ) : (
-                                    (item.nomeCompleto?.trim().charAt(0) ?? "?")
+                                    item.nomeCompleto?.trim().charAt(0) ?? "?"
                                   )}
                                 </span>
-                                <span className="flex flex-col">
-                                  <span className="text-sm font-semibold text-slate-800">
-                                    {item.nomeCompleto}
-                                  </span>
-                                  <span className="text-[11px] text-slate-500">
-                                    {item.numeroSms
-                                      ? `SMS ${item.numeroSms}`
-                                      : "SMS nao informado"}{" "}
-                                    • {obterStatusLabel(item.statusUnidade)}
-                                  </span>
+                                <span className="max-w-[140px] truncate">
+                                  {item.nomeCompleto}
                                 </span>
-                              </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setVinculoSelecionados((prev) =>
+                                      prev.filter(
+                                        (selecionado) =>
+                                          selecionado.id !== item.id,
+                                      ),
+                                    )
+                                  }
+                                  className="text-indigo-400 hover:text-indigo-600"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </span>
                             ))}
                           </div>
                         )}
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                          Descrição do vínculo
+                        </label>
+                        <textarea
+                          value={vinculoDescricao}
+                          onChange={(e) => setVinculoDescricao(e.target.value)}
+                          rows={3}
+                          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all resize-none"
+                          placeholder="Ex: Ocorrência conjunta registrada no mesmo boletim."
+                        />
+                      </div>
                     </div>
-                    {vinculoSelecionados.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {vinculoSelecionados.map((item) => (
-                          <span
-                            key={item.id}
-                            className="inline-flex items-center gap-2 rounded-full bg-indigo-50 px-2.5 py-1 text-[11px] font-semibold text-indigo-700"
+
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={adicionarVinculoInfracional}
+                        disabled={!podeAdicionarVinculo}
+                        className="rounded-xl bg-indigo-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300"
+                      >
+                        {vinculoEmEdicaoId
+                          ? "Salvar vínculo"
+                          : "Adicionar vínculo"}
+                      </button>
+                      {vinculoEmEdicaoId && (
+                        <button
+                          type="button"
+                          onClick={() => limparFormularioVinculo()}
+                          className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                        >
+                          Cancelar edição
+                        </button>
+                      )}
+                    </div>
+
+                    {atoInfracionalVinculos.length === 0 ? (
+                      <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-center text-[11px] text-slate-500">
+                        Nenhum vínculo infracional registrado.
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {atoInfracionalVinculos.map((vinculo, index) => (
+                          <div
+                            key={`${vinculo.id ?? "novo"}-${index}`}
+                            className="rounded-xl border border-slate-200 bg-slate-50 p-3"
                           >
-                            <span className="h-5 w-5 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-[9px] font-semibold text-slate-500">
-                              {item.fotoUrl ? (
-                                <img
-                                  src={item.fotoUrl}
-                                  alt={item.nomeCompleto}
-                                  className="h-full w-full object-cover"
-                                />
-                              ) : (
-                                (item.nomeCompleto?.trim().charAt(0) ?? "?")
+                            <p className="text-xs font-semibold text-slate-800">
+                              {vinculo.descricao}
+                            </p>
+                            <ul className="mt-2 space-y-1 text-[11px] text-slate-600">
+                              {(vinculo.adolescentes ?? []).map(
+                                (adolescente) => (
+                                  <li
+                                    key={adolescente.id}
+                                    className="flex items-center gap-2"
+                                  >
+                                    <span className="flex h-5 w-5 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white text-[9px] font-semibold text-slate-500 shadow-sm">
+                                      {adolescente.fotoUrl ? (
+                                        <img
+                                          src={adolescente.fotoUrl}
+                                          alt={adolescente.nomeCompleto}
+                                          className="h-full w-full object-cover"
+                                        />
+                                      ) : (
+                                        adolescente.nomeCompleto
+                                          ?.trim()
+                                          .charAt(0) ?? "?"
+                                      )}
+                                    </span>
+                                    <span>
+                                      {adolescente.nomeCompleto}
+                                      {adolescente.numeroSms
+                                        ? ` (SMS ${adolescente.numeroSms})`
+                                        : ""}{" "}
+                                      •{" "}
+                                      {obterStatusLabel(
+                                        adolescente.statusUnidade,
+                                      )}
+                                    </span>
+                                  </li>
+                                ),
                               )}
-                            </span>
-                            <span className="max-w-[140px] truncate">
-                              {item.nomeCompleto}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setVinculoSelecionados((prev) =>
-                                  prev.filter(
-                                    (selecionado) => selecionado.id !== item.id,
-                                  ),
-                                )
-                              }
-                              className="text-indigo-400 hover:text-indigo-600"
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
-                          </span>
+                            </ul>
+                            <div className="mt-2 flex items-center gap-4">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  iniciarEdicaoVinculoInfracional(
+                                    vinculo,
+                                    index,
+                                  )
+                                }
+                                className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-700"
+                              >
+                                Editar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  removerVinculoInfracional(index)
+                                }
+                                className="text-[11px] font-semibold text-red-600 hover:text-red-700"
+                              >
+                                Remover
+                              </button>
+                            </div>
+                          </div>
                         ))}
                       </div>
                     )}
                   </div>
-
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                      Descrição do vínculo
-                    </label>
-                    <textarea
-                      value={vinculoDescricao}
-                      onChange={(e) => setVinculoDescricao(e.target.value)}
-                      rows={2}
-                      className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all resize-none"
-                      placeholder="Ex: Ocorrencia conjunta registrada no mesmo boletim."
-                    />
-                  </div>
                 </div>
-
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={adicionarVinculoInfracional}
-                    disabled={!podeAdicionarVinculo}
-                    className="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300"
-                  >
-                    {vinculoEmEdicaoId ? "Salvar vínculo" : "Adicionar vínculo"}
-                  </button>
-                  {vinculoEmEdicaoId && (
-                    <button
-                      type="button"
-                      onClick={() => limparFormularioVinculo()}
-                      className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
-                    >
-                      Cancelar edição
-                    </button>
-                  )}
-                </div>
-
-                {atoInfracionalVinculos.length === 0 ? (
-                  <div className="mt-3 rounded-md border border-dashed border-slate-200 bg-white px-3 py-2 text-center text-[11px] text-slate-500">
-                    Nenhum vinculo infracional registrado.
-                  </div>
-                ) : (
-                  <div className="mt-3 space-y-2">
-                    {atoInfracionalVinculos.map((vinculo, index) => (
-                      <div
-                        key={`${vinculo.id ?? "novo"}-${index}`}
-                        className="rounded-md border border-slate-200 bg-white p-3"
-                      >
-                        <p className="text-xs font-semibold text-slate-800">
-                          {vinculo.descricao}
-                        </p>
-                        <ul className="mt-2 space-y-1 text-[11px] text-slate-600">
-                          {(vinculo.adolescentes ?? []).map((adolescente) => (
-                            <li
-                              key={adolescente.id}
-                              className="flex items-center gap-2"
-                            >
-                              <span className="h-5 w-5 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-[9px] font-semibold text-slate-500">
-                                {adolescente.fotoUrl ? (
-                                  <img
-                                    src={adolescente.fotoUrl}
-                                    alt={adolescente.nomeCompleto}
-                                    className="h-full w-full object-cover"
-                                  />
-                                ) : (
-                                  (adolescente.nomeCompleto?.trim().charAt(0) ??
-                                  "?")
-                                )}
-                              </span>
-                              <span>
-                                {adolescente.nomeCompleto}
-                                {adolescente.numeroSms
-                                  ? ` (SMS ${adolescente.numeroSms})`
-                                  : ""}{" "}
-                                • {obterStatusLabel(adolescente.statusUnidade)}
-                              </span>
-                            </li>
-                          ))}
-                        </ul>
-                        <div className="mt-2 flex items-center gap-4">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              iniciarEdicaoVinculoInfracional(vinculo, index)
-                            }
-                            className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-700"
-                          >
-                            Editar
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => removerVinculoInfracional(index)}
-                            className="text-[11px] font-semibold text-red-600 hover:text-red-700"
-                          >
-                            Remover
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-4">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Número do Processo
-                    </label>
-                    <input
-                      type="text"
-                      value={atoInfracional.processo}
-                      onChange={(e) =>
-                        setAtoInfracional({
-                          ...atoInfracional,
-                          processo: e.target.value,
-                        })
-                      }
-                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
-                      placeholder="Ex: 0001234-56.2024.8.16.0000"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Ano do Fato
-                    </label>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      value={atoInfracional.ano}
-                      onChange={(e) =>
-                        setAtoInfracional({
-                          ...atoInfracional,
-                          ano: e.target.value,
-                        })
-                      }
-                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
-                      placeholder="Ex: 2024"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Observações complementares
-                  </label>
-                  <textarea
-                    value={atoInfracional.observacoesComplementares}
-                    onChange={(e) =>
-                      setAtoInfracional({
-                        ...atoInfracional,
-                        observacoesComplementares: e.target.value,
-                      })
-                    }
-                    rows={2}
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all resize-none"
-                    placeholder="Registre detalhes adicionais sobre o ato infracional atual."
-                  />
-                </div>
-
                 <div
                   className={`p-4 rounded-xl border-2 transition-all ${
                     atoInfracional.gravidade

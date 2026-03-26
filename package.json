@@ -12,6 +12,7 @@
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
+    "db:backfill-casos-infracionais": "tsx scripts/backfill-casos-infracionais.ts",
     "historico:dedupe": "node scripts/dedupe-historico-infracional.js",
     "postinstall": "prisma generate"
   },

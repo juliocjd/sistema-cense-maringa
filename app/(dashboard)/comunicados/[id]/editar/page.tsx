@@ -199,7 +199,7 @@ export default function EditarCIPage() {
       const normalizados: Adolescente[] = lista.map((item: ApiAdolescente) => ({
         id: item.id,
         nome: formatarNomeAdolescente(item),
-        numeroSms: item.numeroSms ?? "N?o informado",
+        numeroSms: item.numeroSms ?? "Não informado",
         fotoUrl: item.fotoUrl ?? null,
         alojamento: formatarAlojamento(item.alojamentoAtual, item.alojamento),
         ladoConflito:
@@ -236,7 +236,7 @@ export default function EditarCIPage() {
           ? data.adolescentes.map((item) => ({
               id: item.id,
               nome: formatarNomeAdolescente(item),
-              numeroSms: item.numeroSms ?? "N?o informado",
+              numeroSms: item.numeroSms ?? "Não informado",
               fotoUrl: item.fotoUrl ?? null,
               alojamento: formatarAlojamento(
                 item.alojamentoAtual,
@@ -272,7 +272,7 @@ export default function EditarCIPage() {
               lado1.set(a.id, {
                 id: a.id,
                 nome: a.nome ?? a.nomeCompleto ?? "Participante Lado 1",
-                numeroSms: a.numeroSms ?? "N?o informado",
+                numeroSms: a.numeroSms ?? "Não informado",
                 fotoUrl: null,
               });
             }
@@ -280,7 +280,7 @@ export default function EditarCIPage() {
               lado2.set(b.id, {
                 id: b.id,
                 nome: b.nome ?? b.nomeCompleto ?? "Participante Lado 2",
-                numeroSms: b.numeroSms ?? "N?o informado",
+                numeroSms: b.numeroSms ?? "Não informado",
                 fotoUrl: null,
               });
             }

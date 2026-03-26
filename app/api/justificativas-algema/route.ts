@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { hasPermission, PERMISSIONS } from "@/lib/auth/permissions";
+import { obterResumoAtoAtual } from "@/lib/adolescentes/casos-infracionais";
 
 export const dynamic = "force-dynamic";
 
@@ -93,8 +94,14 @@ export async function GET(request: NextRequest) {
               id: true,
               nomeCompleto: true,
               numeroSms: true,
-              numeroProcesso: true,
               fotoUrl: true,
+              casosInfracionais: {
+                where: { status: "ATUAL" },
+                take: 1,
+                select: {
+                  numeroProcesso: true,
+                },
+              },
             },
           },
           operadorResponsavel: {
@@ -122,7 +129,16 @@ export async function GET(request: NextRequest) {
     ]);
 
     return NextResponse.json({
-      justificativas,
+      justificativas: justificativas.map((item) => ({
+        ...item,
+        adolescente: item.adolescente
+          ? {
+              ...item.adolescente,
+              numeroProcesso:
+                item.adolescente.casosInfracionais?.[0]?.numeroProcesso ?? null,
+            }
+          : item.adolescente,
+      })),
       total,
       limit,
       offset,
@@ -162,10 +178,29 @@ export async function POST(request: NextRequest) {
         nomeCompleto: true,
         numeroSms: true,
         statusUnidade: true,
-        atoInfracionalAtualId: true,
-        atoInfracionalAtualCatalogo: { select: { id: true, nome: true } },
-        numeroProcesso: true,
         atoInfracionalGravidade: true,
+        casosInfracionais: {
+          select: {
+            id: true,
+            status: true,
+            numeroProcesso: true,
+            anoFato: true,
+            comarca: true,
+            narrativa: true,
+            tipificacoes: {
+              select: {
+                id: true,
+                principal: true,
+                qualificadora: true,
+                majorante: true,
+                descricaoManual: true,
+                atoInfracionalCatalogo: {
+                  select: { nome: true },
+                },
+              },
+            },
+          },
+        },
       },
     });
 
@@ -215,6 +250,9 @@ export async function POST(request: NextRequest) {
     }
 
     const diretorAtual = validatedData.atualDiretorUnidade.trim();
+    const resumoAtoAtual = obterResumoAtoAtual({
+      casosInfracionais: adolescente.casosInfracionais,
+    });
     const equipePersistida = [
       `${DIRETOR_MARKER}${diretorAtual}`,
       ...(validatedData.equipeProfissional ?? [])
@@ -234,9 +272,11 @@ export async function POST(request: NextRequest) {
         fundamentacaoLegal: validatedData.fundamentacaoLegal,
         atoInfracionalBase:
           validatedData.atoInfracionalBase ||
-          adolescente.atoInfracionalAtualCatalogo?.nome ||
+          resumoAtoAtual.descricao ||
           null,
-        numeroProcesso: validatedData.numeroProcesso || adolescente.numeroProcesso,
+        numeroProcesso:
+          validatedData.numeroProcesso ||
+          resumoAtoAtual.numeroProcesso,
         decisaoJudicial: validatedData.decisaoJudicial,
         riscoFuga: validatedData.riscoFuga,
         riscoAgressao: validatedData.riscoAgressao,
@@ -263,7 +303,13 @@ export async function POST(request: NextRequest) {
           select: {
             nomeCompleto: true,
             numeroSms: true,
-            numeroProcesso: true,
+            casosInfracionais: {
+              where: { status: "ATUAL" },
+              take: 1,
+              select: {
+                numeroProcesso: true,
+              },
+            },
           },
         },
         operadorResponsavel: {
@@ -294,7 +340,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         mensagem: "Justificativa de algema criada com sucesso",
-        justificativa,
+        justificativa: {
+          ...justificativa,
+          adolescente: justificativa.adolescente
+            ? {
+                ...justificativa.adolescente,
+                numeroProcesso:
+                  justificativa.adolescente.casosInfracionais?.[0]
+                    ?.numeroProcesso ?? null,
+              }
+            : justificativa.adolescente,
+        },
         numeroDocumento,
       },
       { status: 201 }

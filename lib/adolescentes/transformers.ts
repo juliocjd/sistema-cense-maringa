@@ -6,6 +6,11 @@ import {
   extrairNivelRiscoSuicidio,
   mapearTipoEspecialPorCodigo,
 } from "@/lib/alertas/especiais";
+import {
+  normalizarCasoInfracional,
+  obterResumoAtoAtual,
+  obterTipificacaoPrincipal,
+} from "@/lib/adolescentes/casos-infracionais";
 
 // Prisma include used across adolescentes endpoints to ensure we always fetch
 // the same related entities before mapping them to the API contract.
@@ -63,14 +68,6 @@ export const INCLUDE_ADOLESCENTE_DEFAULT: any = {
           },
         },
       },
-    },
-  },
-  atoInfracionalAtualCatalogo: {
-    select: {
-      id: true,
-      nome: true,
-      gravidade: true,
-      violenciaOuGraveAmeaca: true,
     },
   },
   conflitosA: {
@@ -171,6 +168,24 @@ export const INCLUDE_ADOLESCENTE_DEFAULT: any = {
       ano: "desc",
     },
   },
+  casosInfracionais: {
+    include: {
+      tipificacoes: {
+        include: {
+          atoInfracionalCatalogo: {
+            select: {
+              id: true,
+              nome: true,
+              gravidade: true,
+              violenciaOuGraveAmeaca: true,
+            },
+          },
+        },
+        orderBy: [{ ordem: "asc" }, { criadoEm: "asc" }],
+      },
+    },
+    orderBy: [{ atualizadoEm: "desc" }, { criadoEm: "desc" }],
+  },
   atoInfracionalVinculos: {
     include: {
       vinculo: {
@@ -270,6 +285,39 @@ export const SELECT_ADOLESCENTE_LISTA = {
       cidadeCatalogo: { select: { estado: true } },
     },
   },
+  casosInfracionais: {
+    where: { status: "ATUAL" },
+    take: 1,
+    select: {
+      id: true,
+      status: true,
+      numeroProcesso: true,
+      anoFato: true,
+      comarca: true,
+      narrativa: true,
+      tipificacoes: {
+        orderBy: [{ ordem: "asc" }, { criadoEm: "asc" }],
+        select: {
+          id: true,
+          ordem: true,
+          principal: true,
+          qualificadora: true,
+          majorante: true,
+          observacoes: true,
+          descricaoManual: true,
+          atoInfracionalCatalogoId: true,
+          atoInfracionalCatalogo: {
+            select: {
+              id: true,
+              nome: true,
+              gravidade: true,
+              violenciaOuGraveAmeaca: true,
+            },
+          },
+        },
+      },
+    },
+  },
 } satisfies Prisma.AdolescenteSelect;
 
 // Lighter include for map/estrutura views (avoid heavy relations).
@@ -280,6 +328,26 @@ export const INCLUDE_ADOLESCENTE_MAPA = {
   faccao: true,
   bairroOrigem: {
     include: { cidadeCatalogo: { select: { estado: true } } },
+  },
+  casosInfracionais: {
+    where: { status: "ATUAL" },
+    include: {
+      tipificacoes: {
+        include: {
+          atoInfracionalCatalogo: {
+            select: {
+              id: true,
+              nome: true,
+              gravidade: true,
+              violenciaOuGraveAmeaca: true,
+            },
+          },
+        },
+        orderBy: [{ ordem: "asc" }, { criadoEm: "asc" }],
+      },
+    },
+    orderBy: [{ atualizadoEm: "desc" }, { criadoEm: "desc" }],
+    take: 1,
   },
   alertasAtivos: {
     where: { desativadoEm: null },
@@ -497,6 +565,48 @@ export function mapPrismaAdolescente(adolescente: any): Adolescente {
       observacoes: registro.observacoes ?? null,
     })) ?? [];
 
+  const casosInfracionais =
+    adolescente.casosInfracionais?.map((caso: any) => {
+      return normalizarCasoInfracional({
+        id: caso.id,
+        status: caso.status ?? null,
+        numeroProcesso: caso.numeroProcesso ?? null,
+        anoFato: caso.anoFato ?? null,
+        comarca: caso.comarca ?? null,
+        narrativa: caso.narrativa ?? null,
+        tipificacoes:
+          caso.tipificacoes?.map((tipificacao: any) => ({
+            id: tipificacao.id,
+            ordem: tipificacao.ordem ?? 1,
+            catalogoId: tipificacao.atoInfracionalCatalogoId ?? null,
+            descricao:
+              tipificacao.atoInfracionalCatalogo?.nome ??
+              tipificacao.descricaoManual ??
+              null,
+            principal: tipificacao.principal ?? false,
+            qualificadora: tipificacao.qualificadora ?? null,
+            majorante: tipificacao.majorante ?? null,
+            observacoes: tipificacao.observacoes ?? null,
+          })) ?? [],
+      });
+    })?.filter(Boolean) ?? [];
+  const casoInfracionalAtual =
+    casosInfracionais.find((caso: any) => caso.status === "ATUAL") ??
+    casosInfracionais[0] ??
+    null;
+  const casoAtualBruto =
+    adolescente.casosInfracionais?.find((caso: any) => caso.status === "ATUAL") ??
+    adolescente.casosInfracionais?.[0] ??
+    null;
+  const tipificacaoPrincipalAtualBruta =
+    obterTipificacaoPrincipal(casoAtualBruto?.tipificacoes) ?? null;
+  const atoCatalogoAtual =
+    tipificacaoPrincipalAtualBruta?.atoInfracionalCatalogo ?? null;
+  const resumoAtoAtual = obterResumoAtoAtual({
+    casosInfracionais,
+    casoInfracionalAtual,
+  });
+
   const atoInfracionalVinculos =
     adolescente.atoInfracionalVinculos
       ?.map((item: any) => {
@@ -561,20 +671,21 @@ export function mapPrismaAdolescente(adolescente: any): Adolescente {
     numeroSms: adolescente.numeroSms ?? null,
     numeroInterno: adolescente.numeroInterno ?? null,
     vulgo: adolescente.vulgo ?? null,
-    numeroProcesso: adolescente.numeroProcesso ?? null,
+    numeroProcesso: resumoAtoAtual.numeroProcesso ?? null,
     fotoUrl: adolescente.fotoUrl ?? null,
     dataNascimento: formatDate(adolescente.dataNascimento),
     dataEntrada: formatDate(adolescente.dataEntrada),
-  atoInfracionalAtualId: adolescente.atoInfracionalAtualId ?? null,
-  atoInfracionalAtual: (adolescente as any).atoInfracionalAtualCatalogo?.nome ?? null,
-  atoInfracionalCatalogoGravidade:
-    (adolescente as any).atoInfracionalAtualCatalogo?.gravidade ?? null,
-  atoInfracionalCatalogoViolencia:
-    (adolescente as any).atoInfracionalAtualCatalogo?.violenciaOuGraveAmeaca ?? null,
-    atoInfracionalAno: adolescente.atoInfracionalAno ?? null,
-    atoInfracionalProcesso: adolescente.atoInfracionalProcesso ?? null,
-    atoInfracionalObservacoes:
-      (adolescente as any).atoInfracionalObservacoes ?? null,
+    atoInfracionalAtualId:
+      tipificacaoPrincipalAtualBruta?.atoInfracionalCatalogoId ??
+      atoCatalogoAtual?.id ??
+      null,
+    atoInfracionalAtual: resumoAtoAtual.descricao ?? null,
+    atoInfracionalCatalogoGravidade: atoCatalogoAtual?.gravidade ?? null,
+    atoInfracionalCatalogoViolencia:
+      atoCatalogoAtual?.violenciaOuGraveAmeaca ?? null,
+    atoInfracionalAno: resumoAtoAtual.anoFato ?? null,
+    atoInfracionalProcesso: resumoAtoAtual.numeroProcesso ?? null,
+    atoInfracionalObservacoes: resumoAtoAtual.narrativa ?? null,
     atoInfracionalGravidade: adolescente.atoInfracionalGravidade ?? false,
     atoInfracionalGravidadeObs: adolescente.atoInfracionalGravidadeObs ?? null,
     statusUnidade,
@@ -781,6 +892,8 @@ export function mapPrismaAdolescente(adolescente: any): Adolescente {
         }) ?? [],
     historicoInfracional,
     atoInfracionalVinculos,
+    casoInfracionalAtual,
+    casosInfracionais,
     alertasEspeciais,
     alertasAtivos,
     alertasPendentes: 0,
@@ -840,7 +953,17 @@ export function mapPrismaAdolescenteMapa(
         ): alerta is NonNullable<typeof alerta> => Boolean(alerta)
       ) ?? [];
   const alertaSuicidioNivel = extrairNivelRiscoSuicidio(alertasEspeciais);
-  const atoCatalogo = (adolescente as any).atoInfracionalAtualCatalogo ?? null;
+  const casoAtualBruto =
+    adolescente.casosInfracionais?.find((caso: any) => caso.status === "ATUAL") ??
+    adolescente.casosInfracionais?.[0] ??
+    null;
+  const tipificacaoPrincipalAtualBruta =
+    obterTipificacaoPrincipal(casoAtualBruto?.tipificacoes) ?? null;
+  const atoCatalogo = tipificacaoPrincipalAtualBruta?.atoInfracionalCatalogo ?? null;
+  const resumoAtoAtual = obterResumoAtoAtual({
+    casosInfracionais: adolescente.casosInfracionais ?? [],
+    casoInfracionalAtual: adolescente.casoInfracionalAtual ?? null,
+  });
   const atoInfracionalVinculos =
     adolescente.atoInfracionalVinculos
       ?.map((item: any) => {
@@ -867,11 +990,18 @@ export function mapPrismaAdolescenteMapa(
     fotoUrl: adolescente.fotoUrl ?? null,
     dataNascimento: formatDate(adolescente.dataNascimento),
     dataEntrada: formatDate(adolescente.dataEntrada),
-    numeroProcesso: adolescente.numeroProcesso ?? null,
-    atoInfracionalAtualId: adolescente.atoInfracionalAtualId ?? null,
-    atoInfracionalAtual: atoCatalogo?.nome ?? null,
-    atoInfracionalAno: adolescente.atoInfracionalAno ?? null,
-    atoInfracionalProcesso: adolescente.atoInfracionalProcesso ?? null,
+    numeroProcesso: resumoAtoAtual.numeroProcesso ?? null,
+    atoInfracionalAtualId:
+      tipificacaoPrincipalAtualBruta?.atoInfracionalCatalogoId ??
+      atoCatalogo?.id ??
+      null,
+    atoInfracionalAtual: resumoAtoAtual.descricao ?? null,
+    atoInfracionalCatalogoGravidade: atoCatalogo?.gravidade ?? null,
+    atoInfracionalCatalogoViolencia:
+      atoCatalogo?.violenciaOuGraveAmeaca ?? null,
+    atoInfracionalAno: resumoAtoAtual.anoFato ?? null,
+    atoInfracionalProcesso: resumoAtoAtual.numeroProcesso ?? null,
+    atoInfracionalObservacoes: resumoAtoAtual.narrativa ?? null,
     atoInfracionalGravidade: adolescente.atoInfracionalGravidade ?? false,
     atoInfracionalGravidadeObs: adolescente.atoInfracionalGravidadeObs ?? null,
     statusUnidade,

@@ -201,6 +201,48 @@ export interface AdolescenteHistoricoRegistroInput {
   catalogoId?: string | null;
 }
 
+export interface AdolescenteCasoInfracionalTipificacaoItem {
+  id?: string;
+  ordem?: number;
+  catalogoId?: string | null;
+  descricao?: string | null;
+  principal?: boolean;
+  qualificadora?: string | null;
+  majorante?: string | null;
+  observacoes?: string | null;
+}
+
+export interface AdolescenteCasoInfracionalTipificacaoInput {
+  id?: string;
+  ordem?: number;
+  catalogoId?: string | null;
+  descricao?: string | null;
+  principal?: boolean;
+  qualificadora?: string | null;
+  majorante?: string | null;
+  observacoes?: string | null;
+}
+
+export interface AdolescenteCasoInfracionalItem {
+  id?: string;
+  status?: string | null;
+  numeroProcesso?: string | null;
+  anoFato?: number | null;
+  comarca?: string | null;
+  narrativa?: string | null;
+  tipificacoes?: AdolescenteCasoInfracionalTipificacaoItem[];
+}
+
+export interface AdolescenteCasoInfracionalInput {
+  id?: string;
+  status?: string | null;
+  numeroProcesso?: string | null;
+  anoFato?: number | string | null;
+  comarca?: string | null;
+  narrativa?: string | null;
+  tipificacoes?: AdolescenteCasoInfracionalTipificacaoInput[];
+}
+
 export interface AdolescenteAtoInfracionalVinculoAdolescente {
   id: string;
   nomeCompleto: string;
@@ -302,6 +344,8 @@ export interface Adolescente {
   conflitosResolvidos?: Conflito[];
   historicoInfracional: AdolescenteHistoricoInfracionalItem[];
   atoInfracionalVinculos?: AdolescenteAtoInfracionalVinculoItem[];
+  casoInfracionalAtual?: AdolescenteCasoInfracionalItem | null;
+  casosInfracionais?: AdolescenteCasoInfracionalItem[];
   alertasEspeciais?: AdolescenteAlertaEspecial[];
   alertasAtivos?: Array<{
     id: string;
@@ -341,6 +385,14 @@ export type AdolescenteAlertaEspecial = {
 export type AdolescenteCadastroPayload = Partial<
   Omit<
     Adolescente,
+    | "numeroProcesso"
+    | "atoInfracionalAtualId"
+    | "atoInfracionalAtual"
+    | "atoInfracionalCatalogoGravidade"
+    | "atoInfracionalCatalogoViolencia"
+    | "atoInfracionalAno"
+    | "atoInfracionalProcesso"
+    | "atoInfracionalObservacoes"
     | "alojamentoAtual"
     | "tecnicosReferencia"
     | "grupos"
@@ -355,16 +407,17 @@ export type AdolescenteCadastroPayload = Partial<
     alertasEspeciais?: Array<
       Pick<AdolescenteAlertaEspecial, "tipo" | "descricao" | "nivelRisco">
     >;
+    casoInfracionalAtual?: AdolescenteCasoInfracionalInput | null;
     historicoInfracional?: AdolescenteHistoricoRegistroInput[];
     atoInfracionalVinculos?: AdolescenteAtoInfracionalVinculoInput[];
     tatuagens?: Array<{
-    catalogoId: string;
-    localCorpo: string;
-    observacoes?: string;
-    significadoPessoal?: string;
-  }>;
-  tecnicosReferenciaIds?: string[];
-};
+      catalogoId: string;
+      localCorpo: string;
+      observacoes?: string;
+      significadoPessoal?: string;
+    }>;
+    tecnicosReferenciaIds?: string[];
+  };
 
 export interface ListaAdolescentesMeta {
   total: number;

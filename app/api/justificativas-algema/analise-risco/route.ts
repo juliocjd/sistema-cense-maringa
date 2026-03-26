@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
+  obterCasoAtual,
+  obterCasosHistoricos,
+  obterResumoAtoAtual,
+  obterTituloCaso,
+} from "@/lib/adolescentes/casos-infracionais";
+import {
   TIPO_PROTOCOLO_ALTA,
   TIPO_PROTOCOLO_ATIVADO,
 } from "@/lib/alertas/protocolo-risco-suicidio";
@@ -132,7 +138,6 @@ export async function GET(request: NextRequest) {
       include: {
         faccao: true,
         bairroOrigem: true,
-        atoInfracionalAtualCatalogo: true,
         alojamentoAtual: {
           include: {
             casa: true,
@@ -181,6 +186,18 @@ export async function GET(request: NextRequest) {
           include: {
             tatuagemCatalogo: true,
           },
+        },
+        casosInfracionais: {
+          include: {
+            tipificacoes: {
+              include: {
+                atoInfracionalCatalogo: {
+                  select: { id: true, nome: true },
+                },
+              },
+            },
+          },
+          orderBy: [{ atualizadoEm: "desc" }, { criadoEm: "desc" }],
         },
         historicoInfracional: {
           orderBy: {
@@ -328,14 +345,43 @@ export async function GET(request: NextRequest) {
     let pontuacaoRiscoAutolesao = 0;
     const fundamentacoes: string[] = [];
     const fatoresAgravantes: string[] = [];
+    const casosFormatados =
+      adolescente.casosInfracionais?.map((caso) => ({
+        id: caso.id,
+        status: caso.status ?? null,
+        numeroProcesso: caso.numeroProcesso ?? null,
+        anoFato: caso.anoFato ?? null,
+        comarca: caso.comarca ?? null,
+        narrativa: caso.narrativa ?? null,
+        tipificacoes:
+          caso.tipificacoes?.map((tipificacao) => ({
+            id: tipificacao.id,
+            descricao:
+              tipificacao.atoInfracionalCatalogo?.nome ??
+              tipificacao.descricaoManual ??
+              null,
+            qualificadora: tipificacao.qualificadora ?? null,
+            majorante: tipificacao.majorante ?? null,
+            principal: tipificacao.principal ?? false,
+          })) ?? [],
+      })) ?? [];
+    const casoAtual = obterCasoAtual(casosFormatados);
+    const casosHistoricos = obterCasosHistoricos(
+      casosFormatados,
+      casoAtual?.id ?? null
+    );
+    const resumoAtoAtual = obterResumoAtoAtual({
+      casosInfracionais: casosFormatados,
+      casoInfracionalAtual: casoAtual,
+    });
 
     // 1. Ato infracional atual
-    const atoAtualNome = adolescente.atoInfracionalAtualCatalogo?.nome ?? null;
+    const atoAtualNome = resumoAtoAtual.descricao ?? null;
     const atoAtualPartes = [
       atoAtualNome,
-      adolescente.atoInfracionalAno ? `(${adolescente.atoInfracionalAno})` : null,
-      adolescente.atoInfracionalProcesso
-        ? `Processo ${adolescente.atoInfracionalProcesso}`
+      resumoAtoAtual.anoFato ? `(${resumoAtoAtual.anoFato})` : null,
+      resumoAtoAtual.numeroProcesso
+        ? `Processo ${resumoAtoAtual.numeroProcesso}`
         : null,
     ].filter(Boolean);
 
@@ -372,11 +418,14 @@ export async function GET(request: NextRequest) {
     }
 
     // 2. Histórico infracional
-    if (adolescente.historicoInfracional.length > 0) {
+    if (casosHistoricos.length > 0 || adolescente.historicoInfracional.length > 0) {
       const atosGraves = adolescente.historicoInfracional.filter(
         (registro) => registro.atoInfracionalGravidade
       );
-      const totalAtos = adolescente.historicoInfracional.length;
+      const totalAtos = Math.max(
+        adolescente.historicoInfracional.length,
+        casosHistoricos.length
+      );
 
       pontuacaoRiscoFuga += Math.min(totalAtos * 5, 20);
       pontuacaoRiscoAgressao += Math.min(atosGraves.length * 10, 30);
@@ -386,19 +435,29 @@ export async function GET(request: NextRequest) {
         `Histórico infracional registra ${totalAtos} ocorrência(s), ${atosGraves.length} com gravidade reconhecida`
       );
 
-      const historicoDetalhado = adolescente.historicoInfracional
-        .slice(0, 3)
-        .map((registro) => {
-          const itens = [
-            registro.atoInfracionalDescricao,
-            registro.atoInfracionalAno ? `(${registro.atoInfracionalAno})` : null,
-            registro.atoInfracionalProcesso
-              ? `Processo ${registro.atoInfracionalProcesso}`
-              : null,
-            registro.atoInfracionalGravidade ? "gravidade reconhecida" : null,
-          ].filter(Boolean);
-          return itens.join(" - ");
-        });
+      const historicoDetalhado =
+        casosHistoricos.length > 0
+          ? casosHistoricos.slice(0, 3).map((caso) => {
+              const itens = [
+                obterTituloCaso(caso),
+                caso.anoFato ? `(${caso.anoFato})` : null,
+                caso.numeroProcesso ? `Processo ${caso.numeroProcesso}` : null,
+              ].filter(Boolean);
+              return itens.join(" - ");
+            })
+          : adolescente.historicoInfracional
+              .slice(0, 3)
+              .map((registro) => {
+                const itens = [
+                  registro.atoInfracionalDescricao,
+                  registro.atoInfracionalAno ? `(${registro.atoInfracionalAno})` : null,
+                  registro.atoInfracionalProcesso
+                    ? `Processo ${registro.atoInfracionalProcesso}`
+                    : null,
+                  registro.atoInfracionalGravidade ? "gravidade reconhecida" : null,
+                ].filter(Boolean);
+                return itens.join(" - ");
+              });
 
       adicionarTexto(
         fundamentacoes,
@@ -815,7 +874,7 @@ export async function GET(request: NextRequest) {
         id: adolescente.id,
         nomeCompleto: adolescente.nomeCompleto,
         numeroSms: adolescente.numeroSms,
-        numeroProcesso: adolescente.numeroProcesso,
+        numeroProcesso: resumoAtoAtual.numeroProcesso,
         atoInfracionalAtual: atoAtualNome,
         faccao: adolescente.faccao?.nomeFaccao ?? null,
         bairroOrigem: descreverBairro(origemBairro),
@@ -839,7 +898,10 @@ export async function GET(request: NextRequest) {
         totalComunicadosInternos: cisRecentes,
         totalAlertasAtivos: adolescente.alertasAtivos.length,
         totalTatuagens: adolescente.tatuagens.length,
-        totalHistoricoInfracional: adolescente.historicoInfracional.length,
+        totalHistoricoInfracional: Math.max(
+          adolescente.historicoInfracional.length,
+          casosHistoricos.length
+        ),
         alertaRiscoSuicidio: adolescente.alertaRiscoSuicidio,
         atoInfracionalGravidade: adolescente.atoInfracionalGravidade,
       },

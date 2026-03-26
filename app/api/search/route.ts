@@ -24,7 +24,13 @@ export async function GET(request: NextRequest) {
             { nomeCompleto: { contains: query, mode: "insensitive" } },
             { nomeSocial: { contains: query, mode: "insensitive" } },
             { numeroSms: { contains: query } },
-            { numeroProcesso: { contains: query, mode: "insensitive" } },
+            {
+              casosInfracionais: {
+                some: {
+                  numeroProcesso: { contains: query, mode: "insensitive" },
+                },
+              },
+            },
             ...(numeroValido !== null ? [{ numeroInterno: numeroValido }] : []),
           ],
         },
@@ -34,8 +40,14 @@ export async function GET(request: NextRequest) {
           id: true,
           nomeCompleto: true,
           numeroSms: true,
-          numeroProcesso: true,
           statusUnidade: true,
+          casosInfracionais: {
+            where: { status: "ATUAL" },
+            take: 1,
+            select: {
+              numeroProcesso: true,
+            },
+          },
           alojamentoAtual: {
             select: {
               numeroAlojamento: true,
@@ -65,7 +77,7 @@ export async function GET(request: NextRequest) {
           id: ado.id,
           nome: ado.nomeCompleto,
           numeroSms: ado.numeroSms,
-          numeroProcesso: ado.numeroProcesso,
+          numeroProcesso: ado.casosInfracionais?.[0]?.numeroProcesso ?? null,
           status: ado.statusUnidade,
           alojamento: ado.alojamentoAtual
             ? `${ado.alojamentoAtual.casa?.nome ?? "Casa"} ${

@@ -230,7 +230,7 @@ export function DetalhesCI({
 
         nome: participante.nome,
 
-        numeroSms: "N?o informado",
+        numeroSms: "Não informado",
       };
     };
 

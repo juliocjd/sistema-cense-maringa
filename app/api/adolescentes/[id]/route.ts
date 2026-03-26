@@ -56,6 +56,27 @@ const vinculoInfracionalSchema = z.object({
   adolescentesIds: z.array(z.string().uuid()).optional().default([]),
 });
 
+const casoTipificacaoSchema = z.object({
+  id: z.string().uuid().optional().nullable(),
+  ordem: z.number().int().positive().optional().nullable(),
+  catalogoId: z.string().uuid().optional().nullable(),
+  descricao: z.string().optional().nullable(),
+  principal: z.boolean().optional(),
+  qualificadora: z.string().optional().nullable(),
+  majorante: z.string().optional().nullable(),
+  observacoes: z.string().optional().nullable(),
+});
+
+const casoInfracionalSchema = z.object({
+  id: z.string().uuid().optional().nullable(),
+  status: z.string().optional().nullable(),
+  numeroProcesso: z.string().optional().nullable(),
+  anoFato: z.union([z.string(), z.number()]).optional().nullable(),
+  comarca: z.string().optional().nullable(),
+  narrativa: z.string().optional().nullable(),
+  tipificacoes: z.array(casoTipificacaoSchema).optional().default([]),
+});
+
 const ALERTA_ESPECIAL_ENUM = z.enum(
   ALERTA_ESPECIAL_TIPOS as [
     AlertaEspecialTipo,
@@ -106,11 +127,6 @@ const updateAdolescenteSchema = z.object({
   dataNascimento: z.string().optional().nullable(),
   dataEntrada: z.string().optional().nullable(),
   dataDesinternacao: z.string().optional().nullable(),
-  numeroProcesso: z.string().optional().nullable(),
-  atoInfracionalAtualId: z.string().uuid().optional().nullable(),
-  atoInfracionalAno: z.number().optional().nullable(),
-  atoInfracionalProcesso: z.string().optional().nullable(),
-  atoInfracionalObservacoes: z.string().optional().nullable(),
   atoInfracionalGravidade: z.boolean().optional(),
   atoInfracionalGravidadeObs: z.string().optional().nullable(),
   statusUnidade: z.enum(["ATIVO", "TRANSFERIDO", "LIBERADO", "EVADIDO"]).optional(),
@@ -134,6 +150,7 @@ const updateAdolescenteSchema = z.object({
     significadoPessoal: z.string().optional().nullable(),
   })).optional(),
   historicoInfracional: historicoRegistroSchema,
+  casoInfracionalAtual: casoInfracionalSchema.optional().nullable(),
   atoInfracionalVinculos: z.array(vinculoInfracionalSchema).optional(),
   tecnicosReferenciaIds: z.array(z.string().uuid()).optional(),
   alertasEspeciais: z.array(alertaEspecialSchema).optional(),
@@ -191,6 +208,68 @@ type VinculoEntrada = {
   descricao: string;
   adolescentesIds: string[];
 };
+
+type CasoTipificacaoEntrada = {
+  id?: string | null;
+  ordem: number;
+  catalogoId: string | null;
+  descricaoManual: string | null;
+  principal: boolean;
+  qualificadora: string | null;
+  majorante: string | null;
+  observacoes: string | null;
+};
+
+type CasoInfracionalEntrada = {
+  id?: string | null;
+  status: string | null;
+  numeroProcesso: string | null;
+  anoFato: number | null;
+  comarca: string | null;
+  narrativa: string | null;
+  tipificacoes: CasoTipificacaoEntrada[];
+};
+
+const parseCasoTipificacoes = (
+  tipificacoes?: Array<{
+    id?: string | null;
+    ordem?: number | null;
+    catalogoId?: string | null;
+    descricao?: string | null;
+    principal?: boolean;
+    qualificadora?: string | null;
+    majorante?: string | null;
+    observacoes?: string | null;
+  }>,
+): CasoTipificacaoEntrada[] =>
+  (tipificacoes ?? [])
+    .map((tipificacao, indiceTipificacao) => {
+      const descricaoManual =
+        sanitizeNullableString(tipificacao.descricao ?? undefined) ?? null;
+      const catalogoId =
+        typeof tipificacao.catalogoId === "string" &&
+        tipificacao.catalogoId.length > 0
+          ? tipificacao.catalogoId
+          : null;
+      if (!catalogoId && !descricaoManual) {
+        return null;
+      }
+
+      return {
+        id: typeof tipificacao.id === "string" ? tipificacao.id : null,
+        ordem: tipificacao.ordem ?? indiceTipificacao + 1,
+        catalogoId,
+        descricaoManual,
+        principal: tipificacao.principal ?? indiceTipificacao === 0,
+        qualificadora:
+          sanitizeNullableString(tipificacao.qualificadora ?? undefined) ?? null,
+        majorante:
+          sanitizeNullableString(tipificacao.majorante ?? undefined) ?? null,
+        observacoes:
+          sanitizeNullableString(tipificacao.observacoes ?? undefined) ?? null,
+      };
+    })
+    .filter((item): item is CasoTipificacaoEntrada => item !== null);
 
 const parseHistoricoPayload = (
   registros?: Array<{
@@ -301,6 +380,92 @@ const parseVinculosPayload = (
 
   return entradas;
 };
+
+const parseCasoInfracionalPayload = (
+  caso?: {
+    id?: string | null;
+    status?: string | null;
+    numeroProcesso?: string | null;
+    anoFato?: string | number | null;
+    comarca?: string | null;
+    narrativa?: string | null;
+    tipificacoes?: Array<{
+      id?: string | null;
+      ordem?: number | null;
+      catalogoId?: string | null;
+      descricao?: string | null;
+      principal?: boolean;
+      qualificadora?: string | null;
+      majorante?: string | null;
+      observacoes?: string | null;
+    }>;
+  } | null,
+): CasoInfracionalEntrada | null => {
+  if (!caso) {
+    return null;
+  }
+
+  const anoInformado =
+    caso.anoFato === null || caso.anoFato === undefined || caso.anoFato === ""
+      ? null
+      : Number.parseInt(String(caso.anoFato), 10);
+  const anoFato =
+    anoInformado !== null && !Number.isNaN(anoInformado) ? anoInformado : null;
+
+  const numeroProcesso =
+    sanitizeNullableString(caso.numeroProcesso ?? undefined) ?? null;
+  const comarca = sanitizeNullableString(caso.comarca ?? undefined) ?? null;
+  const narrativa = sanitizeNullableString(caso.narrativa ?? undefined) ?? null;
+  const tipificacoes = parseCasoTipificacoes(caso.tipificacoes);
+
+  if (
+    !numeroProcesso &&
+    anoFato === null &&
+    !comarca &&
+    !narrativa &&
+    tipificacoes.length === 0
+  ) {
+    return null;
+  }
+
+  return {
+    id: typeof caso.id === "string" ? caso.id : null,
+    status: sanitizeNullableString(caso.status ?? undefined) ?? null,
+    numeroProcesso,
+    anoFato,
+    comarca,
+    narrativa,
+    tipificacoes,
+  };
+};
+
+const toCasoEntradaFromDb = (caso: any): CasoInfracionalEntrada | null =>
+  parseCasoInfracionalPayload(
+    caso
+      ? {
+          id: caso.id,
+          status: caso.status ?? null,
+          numeroProcesso: caso.numeroProcesso ?? null,
+          anoFato: caso.anoFato ?? null,
+          comarca: caso.comarca ?? null,
+          narrativa: caso.narrativa ?? null,
+          tipificacoes:
+            caso.tipificacoes?.map((tipificacao: any) => ({
+              id: tipificacao.id,
+              ordem: tipificacao.ordem ?? null,
+              catalogoId: tipificacao.atoInfracionalCatalogoId ?? null,
+              descricao:
+                tipificacao.atoInfracionalCatalogo?.nome ??
+                tipificacao.descricaoManual ??
+                null,
+              principal: tipificacao.principal ?? false,
+              qualificadora: tipificacao.qualificadora ?? null,
+              majorante: tipificacao.majorante ?? null,
+              observacoes: tipificacao.observacoes ?? null,
+            })) ?? [],
+        }
+      : null
+  );
 
 const sincronizarVinculosInfracionais = async ({
   tx,
@@ -416,6 +581,81 @@ const sincronizarVinculosInfracionais = async ({
       where: { id: { in: paraExcluir } },
     });
   }
+};
+
+const sincronizarCasoInfracionalAtual = async ({
+  tx,
+  adolescenteId,
+  casoPayload,
+  statusCaso = "ATUAL",
+}: {
+  tx: any;
+  adolescenteId: string;
+  casoPayload: CasoInfracionalEntrada | null;
+  statusCaso?: string;
+}) => {
+  let casoExistente = await tx.adolescenteCasoInfracional.findFirst({
+    where: {
+      adolescenteId,
+      status: "ATUAL",
+    },
+    select: { id: true },
+  });
+
+  if (!casoPayload) {
+    if (casoExistente) {
+      await tx.adolescenteCasoInfracional.delete({
+        where: { id: casoExistente.id },
+      });
+    }
+    return null;
+  }
+
+  if (casoExistente) {
+    await tx.adolescenteCasoInfracionalTipificacao.deleteMany({
+      where: { casoId: casoExistente.id },
+    });
+    await tx.adolescenteCasoInfracional.update({
+      where: { id: casoExistente.id },
+      data: {
+        status: statusCaso,
+        numeroProcesso: casoPayload.numeroProcesso,
+        anoFato: casoPayload.anoFato,
+        comarca: casoPayload.comarca,
+        narrativa: casoPayload.narrativa,
+      },
+    });
+  } else {
+    const criado = await tx.adolescenteCasoInfracional.create({
+      data: {
+        adolescenteId,
+        status: statusCaso,
+        numeroProcesso: casoPayload.numeroProcesso,
+        anoFato: casoPayload.anoFato,
+        comarca: casoPayload.comarca,
+        narrativa: casoPayload.narrativa,
+      },
+      select: { id: true },
+    });
+    casoExistente = criado;
+  }
+
+  if (casoPayload.tipificacoes.length > 0) {
+    await tx.adolescenteCasoInfracionalTipificacao.createMany({
+      data: casoPayload.tipificacoes.map((tipificacao) => ({
+        casoId: casoExistente.id,
+        ordem: tipificacao.ordem,
+        atoInfracionalCatalogoId: tipificacao.catalogoId ?? undefined,
+        descricaoManual: tipificacao.descricaoManual,
+        principal: tipificacao.principal,
+        qualificadora: tipificacao.qualificadora,
+        majorante: tipificacao.majorante,
+        observacoes: tipificacao.observacoes,
+      })),
+    });
+  }
+
+  return casoExistente.id;
 };
 
 const buildHistoricoKey = (entrada: HistoricoEntrada) =>
@@ -547,10 +787,15 @@ export async function PUT(
     const historicoNovos = parseHistoricoPayload(
       validated.historicoInfracional
     );
+    const casoInfracionalAtual = parseCasoInfracionalPayload(
+      validated.casoInfracionalAtual
+    );
     const vinculosNovos = parseVinculosPayload(
       validated.atoInfracionalVinculos
     );
     const vinculosInformados = validated.atoInfracionalVinculos !== undefined;
+    const casoInfracionalInformado =
+      validated.casoInfracionalAtual !== undefined;
 
     const permissoes = resolveUserPermissions(session, operador);
     const podeAlterarAlojamento = hasPermission(
@@ -630,11 +875,18 @@ export async function PUT(
     const tecnicosIds = validated.tecnicosReferenciaIds
       ? Array.from(new Set(validated.tecnicosReferenciaIds))
       : undefined;
-    const atoAtualCatalogoId = existente.atoInfracionalAtualId ?? null;
-    const atoAtualNome =
-      (existente as any).atoInfracionalAtualCatalogo?.nome ??
-      (existente as any).atoInfracionalAtual?.trim() ??
+    const casoAtualExistente = toCasoEntradaFromDb(
+      existente.casosInfracionais?.find((caso: any) => caso.status === "ATUAL") ??
+        existente.casosInfracionais?.[0] ??
+        null
+    );
+    const casoAtualEfetivo = casoInfracionalAtual ?? casoAtualExistente;
+    const tipificacaoAtual =
+      casoAtualEfetivo?.tipificacoes.find((tipificacao) => tipificacao.principal) ??
+      casoAtualEfetivo?.tipificacoes[0] ??
       null;
+    const atoAtualCatalogoId = tipificacaoAtual?.catalogoId ?? null;
+    const atoAtualNome = tipificacaoAtual?.descricaoManual?.trim() ?? null;
 
     const origemInformacaoAtual =
       (existente.faccaoInformacaoOrigem as
@@ -800,12 +1052,17 @@ export async function PUT(
     }
 
     let historicoParaRestaurar: HistoricoEntrada | null = null;
+    let casoParaRestaurar: CasoInfracionalEntrada | null = null;
 
     if (
       retornandoParaAtivo &&
       statusAtual !== "LIBERADO" &&
-      validated.atoInfracionalAtualId === undefined
+      !casoInfracionalInformado
     ) {
+      casoParaRestaurar = toCasoEntradaFromDb(
+        existente.casosInfracionais?.find((caso: any) => caso.status !== "ATUAL") ??
+          null
+      );
       const registro =
         await prisma.adolescenteHistoricoInfracional.findFirst({
           where: { adolescenteId: id },
@@ -830,19 +1087,40 @@ export async function PUT(
       if (registro) {
         historicoParaRestaurar = toHistoricoEntradaFromDb(registro as any);
       }
+
+      if (!casoParaRestaurar && historicoParaRestaurar) {
+        casoParaRestaurar = {
+          status: "ATUAL",
+          numeroProcesso: historicoParaRestaurar.atoInfracionalProcesso,
+          anoFato:
+            historicoParaRestaurar.atoInfracionalAno ??
+            historicoParaRestaurar.ano ??
+            null,
+          comarca: historicoParaRestaurar.unidadeInternacao,
+          narrativa: historicoParaRestaurar.observacoes,
+          tipificacoes: [
+            {
+              ordem: 1,
+              catalogoId: historicoParaRestaurar.catalogoId,
+              descricaoManual: historicoParaRestaurar.atoInfracionalDescricao,
+              principal: true,
+              qualificadora: null,
+              majorante: null,
+              observacoes: null,
+            },
+          ],
+        };
+      }
     }
 
     const deveGerarHistorico =
       saiuDeAtivo && Boolean(atoAtualCatalogoId || atoAtualNome);
 
-    const observacoesComplementaresAtual =
-      (existente as any).atoInfracionalObservacoes ?? null;
-
     const comarcaHistoricoPadrao =
       process.env.COMARCA_PADRAO?.trim() || "Maringa";
 
     const observacoesHistorico = [
-      observacoesComplementaresAtual,
+      casoAtualEfetivo?.narrativa ?? null,
       `Status alterado de ${statusAtual} para ${novoStatus}`,
     ]
       .filter((valor) => Boolean(valor && String(valor).trim().length > 0))
@@ -854,14 +1132,14 @@ export async function PUT(
             adolescenteId: id,
             atoInfracionalDescricao: atoAtualNome?.trim() || "Nao informado",
             atoInfracionalCatalogoId: atoAtualCatalogoId ?? undefined,
-            atoInfracionalAno: existente.atoInfracionalAno,
-            atoInfracionalProcesso:
-              existente.atoInfracionalProcesso ?? existente.numeroProcesso ?? null,
+            atoInfracionalAno: casoAtualEfetivo?.anoFato ?? null,
+            atoInfracionalProcesso: casoAtualEfetivo?.numeroProcesso ?? null,
             atoInfracionalGravidade: existente.atoInfracionalGravidade ?? false,
             atoInfracionalGravidadeObs:
               existente.atoInfracionalGravidadeObs ?? null,
-            unidadeInternacao: comarcaHistoricoPadrao,
-            ano: existente.atoInfracionalAno ?? new Date().getFullYear(),
+            unidadeInternacao:
+              casoAtualEfetivo?.comarca ?? comarcaHistoricoPadrao,
+            ano: casoAtualEfetivo?.anoFato ?? new Date().getFullYear(),
             observacoes: observacoesHistorico || null,
           }
         : null;
@@ -920,37 +1198,6 @@ export async function PUT(
       camposAlterados.push("numeroSms");
     }
 
-    if (validated.numeroProcesso !== undefined) {
-      data.numeroProcesso = nullableStringOrNull(validated.numeroProcesso);
-      camposAlterados.push("numeroProcesso");
-    }
-
-    if (validated.atoInfracionalAtualId !== undefined) {
-      data.atoInfracionalAtualCatalogo = validated.atoInfracionalAtualId
-        ? { connect: { id: validated.atoInfracionalAtualId } }
-        : { disconnect: true };
-      camposAlterados.push("atoInfracionalAtualId");
-    }
-
-    if (validated.atoInfracionalAno !== undefined) {
-      data.atoInfracionalAno = validated.atoInfracionalAno ?? null;
-      camposAlterados.push("atoInfracionalAno");
-    }
-
-    if (validated.atoInfracionalProcesso !== undefined) {
-      data.atoInfracionalProcesso = nullableStringOrNull(
-        validated.atoInfracionalProcesso
-      );
-      camposAlterados.push("atoInfracionalProcesso");
-    }
-
-    if (validated.atoInfracionalObservacoes !== undefined) {
-      data.atoInfracionalObservacoes = nullableStringOrNull(
-        validated.atoInfracionalObservacoes
-      );
-      camposAlterados.push("atoInfracionalObservacoes");
-    }
-
     if (validated.atoInfracionalGravidade !== undefined) {
       data.atoInfracionalGravidade = validated.atoInfracionalGravidade;
       camposAlterados.push("atoInfracionalGravidade");
@@ -991,21 +1238,6 @@ export async function PUT(
     }
 
     if (historicoParaRestaurar) {
-      if (validated.atoInfracionalAtualId === undefined) {
-        data.atoInfracionalAtualCatalogo = historicoParaRestaurar.catalogoId
-          ? { connect: { id: historicoParaRestaurar.catalogoId } }
-          : { disconnect: true };
-        camposAlterados.push("atoInfracionalAtualId");
-      }
-      if (validated.atoInfracionalAno === undefined) {
-        data.atoInfracionalAno = historicoParaRestaurar.atoInfracionalAno ?? null;
-        camposAlterados.push("atoInfracionalAno");
-      }
-      if (validated.atoInfracionalProcesso === undefined) {
-        data.atoInfracionalProcesso =
-          historicoParaRestaurar.atoInfracionalProcesso ?? null;
-        camposAlterados.push("atoInfracionalProcesso");
-      }
       if (validated.atoInfracionalGravidade === undefined) {
         data.atoInfracionalGravidade =
           historicoParaRestaurar.atoInfracionalGravidade ?? false;
@@ -1016,34 +1248,12 @@ export async function PUT(
           historicoParaRestaurar.atoInfracionalGravidadeObs ?? null;
         camposAlterados.push("atoInfracionalGravidadeObs");
       }
-      if (
-        validated.numeroProcesso === undefined &&
-        historicoParaRestaurar.atoInfracionalProcesso
-      ) {
-        data.numeroProcesso = historicoParaRestaurar.atoInfracionalProcesso;
-        camposAlterados.push("numeroProcesso");
-      }
     }
 
     if (historicoParaCriar) {
-      data.atoInfracionalAtualCatalogo = { disconnect: true };
-      data.atoInfracionalAno = null;
-      data.atoInfracionalProcesso = null;
-      data.atoInfracionalObservacoes = null;
       data.atoInfracionalGravidade = false;
       data.atoInfracionalGravidadeObs = null;
-      camposAlterados.push(
-        "atoInfracionalAtualId",
-        "atoInfracionalAno",
-        "atoInfracionalProcesso",
-        "atoInfracionalObservacoes",
-        "atoInfracionalGravidade",
-        "atoInfracionalGravidadeObs"
-      );
-      if (validated.numeroProcesso === undefined) {
-        data.numeroProcesso = null;
-        camposAlterados.push("numeroProcesso");
-      }
+      camposAlterados.push("atoInfracionalGravidade", "atoInfracionalGravidadeObs");
     }
 
     if (validated.faccaoGrupoId !== undefined) {
@@ -1161,6 +1371,10 @@ export async function PUT(
 
     if (vinculosInformados) {
       camposAlterados.push("atoInfracionalVinculos");
+    }
+
+    if (casoInfracionalInformado) {
+      camposAlterados.push("casoInfracionalAtual");
     }
 
     if (camposAlterados.length === 0) {
@@ -1314,6 +1528,35 @@ export async function PUT(
           adolescenteId: id,
           vinculosPayload: vinculosNovos,
           vinculosExistentes: (existente as any).atoInfracionalVinculos,
+        });
+      }
+
+      if (casoInfracionalInformado) {
+        await sincronizarCasoInfracionalAtual({
+          tx,
+          adolescenteId: id,
+          casoPayload: casoInfracionalAtual,
+          statusCaso: novoStatus === "ATIVO" ? "ATUAL" : "HISTORICO",
+        });
+      } else if (retornandoParaAtivo && casoParaRestaurar) {
+        await sincronizarCasoInfracionalAtual({
+          tx,
+          adolescenteId: id,
+          casoPayload: {
+            ...casoParaRestaurar,
+            status: "ATUAL",
+          },
+          statusCaso: "ATUAL",
+        });
+      } else if (saiuDeAtivo) {
+        await tx.adolescenteCasoInfracional.updateMany({
+          where: {
+            adolescenteId: id,
+            status: "ATUAL",
+          },
+          data: {
+            status: "HISTORICO",
+          },
         });
       }
 
@@ -1558,6 +1801,8 @@ export async function PUT(
       },
     });
 
+    const adolescenteResposta = mapPrismaAdolescente(atualizado);
+
     if (statusMudou && statusAtual === "ATIVO" && novoStatus !== "ATIVO") {
       const dataDesinternacaoRegistro =
         data.dataDesinternacao instanceof Date
@@ -1568,7 +1813,7 @@ export async function PUT(
         adolescenteId: atualizado.id,
         tipo: novoStatus === "LIBERADO" ? "DESINTERNACAO" : "SAIDA_UNIDADE",
         descricao:
-          (atualizado as any).atoInfracionalAtualCatalogo?.nome ??
+          adolescenteResposta.atoInfracionalAtual ??
           `Alteracao de status: ${statusAtual} -> ${novoStatus}`,
         origemCasaId: existente.alojamentoAtual?.casa?.id ?? null,
         origemAlojamentoId: alojamentoAnterior,
@@ -1592,7 +1837,6 @@ export async function PUT(
     }
 
     const alertasPendentes = await contarAlertasPendentes(atualizado.id);
-    const adolescenteResposta = mapPrismaAdolescente(atualizado);
     adolescenteResposta.alertasPendentes = alertasPendentes;
 
     let reativacaoPendentes: {

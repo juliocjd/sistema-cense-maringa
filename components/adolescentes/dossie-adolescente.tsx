@@ -16,6 +16,7 @@ import {
   Calendar,
   Download,
   Printer,
+  ExternalLink,
 } from "lucide-react";
 import type {
   Adolescente,
@@ -25,10 +26,21 @@ import type {
   Conflito,
 } from "@/types";
 import type { HistoricoMovimentacaoRegistro } from "@/types";
+import { CasosInfracionaisPanel } from "@/components/adolescentes/casos-infracionais-panel";
+import {
+  listarResumoTipificacoes,
+  type CasoInfracionalNormalizado,
+  normalizarCasoInfracional,
+  obterCasoAtual,
+  obterCasosHistoricos,
+  obterTituloCaso,
+} from "@/lib/adolescentes/casos-infracionais";
 
 interface DossieAdolescenteProps {
   adolescente: Adolescente;
 }
+
+type CasoItem = NonNullable<Adolescente["casosInfracionais"]>[number];
 
 const calcularIdade = (data?: string | null) => {
   if (!data) return null;
@@ -156,6 +168,21 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
     faccaoHistoricoAtual?.faccaoNome ?? adolescente.faccao?.nome ?? null;
   const faccaoFuncaoAtual =
     faccaoHistoricoAtual?.funcao ?? adolescente.faccaoFuncao ?? null;
+  const isCasoNormalizado = (
+    caso: ReturnType<typeof normalizarCasoInfracional<CasoItem>>,
+  ): caso is CasoItem & CasoInfracionalNormalizado => Boolean(caso);
+
+  const casosInfracionais = (adolescente.casosInfracionais ?? [])
+    .map((caso) => normalizarCasoInfracional(caso))
+    .filter(isCasoNormalizado);
+  const casoAtual =
+    normalizarCasoInfracional(adolescente.casoInfracionalAtual) ??
+    obterCasoAtual(casosInfracionais) ??
+    null;
+  const casosHistoricos = obterCasosHistoricos(
+    casosInfracionais,
+    casoAtual?.id,
+  );
 
   // Dados que virão da API (atualmente vazios até serem cadastrados)
   const dadosAdicionais: {
@@ -365,7 +392,9 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                       : "-"}
                   </p>
                   <span className="text-xs text-gray-500">
-                    {idadeAdolescente !== null ? `${idadeAdolescente} anos` : "--"}
+                    {idadeAdolescente !== null
+                      ? `${idadeAdolescente} anos`
+                      : "--"}
                   </span>
                 </div>
               </div>
@@ -382,7 +411,7 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
               <div className="bg-gray-50 rounded-lg p-3">
                 <p className="text-xs text-gray-600 mb-1">Nº Processo</p>
                 <p className="font-bold text-gray-800 text-xs">
-                  {adolescente.numeroProcesso || "-"}
+                  {casoAtual?.numeroProcesso || "-"}
                 </p>
               </div>
             </div>
@@ -500,13 +529,13 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
 
                 <div className="bg-gray-50 rounded-lg p-4">
                   <h3 className="font-semibold text-gray-700 mb-3">
-                    Dados Processuais
+                    Processo Atual
                   </h3>
                   <div className="space-y-2 text-sm">
                     <div className="flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-2">
                       <span className="text-gray-600">Nº Processo:</span>
                       <span className="font-semibold text-gray-800 text-xs">
-                        {adolescente.numeroProcesso || "-"}
+                        {casoAtual?.numeroProcesso || "-"}
                       </span>
                     </div>
                     <div className="flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-2">
@@ -557,7 +586,7 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                 <div className="bg-gray-50 rounded-lg p-4 space-y-3">
                   <div className="flex items-center gap-3">
                     <h3 className="font-semibold text-gray-700">
-                      Ato Infracional Atual
+                      Caso Infracional
                     </h3>
                     {adolescente.atoInfracionalGravidade && (
                       <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-full bg-orange-100 text-orange-700">
@@ -567,23 +596,39 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                     )}
                   </div>
                   <p className="text-sm text-gray-800 leading-relaxed">
-                    {adolescente.atoInfracionalAtual || "Nao informado"}
+                    {casoAtual
+                      ? obterTituloCaso(casoAtual)
+                      : adolescente.atoInfracionalAtual || "Não informado"}
                   </p>
                   <div className="grid gap-4 md:grid-cols-2 text-sm text-gray-600">
                     <div>
                       <span className="font-semibold text-gray-700">
                         Número do processo:
                       </span>{" "}
-                      {adolescente.atoInfracionalProcesso ||
-                        adolescente.numeroProcesso ||
-                        "-"}
+                      {casoAtual?.numeroProcesso || "-"}
                     </div>
                     <div>
                       <span className="font-semibold text-gray-700">
                         Ano do fato:
                       </span>{" "}
-                      {adolescente.atoInfracionalAno ?? "-"}
+                      {casoAtual?.anoFato ?? "-"}
                     </div>
+                    {casoAtual?.comarca && (
+                      <div>
+                        <span className="font-semibold text-gray-700">
+                          Comarca:
+                        </span>{" "}
+                        {casoAtual.comarca}
+                      </div>
+                    )}
+                    {casoAtual && (
+                      <div>
+                        <span className="font-semibold text-gray-700">
+                          Atos vinculados ao caso:
+                        </span>{" "}
+                        {casoAtual.tipificacoes?.length ?? 0}
+                      </div>
+                    )}
                     {adolescente.atoInfracionalCatalogoGravidade && (
                       <div>
                         <span className="font-semibold text-gray-700">
@@ -596,7 +641,7 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                       "boolean" && (
                       <div>
                         <span className="font-semibold text-gray-700">
-                          Violência ou grave ameaça:
+                          Violencia ou grave ameaca:
                         </span>{" "}
                         {adolescente.atoInfracionalCatalogoViolencia
                           ? "Sim"
@@ -604,12 +649,19 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                       </div>
                     )}
                   </div>
-                  {adolescente.atoInfracionalObservacoes && (
-                    <div className="text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded-lg p-3">
-                      <p className="font-semibold">
-                        Observações complementares:
+                  {casoAtual?.narrativa && (
+                    <div className="text-sm text-slate-700 bg-white border border-slate-200 rounded-lg p-3">
+                      <p className="font-semibold mb-2">
+                        Narrativa do caso:
                       </p>
-                      <p>{adolescente.atoInfracionalObservacoes}</p>
+                      {listarResumoTipificacoes(casoAtual).length > 0 && (
+                        <p className="text-xs text-slate-600 mt-1">
+                          {listarResumoTipificacoes(casoAtual).join(" | ")}
+                        </p>
+                      )}
+                      <p className="text-xs text-slate-600 mt-2 whitespace-pre-line">
+                        {casoAtual.narrativa}
+                      </p>
                     </div>
                   )}
                   {adolescente.atoInfracionalGravidadeObs && (
@@ -618,6 +670,15 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
                       <p>{adolescente.atoInfracionalGravidadeObs}</p>
                     </div>
                   )}
+                  <div>
+                    <Link
+                      href={`/adolescentes/${adolescente.id}/casos-infracionais`}
+                      className="inline-flex items-center gap-2 text-sm font-semibold text-indigo-700 hover:text-indigo-600"
+                    >
+                      <ExternalLink size={16} />
+                      Abrir listagem completa de casos
+                    </Link>
+                  </div>
                 </div>
               </div>
             </div>
@@ -679,61 +740,12 @@ export function DossieAdolescente({ adolescente }: DossieAdolescenteProps) {
 
           {/* ABA: Histórico Infracional */}
           {abaAtiva === "infracional" && (
-            <div className="space-y-6">
-              <h2 className="text-2xl font-bold text-gray-800">
-                Histórico Infracional
-              </h2>
-
-              <div className="bg-yellow-50 border-l-4 border-yellow-500 p-4 mb-4">
-                <p className="text-sm text-yellow-800 font-semibold">
-                  ⚠️ Ato Infracional Atual:{" "}
-                  {adolescente.atoInfracionalAtual || "Não informado"}
-                </p>
-              </div>
-
-              {dadosAdicionais.historicoInfracional.length > 0 ? (
-                <div className="space-y-3">
-                  {dadosAdicionais.historicoInfracional.map((item) => (
-                    <div
-                      key={item.id}
-                      className="bg-gray-50 rounded-lg p-4 border-l-4 border-gray-400"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex flex-wrap items-center gap-2 mb-1">
-                            <h4 className="font-semibold text-gray-800">
-                              {item.descricao}
-                            </h4>
-                            {item.gravidade && (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold rounded-full bg-orange-100 text-orange-700">
-                                Repercussão
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-sm text-gray-600">
-                            {item.comarca ?? item.unidadeInternacao ?? "-"} •{" "}
-                            {item.ano ?? "-"}
-                            {item.processo
-                              ? ` • Processo: ${item.processo}`
-                              : ""}
-                          </p>
-                          {item.observacoes && (
-                            <p className="text-xs text-gray-500 mt-2">
-                              Observações: {item.observacoes}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-12 text-gray-500">
-                  <FileText size={48} className="mx-auto mb-2 text-gray-400" />
-                  <p>Nenhum histórico infracional registrado</p>
-                </div>
-              )}
-            </div>
+            <CasosInfracionaisPanel
+              adolescente={adolescente}
+              titulo="Histórico Infracional"
+              descricao="Visualização consolidada dos casos, narrativas e tipificações."
+              showLinkPagina
+            />
           )}
 
           {/* ABA: Alertas */}

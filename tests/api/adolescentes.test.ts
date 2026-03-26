@@ -45,6 +45,14 @@ const prismaSetup = vi.hoisted(() => {
     txAdolescente: { update: vi.fn(), findUnique: vi.fn() },
     txHistorico: { findMany: vi.fn(), create: vi.fn() },
     txTatuagem: { createMany: vi.fn() },
+    txCasoInfracional: {
+      updateMany: vi.fn(),
+      findFirst: vi.fn(),
+      update: vi.fn(),
+      create: vi.fn(),
+      delete: vi.fn(),
+    },
+    txCasoTipificacao: { deleteMany: vi.fn(), createMany: vi.fn() },
     alertaAtivoGlobal: { count: vi.fn(), groupBy: vi.fn() },
     txAlertas: { updateMany: vi.fn(), findMany: vi.fn() },
     historicoMovimentacaoGlobal: { create: vi.fn() },
@@ -58,6 +66,8 @@ const prismaSetup = vi.hoisted(() => {
       adolescente: refs.txAdolescente,
       adolescenteHistoricoInfracional: refs.txHistorico,
       adolescenteTatuagem: refs.txTatuagem,
+      adolescenteCasoInfracional: refs.txCasoInfracional,
+      adolescenteCasoInfracionalTipificacao: refs.txCasoTipificacao,
       alertaAtivo: refs.txAlertas,
       historicoMovimentacao: refs.txHistoricoMovimentacao,
       logAuditoria: refs.logAuditoria,
@@ -96,6 +106,8 @@ const {
     txAdolescente: txAdolescenteMock,
     txHistorico: txHistoricoMock,
     txTatuagem: txTatuagemMock,
+    txCasoInfracional: txCasoInfracionalMock,
+    txCasoTipificacao: txCasoTipificacaoMock,
     alertaAtivoGlobal: alertaAtivoGlobalMock,
     txAlertas: txAlertasMock,
     historicoMovimentacaoGlobal: historicoMovimentacaoGlobalMock,
@@ -143,6 +155,13 @@ beforeEach(() => {
     txHistoricoMock.findMany,
     txHistoricoMock.create,
     txTatuagemMock.createMany,
+    txCasoInfracionalMock.updateMany,
+    txCasoInfracionalMock.findFirst,
+    txCasoInfracionalMock.update,
+    txCasoInfracionalMock.create,
+    txCasoInfracionalMock.delete,
+    txCasoTipificacaoMock.deleteMany,
+    txCasoTipificacaoMock.createMany,
     alertaAtivoGlobalMock.count,
     alertaAtivoGlobalMock.groupBy,
     txAlertasMock.updateMany,
@@ -159,6 +178,10 @@ beforeEach(() => {
   alertaAtivoGlobalMock.groupBy.mockResolvedValue([]);
   txAlertasMock.updateMany.mockResolvedValue({ count: 0 });
   txAlertasMock.findMany.mockResolvedValue([]);
+  txCasoInfracionalMock.updateMany.mockResolvedValue({ count: 0 });
+  txCasoInfracionalMock.findFirst.mockResolvedValue(null);
+  txCasoTipificacaoMock.deleteMany.mockResolvedValue({ count: 0 });
+  txCasoTipificacaoMock.createMany.mockResolvedValue({ count: 0 });
   txConflitoMock.findMany.mockResolvedValue([]);
   txConflitoMock.updateMany.mockResolvedValue({ count: 0 });
   txComunicadoInternoMock.findMany.mockResolvedValue([]);
@@ -171,6 +194,8 @@ beforeEach(() => {
       adolescente: txAdolescenteMock,
       adolescenteHistoricoInfracional: txHistoricoMock,
       adolescenteTatuagem: txTatuagemMock,
+      adolescenteCasoInfracional: txCasoInfracionalMock,
+      adolescenteCasoInfracionalTipificacao: txCasoTipificacaoMock,
       alertaAtivo: txAlertasMock,
       historicoMovimentacao: txHistoricoMovimentacaoMock,
       logAuditoria: logAuditoriaMock,
@@ -244,12 +269,34 @@ describe("API de adolescentes - historico infracional", () => {
     statusUnidade: "ATIVO",
     alojamentoAtualId: "aloj-x",
     alojamentoAtual: { casa: { nome: "Casa Azul" } },
-    atoInfracionalAtual: "Roubo",
-    atoInfracionalAno: 2023,
-    atoInfracionalProcesso: "PROC-X",
     atoInfracionalGravidade: true,
     atoInfracionalGravidadeObs: null,
-    numeroProcesso: "PROC-X",
+    casosInfracionais: [
+      {
+        id: "caso-atual-1",
+        status: "ATUAL",
+        numeroProcesso: "PROC-X",
+        anoFato: 2023,
+        comarca: null,
+        narrativa: "Narrativa do caso atual",
+        tipificacoes: [
+          {
+            id: "tip-1",
+            ordem: 1,
+            atoInfracionalCatalogoId: "catalogo-1",
+            descricaoManual: "Roubo",
+            principal: true,
+            qualificadora: null,
+            majorante: null,
+            observacoes: null,
+            atoInfracionalCatalogo: {
+              id: "catalogo-1",
+              nome: "Roubo",
+            },
+          },
+        ],
+      },
+    ],
     dataDesinternacao: null,
   };
 

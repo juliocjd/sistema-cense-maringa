@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -18,6 +19,7 @@ import {
   CheckCircle2,
   MapPin,
   RefreshCw,
+  ExternalLink,
 } from "lucide-react";
 import PermissionGuard from "@/components/auth/permission-guard";
 import { PERMISSIONS } from "@/lib/auth/permissions";
@@ -442,7 +444,7 @@ export default function NovaJustificativaPage() {
                       </div>
                       {adol.atoInfracionalAtual && (
                         <div className="text-xs text-red-600 mt-1">
-                          Ato: {adol.atoInfracionalAtual}
+                          Ato principal do caso: {adol.atoInfracionalAtual}
                         </div>
                       )}
                     </button>
@@ -463,6 +465,13 @@ export default function NovaJustificativaPage() {
                     SMS: {adolescenteSelecionado.numeroSms} | Processo:{" "}
                     {adolescenteSelecionado.numeroProcesso}
                   </div>
+                  <Link
+                    href={`/adolescentes/${adolescenteSelecionado.id}/casos-infracionais`}
+                    className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-indigo-700 hover:text-indigo-600"
+                  >
+                    <ExternalLink size={16} />
+                    Ver casos infracionais
+                  </Link>
                 </div>
               )}
             </div>

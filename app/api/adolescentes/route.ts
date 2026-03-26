@@ -80,6 +80,27 @@ const vinculoInfracionalSchema = z.object({
   adolescentesIds: z.array(z.string().uuid()).optional().default([]),
 });
 
+const casoTipificacaoSchema = z.object({
+  id: z.string().uuid().optional().nullable(),
+  ordem: z.number().int().positive().optional().nullable(),
+  catalogoId: z.string().uuid().optional().nullable(),
+  descricao: z.string().optional().nullable(),
+  principal: z.boolean().optional(),
+  qualificadora: z.string().optional().nullable(),
+  majorante: z.string().optional().nullable(),
+  observacoes: z.string().optional().nullable(),
+});
+
+const casoInfracionalSchema = z.object({
+  id: z.string().uuid().optional().nullable(),
+  status: z.string().optional().nullable(),
+  numeroProcesso: z.string().optional().nullable(),
+  anoFato: z.union([z.string(), z.number()]).optional().nullable(),
+  comarca: z.string().optional().nullable(),
+  narrativa: z.string().optional().nullable(),
+  tipificacoes: z.array(casoTipificacaoSchema).optional().default([]),
+});
+
 const createAdolescenteSchema = z.object({
   nomeCompleto: z.string().min(3, "Nome deve ter no minimo 3 caracteres"),
   nomeSocial: z.string().optional().nullable(),
@@ -96,9 +117,6 @@ const createAdolescenteSchema = z.object({
   dataNascimento: z.string().optional().nullable(),
   dataEntrada: z.string().optional().nullable(),
   dataDesinternacao: z.string().optional().nullable(),
-  numeroProcesso: z.string().optional().nullable(),
-  atoInfracionalAtualId: z.string().uuid().optional().nullable(),
-  atoInfracionalObservacoes: z.string().optional().nullable(),
   statusUnidade: z
     .enum(["ATIVO", "TRANSFERIDO", "LIBERADO", "EVADIDO"])
     .default("ATIVO"),
@@ -127,6 +145,7 @@ const createAdolescenteSchema = z.object({
     .optional()
     .default([]),
   historicoInfracional: historicoRegistroSchema,
+  casoInfracionalAtual: casoInfracionalSchema.optional().nullable(),
   tecnicosReferenciaIds: z.array(z.string().uuid()).optional().default([]),
   alertasEspeciais: z.array(alertaEspecialSchema).optional().default([]),
   atoInfracionalVinculos: z
@@ -184,6 +203,68 @@ type VinculoEntrada = {
   descricao: string;
   adolescentesIds: string[];
 };
+
+type CasoTipificacaoEntrada = {
+  id?: string | null;
+  ordem: number;
+  catalogoId: string | null;
+  descricaoManual: string | null;
+  principal: boolean;
+  qualificadora: string | null;
+  majorante: string | null;
+  observacoes: string | null;
+};
+
+type CasoInfracionalEntrada = {
+  id?: string | null;
+  status: string | null;
+  numeroProcesso: string | null;
+  anoFato: number | null;
+  comarca: string | null;
+  narrativa: string | null;
+  tipificacoes: CasoTipificacaoEntrada[];
+};
+
+const parseCasoTipificacoes = (
+  tipificacoes?: Array<{
+    id?: string | null;
+    ordem?: number | null;
+    catalogoId?: string | null;
+    descricao?: string | null;
+    principal?: boolean;
+    qualificadora?: string | null;
+    majorante?: string | null;
+    observacoes?: string | null;
+  }>,
+): CasoTipificacaoEntrada[] =>
+  (tipificacoes ?? [])
+    .map((tipificacao, indiceTipificacao) => {
+      const descricaoManual =
+        sanitizeNullableString(tipificacao.descricao ?? undefined) ?? null;
+      const catalogoId =
+        typeof tipificacao.catalogoId === "string" &&
+        tipificacao.catalogoId.length > 0
+          ? tipificacao.catalogoId
+          : null;
+      if (!catalogoId && !descricaoManual) {
+        return null;
+      }
+
+      return {
+        id: typeof tipificacao.id === "string" ? tipificacao.id : null,
+        ordem: tipificacao.ordem ?? indiceTipificacao + 1,
+        catalogoId,
+        descricaoManual,
+        principal: tipificacao.principal ?? indiceTipificacao === 0,
+        qualificadora:
+          sanitizeNullableString(tipificacao.qualificadora ?? undefined) ?? null,
+        majorante:
+          sanitizeNullableString(tipificacao.majorante ?? undefined) ?? null,
+        observacoes:
+          sanitizeNullableString(tipificacao.observacoes ?? undefined) ?? null,
+      };
+    })
+    .filter((item): item is CasoTipificacaoEntrada => item !== null);
 
 const parseHistoricoPayload = (
   registros?: Array<{
@@ -296,6 +377,64 @@ const parseVinculosPayload = (
   return entradas;
 };
 
+const parseCasoInfracionalPayload = (
+  caso?: {
+    id?: string | null;
+    status?: string | null;
+    numeroProcesso?: string | null;
+    anoFato?: string | number | null;
+    comarca?: string | null;
+    narrativa?: string | null;
+    tipificacoes?: Array<{
+      id?: string | null;
+      ordem?: number | null;
+      catalogoId?: string | null;
+      descricao?: string | null;
+      principal?: boolean;
+      qualificadora?: string | null;
+      majorante?: string | null;
+      observacoes?: string | null;
+    }>;
+  } | null,
+): CasoInfracionalEntrada | null => {
+  if (!caso) {
+    return null;
+  }
+
+  const anoInformado =
+    caso.anoFato === null || caso.anoFato === undefined || caso.anoFato === ""
+      ? null
+      : Number.parseInt(String(caso.anoFato), 10);
+  const anoFato =
+    anoInformado !== null && !Number.isNaN(anoInformado) ? anoInformado : null;
+
+  const numeroProcesso =
+    sanitizeNullableString(caso.numeroProcesso ?? undefined) ?? null;
+  const comarca = sanitizeNullableString(caso.comarca ?? undefined) ?? null;
+  const narrativa = sanitizeNullableString(caso.narrativa ?? undefined) ?? null;
+  const tipificacoes = parseCasoTipificacoes(caso.tipificacoes);
+
+  if (
+    !numeroProcesso &&
+    anoFato === null &&
+    !comarca &&
+    !narrativa &&
+    tipificacoes.length === 0
+  ) {
+    return null;
+  }
+
+  return {
+    id: typeof caso.id === "string" ? caso.id : null,
+    status: sanitizeNullableString(caso.status ?? undefined) ?? null,
+    numeroProcesso,
+    anoFato,
+    comarca,
+    narrativa,
+    tipificacoes,
+  };
+};
+
 const buildHistoricoKey = (entrada: HistoricoEntrada) =>
   [
     entrada.atoInfracionalDescricao.trim().toLowerCase(),
@@ -384,7 +523,13 @@ const buildWhere = (
       or.push(
         { nomeCompleto: { contains: busca, mode: "insensitive" } },
         { numeroSms: { contains: busca } },
-        { numeroProcesso: { contains: busca, mode: "insensitive" } },
+        {
+          casosInfracionais: {
+            some: {
+              numeroProcesso: { contains: busca, mode: "insensitive" },
+            },
+          },
+        },
       );
     }
     const numeroBusca = Number.parseInt(busca, 10);
@@ -455,8 +600,14 @@ export async function GET(
           id: true,
           nomeCompleto: true,
           numeroSms: true,
-          numeroProcesso: true,
           numeroInterno: true,
+          casosInfracionais: {
+            where: { status: "ATUAL" },
+            take: 1,
+            select: {
+              numeroProcesso: true,
+            },
+          },
         },
       });
 
@@ -464,7 +615,9 @@ export async function GET(
         .filter((item) => {
           const nome = normalizarTextoBusca(item.nomeCompleto);
           const sms = normalizarTextoBusca(item.numeroSms);
-          const processo = normalizarTextoBusca(item.numeroProcesso);
+          const processo = normalizarTextoBusca(
+            item.casosInfracionais?.[0]?.numeroProcesso ?? null
+          );
           const numeroInterno = item.numeroInterno
             ? String(item.numeroInterno)
             : "";
@@ -622,6 +775,9 @@ export async function POST(request: NextRequest) {
     const historicoNovos = parseHistoricoPayload(
       validated.historicoInfracional,
     );
+    const casoInfracionalAtual = parseCasoInfracionalPayload(
+      validated.casoInfracionalAtual,
+    );
     const vinculosNovos = parseVinculosPayload(
       validated.atoInfracionalVinculos,
     );
@@ -770,13 +926,6 @@ export async function POST(request: NextRequest) {
       vulgo: vulgoSanitizado,
       dataNascimento: toDateOrUndefined(validated.dataNascimento),
       dataEntrada: toDateOrUndefined(validated.dataEntrada) ?? new Date(),
-      numeroProcesso: validated.numeroProcesso ?? undefined,
-      atoInfracionalAtualCatalogo: validated.atoInfracionalAtualId
-        ? { connect: { id: validated.atoInfracionalAtualId } }
-        : undefined,
-      atoInfracionalObservacoes:
-        sanitizeNullableString(validated.atoInfracionalObservacoes) ??
-        undefined,
       statusUnidade: statusCriado,
       faccao: validated.faccaoGrupoId
         ? { connect: { id: validated.faccaoGrupoId } }
@@ -841,7 +990,7 @@ export async function POST(request: NextRequest) {
       const base = await prisma.adolescente.create({ data });
       baseId = base.id;
 
-      // Hist?rico de fac??o (primeira declara??o)
+      // Histórico de facção (primeira declaração)
       if (
         validated.faccaoGrupoId ||
         faccaoFuncaoSanitizada ||
@@ -899,6 +1048,36 @@ export async function POST(request: NextRequest) {
             ano: entrada.ano,
             observacoes: entrada.observacoes,
           })),
+        });
+      }
+
+      if (casoInfracionalAtual) {
+        await prisma.adolescenteCasoInfracional.create({
+          data: {
+            adolescenteId: base.id,
+            status: casoInfracionalAtual.status ?? "ATUAL",
+            numeroProcesso: casoInfracionalAtual.numeroProcesso,
+            anoFato: casoInfracionalAtual.anoFato,
+            comarca: casoInfracionalAtual.comarca,
+            narrativa: casoInfracionalAtual.narrativa,
+            tipificacoes:
+              casoInfracionalAtual.tipificacoes.length > 0
+                ? {
+                    create: casoInfracionalAtual.tipificacoes.map(
+                      (tipificacao) => ({
+                        ordem: tipificacao.ordem,
+                        atoInfracionalCatalogoId:
+                          tipificacao.catalogoId ?? undefined,
+                        descricaoManual: tipificacao.descricaoManual,
+                        principal: tipificacao.principal,
+                        qualificadora: tipificacao.qualificadora,
+                        majorante: tipificacao.majorante,
+                        observacoes: tipificacao.observacoes,
+                      }),
+                    ),
+                  }
+                : undefined,
+          },
         });
       }
 

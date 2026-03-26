@@ -66,13 +66,24 @@ export async function GET(
             nomeSocial: true,
             numeroSms: true,
             dataNascimento: true,
-            numeroProcesso: true,
-            atoInfracionalAtualId: true,
-            atoInfracionalAtualCatalogo: {
+            casosInfracionais: {
+              where: { status: "ATUAL" },
+              take: 1,
               select: {
-                nome: true,
-                gravidade: true,
-                violenciaOuGraveAmeaca: true,
+                numeroProcesso: true,
+                tipificacoes: {
+                  where: { principal: true },
+                  take: 1,
+                  select: {
+                    atoInfracionalCatalogo: {
+                      select: {
+                        nome: true,
+                        gravidade: true,
+                        violenciaOuGraveAmeaca: true,
+                      },
+                    },
+                  },
+                },
               },
             },
             atoInfracionalGravidade: true,
@@ -274,7 +285,8 @@ export async function GET(
       ? MENSAGEM_SUICIDIO_ALTA
       : MENSAGEM_SUICIDIO_ATIVO;
     const gravidadeCatalogo =
-      justificativa.adolescente.atoInfracionalAtualCatalogo?.gravidade ?? null;
+      justificativa.adolescente.casosInfracionais?.[0]?.tipificacoes?.[0]
+        ?.atoInfracionalCatalogo?.gravidade ?? null;
     let fundamentacaoLegalAjustada = justificativa.fundamentacaoLegal
       .replace(MENSAGEM_SUICIDIO_ATIVO, mensagemSuicidioFinal)
       .replace(MENSAGEM_SUICIDIO_ALTA, mensagemSuicidioFinal);
@@ -432,7 +444,7 @@ export async function GET(
 
     if (justificativa.numeroProcesso) {
       dadosAdolescente.push([
-        "N?mero do Processo:",
+        "Número do Processo:",
         justificativa.numeroProcesso,
       ]);
     }
