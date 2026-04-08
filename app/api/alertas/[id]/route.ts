@@ -11,6 +11,8 @@ import {
   TIPO_PROTOCOLO_ALTA,
   TIPO_PROTOCOLO_ATIVADO,
 } from "@/lib/alertas/protocolo-risco-suicidio";
+import { invalidateAdolescentesMapaCache } from "@/lib/estrutura/adolescentes-cache";
+import { invalidateEstruturaSnapshot } from "@/lib/estrutura/snapshot";
 
 const prisma = new PrismaClient();
 
@@ -228,6 +230,9 @@ export async function PATCH(
       await atualizarFlagsAlertasEspeciais(prisma, alerta.adolescenteId);
     }
 
+    invalidateAdolescentesMapaCache();
+    invalidateEstruturaSnapshot();
+
     return NextResponse.json(alerta);
   } catch (error) {
     console.error("Erro ao atualizar alerta:", error);
@@ -272,6 +277,9 @@ export async function DELETE(
         alertaExistente.adolescenteId
       );
     }
+
+    invalidateAdolescentesMapaCache();
+    invalidateEstruturaSnapshot();
 
     return NextResponse.json({ mensagem: "Alerta removido com sucesso" });
   } catch (error) {

@@ -67,8 +67,20 @@ export const normalizarCasoInfracional = <
   };
 };
 
-export const obterCasoAtual = <T extends CasoLike>(casos?: T[] | null): T | null =>
-  (casos?.find((caso) => caso.status === "ATUAL") ?? casos?.[0] ?? null) as T | null;
+export const obterCasoAtual = <T extends CasoLike>(casos?: T[] | null): T | null => {
+  const lista = casos ?? [];
+  const atual = lista.find((caso) => caso.status === "ATUAL");
+  if (atual) {
+    return atual as T;
+  }
+
+  // Compatibilidade com registros legados que possuem um único caso sem status.
+  if (lista.length === 1 && !trimOrNull(lista[0]?.status)) {
+    return lista[0] as T;
+  }
+
+  return null;
+};
 
 export const obterCasosHistoricos = <T extends CasoLike>(
   casos?: T[] | null,

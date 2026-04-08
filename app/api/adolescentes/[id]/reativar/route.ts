@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { atualizarFlagsAlertasEspeciais } from "@/lib/alertas/sincronizar-especiais";
+import { invalidateAdolescentesMapaCache } from "@/lib/estrutura/adolescentes-cache";
 
 const normalizeIds = (value: unknown): string[] => {
   if (!Array.isArray(value)) return [];
@@ -80,6 +82,9 @@ export async function POST(
           data: { desativadoEm: null },
         });
         alertasReativados = res.count;
+        if (res.count > 0) {
+          await atualizarFlagsAlertasEspeciais(tx, adolescenteId);
+        }
       }
 
       if (conflitosIds.length > 0) {
@@ -156,6 +161,8 @@ export async function POST(
 
       return { alertasReativados, conflitosReativados, comunicadosReativados };
     });
+
+    invalidateAdolescentesMapaCache();
 
     return NextResponse.json({
       mensagem: "Reativacao concluida",

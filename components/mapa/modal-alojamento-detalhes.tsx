@@ -2299,6 +2299,17 @@ export default function ModalAlojamentoDetalhes({
                         <div className="flex flex-wrap gap-3 items-center">
                           <button
                             type="button"
+                            onClick={onSolicitarAlocacao}
+                            disabled={
+                              desinternandoLocal ||
+                              desinternandoId === ocupante.id
+                            }
+                            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed"
+                          >
+                            Alocar adolescente
+                          </button>
+                          <button
+                            type="button"
                             onClick={() =>
                               onDesalocar(
                                 alojamento.id,

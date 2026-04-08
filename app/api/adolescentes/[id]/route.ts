@@ -1051,68 +1051,6 @@ export async function PUT(
       );
     }
 
-    let historicoParaRestaurar: HistoricoEntrada | null = null;
-    let casoParaRestaurar: CasoInfracionalEntrada | null = null;
-
-    if (
-      retornandoParaAtivo &&
-      statusAtual !== "LIBERADO" &&
-      !casoInfracionalInformado
-    ) {
-      casoParaRestaurar = toCasoEntradaFromDb(
-        existente.casosInfracionais?.find((caso: any) => caso.status !== "ATUAL") ??
-          null
-      );
-      const registro =
-        await prisma.adolescenteHistoricoInfracional.findFirst({
-          where: { adolescenteId: id },
-          orderBy: [
-            { ano: "desc" },
-            { atoInfracionalAno: "desc" },
-            { id: "desc" },
-          ],
-          select: {
-            atoInfracionalDescricao: true,
-            atoInfracionalAno: true,
-            atoInfracionalProcesso: true,
-            atoInfracionalGravidade: true,
-            atoInfracionalGravidadeObs: true,
-            atoInfracionalCatalogoId: true,
-            unidadeInternacao: true,
-            ano: true,
-            observacoes: true,
-          },
-        });
-
-      if (registro) {
-        historicoParaRestaurar = toHistoricoEntradaFromDb(registro as any);
-      }
-
-      if (!casoParaRestaurar && historicoParaRestaurar) {
-        casoParaRestaurar = {
-          status: "ATUAL",
-          numeroProcesso: historicoParaRestaurar.atoInfracionalProcesso,
-          anoFato:
-            historicoParaRestaurar.atoInfracionalAno ??
-            historicoParaRestaurar.ano ??
-            null,
-          comarca: historicoParaRestaurar.unidadeInternacao,
-          narrativa: historicoParaRestaurar.observacoes,
-          tipificacoes: [
-            {
-              ordem: 1,
-              catalogoId: historicoParaRestaurar.catalogoId,
-              descricaoManual: historicoParaRestaurar.atoInfracionalDescricao,
-              principal: true,
-              qualificadora: null,
-              majorante: null,
-              observacoes: null,
-            },
-          ],
-        };
-      }
-    }
-
     const deveGerarHistorico =
       saiuDeAtivo && Boolean(atoAtualCatalogoId || atoAtualNome);
 
@@ -1234,19 +1172,6 @@ export async function PUT(
       } else if (statusAtual === "ATIVO" && !existente.dataDesinternacao) {
         data.dataDesinternacao = new Date();
         camposAlterados.push("dataDesinternacao");
-      }
-    }
-
-    if (historicoParaRestaurar) {
-      if (validated.atoInfracionalGravidade === undefined) {
-        data.atoInfracionalGravidade =
-          historicoParaRestaurar.atoInfracionalGravidade ?? false;
-        camposAlterados.push("atoInfracionalGravidade");
-      }
-      if (validated.atoInfracionalGravidadeObs === undefined) {
-        data.atoInfracionalGravidadeObs =
-          historicoParaRestaurar.atoInfracionalGravidadeObs ?? null;
-        camposAlterados.push("atoInfracionalGravidadeObs");
       }
     }
 
@@ -1537,16 +1462,6 @@ export async function PUT(
           adolescenteId: id,
           casoPayload: casoInfracionalAtual,
           statusCaso: novoStatus === "ATIVO" ? "ATUAL" : "HISTORICO",
-        });
-      } else if (retornandoParaAtivo && casoParaRestaurar) {
-        await sincronizarCasoInfracionalAtual({
-          tx,
-          adolescenteId: id,
-          casoPayload: {
-            ...casoParaRestaurar,
-            status: "ATUAL",
-          },
-          statusCaso: "ATUAL",
         });
       } else if (saiuDeAtivo) {
         await tx.adolescenteCasoInfracional.updateMany({

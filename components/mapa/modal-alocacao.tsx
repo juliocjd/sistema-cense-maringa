@@ -49,8 +49,15 @@ interface ModalAlocacaoProps {
     justificativa?: string,
     motivoTransferencia?: string,
     motivoTransferenciaObrigatorio?: boolean,
+    substituirOcupanteDestino?: boolean,
   ) => Promise<void>;
 }
+
+const normalizarBusca = (valor: string) =>
+  valor
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
 
 export function ModalAlocacao({
   isOpen,
@@ -183,6 +190,12 @@ export function ModalAlocacao({
 
   if (!isOpen || !alojamento) return null;
 
+  const ocupanteDestino =
+    Array.isArray(alojamento.adolescentes) && alojamento.adolescentes.length > 0
+      ? alojamento.adolescentes[0]
+      : null;
+  const destinoOcupado = Boolean(ocupanteDestino);
+
   // Filtrar adolescentes ativos (mesmo que ja alocados em outro alojamento)
   const adolescentesDisponiveis = adolescentes.filter((a) => {
     const ativo = (a.statusUnidade ?? "").toUpperCase() === "ATIVO";
@@ -196,9 +209,14 @@ export function ModalAlocacao({
   });
 
   const adolescentesFiltrados = adolescentesDisponiveis.filter(
-    (a) =>
-      a.nomeCompleto.toLowerCase().includes(busca.toLowerCase()) ||
-      a.numeroSms?.includes(busca),
+    (a) => {
+      const buscaNormalizada = normalizarBusca(busca);
+      const nomeNormalizado = normalizarBusca(a.nomeCompleto ?? "");
+      return (
+        nomeNormalizado.includes(buscaNormalizada) ||
+        a.numeroSms?.includes(busca)
+      );
+    },
   );
 
   // Verificacao de conflitos com API REAL
@@ -299,6 +317,7 @@ export function ModalAlocacao({
           ? motivoTransferenciaLimpo || "Transferencia interna via mapa"
           : undefined,
         exigeMotivoTransferencia,
+        destinoOcupado,
       );
       handleFechar();
     } catch (error) {
@@ -359,6 +378,11 @@ export function ModalAlocacao({
           )}
           {!adolescenteSelecionado ? (
             <>
+              {destinoOcupado && (
+                <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                  {`O alojamento esta ocupado por ${ocupanteDestino?.nomeCompleto ?? "outro adolescente"}. Ao confirmar a nova alocacao, esse ocupante ficara sem alojamento ate ser inserido em outro local.`}
+                </div>
+              )}
               <div className="mb-4">
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Buscar Adolescente
@@ -412,6 +436,12 @@ export function ModalAlocacao({
                         <p className="text-sm text-gray-600">
                           SMS: {adolescente.numeroSms || "N/A"}
                         </p>
+                        {destinoOcupado && (
+                          <p className="text-xs font-semibold text-amber-700 mt-1">
+                            A alocacao vai desalojar o ocupante atual deste
+                            destino.
+                          </p>
+                        )}
                       </div>
 
                       {/* Alertas */}
@@ -503,12 +533,16 @@ export function ModalAlocacao({
                         <p className="font-bold text-lg">
                           {verificacao.nivel_risco
                             ? `Risco ${verificacao.nivel_risco} Detectado`
-                            : "Alocacao Segura"}
+                            : destinoOcupado
+                              ? "Substituicao de ocupante pronta"
+                              : "Alocacao Segura"}
                         </p>
                         <p className="text-sm opacity-80">
                           {verificacao.requer_justificativa
                             ? "Justificativa obrigatoria"
-                            : "Nenhum conflito critico detectado"}
+                            : destinoOcupado
+                              ? "O ocupante atual sera removido deste alojamento"
+                              : "Nenhum conflito critico detectado"}
                         </p>
                       </div>
                     </div>
@@ -659,7 +693,9 @@ export function ModalAlocacao({
               ) : (
                 <>
                   <CheckCircle size={20} />
-                  Confirmar Alocação
+                  {destinoOcupado
+                    ? "Confirmar substituição"
+                    : "Confirmar Alocação"}
                 </>
               )}
             </button>

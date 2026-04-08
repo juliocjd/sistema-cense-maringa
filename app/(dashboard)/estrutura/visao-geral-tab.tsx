@@ -900,6 +900,7 @@ export function VisaoGeralTab({
     justificativa?: string,
     motivoTransferencia?: string,
     motivoTransferenciaObrigatorio?: boolean,
+    substituirOcupanteDestino?: boolean,
   ) => {
     await executarOperacao(async () => {
       const response = await fetch("/api/alocar", {
@@ -915,6 +916,7 @@ export function VisaoGeralTab({
           motivoTransferenciaObrigatorio: Boolean(
             motivoTransferenciaObrigatorio,
           ),
+          substituirOcupanteDestino: Boolean(substituirOcupanteDestino),
           medidas_adicionais: [],
         }),
       });
@@ -1276,14 +1278,6 @@ export function VisaoGeralTab({
         </div>
       ) : (
         <div className="relative">
-          {loading && casas.length > 0 && (
-            <div className="absolute inset-0 z-10 flex items-start justify-center pt-8 bg-white/70 backdrop-blur-sm rounded-xl border border-indigo-100 shadow-inner">
-              <div className="flex items-center gap-3 text-indigo-700 font-semibold bg-white/90 px-4 py-2 rounded-full shadow">
-                <Loader2 className="animate-spin" size={20} />
-                <span>Sincronizando dados com o servidor...</span>
-              </div>
-            </div>
-          )}
           <div
             className={`space-y-4 ${loading ? "opacity-40 pointer-events-none" : ""}`}
           >
@@ -1523,6 +1517,15 @@ export function VisaoGeralTab({
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {loading && casas.length > 0 && (
+        <div className="pointer-events-none fixed bottom-6 right-6 z-50">
+          <div className="flex items-center gap-3 rounded-full border border-indigo-200 bg-white/95 px-4 py-3 text-sm font-semibold text-indigo-700 shadow-xl backdrop-blur">
+            <Loader2 className="animate-spin" size={18} />
+            <span>Sincronizando dados com o servidor...</span>
           </div>
         </div>
       )}

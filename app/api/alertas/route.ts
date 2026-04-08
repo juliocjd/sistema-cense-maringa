@@ -12,6 +12,8 @@ import {
   registrarRiscoFugaAutomatico,
   textoIndicaFuga,
 } from "@/lib/adolescentes/risco-fuga";
+import { invalidateAdolescentesMapaCache } from "@/lib/estrutura/adolescentes-cache";
+import { invalidateEstruturaSnapshot } from "@/lib/estrutura/snapshot";
 
 const prisma = new PrismaClient();
 
@@ -343,6 +345,9 @@ export async function POST(request: NextRequest) {
         throw new Error("Falha ao sincronizar alerta especial");
       }
 
+      invalidateAdolescentesMapaCache();
+      invalidateEstruturaSnapshot();
+
       return NextResponse.json(
         {
           ...alertaEspecial,
@@ -383,6 +388,9 @@ export async function POST(request: NextRequest) {
     if (ehAlertaEspecial(alerta.tipoAlerta)) {
       await atualizarFlagsAlertasEspeciais(prisma, alerta.adolescenteId);
     }
+
+    invalidateAdolescentesMapaCache();
+    invalidateEstruturaSnapshot();
 
     const alertaIndicaFuga =
       textoIndicaFuga(tipoAlerta) || textoIndicaFuga(descricaoAlerta);

@@ -39,6 +39,7 @@ interface MapaInterativoProps {
     justificativa?: string,
     motivoTransferencia?: string,
     motivoTransferenciaObrigatorio?: boolean,
+    substituirOcupanteDestino?: boolean,
   ) => Promise<void>;
   onDesalocar: (
     alojamentoId: string,

@@ -90,6 +90,10 @@ export async function POST(request: NextRequest) {
       typeof body.motivoTransferenciaObrigatorio === "boolean"
         ? body.motivoTransferenciaObrigatorio
         : false;
+    const substituirOcupanteDestino =
+      typeof body.substituirOcupanteDestino === "boolean"
+        ? body.substituirOcupanteDestino
+        : false;
 
     if (!adolescenteId || !alojamentoId) {
       return NextResponse.json(
@@ -162,7 +166,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (alojamento.adolescentes.length > 0) {
+    if (alojamento.adolescentes.length > 0 && !substituirOcupanteDestino) {
       return NextResponse.json(
         {
           erro: "Alojamento ja esta ocupado",
@@ -212,6 +216,44 @@ export async function POST(request: NextRequest) {
     const resultado = await prisma.$transaction(async (tx) => {
       const origemAlojamentoId = origemAlojamentoAtualId;
       const origemCasaId = adolescente.alojamentoAtual?.casa?.id ?? null;
+      const ocupanteDestino = alojamento.adolescentes[0] ?? null;
+
+      if (ocupanteDestino) {
+        await tx.adolescente.update({
+          where: { id: ocupanteDestino.id },
+          data: {
+            alojamentoAtualId: null,
+            atualizadoEm: new Date(),
+          },
+        });
+
+        await tx.logAuditoria.create({
+          data: {
+            operadorId,
+            acao: "REMOCAO_ALOCACAO_SUBSTITUICAO",
+            tabelaAfetada: "adolescentes",
+            registroIdAfetado: ocupanteDestino.id,
+            detalhesAlteracao: {
+              alojamento_removido: alojamento.id,
+              casa: alojamento.casa.nome ?? null,
+              numero: alojamento.numeroAlojamento ?? null,
+              substituido_por: adolescente.nomeCompleto,
+              adolescente_substituto_id: adolescente.id,
+              motivo: "Substituicao de ocupante durante nova alocacao",
+            },
+            ipOrigem: request.headers.get("x-forwarded-for") ?? "unknown",
+          },
+        });
+
+        await registrarMovimentacao(tx, {
+          adolescenteId: ocupanteDestino.id,
+          tipo: "DESALOCACAO",
+          descricao: `Desalocado para entrada de ${adolescente.nomeCompleto}`,
+          origemCasaId: alojamento.casaId,
+          origemAlojamentoId: alojamento.id,
+          operadorId,
+        });
+      }
 
       const adolescenteAtualizado = await tx.adolescente.update({
         where: { id: adolescenteId },
@@ -261,6 +303,12 @@ export async function POST(request: NextRequest) {
             alertas_count: alertas.length,
             justificativa: justificativa || null,
             motivo_transferencia: motivoTransferencia || null,
+            substituiu_ocupante_destino: ocupanteDestino
+              ? {
+                  id: ocupanteDestino.id,
+                  nome: ocupanteDestino.nomeCompleto,
+                }
+              : null,
           },
           ipOrigem: request.headers.get("x-forwarded-for") ?? "unknown",
         },
@@ -286,8 +334,16 @@ export async function POST(request: NextRequest) {
         operadorId,
       });
 
-      return { adolescenteAtualizado, decisao };
+      return { adolescenteAtualizado, decisao, ocupanteDestino };
     });
+
+    if (resultado.ocupanteDestino) {
+      emitMapaEvent({
+        tipo: "desalocacao",
+        adolescenteId: resultado.ocupanteDestino.id,
+        alojamentoId: null,
+      });
+    }
 
     emitMapaEvent({
       tipo: "alocacao",
@@ -316,6 +372,12 @@ export async function POST(request: NextRequest) {
         decisao_id: resultado.decisao?.id ?? null,
         nivel_risco: nivelRisco,
         alertas_processados: alertas.length,
+        ocupante_removido: resultado.ocupanteDestino
+          ? {
+              id: resultado.ocupanteDestino.id,
+              nome: resultado.ocupanteDestino.nomeCompleto,
+            }
+          : null,
       },
       { status: 201 },
     );

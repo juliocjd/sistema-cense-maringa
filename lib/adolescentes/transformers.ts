@@ -12,6 +12,29 @@ import {
   obterTipificacaoPrincipal,
 } from "@/lib/adolescentes/casos-infracionais";
 
+const derivarFlagsAlertasEspeciais = (
+  alertasEspeciais: Array<{
+    tipo: string;
+    descricao?: string | null;
+  }>,
+  adolescente: any
+) => ({
+  alertaRiscoSuicidio:
+    Boolean(adolescente.alertaRiscoSuicidio) ||
+    alertasEspeciais.some((alerta) => alerta.tipo === "RISCO_SUICIDIO"),
+  alertaPerfilMapeado:
+    Boolean(adolescente.alertaPerfilMapeado) ||
+    alertasEspeciais.some((alerta) => alerta.tipo === "PERFIL_MAPEADO"),
+  alertaSaudeConfidencial:
+    Boolean(adolescente.alertaSaudeConfidencial) ||
+    alertasEspeciais.some((alerta) => alerta.tipo === "SAUDE_CONFIDENCIAL"),
+  alertaSaudeDetalhes:
+    adolescente.alertaSaudeDetalhes ??
+    alertasEspeciais.find((alerta) => alerta.tipo === "SAUDE_CONFIDENCIAL")
+      ?.descricao ??
+    null,
+});
+
 // Prisma include used across adolescentes endpoints to ensure we always fetch
 // the same related entities before mapping them to the API contract.
 export const INCLUDE_ADOLESCENTE_DEFAULT: any = {
@@ -591,12 +614,9 @@ export function mapPrismaAdolescente(adolescente: any): Adolescente {
       });
     })?.filter(Boolean) ?? [];
   const casoInfracionalAtual =
-    casosInfracionais.find((caso: any) => caso.status === "ATUAL") ??
-    casosInfracionais[0] ??
-    null;
+    casosInfracionais.find((caso: any) => caso.status === "ATUAL") ?? null;
   const casoAtualBruto =
     adolescente.casosInfracionais?.find((caso: any) => caso.status === "ATUAL") ??
-    adolescente.casosInfracionais?.[0] ??
     null;
   const tipificacaoPrincipalAtualBruta =
     obterTipificacaoPrincipal(casoAtualBruto?.tipificacoes) ?? null;
@@ -662,6 +682,10 @@ export function mapPrismaAdolescente(adolescente: any): Adolescente {
       criadoEm: formatDate(alerta.criadoEm) ?? null,
     })) ?? [];
   const alertaSuicidioNivel = extrairNivelRiscoSuicidio(alertasEspeciais);
+  const flagsAlertas = derivarFlagsAlertasEspeciais(
+    alertasEspeciais,
+    adolescente
+  );
   const riscoFugaOrigemRegistro = adolescente.historicoMovimentacao?.[0];
 
   return {
@@ -764,10 +788,10 @@ export function mapPrismaAdolescente(adolescente: any): Adolescente {
       : null,
     grupos,
     tatuagens,
-    alertaRiscoSuicidio: adolescente.alertaRiscoSuicidio ?? false,
-    alertaPerfilMapeado: adolescente.alertaPerfilMapeado ?? false,
-    alertaSaudeConfidencial: adolescente.alertaSaudeConfidencial ?? false,
-    alertaSaudeDetalhes: adolescente.alertaSaudeDetalhes ?? null,
+    alertaRiscoSuicidio: flagsAlertas.alertaRiscoSuicidio,
+    alertaPerfilMapeado: flagsAlertas.alertaPerfilMapeado,
+    alertaSaudeConfidencial: flagsAlertas.alertaSaudeConfidencial,
+    alertaSaudeDetalhes: flagsAlertas.alertaSaudeDetalhes,
     alertaRiscoSuicidioNivel: alertaSuicidioNivel,
     conflitosA:
       adolescente.conflitosA
@@ -953,9 +977,12 @@ export function mapPrismaAdolescenteMapa(
         ): alerta is NonNullable<typeof alerta> => Boolean(alerta)
       ) ?? [];
   const alertaSuicidioNivel = extrairNivelRiscoSuicidio(alertasEspeciais);
+  const flagsAlertas = derivarFlagsAlertasEspeciais(
+    alertasEspeciais,
+    adolescente
+  );
   const casoAtualBruto =
     adolescente.casosInfracionais?.find((caso: any) => caso.status === "ATUAL") ??
-    adolescente.casosInfracionais?.[0] ??
     null;
   const tipificacaoPrincipalAtualBruta =
     obterTipificacaoPrincipal(casoAtualBruto?.tipificacoes) ?? null;
@@ -1033,10 +1060,10 @@ export function mapPrismaAdolescenteMapa(
     riscoFugaOrigem: null,
     grupos: [],
     tatuagens: [],
-    alertaRiscoSuicidio: adolescente.alertaRiscoSuicidio ?? false,
-    alertaPerfilMapeado: adolescente.alertaPerfilMapeado ?? false,
-    alertaSaudeConfidencial: adolescente.alertaSaudeConfidencial ?? false,
-    alertaSaudeDetalhes: adolescente.alertaSaudeDetalhes ?? null,
+    alertaRiscoSuicidio: flagsAlertas.alertaRiscoSuicidio,
+    alertaPerfilMapeado: flagsAlertas.alertaPerfilMapeado,
+    alertaSaudeConfidencial: flagsAlertas.alertaSaudeConfidencial,
+    alertaSaudeDetalhes: flagsAlertas.alertaSaudeDetalhes,
     alertaRiscoSuicidioNivel: alertaSuicidioNivel,
     conflitosA:
       adolescente.conflitosA
