@@ -360,6 +360,7 @@ export async function GET(request: NextRequest) {
               tipificacao.atoInfracionalCatalogo?.nome ??
               tipificacao.descricaoManual ??
               null,
+            naturezaExecucao: tipificacao.naturezaExecucao ?? null,
             qualificadora: tipificacao.qualificadora ?? null,
             majorante: tipificacao.majorante ?? null,
             principal: tipificacao.principal ?? false,

@@ -17,6 +17,7 @@ type ResultadoBusca = {
   adolescentes: Array<{
     id: string;
     nome: string;
+    fotoUrl?: string | null;
     numeroSms?: string | null;
     numeroProcesso?: string | null;
     status?: string | null;
@@ -250,13 +251,25 @@ export function Header({
                             onClick={() =>
                               handleSelecionar(`/adolescentes/${ado.id}`)
                             }
-                            className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 transition flex items-center justify-between"
+                            className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 transition flex items-center justify-between gap-3"
                           >
-                            <div className="pr-3">
-                              <p className="text-sm font-semibold text-gray-900">
+                            <div className="flex min-w-0 items-center gap-3 pr-3">
+                              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-indigo-100 text-sm font-bold text-indigo-700">
+                                {ado.fotoUrl ? (
+                                  <img
+                                    src={ado.fotoUrl}
+                                    alt={ado.nome}
+                                    className="h-full w-full object-cover"
+                                  />
+                                ) : (
+                                  ado.nome.charAt(0).toUpperCase()
+                                )}
+                              </div>
+                              <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold text-gray-900">
                                 {ado.nome}
                               </p>
-                              <p className="text-xs text-gray-500">
+                              <p className="truncate text-xs text-gray-500">
                                 {ado.numeroSms
                                   ? `SMS: ${ado.numeroSms}`
                                   : "SMS não informado"}
@@ -265,12 +278,13 @@ export function Header({
                                   : ""}
                               </p>
                               {ado.alojamento && (
-                                <p className="text-xs text-gray-400">
+                                <p className="truncate text-xs text-gray-400">
                                   {ado.alojamento}
                                 </p>
                               )}
+                              </div>
                             </div>
-                            <span className="text-[11px] font-semibold text-indigo-600">
+                            <span className="shrink-0 text-[11px] font-semibold text-indigo-600">
                               {ado.status ?? ""}
                             </span>
                           </button>

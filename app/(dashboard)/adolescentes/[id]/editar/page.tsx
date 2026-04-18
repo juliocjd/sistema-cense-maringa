@@ -78,15 +78,26 @@ export default function EditarAdolescentePage() {
     carregar();
   }, [adolescenteId]);
 
-  const handleSalvar = async (dados: AdolescenteCadastroPayload) => {
+  const handleSalvar = async (
+    dados: AdolescenteCadastroPayload,
+    alojamentoId?: string,
+  ) => {
     if (!adolescenteId) {
       throw new Error("Identificador do adolescente nao encontrado.");
     }
 
+    const payloadAtualizacao: AdolescenteCadastroPayload =
+      alojamentoId !== undefined
+        ? {
+            ...dados,
+            alojamentoAtualId: alojamentoId,
+          }
+        : dados;
+
     const response = await fetch(`/api/adolescentes/${adolescenteId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(dados),
+      body: JSON.stringify(payloadAtualizacao),
     });
 
     const payload = await response.json().catch(() => null);

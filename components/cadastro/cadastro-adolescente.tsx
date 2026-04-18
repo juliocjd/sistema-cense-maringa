@@ -165,16 +165,41 @@ type AtoCatalogoOption = {
   violenciaOuGraveAmeaca?: boolean | null;
 };
 
+type GestaoAtoItem = {
+  id: string;
+  nome: string;
+  gravidade?: string | null;
+  violenciaOuGraveAmeaca?: boolean | null;
+  ativo: boolean;
+};
+
+type GestaoAtoAdolescenteVinculado = {
+  id: string;
+  nomeCompleto: string;
+  statusUnidade?: string | null;
+};
+
 type CasoTipificacaoFormState = {
   id?: string;
   ordem: number;
+  buscaCatalogo: string;
   catalogoId: string;
   descricao: string;
   principal: boolean;
+  naturezaExecucao: "" | "CONSUMADO" | "TENTADO";
   qualificadora: string;
   majorante: string;
   observacoes: string;
 };
+
+const NATUREZA_EXECUCAO_OPCOES: Array<{
+  value: "" | "CONSUMADO" | "TENTADO";
+  label: string;
+}> = [
+  { value: "", label: "Não informado" },
+  { value: "CONSUMADO", label: "Consumado" },
+  { value: "TENTADO", label: "Tentado" },
+];
 
 type CasoInfracionalFormState = {
   id?: string;
@@ -184,13 +209,66 @@ type CasoInfracionalFormState = {
   tipificacoes: CasoTipificacaoFormState[];
 };
 
+type CasoHistoricoFormState = {
+  chaveLocal: string;
+  id?: string;
+  status?: string | null;
+  numeroProcesso: string;
+  anoFato: string;
+  comarca: string;
+  narrativa: string;
+  tipificacoes: CasoTipificacaoFormState[];
+};
+
+let sequencialCasoHistoricoLocal = 0;
+
+const criarChaveCasoHistoricoLocal = () =>
+  `caso-historico-${++sequencialCasoHistoricoLocal}`;
+
+const compararAtoPorNome = (
+  a: { nome?: string | null },
+  b: { nome?: string | null },
+) => (a.nome ?? "").localeCompare(b.nome ?? "", "pt-BR", { sensitivity: "base" });
+
+const removerMarcadorTentativa = (descricao?: string | null) =>
+  (descricao ?? "").replace(/\s+tentad[oa]\s*$/i, "").trim();
+
+const montarDescricaoAutomaticaTipificacao = (
+  descricaoBase?: string | null,
+  naturezaExecucao?: "" | "CONSUMADO" | "TENTADO" | null,
+) => {
+  const descricaoNormalizada = removerMarcadorTentativa(descricaoBase);
+  if (!descricaoNormalizada) {
+    return "";
+  }
+
+  return naturezaExecucao === "TENTADO"
+    ? `${descricaoNormalizada} Tentado`
+    : descricaoNormalizada;
+};
+
+const obterSugestoesAtoCatalogo = (
+  atos: AtoCatalogoOption[],
+  termo: string,
+  limite: number = 12,
+) => {
+  const termoNormalizado = normalizarTexto(termo.trim());
+  const base = termoNormalizado
+    ? atos.filter((ato) => normalizarTexto(ato.nome).includes(termoNormalizado))
+    : atos;
+
+  return base.slice(0, limite);
+};
+
 const criarTipificacaoCasoVazia = (
   ordem: number = 1,
 ): CasoTipificacaoFormState => ({
   ordem,
+  buscaCatalogo: "",
   catalogoId: "",
   descricao: "",
   principal: ordem === 1,
+  naturezaExecucao: "",
   qualificadora: "",
   majorante: "",
   observacoes: "",
@@ -211,15 +289,115 @@ const normalizarCasoInfracionalFormulario = (
     return tipificacoesBase.map((tipificacao, indiceTip) => ({
       id: tipificacao.id,
       ordem: tipificacao.ordem ?? indiceTip + 1,
+      buscaCatalogo: removerMarcadorTentativa(tipificacao.descricao ?? ""),
       catalogoId: tipificacao.catalogoId ?? "",
-      descricao: tipificacao.descricao ?? "",
+      descricao: tipificacao.catalogoId
+        ? montarDescricaoAutomaticaTipificacao(
+            tipificacao.descricao ?? "",
+            tipificacao.naturezaExecucao ?? "",
+          )
+        : tipificacao.descricao ?? "",
       principal: tipificacao.principal ?? indiceTip === 0,
+      naturezaExecucao:
+        tipificacao.naturezaExecucao === "CONSUMADO" ||
+        tipificacao.naturezaExecucao === "TENTADO"
+          ? tipificacao.naturezaExecucao
+          : "",
       qualificadora: tipificacao.qualificadora ?? "",
       majorante: tipificacao.majorante ?? "",
       observacoes: tipificacao.observacoes ?? "",
     }));
   })(),
 });
+
+const normalizarCasoHistoricoFormulario = (
+  caso?: AdolescenteCasoInfracionalItem | null,
+): CasoHistoricoFormState => ({
+  chaveLocal: criarChaveCasoHistoricoLocal(),
+  id: caso?.id,
+  status: caso?.status ?? "HISTORICO",
+  numeroProcesso: caso?.numeroProcesso ?? "",
+  anoFato:
+    caso?.anoFato !== null && caso?.anoFato !== undefined
+      ? String(caso.anoFato)
+      : "",
+  comarca: caso?.comarca ?? "",
+  narrativa: caso?.narrativa ?? "",
+  tipificacoes: normalizarCasoInfracionalFormulario(caso).tipificacoes,
+});
+
+const converterHistoricoLegadoParaCasoFormulario = (
+  item: AdolescenteHistoricoInfracionalItem,
+): CasoHistoricoFormState => ({
+  chaveLocal: criarChaveCasoHistoricoLocal(),
+  id: item.id,
+  status: "HISTORICO",
+  numeroProcesso: item.processo ?? "",
+  anoFato: item.ano !== null && item.ano !== undefined ? String(item.ano) : "",
+  comarca: item.comarca ?? item.unidadeInternacao ?? "",
+  narrativa: "",
+  tipificacoes: [
+    {
+      ordem: 1,
+      buscaCatalogo: removerMarcadorTentativa(item.descricao ?? ""),
+      catalogoId: item.catalogoId ?? "",
+      descricao: item.descricao ?? "",
+      principal: true,
+      naturezaExecucao: "",
+      qualificadora: "",
+      majorante: "",
+      observacoes: item.observacoes ?? "",
+    },
+  ],
+});
+
+const normalizarCasosHistoricosFormulario = (
+  casos?: AdolescenteCasoInfracionalItem[] | null,
+  historicoLegado?: AdolescenteHistoricoInfracionalItem[] | null,
+): CasoHistoricoFormState[] => {
+  const historicosEstruturados = (casos ?? [])
+    .filter((caso) => caso.status !== "ATUAL")
+    .map((caso) => normalizarCasoHistoricoFormulario(caso));
+
+  if (historicosEstruturados.length > 0) {
+    return historicosEstruturados;
+  }
+
+  return (historicoLegado ?? []).map((item) =>
+    converterHistoricoLegadoParaCasoFormulario(item),
+  );
+};
+
+const resumirTipificacaoCasoHistorico = (
+  tipificacao: CasoTipificacaoFormState,
+) => {
+  const descricao =
+    montarDescricaoAutomaticaTipificacao(
+      tipificacao.descricao,
+      tipificacao.naturezaExecucao,
+    ) || "Ato não informado";
+  const complementos = [
+    tipificacao.qualificadora.trim(),
+    tipificacao.majorante.trim(),
+  ].filter(Boolean);
+
+  return complementos.length > 0
+    ? `${descricao} (${complementos.join(" | ")})`
+    : descricao;
+};
+
+const resumirCasoHistorico = (caso: CasoHistoricoFormState) => {
+  const tipificacoes = caso.tipificacoes
+    .map(resumirTipificacaoCasoHistorico)
+    .filter(Boolean);
+  const principal = tipificacoes[0] ?? "Sem ato informado";
+
+  if (tipificacoes.length <= 1) {
+    return principal;
+  }
+
+  return `${principal} + ${tipificacoes.length - 1} tipificacao(oes)`;
+};
 
 type ResultadoFiltroSugestoes = {
   lista: SugestaoAlojamentoCadastro[];
@@ -425,22 +603,21 @@ export function CadastroAdolescente({
     observacoesComplementares: "",
     gravidade: false,
     gravidadeDescricao: "",
-    historico: [] as {
-      id?: string;
-      descricao: string;
-      comarca: string;
-      processo: string;
-      ano: string;
-      observacoes?: string;
-      catalogoId?: string;
-    }[],
   });
   const [casoInfracionalAtual, setCasoInfracionalAtual] =
     useState<CasoInfracionalFormState>(() =>
       normalizarCasoInfracionalFormulario(initialData?.casoInfracionalAtual),
     );
-  const [historicoExistente, setHistoricoExistente] = useState<
-    AdolescenteHistoricoInfracionalItem[]
+  const [casosHistoricos, setCasosHistoricos] = useState<
+    CasoHistoricoFormState[]
+  >(() =>
+    normalizarCasosHistoricosFormulario(
+      initialData?.casosInfracionais,
+      initialData?.historicoInfracional,
+    ),
+  );
+  const [casosHistoricosExpandidos, setCasosHistoricosExpandidos] = useState<
+    string[]
   >([]);
   const [atoInfracionalVinculos, setAtoInfracionalVinculos] = useState<
     AdolescenteAtoInfracionalVinculoItem[]
@@ -628,7 +805,7 @@ export function CadastroAdolescente({
   };
 
   const obterStatusLabel = (status?: StatusUnidade | null) => {
-    if (!status) return "Nao informado";
+    if (!status) return "Não informado";
     return (
       STATUS_OPCOES.find((opcao) => opcao.value === status)?.label ?? status
     );
@@ -760,12 +937,17 @@ export function CadastroAdolescente({
         "",
       gravidade: initialData.atoInfracionalGravidade ?? false,
       gravidadeDescricao: initialData.atoInfracionalGravidadeObs ?? "",
-      historico: [],
     });
     setCasoInfracionalAtual(
       normalizarCasoInfracionalFormulario(initialData.casoInfracionalAtual),
     );
-    setHistoricoExistente(initialData.historicoInfracional ?? []);
+    setCasosHistoricos(
+      normalizarCasosHistoricosFormulario(
+        initialData.casosInfracionais,
+        initialData.historicoInfracional,
+      ),
+    );
+    setCasosHistoricosExpandidos([]);
     setAtoInfracionalVinculos(
       (initialData.atoInfracionalVinculos ?? []).map((vinculo) => ({
         ...vinculo,
@@ -1340,17 +1522,17 @@ export function CadastroAdolescente({
   const [mostrarSugestoesAto, setMostrarSugestoesAto] = useState(false);
   const [gestaoAtos, setGestaoAtos] = useState<{
     aberto: boolean;
-    itens: Array<{
-      id: string;
-      nome: string;
-      gravidade?: string | null;
-      violenciaOuGraveAmeaca?: boolean | null;
-      ativo: boolean;
-    }>;
+    itens: GestaoAtoItem[];
     busca: string;
     carregando: boolean;
     erro: string | null;
     salvandoId: string | null;
+    excluindoId: string | null;
+    bloqueioExclusao: {
+      atoId: string;
+      atoNome: string;
+      adolescentes: GestaoAtoAdolescenteVinculado[];
+    } | null;
   }>({
     aberto: false,
     itens: [],
@@ -1358,6 +1540,8 @@ export function CadastroAdolescente({
     carregando: false,
     erro: null,
     salvandoId: null,
+    excluindoId: null,
+    bloqueioExclusao: null,
   });
   const [modalNovoAto, setModalNovoAto] = useState<{
     aberto: boolean;
@@ -1375,8 +1559,23 @@ export function CadastroAdolescente({
     salvando: false,
   });
   const [contextoNovoAtoTipificacao, setContextoNovoAtoTipificacao] = useState<{
+    origem: "ATUAL" | "HISTORICO";
+    casoHistoricoIndex?: number;
     tipificacaoIndex: number;
   } | null>(null);
+  const [campoBuscaAtoAtivo, setCampoBuscaAtoAtivo] = useState<{
+    origem: "ATUAL" | "HISTORICO";
+    tipificacaoIndex: number;
+    casoHistoricoIndex?: number;
+  } | null>(null);
+  const atosCatalogoOrdenados = useMemo(
+    () => [...atosCatalogoCache].sort(compararAtoPorNome),
+    [atosCatalogoCache],
+  );
+  const gestaoAtosOrdenados = useMemo(
+    () => [...gestaoAtos.itens].sort(compararAtoPorNome),
+    [gestaoAtos.itens],
+  );
 
   useEffect(() => {
     if (statusUnidade !== "ATIVO") {
@@ -1399,7 +1598,9 @@ export function CadastroAdolescente({
 
     const carregarCatalogoBase = async () => {
       try {
-        const response = await fetch("/api/atos-infracionais");
+        const response = await fetch(
+          "/api/atos-infracionais?incluirInativos=true",
+        );
         if (!response.ok) {
           return;
         }
@@ -1445,7 +1646,9 @@ export function CadastroAdolescente({
         if (lista.length === 0) {
           let base = atosCatalogoCache;
           if (base.length === 0) {
-            const fallback = await fetch("/api/atos-infracionais");
+            const fallback = await fetch(
+              "/api/atos-infracionais?incluirInativos=true",
+            );
             if (fallback.ok) {
               const payload = await fallback.json();
               if (Array.isArray(payload?.atos)) {
@@ -1460,6 +1663,7 @@ export function CadastroAdolescente({
               .filter((ato) =>
                 normalizarTexto(ato.nome).includes(termoNormalizado),
               )
+              .sort(compararAtoPorNome)
               .slice(0, 20);
           }
         }
@@ -1476,7 +1680,12 @@ export function CadastroAdolescente({
   }, [atoInfracional.descricao, atosCatalogoCache]);
 
   const carregarGestaoAtos = async (termo?: string) => {
-    setGestaoAtos((prev) => ({ ...prev, carregando: true, erro: null }));
+    setGestaoAtos((prev) => ({
+      ...prev,
+      carregando: true,
+      erro: null,
+      bloqueioExclusao: null,
+    }));
     try {
       const params = new URLSearchParams();
       params.set("incluirInativos", "true");
@@ -1507,6 +1716,7 @@ export function CadastroAdolescente({
       ...prev,
       aberto: true,
       erro: null,
+      bloqueioExclusao: null,
     }));
     carregarGestaoAtos(gestaoAtos.busca);
   };
@@ -1516,7 +1726,9 @@ export function CadastroAdolescente({
       ...prev,
       aberto: false,
       salvandoId: null,
+      excluindoId: null,
       erro: null,
+      bloqueioExclusao: null,
     }));
   };
 
@@ -1536,7 +1748,12 @@ export function CadastroAdolescente({
   const salvarGestaoAto = async (id: string) => {
     const item = gestaoAtos.itens.find((i) => i.id === id);
     if (!item) return;
-    setGestaoAtos((prev) => ({ ...prev, salvandoId: id, erro: null }));
+    setGestaoAtos((prev) => ({
+      ...prev,
+      salvandoId: id,
+      erro: null,
+      bloqueioExclusao: null,
+    }));
     try {
       const response = await fetch("/api/atos-infracionais", {
         method: "PATCH",
@@ -1585,6 +1802,20 @@ export function CadastroAdolescente({
             : s,
         ),
       );
+      setAtosCatalogoCache((prev) =>
+        prev.map((s) =>
+          s.id === id
+            ? {
+                ...s,
+                nome: payload.nome ?? s.nome,
+                gravidade: payload.gravidade ?? s.gravidade,
+                violenciaOuGraveAmeaca:
+                  payload.violenciaOuGraveAmeaca ?? s.violenciaOuGraveAmeaca,
+                ativo: payload.ativo ?? s.ativo,
+              }
+            : s,
+        ),
+      );
       // Se o ato selecionado no formulário for este, reflita imediatamente
       setAtoInfracional((prev) =>
         prev.catalogoId === id
@@ -1603,6 +1834,114 @@ export function CadastroAdolescente({
         ...prev,
         salvandoId: null,
         erro: error?.message ?? "Erro ao salvar ato",
+      }));
+    }
+  };
+
+  const limparReferenciasLocaisAto = (id: string) => {
+    setAtosCatalogoCache((prev) => prev.filter((item) => item.id !== id));
+    setAtoSugestoes((prev) => prev.filter((item) => item.id !== id));
+    setAtoInfracional((prev) =>
+      prev.catalogoId === id
+        ? {
+            ...prev,
+            catalogoId: "",
+            descricao: "",
+            gravidadeCatalogo: "",
+            violenciaCatalogo: null,
+          }
+        : prev,
+    );
+    setCasoInfracionalAtual((prev) => ({
+      ...prev,
+      tipificacoes: prev.tipificacoes.map((tipificacao) =>
+        tipificacao.catalogoId === id
+          ? {
+              ...tipificacao,
+              buscaCatalogo: "",
+              catalogoId: "",
+              descricao: "",
+            }
+          : tipificacao,
+      ),
+    }));
+    setCasosHistoricos((prev) =>
+      prev.map((caso) => ({
+        ...caso,
+        tipificacoes: caso.tipificacoes.map((tipificacao) =>
+          tipificacao.catalogoId === id
+            ? {
+                ...tipificacao,
+                buscaCatalogo: "",
+                catalogoId: "",
+                descricao: "",
+              }
+            : tipificacao,
+        ),
+      })),
+    );
+  };
+
+  const excluirGestaoAto = async (id: string) => {
+    const item = gestaoAtos.itens.find((registro) => registro.id === id);
+    if (!item) return;
+
+    if (
+      !confirm(
+        `Excluir o ato infracional "${item.nome}" do catálogo? Esta ação não poderá ser desfeita.`,
+      )
+    ) {
+      return;
+    }
+
+    setGestaoAtos((prev) => ({
+      ...prev,
+      excluindoId: id,
+      erro: null,
+      bloqueioExclusao: null,
+    }));
+
+    try {
+      const response = await fetch(`/api/atos-infracionais/${id}`, {
+        method: "DELETE",
+      });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        if (response.status === 409) {
+          setGestaoAtos((prev) => ({
+            ...prev,
+            excluindoId: null,
+            erro:
+              payload?.erro ??
+              "Nao foi possivel excluir o ato infracional selecionado.",
+            bloqueioExclusao: {
+              atoId: id,
+              atoNome: item.nome,
+              adolescentes: Array.isArray(payload?.adolescentes)
+                ? payload.adolescentes
+                : [],
+            },
+          }));
+          return;
+        }
+        throw new Error(payload?.erro ?? "Nao foi possivel excluir o ato.");
+      }
+
+      setGestaoAtos((prev) => ({
+        ...prev,
+        excluindoId: null,
+        itens: prev.itens.filter((registro) => registro.id !== id),
+        erro: null,
+        bloqueioExclusao: null,
+      }));
+      limparReferenciasLocaisAto(id);
+    } catch (error: any) {
+      console.error(error);
+      setGestaoAtos((prev) => ({
+        ...prev,
+        excluindoId: null,
+        erro: error?.message ?? "Erro ao excluir ato",
       }));
     }
   };
@@ -1858,6 +2197,7 @@ export function CadastroAdolescente({
     Boolean(
       tipificacao.catalogoId.trim() ||
       tipificacao.descricao.trim() ||
+      tipificacao.naturezaExecucao.trim() ||
       tipificacao.qualificadora.trim() ||
       tipificacao.majorante.trim() ||
       tipificacao.observacoes.trim(),
@@ -1924,6 +2264,57 @@ export function CadastroAdolescente({
     });
   };
 
+  const selecionarAtoCatalogoCasoAtual = (
+    tipificacaoIndex: number,
+    ato: AtoCatalogoOption,
+  ) => {
+    atualizarTipificacoesCaso((tipificacoes) =>
+      tipificacoes.map((item, index) =>
+        index !== tipificacaoIndex
+          ? item
+          : {
+              ...item,
+              buscaCatalogo: ato.nome,
+              catalogoId: ato.id,
+              descricao: montarDescricaoAutomaticaTipificacao(
+                ato.nome,
+                item.naturezaExecucao,
+              ),
+            },
+      ),
+    );
+    setCampoBuscaAtoAtivo(null);
+  };
+
+  const atualizarBuscaAtoCatalogoCasoAtual = (
+    tipificacaoIndex: number,
+    valor: string,
+  ) => {
+    atualizarTipificacoesCaso((tipificacoes) =>
+      tipificacoes.map((item, index) => {
+        if (index !== tipificacaoIndex) {
+          return item;
+        }
+
+        const nomeSelecionado =
+          atosCatalogoCache.find((ato) => ato.id === item.catalogoId)?.nome ?? "";
+        const mantemSelecao =
+          item.catalogoId &&
+          normalizarTexto(valor) === normalizarTexto(nomeSelecionado);
+
+        return {
+          ...item,
+          buscaCatalogo: valor,
+          catalogoId: mantemSelecao ? item.catalogoId : "",
+          descricao:
+            item.catalogoId && !mantemSelecao
+              ? ""
+              : item.descricao,
+        };
+      }),
+    );
+  };
+
   const atualizarCampoCasoInfracional = (campo: "narrativa", valor: string) => {
     setCasoInfracionalAtual((prev) => ({
       ...prev,
@@ -1961,10 +2352,14 @@ export function CadastroAdolescente({
   };
 
   const abrirModalNovoAtoParaTipificacao = (
+    origem: "ATUAL" | "HISTORICO",
     tipificacaoIndex: number,
+    casoHistoricoIndex?: number,
     nomeInicial = "",
   ) => {
     setContextoNovoAtoTipificacao({
+      origem,
+      casoHistoricoIndex,
       tipificacaoIndex,
     });
     setModalNovoAto({
@@ -2035,17 +2430,43 @@ export function CadastroAdolescente({
         return [novo, ...semDuplicado];
       });
       if (contextoNovoAtoTipificacao) {
-        atualizarTipificacoesCaso((tipificacoes) =>
-          tipificacoes.map((tipificacao, tipificacaoIndex) =>
-            tipificacaoIndex !== contextoNovoAtoTipificacao.tipificacaoIndex
-              ? tipificacao
-              : {
-                  ...tipificacao,
-                  catalogoId: novo.id,
-                  descricao: novo.nome,
-                },
-          ),
-        );
+        if (contextoNovoAtoTipificacao.origem === "ATUAL") {
+          atualizarTipificacoesCaso((tipificacoes) =>
+            tipificacoes.map((tipificacao, tipificacaoIndex) =>
+              tipificacaoIndex !== contextoNovoAtoTipificacao.tipificacaoIndex
+                ? tipificacao
+                : {
+                    ...tipificacao,
+                    buscaCatalogo: novo.nome,
+                    catalogoId: novo.id,
+                    descricao: montarDescricaoAutomaticaTipificacao(
+                      novo.nome,
+                      tipificacao.naturezaExecucao,
+                    ),
+                  },
+            ),
+          );
+        } else if (
+          typeof contextoNovoAtoTipificacao.casoHistoricoIndex === "number"
+        ) {
+          atualizarTipificacoesCasoHistorico(
+            contextoNovoAtoTipificacao.casoHistoricoIndex,
+            (tipificacoes) =>
+              tipificacoes.map((tipificacao, tipificacaoIndex) =>
+                tipificacaoIndex !== contextoNovoAtoTipificacao.tipificacaoIndex
+                  ? tipificacao
+                  : {
+                      ...tipificacao,
+                      buscaCatalogo: novo.nome,
+                      catalogoId: novo.id,
+                      descricao: montarDescricaoAutomaticaTipificacao(
+                        novo.nome,
+                        tipificacao.naturezaExecucao,
+                      ),
+                    },
+              ),
+          );
+        }
       } else {
         selecionarAtoCatalogo(novo);
       }
@@ -2767,42 +3188,90 @@ export function CadastroAdolescente({
           ? sanitize(vinculacoes.faccaoOrigemDetalhe)
           : undefined;
       const enviarFaccao = !faccaoSomenteHistorico;
-      const historicoPayload: AdolescenteHistoricoRegistroInput[] =
-        atoInfracional.historico
-          .map((item): AdolescenteHistoricoRegistroInput | null => {
-            const descricaoSanitizada = sanitize(item.descricao);
-            if (!descricaoSanitizada) {
-              return null;
-            }
+      const casosHistoricosPayload = casosHistoricos
+        .map((caso) => {
+          const numeroProcesso = sanitizeOrNull(caso.numeroProcesso);
+          const anoHistoricoSanitizado = sanitize(caso.anoFato);
+          const anoHistoricoNumerico =
+            anoHistoricoSanitizado !== undefined
+              ? Number.parseInt(anoHistoricoSanitizado, 10)
+              : undefined;
+          const anoFato =
+            anoHistoricoNumerico !== undefined &&
+            !Number.isNaN(anoHistoricoNumerico)
+              ? anoHistoricoNumerico
+              : null;
+          const comarca = sanitizeOrNull(caso.comarca);
+          const narrativa = sanitizeOrNull(caso.narrativa);
+          const tipificacoes = caso.tipificacoes
+            .map((tipificacao, indiceTipificacao) => {
+              const catalogoId = sanitize(tipificacao.catalogoId);
+              const descricao = sanitize(tipificacao.descricao);
+              const naturezaExecucao =
+                tipificacao.naturezaExecucao === "CONSUMADO" ||
+                tipificacao.naturezaExecucao === "TENTADO"
+                  ? tipificacao.naturezaExecucao
+                  : null;
+              const qualificadora = sanitizeOrNull(tipificacao.qualificadora);
+              const majorante = sanitizeOrNull(tipificacao.majorante);
+              const observacoes = sanitizeOrNull(tipificacao.observacoes);
 
-            const anoSanitizado = sanitize(item.ano);
-            const anoNumerico =
-              anoSanitizado !== undefined
-                ? Number.parseInt(anoSanitizado, 10)
-                : undefined;
-            const anoValido =
-              anoNumerico !== undefined && !Number.isNaN(anoNumerico)
-                ? anoNumerico
-                : undefined;
+              if (
+                !catalogoId &&
+                !descricao &&
+                !naturezaExecucao &&
+                !qualificadora &&
+                !majorante &&
+                !observacoes
+              ) {
+                return null;
+              }
 
-            return {
-              id: item.id,
-              descricao: descricaoSanitizada,
-              ano: anoValido ?? null,
-              processo: sanitize(item.processo) ?? null,
-              comarca: sanitize(item.comarca) ?? null,
-              observacoes: sanitize(item.observacoes) ?? null,
-              catalogoId: item.catalogoId,
-            };
-          })
-          .filter(
-            (item): item is AdolescenteHistoricoRegistroInput => item !== null,
-          );
+              return {
+                id: tipificacao.id,
+                ordem: indiceTipificacao + 1,
+                catalogoId: catalogoId ?? null,
+                descricao: descricao ?? null,
+                principal: tipificacao.principal,
+                naturezaExecucao,
+                qualificadora,
+                majorante,
+                observacoes,
+              };
+            })
+            .filter((item): item is NonNullable<typeof item> => item !== null);
+
+          if (
+            !numeroProcesso &&
+            anoFato === null &&
+            !comarca &&
+            !narrativa &&
+            tipificacoes.length === 0
+          ) {
+            return null;
+          }
+
+          return {
+            id: caso.id,
+            status: "HISTORICO",
+            numeroProcesso,
+            anoFato,
+            comarca,
+            narrativa,
+            tipificacoes,
+          };
+        })
+        .filter((item): item is NonNullable<typeof item> => item !== null);
       const narrativaCasoSanitizada = sanitize(casoInfracionalAtual.narrativa);
       const tipificacoesCasoPayload = casoInfracionalAtual.tipificacoes
         .map((tipificacao, indiceTipificacao) => {
           const catalogoId = sanitize(tipificacao.catalogoId);
           const descricao = sanitize(tipificacao.descricao);
+          const naturezaExecucao =
+            tipificacao.naturezaExecucao === "CONSUMADO" ||
+            tipificacao.naturezaExecucao === "TENTADO"
+              ? tipificacao.naturezaExecucao
+              : null;
           const qualificadora = sanitizeOrNull(tipificacao.qualificadora);
           const majorante = sanitizeOrNull(tipificacao.majorante);
           const observacoes = sanitizeOrNull(tipificacao.observacoes);
@@ -2810,6 +3279,7 @@ export function CadastroAdolescente({
           if (
             !catalogoId &&
             !descricao &&
+            !naturezaExecucao &&
             !qualificadora &&
             !majorante &&
             !observacoes
@@ -2823,6 +3293,7 @@ export function CadastroAdolescente({
             catalogoId: catalogoId ?? null,
             descricao: descricao ?? null,
             principal: tipificacao.principal,
+            naturezaExecucao,
             qualificadora,
             majorante,
             observacoes,
@@ -2903,9 +3374,7 @@ export function CadastroAdolescente({
         tecnicosReferenciaIds: tecnicosReferenciaIds,
       };
 
-      if (historicoPayload.length > 0) {
-        adolescente.historicoInfracional = historicoPayload;
-      }
+      adolescente.casosInfracionais = casosHistoricosPayload;
 
       if (enviarCasoInfracionalAtual) {
         adolescente.casoInfracionalAtual = {
@@ -3002,21 +3471,148 @@ export function CadastroAdolescente({
     reader.readAsDataURL(file);
   };
 
-  const adicionarHistoricoInfracional = () => {
-    setAtoInfracional({
-      ...atoInfracional,
-      historico: [
-        ...atoInfracional.historico,
-        { descricao: "", comarca: "", processo: "", ano: "", observacoes: "" },
-      ],
+  const criarCasoHistoricoVazio = (): CasoHistoricoFormState => ({
+    chaveLocal: criarChaveCasoHistoricoLocal(),
+    status: "HISTORICO",
+    numeroProcesso: "",
+    anoFato: "",
+    comarca: "",
+    narrativa: "",
+    tipificacoes: [criarTipificacaoCasoVazia(1)],
+  });
+
+  const atualizarCasosHistoricos = (
+    atualizador: (casos: CasoHistoricoFormState[]) => CasoHistoricoFormState[],
+  ) => {
+    setCasosHistoricos((prev) => atualizador(prev));
+  };
+
+  const adicionarCasoHistorico = () => {
+    const novoCaso = criarCasoHistoricoVazio();
+    atualizarCasosHistoricos((prev) => [...prev, novoCaso]);
+    setCasosHistoricosExpandidos((prev) => [...prev, novoCaso.chaveLocal]);
+  };
+
+  const removerCasoHistorico = (casoIndex: number) => {
+    const chaveLocal = casosHistoricos[casoIndex]?.chaveLocal;
+    atualizarCasosHistoricos((prev) =>
+      prev.filter((_, itemIndex) => itemIndex !== casoIndex),
+    );
+    if (chaveLocal) {
+      setCasosHistoricosExpandidos((prev) =>
+        prev.filter((chave) => chave !== chaveLocal),
+      );
+    }
+  };
+
+  const toggleEdicaoCasoHistorico = (chaveLocal: string) => {
+    setCasosHistoricosExpandidos((prev) =>
+      prev.includes(chaveLocal)
+        ? prev.filter((chave) => chave !== chaveLocal)
+        : [...prev, chaveLocal],
+    );
+  };
+
+  const atualizarCasoHistorico = (
+    casoIndex: number,
+    atualizador: (caso: CasoHistoricoFormState) => CasoHistoricoFormState,
+  ) => {
+    atualizarCasosHistoricos((prev) =>
+      prev.map((caso, itemIndex) =>
+        itemIndex === casoIndex ? atualizador(caso) : caso,
+      ),
+    );
+  };
+
+  const atualizarTipificacoesCasoHistorico = (
+    casoIndex: number,
+    atualizador: (
+      tipificacoes: CasoTipificacaoFormState[],
+    ) => CasoTipificacaoFormState[],
+  ) => {
+    atualizarCasoHistorico(casoIndex, (caso) => ({
+      ...caso,
+      tipificacoes: atualizador(caso.tipificacoes),
+    }));
+  };
+
+  const adicionarTipificacaoCasoHistorico = (casoIndex: number) => {
+    atualizarTipificacoesCasoHistorico(casoIndex, (tipificacoes) => [
+      ...tipificacoes,
+      criarTipificacaoCasoVazia(tipificacoes.length + 1),
+    ]);
+  };
+
+  const removerTipificacaoCasoHistorico = (
+    casoIndex: number,
+    tipificacaoIndex: number,
+  ) => {
+    atualizarTipificacoesCasoHistorico(casoIndex, (tipificacoes) => {
+      const atualizadas = tipificacoes
+        .filter((_, itemIndex) => itemIndex !== tipificacaoIndex)
+        .map((tipificacao, itemIndex) => ({
+          ...tipificacao,
+          ordem: itemIndex + 1,
+          principal: itemIndex === 0 ? true : tipificacao.principal,
+        }));
+
+      return atualizadas.length > 0
+        ? atualizadas
+        : [criarTipificacaoCasoVazia(1)];
     });
   };
 
-  const removerHistoricoInfracional = (index: number) => {
-    setAtoInfracional({
-      ...atoInfracional,
-      historico: atoInfracional.historico.filter((_, i) => i !== index),
-    });
+  const selecionarAtoCatalogoCasoHistorico = (
+    casoIndex: number,
+    tipificacaoIndex: number,
+    ato: AtoCatalogoOption,
+  ) => {
+    atualizarTipificacoesCasoHistorico(casoIndex, (tipificacoes) =>
+      tipificacoes.map((item, index) =>
+        index !== tipificacaoIndex
+          ? item
+          : {
+              ...item,
+              buscaCatalogo: ato.nome,
+              catalogoId: ato.id,
+              descricao: montarDescricaoAutomaticaTipificacao(
+                ato.nome,
+                item.naturezaExecucao,
+              ),
+            },
+      ),
+    );
+    setCampoBuscaAtoAtivo(null);
+  };
+
+  const atualizarBuscaAtoCatalogoCasoHistorico = (
+    casoIndex: number,
+    tipificacaoIndex: number,
+    valor: string,
+  ) => {
+    atualizarTipificacoesCasoHistorico(casoIndex, (tipificacoes) =>
+      tipificacoes.map((item, index) => {
+        if (index !== tipificacaoIndex) {
+          return item;
+        }
+
+        const nomeSelecionado =
+          atosCatalogoCache.find((ato) => ato.id === item.catalogoId)?.nome ?? "";
+        const mantemSelecao =
+          item.catalogoId &&
+          normalizarTexto(valor) === normalizarTexto(nomeSelecionado);
+
+        return {
+          ...item,
+          buscaCatalogo: valor,
+          catalogoId: mantemSelecao ? item.catalogoId : "",
+          descricao:
+            item.catalogoId && !mantemSelecao
+              ? ""
+              : item.descricao,
+        };
+      }),
+    );
   };
 
   const limparFormularioVinculo = (reporEdicao: boolean = true) => {
@@ -3065,34 +3661,6 @@ export function CadastroAdolescente({
 
   const removerVinculoInfracional = (index: number) => {
     setAtoInfracionalVinculos((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const iniciarEdicaoHistorico = (
-    item: AdolescenteHistoricoInfracionalItem,
-  ) => {
-    setAtoInfracional((prev) => {
-      if (prev.historico.some((pendente) => pendente.id === item.id)) {
-        return prev;
-      }
-      return {
-        ...prev,
-        historico: [
-          ...prev.historico,
-          {
-            id: item.id,
-            descricao: item.descricao ?? "",
-            comarca: item.comarca ?? item.unidadeInternacao ?? "",
-            processo: item.processo ?? "",
-            ano:
-              item.ano !== null && item.ano !== undefined
-                ? String(item.ano)
-                : "",
-            observacoes: item.observacoes ?? "",
-            catalogoId: item.catalogoId ?? undefined,
-          },
-        ],
-      };
-    });
   };
 
   const adicionarTatuagem = () => {
@@ -3660,8 +4228,8 @@ export function CadastroAdolescente({
                               </button>
                             </div>
 
-                            <div className="grid gap-3 md:grid-cols-2">
-                              <div>
+                            <div className="grid gap-3 md:grid-cols-6">
+                              <div className="md:col-span-3">
                                 <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
                                   <label className="block text-[11px] font-semibold text-slate-600">
                                     Ato infracional no catalogo
@@ -3671,7 +4239,9 @@ export function CadastroAdolescente({
                                       type="button"
                                       onClick={() =>
                                         abrirModalNovoAtoParaTipificacao(
+                                          "ATUAL",
                                           tipificacaoIndex,
+                                          undefined,
                                           tipificacao.descricao,
                                         )
                                       }
@@ -3688,41 +4258,121 @@ export function CadastroAdolescente({
                                     </button>
                                   </div>
                                 </div>
+                                <div className="relative">
+                                  <input
+                                    type="text"
+                                    value={tipificacao.buscaCatalogo}
+                                    onFocus={() =>
+                                      setCampoBuscaAtoAtivo({
+                                        origem: "ATUAL",
+                                        tipificacaoIndex,
+                                      })
+                                    }
+                                    onBlur={() => {
+                                      window.setTimeout(() => {
+                                        setCampoBuscaAtoAtivo((atual) =>
+                                          atual?.origem === "ATUAL" &&
+                                          atual.tipificacaoIndex ===
+                                            tipificacaoIndex
+                                            ? null
+                                            : atual,
+                                        );
+                                      }, 120);
+                                    }}
+                                    onChange={(e) =>
+                                      atualizarBuscaAtoCatalogoCasoAtual(
+                                        tipificacaoIndex,
+                                        e.target.value,
+                                      )
+                                    }
+                                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none"
+                                    placeholder="Digite para buscar o ato"
+                                    autoComplete="off"
+                                  />
+                                  {campoBuscaAtoAtivo?.origem === "ATUAL" &&
+                                  campoBuscaAtoAtivo.tipificacaoIndex ===
+                                    tipificacaoIndex ? (
+                                    <div className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-slate-200 bg-white shadow-lg">
+                                      {obterSugestoesAtoCatalogo(
+                                        atosCatalogoOrdenados,
+                                        tipificacao.buscaCatalogo,
+                                      ).map((ato) => (
+                                        <button
+                                          key={ato.id}
+                                          type="button"
+                                          onMouseDown={(event) => {
+                                            event.preventDefault();
+                                            selecionarAtoCatalogoCasoAtual(
+                                              tipificacaoIndex,
+                                              ato,
+                                            );
+                                          }}
+                                          className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-slate-50"
+                                        >
+                                          <span>{ato.nome}</span>
+                                          {!ato.ativo ? (
+                                            <span className="text-[11px] font-semibold text-amber-600">
+                                              Inativo
+                                            </span>
+                                          ) : null}
+                                        </button>
+                                      ))}
+                                      {obterSugestoesAtoCatalogo(
+                                        atosCatalogoOrdenados,
+                                        tipificacao.buscaCatalogo,
+                                      ).length === 0 ? (
+                                        <div className="px-3 py-2 text-sm text-slate-500">
+                                          Nenhum ato encontrado.
+                                        </div>
+                                      ) : null}
+                                    </div>
+                                  ) : null}
+                                </div>
+                              </div>
+
+                              <div className="md:col-span-3">
+                                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                                  Consumado ou Tentado
+                                </label>
                                 <select
-                                  value={tipificacao.catalogoId}
-                                  onChange={(e) => {
-                                    const catalogoId = e.target.value;
-                                    const atoSelecionado =
-                                      atosCatalogoCache.find(
-                                        (item) => item.id === catalogoId,
-                                      );
+                                  value={tipificacao.naturezaExecucao}
+                                  onChange={(e) =>
                                     atualizarTipificacoesCaso((tipificacoes) =>
                                       tipificacoes.map((item, index) =>
                                         index !== tipificacaoIndex
                                           ? item
                                           : {
                                               ...item,
-                                              catalogoId,
-                                              descricao:
-                                                atoSelecionado?.nome ??
-                                                item.descricao,
+                                              descricao: item.catalogoId
+                                                ? montarDescricaoAutomaticaTipificacao(
+                                                    atosCatalogoCache.find(
+                                                      (ato) =>
+                                                        ato.id === item.catalogoId,
+                                                    )?.nome ?? item.descricao,
+                                                    e.target
+                                                      .value as CasoTipificacaoFormState["naturezaExecucao"],
+                                                  )
+                                                : item.descricao,
+                                              naturezaExecucao: e.target
+                                                .value as CasoTipificacaoFormState["naturezaExecucao"],
                                             },
                                       ),
-                                    );
-                                  }}
+                                    )
+                                  }
                                   className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none"
                                 >
-                                  <option value="">Selecione um ato</option>
-                                  {atosCatalogoCache.map((ato) => (
-                                    <option key={ato.id} value={ato.id}>
-                                      {ato.nome}
-                                      {ato.ativo ? "" : " (inativo)"}
+                                  {NATUREZA_EXECUCAO_OPCOES.map((opcao) => (
+                                    <option
+                                      key={opcao.value || "vazio"}
+                                      value={opcao.value}
+                                    >
+                                      {opcao.label}
                                     </option>
                                   ))}
                                 </select>
                               </div>
 
-                              <div>
+                              <div className="md:col-span-2">
                                 <label className="block text-[11px] font-semibold text-slate-600 mb-1">
                                   Descricao manual
                                 </label>
@@ -3746,7 +4396,7 @@ export function CadastroAdolescente({
                                 />
                               </div>
 
-                              <div>
+                              <div className="md:col-span-2">
                                 <label className="block text-[11px] font-semibold text-slate-600 mb-1">
                                   Qualificadora
                                 </label>
@@ -3770,7 +4420,7 @@ export function CadastroAdolescente({
                                 />
                               </div>
 
-                              <div>
+                              <div className="md:col-span-2">
                                 <label className="block text-[11px] font-semibold text-slate-600 mb-1">
                                   Majorante / causa de aumento
                                 </label>
@@ -4160,173 +4810,541 @@ export function CadastroAdolescente({
               </div>
 
               <div>
-                <div className="flex items-center justify-between mb-4">
+                <div className="mb-4 flex items-center justify-between">
                   <h3 className="text-lg font-semibold text-gray-800">
-                    Histórico Infracional
+                    Casos Históricos
                   </h3>
                   <button
                     type="button"
-                    onClick={adicionarHistoricoInfracional}
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-semibold"
+                    onClick={adicionarCasoHistorico}
+                    className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700"
                   >
-                    + Adicionar
+                    + Adicionar caso
                   </button>
                 </div>
 
-                {historicoExistente.length > 0 && (
-                  <div className="space-y-3 mb-6">
-                    <h4 className="text-sm font-semibold text-slate-700 uppercase tracking-wide">
-                      Historico ja registrado
-                    </h4>
-                    <div className="space-y-3">
-                      {historicoExistente.map((item) => (
-                        <div
-                          key={item.id}
-                          className="p-4 bg-white rounded-lg border border-slate-200 shadow-sm"
-                        >
-                          <p className="text-sm font-semibold text-slate-800">
-                            {item.descricao}
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            Ano: {item.ano ?? "Nao informado"}
-                            {item.processo
-                              ? ` \u2022 Processo: ${item.processo}`
-                              : ""}
-                            {" \u2022 Comarca: "}
-                            {item.comarca ??
-                              item.unidadeInternacao ??
-                              "Nao informado"}
-                          </p>
-                          {item.observacoes ? (
-                            <p className="text-xs text-slate-600 mt-1">
-                              {item.observacoes}
-                            </p>
-                          ) : null}
-                          <div className="mt-3">
-                            <button
-                              type="button"
-                              onClick={() => iniciarEdicaoHistorico(item)}
-                              className="text-indigo-600 hover:text-indigo-700 text-xs font-semibold"
-                            >
-                              {atoInfracional.historico.some(
-                                (pendente) => pendente.id === item.id,
-                              )
-                                ? "Em edicao"
-                                : "Editar"}
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {atoInfracional.historico.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+                {casosHistoricos.length === 0 ? (
+                  <div className="rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 py-8 text-center text-gray-500">
                     <FileText
                       size={48}
                       className="mx-auto mb-2 text-gray-400"
                     />
-                    <p>Nenhum histórico pendente para adicionar</p>
+                    <p>Nenhum caso histórico registrado</p>
                   </div>
                 ) : (
-                  <div className="space-y-3">
-                    {atoInfracional.historico.map((item, index) => (
+                  <div className="space-y-4">
+                    {casosHistoricos.map((caso, casoIndex) => (
                       <div
-                        key={index}
-                        className="p-4 bg-gray-50 rounded-lg border-2 border-gray-200"
+                        key={caso.chaveLocal}
+                        className="rounded-xl border border-slate-200 bg-slate-50 p-4"
                       >
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                          <div className="md:col-span-2">
-                            <input
-                              type="text"
-                              value={item.descricao}
-                              onChange={(e) => {
-                                const novo = [...atoInfracional.historico];
-                                novo[index].descricao = e.target.value;
-                                setAtoInfracional({
-                                  ...atoInfracional,
-                                  historico: novo,
-                                });
-                              }}
-                              placeholder="Descricao do ato"
-                              className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-indigo-500 outline-none"
-                            />
-                          </div>
-                          <div className="md:col-span-2">
-                            <input
-                              type="text"
-                              value={item.processo}
-                              onChange={(e) => {
-                                const novo = [...atoInfracional.historico];
-                                novo[index].processo = e.target.value;
-                                setAtoInfracional({
-                                  ...atoInfracional,
-                                  historico: novo,
-                                });
-                              }}
-                              placeholder="Número do processo"
-                              className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-indigo-500 outline-none"
-                            />
-                          </div>
-                          <div className="md:col-span-3">
-                            <input
-                              type="text"
-                              value={item.comarca}
-                              onChange={(e) => {
-                                const novo = [...atoInfracional.historico];
-                                novo[index].comarca = e.target.value;
-                                setAtoInfracional({
-                                  ...atoInfracional,
-                                  historico: novo,
-                                });
-                              }}
-                              placeholder="Comarca"
-                              className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-indigo-500 outline-none"
-                            />
-                          </div>
-                          <div className="md:col-span-1">
-                            <input
-                              type="text"
-                              value={item.ano}
-                              onChange={(e) => {
-                                const novo = [...atoInfracional.historico];
-                                novo[index].ano = e.target.value;
-                                setAtoInfracional({
-                                  ...atoInfracional,
-                                  historico: novo,
-                                });
-                              }}
-                              placeholder="Ano"
-                              className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-indigo-500 outline-none"
-                            />
-                          </div>
-                          <div className="md:col-span-4">
-                            <textarea
-                              value={item.observacoes ?? ""}
-                              onChange={(e) => {
-                                const novo = [...atoInfracional.historico];
-                                novo[index].observacoes = e.target.value;
-                                setAtoInfracional({
-                                  ...atoInfracional,
-                                  historico: novo,
-                                });
-                              }}
-                              rows={2}
-                              placeholder="Observações complementares (opcional)"
-                              className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-indigo-500 outline-none resize-none text-sm"
-                            />
-                          </div>
-                          <div className="md:col-span-4">
-                            <button
-                              type="button"
-                              onClick={() => removerHistoricoInfracional(index)}
-                              className="text-red-600 hover:text-red-700 text-sm font-semibold"
-                            >
-                              Remover
-                            </button>
-                          </div>
-                        </div>
+                        {(() => {
+                          const editando = casosHistoricosExpandidos.includes(
+                            caso.chaveLocal,
+                          );
+                          const metadados = [
+                            caso.numeroProcesso.trim()
+                              ? `Proc. ${caso.numeroProcesso.trim()}`
+                              : null,
+                            caso.anoFato.trim()
+                              ? `Ano ${caso.anoFato.trim()}`
+                              : null,
+                            caso.comarca.trim() || null,
+                          ].filter(Boolean);
+
+                          return (
+                            <>
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-sm font-semibold text-slate-800">
+                                    Caso histórico {casoIndex + 1}
+                                  </p>
+                                  <p className="mt-1 text-sm text-slate-600">
+                                    {resumirCasoHistorico(caso)}
+                                  </p>
+                                  {metadados.length > 0 ? (
+                                    <div className="mt-2 flex flex-wrap gap-2">
+                                      {metadados.map((item) => (
+                                        <span
+                                          key={`${caso.chaveLocal}-${item}`}
+                                          className="rounded-full bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600 ring-1 ring-slate-200"
+                                        >
+                                          {item}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <p className="mt-2 text-xs text-slate-500">
+                                      Caso sem dados complementares preenchidos.
+                                    </p>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      toggleEdicaoCasoHistorico(caso.chaveLocal)
+                                    }
+                                    className="text-sm font-semibold text-indigo-700 hover:text-indigo-600"
+                                  >
+                                    {editando ? "Ocultar edicao" : "Editar"}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      removerCasoHistorico(casoIndex)
+                                    }
+                                    className="text-sm font-semibold text-red-600 hover:text-red-700"
+                                  >
+                                    Remover caso
+                                  </button>
+                                </div>
+                              </div>
+
+                              {editando ? (
+                                <>
+                                  <div className="mt-5 grid gap-4 md:grid-cols-3">
+                                    <div>
+                                      <label className="mb-1 block text-sm font-semibold text-slate-700">
+                                        Número do processo
+                                      </label>
+                                      <input
+                                        type="text"
+                                        value={caso.numeroProcesso}
+                                        onChange={(e) =>
+                                          atualizarCasoHistorico(
+                                            casoIndex,
+                                            (atual) => ({
+                                              ...atual,
+                                              numeroProcesso: e.target.value,
+                                            }),
+                                          )
+                                        }
+                                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none"
+                                        placeholder="Ex.: 0001234-56.2024.8.16.0000"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="mb-1 block text-sm font-semibold text-slate-700">
+                                        Ano do fato
+                                      </label>
+                                      <input
+                                        type="text"
+                                        inputMode="numeric"
+                                        pattern="[0-9]*"
+                                        value={caso.anoFato}
+                                        onChange={(e) =>
+                                          atualizarCasoHistorico(
+                                            casoIndex,
+                                            (atual) => ({
+                                              ...atual,
+                                              anoFato: e.target.value,
+                                            }),
+                                          )
+                                        }
+                                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none"
+                                        placeholder="Ex.: 2024"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="mb-1 block text-sm font-semibold text-slate-700">
+                                        Comarca
+                                      </label>
+                                      <input
+                                        type="text"
+                                        value={caso.comarca}
+                                        onChange={(e) =>
+                                          atualizarCasoHistorico(
+                                            casoIndex,
+                                            (atual) => ({
+                                              ...atual,
+                                              comarca: e.target.value,
+                                            }),
+                                          )
+                                        }
+                                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none"
+                                        placeholder="Ex.: Maringa/PR"
+                                      />
+                                    </div>
+                                  </div>
+
+                                  <div className="mt-4">
+                                    <label className="mb-1 block text-sm font-semibold text-slate-700">
+                                      Narrativa do caso
+                                    </label>
+                                    <textarea
+                                      value={caso.narrativa}
+                                      onChange={(e) =>
+                                        atualizarCasoHistorico(
+                                          casoIndex,
+                                          (atual) => ({
+                                            ...atual,
+                                            narrativa: e.target.value,
+                                          }),
+                                        )
+                                      }
+                                      rows={3}
+                                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none resize-none"
+                                      placeholder="Descreva o contexto do caso histórico (opcional)."
+                                    />
+                                  </div>
+
+                                  <div className="mt-5 space-y-3">
+                                    <div className="flex items-center justify-between gap-3">
+                                      <div>
+                                        <p className="text-sm font-semibold text-slate-800">
+                                          Tipificações
+                                        </p>
+                                        <p className="text-xs text-slate-500">
+                                          Inclua qualificadoras, majorantes e
+                                          observações.
+                                        </p>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          adicionarTipificacaoCasoHistorico(
+                                            casoIndex,
+                                          )
+                                        }
+                                        className="text-sm font-semibold text-indigo-700 hover:text-indigo-600"
+                                      >
+                                        + Adicionar tipificação
+                                      </button>
+                                    </div>
+
+                                    {caso.tipificacoes.map(
+                                      (tipificacao, tipificacaoIndex) => (
+                                        <div
+                                          key={
+                                            tipificacao.id ??
+                                            `tip-historico-${casoIndex}-${tipificacaoIndex}`
+                                          }
+                                          className="rounded-xl border border-slate-200 bg-white p-4"
+                                        >
+                                          <div className="mb-3 flex items-center justify-between gap-3">
+                                            <p className="text-sm font-semibold text-slate-800">
+                                              Tipificação {tipificacaoIndex + 1}
+                                            </p>
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                removerTipificacaoCasoHistorico(
+                                                  casoIndex,
+                                                  tipificacaoIndex,
+                                                )
+                                              }
+                                              className="text-[11px] font-semibold text-red-600 hover:text-red-700"
+                                            >
+                                              Remover
+                                            </button>
+                                          </div>
+
+                                        <div className="grid gap-3 md:grid-cols-6">
+                                          <div className="md:col-span-3">
+                                              <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+                                                <label className="block text-[11px] font-semibold text-slate-600">
+                                                  Ato infracional no catalogo
+                                                </label>
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                  <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                      abrirModalNovoAtoParaTipificacao(
+                                                        "HISTORICO",
+                                                        tipificacaoIndex,
+                                                        casoIndex,
+                                                        tipificacao.descricao,
+                                                      )
+                                                    }
+                                                    className="text-[11px] font-semibold text-indigo-700 hover:text-indigo-600"
+                                                  >
+                                                    Cadastrar novo ato
+                                                  </button>
+                                                  <button
+                                                    type="button"
+                                                    onClick={abrirGestaoAtos}
+                                                    className="text-[11px] font-semibold text-slate-600 hover:text-slate-800"
+                                                  >
+                                                    Gerenciar atos
+                                                  </button>
+                                                </div>
+                                              </div>
+                                              <div className="relative">
+                                                <input
+                                                  type="text"
+                                                  value={
+                                                    tipificacao.buscaCatalogo
+                                                  }
+                                                  onFocus={() =>
+                                                    setCampoBuscaAtoAtivo({
+                                                      origem: "HISTORICO",
+                                                      casoHistoricoIndex:
+                                                        casoIndex,
+                                                      tipificacaoIndex,
+                                                    })
+                                                  }
+                                                  onBlur={() => {
+                                                    window.setTimeout(() => {
+                                                      setCampoBuscaAtoAtivo(
+                                                        (atual) =>
+                                                          atual?.origem ===
+                                                            "HISTORICO" &&
+                                                          atual.casoHistoricoIndex ===
+                                                            casoIndex &&
+                                                          atual.tipificacaoIndex ===
+                                                            tipificacaoIndex
+                                                            ? null
+                                                            : atual,
+                                                      );
+                                                    }, 120);
+                                                  }}
+                                                  onChange={(e) =>
+                                                    atualizarBuscaAtoCatalogoCasoHistorico(
+                                                      casoIndex,
+                                                      tipificacaoIndex,
+                                                      e.target.value,
+                                                    )
+                                                  }
+                                                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none"
+                                                  placeholder="Digite para buscar o ato"
+                                                  autoComplete="off"
+                                                />
+                                                {campoBuscaAtoAtivo?.origem ===
+                                                  "HISTORICO" &&
+                                                campoBuscaAtoAtivo.casoHistoricoIndex ===
+                                                  casoIndex &&
+                                                campoBuscaAtoAtivo.tipificacaoIndex ===
+                                                  tipificacaoIndex ? (
+                                                  <div className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-slate-200 bg-white shadow-lg">
+                                                    {obterSugestoesAtoCatalogo(
+                                                      atosCatalogoOrdenados,
+                                                      tipificacao.buscaCatalogo,
+                                                    ).map((ato) => (
+                                                      <button
+                                                        key={ato.id}
+                                                        type="button"
+                                                        onMouseDown={(
+                                                          event,
+                                                        ) => {
+                                                          event.preventDefault();
+                                                          selecionarAtoCatalogoCasoHistorico(
+                                                            casoIndex,
+                                                            tipificacaoIndex,
+                                                            ato,
+                                                          );
+                                                        }}
+                                                        className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-slate-50"
+                                                      >
+                                                        <span>{ato.nome}</span>
+                                                        {!ato.ativo ? (
+                                                          <span className="text-[11px] font-semibold text-amber-600">
+                                                            Inativo
+                                                          </span>
+                                                        ) : null}
+                                                      </button>
+                                                    ))}
+                                                    {obterSugestoesAtoCatalogo(
+                                                      atosCatalogoOrdenados,
+                                                      tipificacao.buscaCatalogo,
+                                                    ).length === 0 ? (
+                                                      <div className="px-3 py-2 text-sm text-slate-500">
+                                                        Nenhum ato encontrado.
+                                                      </div>
+                                                    ) : null}
+                                                  </div>
+                                                ) : null}
+                                              </div>
+                                            </div>
+                                            <div className="md:col-span-3">
+                                              <label className="mb-1 block text-[11px] font-semibold text-slate-600">
+                                                Consumado ou Tentado
+                                              </label>
+                                              <select
+                                                value={
+                                                  tipificacao.naturezaExecucao
+                                                }
+                                                onChange={(e) =>
+                                                  atualizarTipificacoesCasoHistorico(
+                                                    casoIndex,
+                                                    (tipificacoes) =>
+                                                      tipificacoes.map(
+                                                        (item, index) =>
+                                                          index !==
+                                                          tipificacaoIndex
+                                                            ? item
+                                                            : {
+                                                                ...item,
+                                                                descricao:
+                                                                  item.catalogoId
+                                                                    ? montarDescricaoAutomaticaTipificacao(
+                                                                        atosCatalogoCache.find(
+                                                                          (
+                                                                            ato,
+                                                                          ) =>
+                                                                            ato.id ===
+                                                                            item.catalogoId,
+                                                                        )?.nome ??
+                                                                          item.descricao,
+                                                                        e.target
+                                                                          .value as CasoTipificacaoFormState["naturezaExecucao"],
+                                                                      )
+                                                                    : item.descricao,
+                                                                naturezaExecucao:
+                                                                  e.target
+                                                                    .value as CasoTipificacaoFormState["naturezaExecucao"],
+                                                              },
+                                                      ),
+                                                  )
+                                                }
+                                                className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none"
+                                              >
+                                                {NATUREZA_EXECUCAO_OPCOES.map(
+                                                  (opcao) => (
+                                                    <option
+                                                      key={
+                                                        opcao.value || "vazio"
+                                                      }
+                                                      value={opcao.value}
+                                                    >
+                                                      {opcao.label}
+                                                    </option>
+                                                  ),
+                                                )}
+                                              </select>
+                                            </div>
+
+                                            <div className="md:col-span-2">
+                                              <label className="mb-1 block text-[11px] font-semibold text-slate-600">
+                                                Descricao manual
+                                              </label>
+                                              <input
+                                                type="text"
+                                                value={tipificacao.descricao}
+                                                onChange={(e) =>
+                                                  atualizarTipificacoesCasoHistorico(
+                                                    casoIndex,
+                                                    (tipificacoes) =>
+                                                      tipificacoes.map(
+                                                        (item, index) =>
+                                                          index !==
+                                                          tipificacaoIndex
+                                                            ? item
+                                                            : {
+                                                                ...item,
+                                                                descricao:
+                                                                  e.target
+                                                                    .value,
+                                                              },
+                                                      ),
+                                                  )
+                                                }
+                                                className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none"
+                                                placeholder="Opcional quando houver ato no catalogo"
+                                              />
+                                            </div>
+
+                                            <div className="md:col-span-2">
+                                              <label className="mb-1 block text-[11px] font-semibold text-slate-600">
+                                                Qualificadora
+                                              </label>
+                                              <input
+                                                type="text"
+                                                value={
+                                                  tipificacao.qualificadora
+                                                }
+                                                onChange={(e) =>
+                                                  atualizarTipificacoesCasoHistorico(
+                                                    casoIndex,
+                                                    (tipificacoes) =>
+                                                      tipificacoes.map(
+                                                        (item, index) =>
+                                                          index !==
+                                                          tipificacaoIndex
+                                                            ? item
+                                                            : {
+                                                                ...item,
+                                                                qualificadora:
+                                                                  e.target
+                                                                    .value,
+                                                              },
+                                                      ),
+                                                  )
+                                                }
+                                                className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none"
+                                                placeholder="Ex.: concurso de pessoas"
+                                              />
+                                            </div>
+
+                                            <div className="md:col-span-2">
+                                              <label className="mb-1 block text-[11px] font-semibold text-slate-600">
+                                                Majorante
+                                              </label>
+                                              <input
+                                                type="text"
+                                                value={tipificacao.majorante}
+                                                onChange={(e) =>
+                                                  atualizarTipificacoesCasoHistorico(
+                                                    casoIndex,
+                                                    (tipificacoes) =>
+                                                      tipificacoes.map(
+                                                        (item, index) =>
+                                                          index !==
+                                                          tipificacaoIndex
+                                                            ? item
+                                                            : {
+                                                                ...item,
+                                                                majorante:
+                                                                  e.target
+                                                                    .value,
+                                                              },
+                                                      ),
+                                                  )
+                                                }
+                                                className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none"
+                                                placeholder="Ex.: emprego de arma"
+                                              />
+                                            </div>
+
+                                            <div className="md:col-span-6">
+                                              <label className="mb-1 block text-[11px] font-semibold text-slate-600">
+                                                Observacoes da tipificação
+                                              </label>
+                                              <textarea
+                                                value={tipificacao.observacoes}
+                                                onChange={(e) =>
+                                                  atualizarTipificacoesCasoHistorico(
+                                                    casoIndex,
+                                                    (tipificacoes) =>
+                                                      tipificacoes.map(
+                                                        (item, index) =>
+                                                          index !==
+                                                          tipificacaoIndex
+                                                            ? item
+                                                            : {
+                                                                ...item,
+                                                                observacoes:
+                                                                  e.target
+                                                                    .value,
+                                                              },
+                                                      ),
+                                                  )
+                                                }
+                                                rows={2}
+                                                className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none resize-none"
+                                                placeholder="Detalhes complementares da tipificação"
+                                              />
+                                            </div>
+                                          </div>
+                                        </div>
+                                      ),
+                                    )}
+                                  </div>
+                                </>
+                              ) : null}
+                            </>
+                          );
+                        })()}
                       </div>
                     ))}
                   </div>
@@ -5775,7 +6793,7 @@ export function CadastroAdolescente({
                       </td>
                     </tr>
                   )}
-                  {gestaoAtos.itens.map((item) => (
+                  {gestaoAtosOrdenados.map((item) => (
                     <tr
                       key={item.id}
                       className={!item.ativo ? "bg-amber-50" : ""}
@@ -5845,16 +6863,34 @@ export function CadastroAdolescente({
                         </label>
                       </td>
                       <td className="px-3 py-2 align-top">
-                        <button
-                          type="button"
-                          onClick={() => salvarGestaoAto(item.id)}
-                          disabled={gestaoAtos.salvandoId === item.id}
-                          className="rounded bg-indigo-600 px-3 py-1 text-xs font-semibold text-white hover:bg-indigo-500 disabled:opacity-60"
-                        >
-                          {gestaoAtos.salvandoId === item.id
-                            ? "Salvando..."
-                            : "Salvar"}
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => salvarGestaoAto(item.id)}
+                            disabled={
+                              gestaoAtos.salvandoId === item.id ||
+                              gestaoAtos.excluindoId === item.id
+                            }
+                            className="rounded bg-indigo-600 px-3 py-1 text-xs font-semibold text-white hover:bg-indigo-500 disabled:opacity-60"
+                          >
+                            {gestaoAtos.salvandoId === item.id
+                              ? "Salvando..."
+                              : "Salvar"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => excluirGestaoAto(item.id)}
+                            disabled={
+                              gestaoAtos.salvandoId === item.id ||
+                              gestaoAtos.excluindoId === item.id
+                            }
+                            className="rounded border border-rose-200 px-3 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-60"
+                          >
+                            {gestaoAtos.excluindoId === item.id
+                              ? "Excluindo..."
+                              : "Excluir"}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -5864,6 +6900,33 @@ export function CadastroAdolescente({
 
             {gestaoAtos.erro && (
               <p className="mt-3 text-sm text-rose-600">{gestaoAtos.erro}</p>
+            )}
+            {gestaoAtos.bloqueioExclusao && (
+              <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                <p className="text-sm font-semibold text-amber-900">
+                  O ato "{gestaoAtos.bloqueioExclusao.atoNome}" nao pode ser
+                  excluido porque esta vinculado aos adolescentes abaixo:
+                </p>
+                <div className="mt-3 max-h-48 overflow-auto rounded-lg border border-amber-100 bg-white">
+                  <ul className="divide-y divide-amber-100 text-sm text-slate-700">
+                    {gestaoAtos.bloqueioExclusao.adolescentes.map(
+                      (adolescente) => (
+                        <li
+                          key={adolescente.id}
+                          className="flex items-center justify-between gap-3 px-3 py-2"
+                        >
+                          <span className="font-medium text-slate-800">
+                            {adolescente.nomeCompleto}
+                          </span>
+                          <span className="text-xs uppercase tracking-wide text-slate-500">
+                            {adolescente.statusUnidade ?? "Sem status"}
+                          </span>
+                        </li>
+                      ),
+                    )}
+                  </ul>
+                </div>
+              </div>
             )}
           </div>
         </div>

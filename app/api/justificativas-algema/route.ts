@@ -191,6 +191,7 @@ export async function POST(request: NextRequest) {
               select: {
                 id: true,
                 principal: true,
+                naturezaExecucao: true,
                 qualificadora: true,
                 majorante: true,
                 descricaoManual: true,

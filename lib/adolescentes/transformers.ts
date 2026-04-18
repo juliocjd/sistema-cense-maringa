@@ -35,6 +35,28 @@ const derivarFlagsAlertasEspeciais = (
     null,
 });
 
+const mapearCasoHistoricoLegado = (registro: any) =>
+  normalizarCasoInfracional({
+    id: registro.id,
+    status: "HISTORICO",
+    numeroProcesso: registro.atoInfracionalProcesso ?? null,
+    anoFato: registro.atoInfracionalAno ?? registro.ano ?? null,
+    comarca: registro.unidadeInternacao ?? null,
+    narrativa: null,
+    tipificacoes: [
+      {
+        ordem: 1,
+        catalogoId: registro.atoInfracionalCatalogoId ?? null,
+        descricao: registro.atoInfracionalDescricao ?? null,
+        principal: true,
+        naturezaExecucao: null,
+        qualificadora: null,
+        majorante: null,
+        observacoes: registro.observacoes ?? null,
+      },
+    ],
+  });
+
 // Prisma include used across adolescentes endpoints to ensure we always fetch
 // the same related entities before mapping them to the API contract.
 export const INCLUDE_ADOLESCENTE_DEFAULT: any = {
@@ -324,6 +346,7 @@ export const SELECT_ADOLESCENTE_LISTA = {
           id: true,
           ordem: true,
           principal: true,
+          naturezaExecucao: true,
           qualificadora: true,
           majorante: true,
           observacoes: true,
@@ -607,14 +630,33 @@ export function mapPrismaAdolescente(adolescente: any): Adolescente {
               tipificacao.descricaoManual ??
               null,
             principal: tipificacao.principal ?? false,
+            naturezaExecucao: tipificacao.naturezaExecucao ?? null,
             qualificadora: tipificacao.qualificadora ?? null,
             majorante: tipificacao.majorante ?? null,
             observacoes: tipificacao.observacoes ?? null,
           })) ?? [],
       });
     })?.filter(Boolean) ?? [];
+  const possuiCasosHistoricosEstruturados = casosInfracionais.some(
+    (caso: any) => caso.status !== "ATUAL",
+  );
+  const casosInfracionaisComFallback =
+    possuiCasosHistoricosEstruturados || historicoInfracional.length === 0
+      ? casosInfracionais
+      : [
+          ...casosInfracionais,
+          ...historicoInfracional
+            .map((registro) => {
+              const bruto = adolescente.historicoInfracional?.find(
+                (item: any) => item.id === registro.id,
+              );
+              return bruto ? mapearCasoHistoricoLegado(bruto) : null;
+            })
+            .filter(Boolean),
+        ];
   const casoInfracionalAtual =
-    casosInfracionais.find((caso: any) => caso.status === "ATUAL") ?? null;
+    casosInfracionaisComFallback.find((caso: any) => caso.status === "ATUAL") ??
+    null;
   const casoAtualBruto =
     adolescente.casosInfracionais?.find((caso: any) => caso.status === "ATUAL") ??
     null;
@@ -623,7 +665,7 @@ export function mapPrismaAdolescente(adolescente: any): Adolescente {
   const atoCatalogoAtual =
     tipificacaoPrincipalAtualBruta?.atoInfracionalCatalogo ?? null;
   const resumoAtoAtual = obterResumoAtoAtual({
-    casosInfracionais,
+    casosInfracionais: casosInfracionaisComFallback,
     casoInfracionalAtual,
   });
 
@@ -917,7 +959,7 @@ export function mapPrismaAdolescente(adolescente: any): Adolescente {
     historicoInfracional,
     atoInfracionalVinculos,
     casoInfracionalAtual,
-    casosInfracionais,
+    casosInfracionais: casosInfracionaisComFallback,
     alertasEspeciais,
     alertasAtivos,
     alertasPendentes: 0,
@@ -981,6 +1023,65 @@ export function mapPrismaAdolescenteMapa(
     alertasEspeciais,
     adolescente
   );
+  const casosInfracionais =
+    adolescente.casosInfracionais?.map((caso: any) => {
+      return normalizarCasoInfracional({
+        id: caso.id,
+        status: caso.status ?? null,
+        numeroProcesso: caso.numeroProcesso ?? null,
+        anoFato: caso.anoFato ?? null,
+        comarca: caso.comarca ?? null,
+        narrativa: caso.narrativa ?? null,
+        tipificacoes:
+          caso.tipificacoes?.map((tipificacao: any) => ({
+            id: tipificacao.id,
+            ordem: tipificacao.ordem ?? 1,
+            catalogoId: tipificacao.atoInfracionalCatalogoId ?? null,
+            descricao:
+              tipificacao.atoInfracionalCatalogo?.nome ??
+              tipificacao.descricaoManual ??
+              null,
+            principal: tipificacao.principal ?? false,
+            naturezaExecucao: tipificacao.naturezaExecucao ?? null,
+            qualificadora: tipificacao.qualificadora ?? null,
+            majorante: tipificacao.majorante ?? null,
+            observacoes: tipificacao.observacoes ?? null,
+          })) ?? [],
+      });
+    })?.filter(Boolean) ?? [];
+  const historicoInfracional =
+    adolescente.historicoInfracional?.map((registro) => ({
+      id: registro.id,
+      descricao: registro.atoInfracionalDescricao,
+      ano: registro.atoInfracionalAno ?? registro.ano ?? null,
+      processo: registro.atoInfracionalProcesso ?? null,
+      gravidade: registro.atoInfracionalGravidade ?? false,
+      gravidadeObs: registro.atoInfracionalGravidadeObs ?? null,
+      catalogoId: registro.atoInfracionalCatalogoId ?? null,
+      unidadeInternacao: registro.unidadeInternacao ?? null,
+      comarca: registro.unidadeInternacao ?? null,
+      observacoes: registro.observacoes ?? null,
+    })) ?? [];
+  const possuiCasosHistoricosEstruturados = casosInfracionais.some(
+    (caso: any) => caso.status !== "ATUAL",
+  );
+  const casosInfracionaisComFallback =
+    possuiCasosHistoricosEstruturados || historicoInfracional.length === 0
+      ? casosInfracionais
+      : [
+          ...casosInfracionais,
+          ...historicoInfracional
+            .map((registro) => {
+              const bruto = adolescente.historicoInfracional?.find(
+                (item: any) => item.id === registro.id,
+              );
+              return bruto ? mapearCasoHistoricoLegado(bruto) : null;
+            })
+            .filter(Boolean),
+        ];
+  const casoInfracionalAtual =
+    casosInfracionaisComFallback.find((caso: any) => caso.status === "ATUAL") ??
+    null;
   const casoAtualBruto =
     adolescente.casosInfracionais?.find((caso: any) => caso.status === "ATUAL") ??
     null;
@@ -988,8 +1089,8 @@ export function mapPrismaAdolescenteMapa(
     obterTipificacaoPrincipal(casoAtualBruto?.tipificacoes) ?? null;
   const atoCatalogo = tipificacaoPrincipalAtualBruta?.atoInfracionalCatalogo ?? null;
   const resumoAtoAtual = obterResumoAtoAtual({
-    casosInfracionais: adolescente.casosInfracionais ?? [],
-    casoInfracionalAtual: adolescente.casoInfracionalAtual ?? null,
+    casosInfracionais: casosInfracionaisComFallback,
+    casoInfracionalAtual,
   });
   const atoInfracionalVinculos =
     adolescente.atoInfracionalVinculos
@@ -1192,6 +1293,8 @@ export function mapPrismaAdolescenteMapa(
         }) ?? [],
     historicoInfracional: [],
     atoInfracionalVinculos,
+    casoInfracionalAtual,
+    casosInfracionais: casosInfracionaisComFallback,
     alertasEspeciais,
     alertasPendentes: 0,
     criadoEm: formatDate(adolescente.criadoEm),

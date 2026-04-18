@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -22,6 +22,7 @@ import type {
 import type { ImpactoConflitoExterno } from "@/types/inteligencia";
 import type { RiscoDetalhado as RiscoDetalhadoCalculo } from "@/lib/riscos/calcular";
 import { ALERTAS_ESPECIAIS } from "@/lib/alertas/especiais";
+import { listarResumoTipificacoes } from "@/lib/adolescentes/casos-infracionais";
 import { RelatorioProcessoSocioeducativoModalTrigger } from "@/components/relatorios/relatorio-processo-socioeducativo-modal";
 
 type TabKey = "ocupacao" | "transferencia" | "interdicao";
@@ -345,6 +346,21 @@ export default function ModalAlojamentoDetalhes({
 }: ModalAlojamentoDetalhesProps) {
   const somenteLeitura = readOnly;
   const ocupante = alojamento?.adolescentes?.[0] ?? null;
+  const atosInfracionaisAtuaisResumo = useMemo(() => {
+    if (!ocupante) {
+      return null;
+    }
+
+    const tipificacoesAtuais = listarResumoTipificacoes(
+      ocupante.casoInfracionalAtual,
+    );
+    if (tipificacoesAtuais.length > 0) {
+      return tipificacoesAtuais.join(" | ");
+    }
+
+    const atoAtual = ocupante.atoInfracionalAtual?.replace(/\s+/g, " ").trim();
+    return atoAtual ? atoAtual : null;
+  }, [ocupante]);
   const adolescenteInicialRelatorio = ocupante
     ? {
         id: ocupante.id,
@@ -1553,9 +1569,9 @@ export default function ModalAlojamentoDetalhes({
               </span>
             </div>
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 {ocupante ? (
-                  <div className="flex flex-col gap-2">
+                  <div className="flex min-w-0 flex-col gap-2">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-xl font-semibold text-slate-900">
                         {ocupante.nomeCompleto}
@@ -1587,6 +1603,17 @@ export default function ModalAlojamentoDetalhes({
                         </span>
                       )}
                     </div>
+                    {atosInfracionaisAtuaisResumo && (
+                      <div
+                        className="inline-flex w-fit max-w-full items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700"
+                        title={atosInfracionaisAtuaisResumo}
+                      >
+                        <Activity size={12} className="shrink-0" />
+                        <span className="min-w-0 truncate">
+                          Ato infracional: {atosInfracionaisAtuaisResumo}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <p className="text-sm text-slate-500">
@@ -1683,8 +1710,8 @@ export default function ModalAlojamentoDetalhes({
             )}
             {somenteLeitura && (
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-xs text-slate-600">
-                Acesso somente leitura: operações de alocação, transferencia
-                e interdicao estao bloqueadas.
+                Acesso somente leitura: operações de alocação, transferencia e
+                interdicao estao bloqueadas.
               </div>
             )}
 
@@ -1766,8 +1793,7 @@ export default function ModalAlojamentoDetalhes({
                                 return (
                                   <div key={nivel} className="space-y-2">
                                     <p className="text-xs font-semibold text-slate-700">
-                                      ⚠️ Fatores de Nível {nivel} (
-                                      {labelNivel})
+                                      ⚠️ Fatores de Nível {nivel} ({labelNivel})
                                     </p>
                                     {detalhesDoNivel.map((detalhe, idx) => {
                                       // Parser para extrair informações estruturadas da mensagem
@@ -1858,8 +1884,7 @@ export default function ModalAlojamentoDetalhes({
                                                     {parsed.tipoConflito}
                                                   </p>
                                                   <p className="text-xs text-slate-900 font-semibold">
-                                                    👤 Rival:{" "}
-                                                    {parsed.nomeRival}
+                                                    👤 Rival: {parsed.nomeRival}
                                                   </p>
                                                   <p className="text-xs text-slate-700">
                                                     📍 {parsed.local}
@@ -1874,8 +1899,7 @@ export default function ModalAlojamentoDetalhes({
                                                     🌍 Origem: {parsed.origem}
                                                   </p>
                                                   <p className="text-xs text-slate-900 font-semibold">
-                                                    👤 Rival:{" "}
-                                                    {parsed.nomeRival}
+                                                    👤 Rival: {parsed.nomeRival}
                                                   </p>
                                                   <p className="text-xs text-slate-700">
                                                     📍 {parsed.local}
@@ -2291,8 +2315,8 @@ export default function ModalAlojamentoDetalhes({
 
                     {somenteLeitura ? (
                       <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                        Acesso somente leitura: remoção e desinternação
-                        estão bloqueadas para seu perfil.
+                        Acesso somente leitura: remoção e desinternação estão
+                        bloqueadas para seu perfil.
                       </div>
                     ) : (
                       <div className="space-y-3">
@@ -2375,8 +2399,8 @@ export default function ModalAlojamentoDetalhes({
                         {confirmandoDesinternacao && (
                           <div className="rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 px-3 py-3">
                             <p className="text-xs text-amber-800">
-                              Defina a situação na Unidade antes de confirmar
-                              a desinternação.
+                              Defina a situação na Unidade antes de confirmar a
+                              desinternação.
                             </p>
                             <div className="mt-2 flex flex-wrap items-end gap-3">
                               <div className="flex flex-col gap-1 min-w-[220px]">
@@ -2455,8 +2479,8 @@ export default function ModalAlojamentoDetalhes({
                     </p>
                     {somenteLeitura ? (
                       <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                        Acesso somente leitura: alocação está bloqueada para
-                        seu perfil.
+                        Acesso somente leitura: alocação está bloqueada para seu
+                        perfil.
                       </div>
                     ) : (
                       <button

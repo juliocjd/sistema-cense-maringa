@@ -42,18 +42,20 @@ const prismaSetup = vi.hoisted(() => {
     logAuditoria: { create: vi.fn(), createMany: vi.fn() },
     adolescenteHistoricoGlobal: { createMany: vi.fn() },
     adolescenteTatuagemGlobal: { createMany: vi.fn() },
-    txAdolescente: { update: vi.fn(), findUnique: vi.fn() },
-    txHistorico: { findMany: vi.fn(), create: vi.fn() },
+    txAdolescente: { update: vi.fn(), findUnique: vi.fn(), findFirst: vi.fn() },
+    txHistorico: { findMany: vi.fn(), create: vi.fn(), deleteMany: vi.fn() },
     txTatuagem: { createMany: vi.fn() },
     txCasoInfracional: {
       updateMany: vi.fn(),
       findFirst: vi.fn(),
+      findMany: vi.fn(),
       update: vi.fn(),
       create: vi.fn(),
       delete: vi.fn(),
+      deleteMany: vi.fn(),
     },
     txCasoTipificacao: { deleteMany: vi.fn(), createMany: vi.fn() },
-    alertaAtivoGlobal: { count: vi.fn(), groupBy: vi.fn() },
+    alertaAtivoGlobal: { count: vi.fn(), groupBy: vi.fn(), findMany: vi.fn() },
     txAlertas: { updateMany: vi.fn(), findMany: vi.fn() },
     historicoMovimentacaoGlobal: { create: vi.fn() },
     txHistoricoMovimentacao: { create: vi.fn() },
@@ -152,18 +154,23 @@ beforeEach(() => {
     adolescenteTatuagemGlobalMock.createMany,
     txAdolescenteMock.update,
     txAdolescenteMock.findUnique,
+    txAdolescenteMock.findFirst,
     txHistoricoMock.findMany,
     txHistoricoMock.create,
+    txHistoricoMock.deleteMany,
     txTatuagemMock.createMany,
     txCasoInfracionalMock.updateMany,
     txCasoInfracionalMock.findFirst,
+    txCasoInfracionalMock.findMany,
     txCasoInfracionalMock.update,
     txCasoInfracionalMock.create,
     txCasoInfracionalMock.delete,
+    txCasoInfracionalMock.deleteMany,
     txCasoTipificacaoMock.deleteMany,
     txCasoTipificacaoMock.createMany,
     alertaAtivoGlobalMock.count,
     alertaAtivoGlobalMock.groupBy,
+    alertaAtivoGlobalMock.findMany,
     txAlertasMock.updateMany,
     txAlertasMock.findMany,
     historicoMovimentacaoGlobalMock.create,
@@ -176,12 +183,17 @@ beforeEach(() => {
 
   alertaAtivoGlobalMock.count.mockResolvedValue(0);
   alertaAtivoGlobalMock.groupBy.mockResolvedValue([]);
+  alertaAtivoGlobalMock.findMany.mockResolvedValue([]);
   txAlertasMock.updateMany.mockResolvedValue({ count: 0 });
   txAlertasMock.findMany.mockResolvedValue([]);
   txCasoInfracionalMock.updateMany.mockResolvedValue({ count: 0 });
   txCasoInfracionalMock.findFirst.mockResolvedValue(null);
+  txCasoInfracionalMock.findMany.mockResolvedValue([]);
+  txAdolescenteMock.findFirst.mockResolvedValue(null);
+  txCasoInfracionalMock.deleteMany.mockResolvedValue({ count: 0 });
   txCasoTipificacaoMock.deleteMany.mockResolvedValue({ count: 0 });
   txCasoTipificacaoMock.createMany.mockResolvedValue({ count: 0 });
+  txHistoricoMock.deleteMany.mockResolvedValue({ count: 0 });
   txConflitoMock.findMany.mockResolvedValue([]);
   txConflitoMock.updateMany.mockResolvedValue({ count: 0 });
   txComunicadoInternoMock.findMany.mockResolvedValue([]);
@@ -262,11 +274,12 @@ describe("API de adolescentes - validacoes de status", () => {
   });
 });
 
-describe("API de adolescentes - historico infracional", () => {
+describe("API de adolescentes - casos infracionais historicos", () => {
   const baseExistente = {
     id: "adol-99",
     nomeCompleto: "Caso Historico",
     statusUnidade: "ATIVO",
+    numeroInterno: 12,
     alojamentoAtualId: "aloj-x",
     alojamentoAtual: { casa: { nome: "Casa Azul" } },
     atoInfracionalGravidade: true,
@@ -286,6 +299,7 @@ describe("API de adolescentes - historico infracional", () => {
             atoInfracionalCatalogoId: "catalogo-1",
             descricaoManual: "Roubo",
             principal: true,
+            naturezaExecucao: null,
             qualificadora: null,
             majorante: null,
             observacoes: null,
@@ -300,13 +314,12 @@ describe("API de adolescentes - historico infracional", () => {
     dataDesinternacao: null,
   };
 
-  it("usa comarca padrao ao registrar historico automatico", async () => {
+  it("reclassifica o caso atual como historico ao sair do status ativo", async () => {
     mockedAuth.mockResolvedValue({ user: { id: "operador-3" } });
     operadorMock.findUnique.mockResolvedValue({ id: "operador-3" });
     adolescenteMock.findUnique.mockResolvedValue(baseExistente);
     txAdolescenteMock.update.mockResolvedValue({ id: "adol-99" });
     txAdolescenteMock.findUnique.mockResolvedValue({ id: "adol-99" });
-    txHistoricoMock.findMany.mockResolvedValue([]);
 
     const request = buildRequest(
       "PUT",
@@ -322,37 +335,200 @@ describe("API de adolescentes - historico infracional", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(txHistoricoMock.create).toHaveBeenCalledTimes(1);
+    expect(txCasoInfracionalMock.updateMany).toHaveBeenCalledWith({
+      where: {
+        adolescenteId: "adol-99",
+        status: "ATUAL",
+      },
+      data: {
+        status: "HISTORICO",
+      },
+    });
     expect(
-      txHistoricoMock.create.mock.calls[0][0].data.unidadeInternacao
-    ).toBe("Maringa");
+      txHistoricoMock.create
+    ).not.toHaveBeenCalled();
   });
 
-  it('define "Maringa" quando adolescente nao possui casa registrada', async () => {
-    mockedAuth.mockResolvedValue({ user: { id: "operador-4" } });
-    operadorMock.findUnique.mockResolvedValue({ id: "operador-4" });
+  it("reaproveita o caso historico com o mesmo processo ao retornar para ativo", async () => {
+    const casoHistoricoId = "11111111-1111-4111-8111-111111111111";
+    const catalogoId = "22222222-2222-4222-8222-222222222222";
+
+    mockedAuth.mockResolvedValue({ user: { id: "operador-5" } });
+    operadorMock.findUnique.mockResolvedValue({ id: "operador-5" });
     adolescenteMock.findUnique.mockResolvedValue({
       ...baseExistente,
+      statusUnidade: "EVADIDO",
+      numeroInterno: null,
+      alojamentoAtualId: null,
       alojamentoAtual: null,
+      dataDesinternacao: new Date("2024-05-11T00:00:00.000Z"),
+      casosInfracionais: [
+        {
+          id: casoHistoricoId,
+          status: "HISTORICO",
+          numeroProcesso: "PROC-X",
+          anoFato: 2023,
+          comarca: "Maringa",
+          narrativa: "Narrativa do caso atual",
+          tipificacoes: [
+            {
+              id: "tip-hist-1",
+              ordem: 1,
+              atoInfracionalCatalogoId: catalogoId,
+              descricaoManual: "Roubo",
+              principal: true,
+              naturezaExecucao: null,
+              qualificadora: null,
+              majorante: null,
+              observacoes: null,
+              atoInfracionalCatalogo: {
+                id: catalogoId,
+                nome: "Roubo",
+              },
+            },
+          ],
+        },
+      ],
     });
     txAdolescenteMock.update.mockResolvedValue({ id: "adol-99" });
     txAdolescenteMock.findUnique.mockResolvedValue({ id: "adol-99" });
-    txHistoricoMock.findMany.mockResolvedValue([]);
+    txCasoInfracionalMock.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: casoHistoricoId });
+    txCasoInfracionalMock.findMany.mockResolvedValueOnce([]);
 
     const request = buildRequest(
       "PUT",
       "http://localhost/api/adolescentes/adol-99",
       {
-        statusUnidade: "LIBERADO",
-        dataDesinternacao: "2024-05-10",
+        statusUnidade: "ATIVO",
+        numeroInterno: 12,
+        casoInfracionalAtual: {
+          numeroProcesso: "PROC-X",
+          anoFato: 2023,
+          comarca: "Maringa",
+          narrativa: "Narrativa do caso atual",
+          tipificacoes: [
+            {
+              ordem: 1,
+              catalogoId,
+              descricao: "Roubo",
+              principal: true,
+            },
+          ],
+        },
+        casosInfracionais: [
+          {
+            id: casoHistoricoId,
+            status: "HISTORICO",
+            numeroProcesso: "PROC-X",
+            anoFato: 2023,
+            comarca: "Maringa",
+            narrativa: "Narrativa do caso atual",
+            tipificacoes: [
+              {
+                ordem: 1,
+                catalogoId,
+                descricao: "Roubo",
+                principal: true,
+              },
+            ],
+          },
+        ],
       }
     );
 
-    await PUT(request, { params: Promise.resolve({ id: "adol-99" }) });
+    const response = await PUT(request, {
+      params: Promise.resolve({ id: "adol-99" }),
+    });
 
-    expect(txHistoricoMock.create).toHaveBeenCalledTimes(1);
+    expect(response.status).toBe(200);
+    expect(txCasoInfracionalMock.update).toHaveBeenCalledWith({
+      where: { id: casoHistoricoId },
+      data: {
+        status: "ATUAL",
+        numeroProcesso: "PROC-X",
+        anoFato: 2023,
+        comarca: "Maringa",
+        narrativa: "Narrativa do caso atual",
+      },
+    });
+    expect(txCasoInfracionalMock.create).not.toHaveBeenCalled();
+    expect(txCasoInfracionalMock.deleteMany).toHaveBeenCalledWith({
+      where: {
+        adolescenteId: "adol-99",
+        id: { not: casoHistoricoId },
+        numeroProcesso: {
+          equals: "PROC-X",
+          mode: "insensitive",
+        },
+      },
+    });
+  });
+
+  it("migra historico legado informado no payload para casos estruturados", async () => {
+    mockedAuth.mockResolvedValue({ user: { id: "operador-4" } });
+    operadorMock.findUnique.mockResolvedValue({ id: "operador-4" });
+    adolescenteMock.findUnique.mockResolvedValue({
+      ...baseExistente,
+      casosInfracionais: [],
+    });
+    txAdolescenteMock.update.mockResolvedValue({ id: "adol-99" });
+    txAdolescenteMock.findUnique.mockResolvedValue({ id: "adol-99" });
+    txCasoInfracionalMock.findMany.mockResolvedValue([]);
+    txCasoInfracionalMock.create.mockResolvedValue({ id: "caso-hist-1" });
+
+    const request = buildRequest(
+      "PUT",
+      "http://localhost/api/adolescentes/adol-99",
+      {
+        historicoInfracional: [
+          {
+            descricao: "Roubo qualificado",
+            ano: 2022,
+            processo: "PROC-HIST-1",
+            comarca: "Maringa",
+            observacoes: "Registro legado",
+          },
+        ],
+      }
+    );
+
+    const response = await PUT(request, {
+      params: Promise.resolve({ id: "adol-99" }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(txCasoInfracionalMock.create).toHaveBeenCalledWith({
+      data: {
+        adolescenteId: "adol-99",
+        status: "HISTORICO",
+        numeroProcesso: "PROC-HIST-1",
+        anoFato: 2022,
+        comarca: "Maringa",
+        narrativa: null,
+      },
+      select: { id: true },
+    });
     expect(
-      txHistoricoMock.create.mock.calls[0][0].data.unidadeInternacao
-    ).toBe("Maringa");
+      txCasoTipificacaoMock.createMany
+    ).toHaveBeenCalledWith({
+      data: [
+        {
+          casoId: "caso-hist-1",
+          ordem: 1,
+          atoInfracionalCatalogoId: undefined,
+          descricaoManual: "Roubo qualificado",
+          principal: true,
+          naturezaExecucao: null,
+          qualificadora: null,
+          majorante: null,
+          observacoes: "Registro legado",
+        },
+      ],
+    });
+    expect(txHistoricoMock.deleteMany).toHaveBeenCalledWith({
+      where: { adolescenteId: "adol-99" },
+    });
   });
 });

@@ -367,6 +367,7 @@ model AdolescenteCasoInfracionalTipificacao {
   atoInfracionalCatalogoId String?                       @map("ato_infracional_catalogo_id")
   descricaoManual         String?                         @map("descricao_manual")
   principal               Boolean                         @default(false)
+  naturezaExecucao        String?                         @map("natureza_execucao")
   qualificadora           String?
   majorante               String?
   observacoes             String?

@@ -4,6 +4,17 @@ import { prisma } from "@/lib/prisma";
 
 const MAX_RESULTADOS = 6;
 
+const normalizarTextoBusca = (value: string | null | undefined) => {
+  if (!value) {
+    return "";
+  }
+
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+};
+
 export async function GET(request: NextRequest) {
   const query = request.nextUrl.searchParams.get("q")?.trim();
 
@@ -15,31 +26,19 @@ export async function GET(request: NextRequest) {
 
   const numeroBusca = Number.parseInt(query, 10);
   const numeroValido = Number.isNaN(numeroBusca) ? null : numeroBusca;
+  const termoNormalizado = normalizarTextoBusca(query);
 
   try {
     const [adolescentes, comunicados] = await Promise.all([
       prisma.adolescente.findMany({
-        where: {
-          OR: [
-            { nomeCompleto: { contains: query, mode: "insensitive" } },
-            { nomeSocial: { contains: query, mode: "insensitive" } },
-            { numeroSms: { contains: query } },
-            {
-              casosInfracionais: {
-                some: {
-                  numeroProcesso: { contains: query, mode: "insensitive" },
-                },
-              },
-            },
-            ...(numeroValido !== null ? [{ numeroInterno: numeroValido }] : []),
-          ],
-        },
         orderBy: { nomeCompleto: "asc" },
-        take: MAX_RESULTADOS,
         select: {
           id: true,
           nomeCompleto: true,
+          nomeSocial: true,
+          fotoUrl: true,
           numeroSms: true,
+          numeroInterno: true,
           statusUnidade: true,
           casosInfracionais: {
             where: { status: "ATUAL" },
@@ -73,22 +72,45 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       resultados: {
-        adolescentes: adolescentes.map((ado) => ({
-          id: ado.id,
-          nome: ado.nomeCompleto,
-          numeroSms: ado.numeroSms,
-          numeroProcesso: ado.casosInfracionais?.[0]?.numeroProcesso ?? null,
-          status: ado.statusUnidade,
-          alojamento: ado.alojamentoAtual
-            ? `${ado.alojamentoAtual.casa?.nome ?? "Casa"} ${
-                ado.alojamentoAtual.numeroAlojamento
-              }${
-                ado.alojamentoAtual.ala
-                  ? ` (Ala ${ado.alojamentoAtual.ala})`
-                  : ""
-              }`
-            : null,
-        })),
+        adolescentes: adolescentes
+          .filter((ado) => {
+            const nome = normalizarTextoBusca(ado.nomeCompleto);
+            const nomeSocial = normalizarTextoBusca(ado.nomeSocial);
+            const sms = normalizarTextoBusca(ado.numeroSms);
+            const numeroProcesso = normalizarTextoBusca(
+              ado.casosInfracionais?.[0]?.numeroProcesso ?? null,
+            );
+            const numeroInterno =
+              ado.numeroInterno !== null && ado.numeroInterno !== undefined
+                ? String(ado.numeroInterno)
+                : "";
+
+            return (
+              nome.includes(termoNormalizado) ||
+              nomeSocial.includes(termoNormalizado) ||
+              sms.includes(termoNormalizado) ||
+              numeroProcesso.includes(termoNormalizado) ||
+              numeroInterno.includes(query)
+            );
+          })
+          .slice(0, MAX_RESULTADOS)
+          .map((ado) => ({
+            id: ado.id,
+            nome: ado.nomeCompleto,
+            fotoUrl: ado.fotoUrl,
+            numeroSms: ado.numeroSms,
+            numeroProcesso: ado.casosInfracionais?.[0]?.numeroProcesso ?? null,
+            status: ado.statusUnidade,
+            alojamento: ado.alojamentoAtual
+              ? `${ado.alojamentoAtual.casa?.nome ?? "Casa"} ${
+                  ado.alojamentoAtual.numeroAlojamento
+                }${
+                  ado.alojamentoAtual.ala
+                    ? ` (Ala ${ado.alojamentoAtual.ala})`
+                    : ""
+                }`
+              : null,
+          })),
         comunicados: comunicados.map((ci) => ({
           id: ci.id,
           numero: ci.numero,
@@ -102,14 +124,14 @@ export async function GET(request: NextRequest) {
     console.error("Erro ao executar busca rapida:", error);
     return NextResponse.json(
       { erro: "Erro ao executar busca" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
 
 const buildComunicadoWhere = (
   query: string,
-  numeroValido: number | null
+  numeroValido: number | null,
 ): Prisma.ComunicadoInternoWhereInput => {
   const or: Prisma.ComunicadoInternoWhereInput[] = [
     { resumoCI: { contains: query, mode: "insensitive" } },

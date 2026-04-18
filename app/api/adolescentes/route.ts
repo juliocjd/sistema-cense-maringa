@@ -86,6 +86,7 @@ const casoTipificacaoSchema = z.object({
   catalogoId: z.string().uuid().optional().nullable(),
   descricao: z.string().optional().nullable(),
   principal: z.boolean().optional(),
+  naturezaExecucao: z.enum(["CONSUMADO", "TENTADO"]).optional().nullable(),
   qualificadora: z.string().optional().nullable(),
   majorante: z.string().optional().nullable(),
   observacoes: z.string().optional().nullable(),
@@ -146,6 +147,7 @@ const createAdolescenteSchema = z.object({
     .default([]),
   historicoInfracional: historicoRegistroSchema,
   casoInfracionalAtual: casoInfracionalSchema.optional().nullable(),
+  casosInfracionais: z.array(casoInfracionalSchema).optional().default([]),
   tecnicosReferenciaIds: z.array(z.string().uuid()).optional().default([]),
   alertasEspeciais: z.array(alertaEspecialSchema).optional().default([]),
   atoInfracionalVinculos: z
@@ -210,6 +212,7 @@ type CasoTipificacaoEntrada = {
   catalogoId: string | null;
   descricaoManual: string | null;
   principal: boolean;
+  naturezaExecucao: "CONSUMADO" | "TENTADO" | null;
   qualificadora: string | null;
   majorante: string | null;
   observacoes: string | null;
@@ -232,6 +235,7 @@ const parseCasoTipificacoes = (
     catalogoId?: string | null;
     descricao?: string | null;
     principal?: boolean;
+    naturezaExecucao?: "CONSUMADO" | "TENTADO" | null;
     qualificadora?: string | null;
     majorante?: string | null;
     observacoes?: string | null;
@@ -256,6 +260,11 @@ const parseCasoTipificacoes = (
         catalogoId,
         descricaoManual,
         principal: tipificacao.principal ?? indiceTipificacao === 0,
+        naturezaExecucao:
+          tipificacao.naturezaExecucao === "CONSUMADO" ||
+          tipificacao.naturezaExecucao === "TENTADO"
+            ? tipificacao.naturezaExecucao
+            : null,
         qualificadora:
           sanitizeNullableString(tipificacao.qualificadora ?? undefined) ?? null,
         majorante:
@@ -391,6 +400,7 @@ const parseCasoInfracionalPayload = (
       catalogoId?: string | null;
       descricao?: string | null;
       principal?: boolean;
+      naturezaExecucao?: "CONSUMADO" | "TENTADO" | null;
       qualificadora?: string | null;
       majorante?: string | null;
       observacoes?: string | null;
@@ -434,6 +444,59 @@ const parseCasoInfracionalPayload = (
     tipificacoes,
   };
 };
+
+const parseCasosInfracionaisPayload = (
+  casos?: Array<{
+    id?: string | null;
+    status?: string | null;
+    numeroProcesso?: string | null;
+    anoFato?: string | number | null;
+    comarca?: string | null;
+    narrativa?: string | null;
+    tipificacoes?: Array<{
+      id?: string | null;
+      ordem?: number | null;
+      catalogoId?: string | null;
+      descricao?: string | null;
+      principal?: boolean;
+      naturezaExecucao?: "CONSUMADO" | "TENTADO" | null;
+      qualificadora?: string | null;
+      majorante?: string | null;
+      observacoes?: string | null;
+    }>;
+  }> | null,
+): CasoInfracionalEntrada[] =>
+  (casos ?? [])
+    .map((caso) => parseCasoInfracionalPayload(caso))
+    .filter((caso): caso is CasoInfracionalEntrada => Boolean(caso))
+    .map((caso) => ({
+      ...caso,
+      status: caso.status ?? "HISTORICO",
+    }));
+
+const converterHistoricoLegadoParaCasos = (
+  historico: HistoricoEntrada[],
+): CasoInfracionalEntrada[] =>
+  historico.map((entrada) => ({
+    id: entrada.id ?? null,
+    status: "HISTORICO",
+    numeroProcesso: entrada.atoInfracionalProcesso ?? null,
+    anoFato: entrada.atoInfracionalAno ?? entrada.ano ?? null,
+    comarca: entrada.unidadeInternacao ?? null,
+    narrativa: null,
+    tipificacoes: [
+      {
+        ordem: 1,
+        catalogoId: entrada.catalogoId ?? null,
+        descricaoManual: entrada.atoInfracionalDescricao,
+        principal: true,
+        naturezaExecucao: null,
+        qualificadora: null,
+        majorante: null,
+        observacoes: entrada.observacoes ?? null,
+      },
+    ],
+  }));
 
 const buildHistoricoKey = (entrada: HistoricoEntrada) =>
   [
@@ -778,6 +841,10 @@ export async function POST(request: NextRequest) {
     const casoInfracionalAtual = parseCasoInfracionalPayload(
       validated.casoInfracionalAtual,
     );
+    const casosInfracionaisHistoricos =
+      validated.casosInfracionais && validated.casosInfracionais.length > 0
+        ? parseCasosInfracionaisPayload(validated.casosInfracionais)
+        : converterHistoricoLegadoParaCasos(historicoNovos);
     const vinculosNovos = parseVinculosPayload(
       validated.atoInfracionalVinculos,
     );
@@ -1034,23 +1101,6 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      if (historicoNovos.length > 0) {
-        await prisma.adolescenteHistoricoInfracional.createMany({
-          data: historicoNovos.map((entrada) => ({
-            adolescenteId: base.id,
-            atoInfracionalDescricao: entrada.atoInfracionalDescricao,
-            atoInfracionalAno: entrada.atoInfracionalAno,
-            atoInfracionalProcesso: entrada.atoInfracionalProcesso,
-            atoInfracionalGravidade: entrada.atoInfracionalGravidade,
-            atoInfracionalGravidadeObs: entrada.atoInfracionalGravidadeObs,
-            atoInfracionalCatalogoId: entrada.catalogoId ?? undefined,
-            unidadeInternacao: entrada.unidadeInternacao,
-            ano: entrada.ano,
-            observacoes: entrada.observacoes,
-          })),
-        });
-      }
-
       if (casoInfracionalAtual) {
         await prisma.adolescenteCasoInfracional.create({
           data: {
@@ -1070,11 +1120,41 @@ export async function POST(request: NextRequest) {
                           tipificacao.catalogoId ?? undefined,
                         descricaoManual: tipificacao.descricaoManual,
                         principal: tipificacao.principal,
+                        naturezaExecucao: tipificacao.naturezaExecucao,
                         qualificadora: tipificacao.qualificadora,
                         majorante: tipificacao.majorante,
                         observacoes: tipificacao.observacoes,
                       }),
                     ),
+                  }
+                : undefined,
+          },
+        });
+      }
+
+      for (const casoHistorico of casosInfracionaisHistoricos) {
+        await prisma.adolescenteCasoInfracional.create({
+          data: {
+            adolescenteId: base.id,
+            status: casoHistorico.status ?? "HISTORICO",
+            numeroProcesso: casoHistorico.numeroProcesso,
+            anoFato: casoHistorico.anoFato,
+            comarca: casoHistorico.comarca,
+            narrativa: casoHistorico.narrativa,
+            tipificacoes:
+              casoHistorico.tipificacoes.length > 0
+                ? {
+                    create: casoHistorico.tipificacoes.map((tipificacao) => ({
+                      ordem: tipificacao.ordem,
+                      atoInfracionalCatalogoId:
+                        tipificacao.catalogoId ?? undefined,
+                      descricaoManual: tipificacao.descricaoManual,
+                      principal: tipificacao.principal,
+                      naturezaExecucao: tipificacao.naturezaExecucao,
+                      qualificadora: tipificacao.qualificadora,
+                      majorante: tipificacao.majorante,
+                      observacoes: tipificacao.observacoes,
+                    })),
                   }
                 : undefined,
           },

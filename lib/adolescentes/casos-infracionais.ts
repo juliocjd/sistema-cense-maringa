@@ -2,6 +2,7 @@ type TipificacaoLike = {
   id?: string | null;
   ordem?: number | null;
   descricao?: string | null;
+  naturezaExecucao?: "CONSUMADO" | "TENTADO" | string | null;
   qualificadora?: string | null;
   majorante?: string | null;
   principal?: boolean | null;
@@ -30,6 +31,32 @@ const trimOrNull = (value?: string | null) => {
   return trimmed.length > 0 ? trimmed : null;
 };
 
+const normalizarNaturezaExecucao = (
+  value?: string | null,
+): "CONSUMADO" | "TENTADO" | null => {
+  if (value === "CONSUMADO" || value === "TENTADO") {
+    return value;
+  }
+  return null;
+};
+
+const removerMarcadorTentativa = (descricao?: string | null) =>
+  (descricao ?? "").replace(/\s+tentad[oa]\s*$/i, "").trim();
+
+const formatarDescricaoTipificacao = (
+  descricao?: string | null,
+  naturezaExecucao?: string | null,
+) => {
+  const descricaoNormalizada = trimOrNull(removerMarcadorTentativa(descricao));
+  if (!descricaoNormalizada) {
+    return null;
+  }
+
+  return normalizarNaturezaExecucao(naturezaExecucao) === "TENTADO"
+    ? `${descricaoNormalizada} Tentado`
+    : descricaoNormalizada;
+};
+
 const normalizarTipificacoes = <T extends TipificacaoLike>(
   tipificacoes?: T[] | null,
 ): T[] =>
@@ -38,10 +65,16 @@ const normalizarTipificacoes = <T extends TipificacaoLike>(
       ...tipificacao,
       ordem: tipificacao.ordem ?? indice + 1,
       principal: tipificacao.principal ?? indice === 0,
+      naturezaExecucao: normalizarNaturezaExecucao(
+        tipificacao.naturezaExecucao,
+      ),
     }))
     .filter((tipificacao) =>
       Boolean(
-        trimOrNull(tipificacao.descricao) ||
+        formatarDescricaoTipificacao(
+          tipificacao.descricao,
+          tipificacao.naturezaExecucao,
+        ) ||
           trimOrNull(tipificacao.qualificadora) ||
           trimOrNull(tipificacao.majorante) ||
           trimOrNull(tipificacao.observacoes),
@@ -102,7 +135,12 @@ export const formatarResumoTipificacao = (
 ): string | null => {
   if (!tipificacao) return null;
 
-  const partes = [trimOrNull(tipificacao.descricao)];
+  const partes = [
+    formatarDescricaoTipificacao(
+      tipificacao.descricao,
+      tipificacao.naturezaExecucao,
+    ),
+  ];
   if (trimOrNull(tipificacao.qualificadora)) {
     partes.push(`Qualificadora: ${tipificacao.qualificadora!.trim()}`);
   }

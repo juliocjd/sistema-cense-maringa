@@ -62,6 +62,7 @@ const casoTipificacaoSchema = z.object({
   catalogoId: z.string().uuid().optional().nullable(),
   descricao: z.string().optional().nullable(),
   principal: z.boolean().optional(),
+  naturezaExecucao: z.enum(["CONSUMADO", "TENTADO"]).optional().nullable(),
   qualificadora: z.string().optional().nullable(),
   majorante: z.string().optional().nullable(),
   observacoes: z.string().optional().nullable(),
@@ -151,6 +152,7 @@ const updateAdolescenteSchema = z.object({
   })).optional(),
   historicoInfracional: historicoRegistroSchema,
   casoInfracionalAtual: casoInfracionalSchema.optional().nullable(),
+  casosInfracionais: z.array(casoInfracionalSchema).optional(),
   atoInfracionalVinculos: z.array(vinculoInfracionalSchema).optional(),
   tecnicosReferenciaIds: z.array(z.string().uuid()).optional(),
   alertasEspeciais: z.array(alertaEspecialSchema).optional(),
@@ -165,6 +167,11 @@ const sanitizeNullableString = (value: string | null | undefined) => {
   }
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : undefined;
+};
+
+const normalizarNumeroProcessoCaso = (value: string | null | undefined) => {
+  const sanitized = sanitizeNullableString(value);
+  return sanitized ? sanitized.toUpperCase() : null;
 };
 
 const nullableStringOrNull = (value: string | null | undefined) => {
@@ -215,6 +222,7 @@ type CasoTipificacaoEntrada = {
   catalogoId: string | null;
   descricaoManual: string | null;
   principal: boolean;
+  naturezaExecucao: "CONSUMADO" | "TENTADO" | null;
   qualificadora: string | null;
   majorante: string | null;
   observacoes: string | null;
@@ -237,6 +245,7 @@ const parseCasoTipificacoes = (
     catalogoId?: string | null;
     descricao?: string | null;
     principal?: boolean;
+    naturezaExecucao?: "CONSUMADO" | "TENTADO" | null;
     qualificadora?: string | null;
     majorante?: string | null;
     observacoes?: string | null;
@@ -261,6 +270,11 @@ const parseCasoTipificacoes = (
         catalogoId,
         descricaoManual,
         principal: tipificacao.principal ?? indiceTipificacao === 0,
+        naturezaExecucao:
+          tipificacao.naturezaExecucao === "CONSUMADO" ||
+          tipificacao.naturezaExecucao === "TENTADO"
+            ? tipificacao.naturezaExecucao
+            : null,
         qualificadora:
           sanitizeNullableString(tipificacao.qualificadora ?? undefined) ?? null,
         majorante:
@@ -395,6 +409,7 @@ const parseCasoInfracionalPayload = (
       catalogoId?: string | null;
       descricao?: string | null;
       principal?: boolean;
+      naturezaExecucao?: "CONSUMADO" | "TENTADO" | null;
       qualificadora?: string | null;
       majorante?: string | null;
       observacoes?: string | null;
@@ -439,6 +454,104 @@ const parseCasoInfracionalPayload = (
   };
 };
 
+const parseCasosInfracionaisPayload = (
+  casos?: Array<{
+    id?: string | null;
+    status?: string | null;
+    numeroProcesso?: string | null;
+    anoFato?: string | number | null;
+    comarca?: string | null;
+    narrativa?: string | null;
+    tipificacoes?: Array<{
+      id?: string | null;
+      ordem?: number | null;
+      catalogoId?: string | null;
+      descricao?: string | null;
+      principal?: boolean;
+      naturezaExecucao?: "CONSUMADO" | "TENTADO" | null;
+      qualificadora?: string | null;
+      majorante?: string | null;
+      observacoes?: string | null;
+    }>;
+  }> | null,
+): CasoInfracionalEntrada[] =>
+  (casos ?? [])
+    .map((caso) => parseCasoInfracionalPayload(caso))
+    .filter((caso): caso is CasoInfracionalEntrada => Boolean(caso))
+    .map((caso) => ({
+      ...caso,
+      status: caso.status ?? "HISTORICO",
+    }));
+
+const converterHistoricoLegadoParaCasos = (
+  historico: HistoricoEntrada[],
+): CasoInfracionalEntrada[] =>
+  historico.map((entrada) => ({
+    id: entrada.id ?? null,
+    status: "HISTORICO",
+    numeroProcesso: entrada.atoInfracionalProcesso ?? null,
+    anoFato: entrada.atoInfracionalAno ?? entrada.ano ?? null,
+    comarca: entrada.unidadeInternacao ?? null,
+    narrativa: null,
+    tipificacoes: [
+      {
+        ordem: 1,
+        catalogoId: entrada.catalogoId ?? null,
+        descricaoManual: entrada.atoInfracionalDescricao,
+        principal: true,
+        naturezaExecucao: null,
+        qualificadora: null,
+        majorante: null,
+        observacoes: entrada.observacoes ?? null,
+      },
+    ],
+  }));
+
+const reconciliarPayloadCasosPorProcesso = ({
+  casoAtual,
+  casosHistoricos,
+  statusDestino,
+}: {
+  casoAtual: CasoInfracionalEntrada | null;
+  casosHistoricos: CasoInfracionalEntrada[] | undefined;
+  statusDestino: string;
+}) => {
+  if (!casoAtual || statusDestino !== "ATUAL") {
+    return {
+      casoAtual,
+      casosHistoricos,
+    };
+  }
+
+  const processoAtual = normalizarNumeroProcessoCaso(casoAtual.numeroProcesso);
+  if (!processoAtual) {
+    return {
+      casoAtual,
+      casosHistoricos,
+    };
+  }
+
+  const listaHistoricos = casosHistoricos ?? [];
+  const historicosMesmoProcesso = listaHistoricos.filter(
+    (caso) => normalizarNumeroProcessoCaso(caso.numeroProcesso) === processoAtual,
+  );
+
+  const casoAtualReconciliado =
+    !casoAtual.id && historicosMesmoProcesso.length === 1
+      ? {
+          ...casoAtual,
+          id: historicosMesmoProcesso[0].id ?? null,
+        }
+      : casoAtual;
+
+  return {
+    casoAtual: casoAtualReconciliado,
+    casosHistoricos: listaHistoricos.filter(
+      (caso) => normalizarNumeroProcessoCaso(caso.numeroProcesso) !== processoAtual,
+    ),
+  };
+};
+
 const toCasoEntradaFromDb = (caso: any): CasoInfracionalEntrada | null =>
   parseCasoInfracionalPayload(
     caso
@@ -459,6 +572,7 @@ const toCasoEntradaFromDb = (caso: any): CasoInfracionalEntrada | null =>
                 tipificacao.descricaoManual ??
                 null,
               principal: tipificacao.principal ?? false,
+              naturezaExecucao: tipificacao.naturezaExecucao ?? null,
               qualificadora: tipificacao.qualificadora ?? null,
               majorante: tipificacao.majorante ?? null,
               observacoes: tipificacao.observacoes ?? null,
@@ -611,6 +725,42 @@ const sincronizarCasoInfracionalAtual = async ({
     return null;
   }
 
+  if (!casoExistente && casoPayload.id) {
+    casoExistente = await tx.adolescenteCasoInfracional.findFirst({
+      where: {
+        id: casoPayload.id,
+        adolescenteId,
+      },
+      select: { id: true },
+    });
+  }
+
+  const processoCaso = normalizarNumeroProcessoCaso(casoPayload.numeroProcesso);
+
+  if (!casoExistente && processoCaso && casoPayload.numeroProcesso) {
+    const casosMesmoProcesso = await tx.adolescenteCasoInfracional.findMany({
+      where: {
+        adolescenteId,
+        numeroProcesso: {
+          equals: casoPayload.numeroProcesso,
+          mode: "insensitive",
+        },
+      },
+      select: {
+        id: true,
+        status: true,
+      },
+      orderBy: {
+        atualizadoEm: "desc",
+      },
+    });
+
+    casoExistente =
+      casosMesmoProcesso.find((caso: any) => caso.status === "ATUAL") ??
+      casosMesmoProcesso[0] ??
+      null;
+  }
+
   if (casoExistente) {
     await tx.adolescenteCasoInfracionalTipificacao.deleteMany({
       where: { casoId: casoExistente.id },
@@ -648,6 +798,7 @@ const sincronizarCasoInfracionalAtual = async ({
         atoInfracionalCatalogoId: tipificacao.catalogoId ?? undefined,
         descricaoManual: tipificacao.descricaoManual,
         principal: tipificacao.principal,
+        naturezaExecucao: tipificacao.naturezaExecucao,
         qualificadora: tipificacao.qualificadora,
         majorante: tipificacao.majorante,
         observacoes: tipificacao.observacoes,
@@ -655,7 +806,119 @@ const sincronizarCasoInfracionalAtual = async ({
     });
   }
 
+  if (processoCaso && casoPayload.numeroProcesso) {
+    await tx.adolescenteCasoInfracional.deleteMany({
+      where: {
+        adolescenteId,
+        id: { not: casoExistente.id },
+        numeroProcesso: {
+          equals: casoPayload.numeroProcesso,
+          mode: "insensitive",
+        },
+      },
+    });
+  }
+
   return casoExistente.id;
+};
+
+const sincronizarCasosInfracionaisHistoricos = async ({
+  tx,
+  adolescenteId,
+  casosPayload,
+}: {
+  tx: any;
+  adolescenteId: string;
+  casosPayload: CasoInfracionalEntrada[];
+}) => {
+  const casosExistentes = await tx.adolescenteCasoInfracional.findMany({
+    where: {
+      adolescenteId,
+      status: "HISTORICO",
+    },
+    select: { id: true },
+  });
+
+  const idsExistentes = new Set(casosExistentes.map((caso: any) => caso.id));
+  const idsPayload = new Set(
+    casosPayload.map((caso) => caso.id).filter(Boolean) as string[],
+  );
+
+  for (const caso of casosPayload) {
+    if (caso.id && idsExistentes.has(caso.id)) {
+      await tx.adolescenteCasoInfracionalTipificacao.deleteMany({
+        where: { casoId: caso.id },
+      });
+      await tx.adolescenteCasoInfracional.update({
+        where: { id: caso.id },
+        data: {
+          status: "HISTORICO",
+          numeroProcesso: caso.numeroProcesso,
+          anoFato: caso.anoFato,
+          comarca: caso.comarca,
+          narrativa: caso.narrativa,
+        },
+      });
+      if (caso.tipificacoes.length > 0) {
+        await tx.adolescenteCasoInfracionalTipificacao.createMany({
+          data: caso.tipificacoes.map((tipificacao) => ({
+            casoId: caso.id as string,
+            ordem: tipificacao.ordem,
+            atoInfracionalCatalogoId: tipificacao.catalogoId ?? undefined,
+            descricaoManual: tipificacao.descricaoManual,
+            principal: tipificacao.principal,
+            naturezaExecucao: tipificacao.naturezaExecucao,
+            qualificadora: tipificacao.qualificadora,
+            majorante: tipificacao.majorante,
+            observacoes: tipificacao.observacoes,
+          })),
+        });
+      }
+      continue;
+    }
+
+    const criado = await tx.adolescenteCasoInfracional.create({
+      data: {
+        adolescenteId,
+        status: "HISTORICO",
+        numeroProcesso: caso.numeroProcesso,
+        anoFato: caso.anoFato,
+        comarca: caso.comarca,
+        narrativa: caso.narrativa,
+      },
+      select: { id: true },
+    });
+
+    if (caso.tipificacoes.length > 0) {
+      await tx.adolescenteCasoInfracionalTipificacao.createMany({
+        data: caso.tipificacoes.map((tipificacao) => ({
+          casoId: criado.id,
+          ordem: tipificacao.ordem,
+          atoInfracionalCatalogoId: tipificacao.catalogoId ?? undefined,
+          descricaoManual: tipificacao.descricaoManual,
+          principal: tipificacao.principal,
+          naturezaExecucao: tipificacao.naturezaExecucao,
+          qualificadora: tipificacao.qualificadora,
+          majorante: tipificacao.majorante,
+          observacoes: tipificacao.observacoes,
+        })),
+      });
+    }
+  }
+
+  const idsParaRemover = Array.from(idsExistentes).filter(
+    (id) => !idsPayload.has(id),
+  );
+
+  if (idsParaRemover.length > 0) {
+    await tx.adolescenteCasoInfracional.deleteMany({
+      where: {
+        id: { in: idsParaRemover },
+        adolescenteId,
+        status: "HISTORICO",
+      },
+    });
+  }
 };
 
 const buildHistoricoKey = (entrada: HistoricoEntrada) =>
@@ -790,12 +1053,21 @@ export async function PUT(
     const casoInfracionalAtual = parseCasoInfracionalPayload(
       validated.casoInfracionalAtual
     );
+    const casosInfracionaisHistoricos =
+      validated.casosInfracionais !== undefined
+        ? parseCasosInfracionaisPayload(validated.casosInfracionais)
+        : validated.historicoInfracional !== undefined
+        ? converterHistoricoLegadoParaCasos(historicoNovos)
+        : undefined;
     const vinculosNovos = parseVinculosPayload(
       validated.atoInfracionalVinculos
     );
     const vinculosInformados = validated.atoInfracionalVinculos !== undefined;
     const casoInfracionalInformado =
       validated.casoInfracionalAtual !== undefined;
+    const casosHistoricosInformados =
+      validated.casosInfracionais !== undefined ||
+      validated.historicoInfracional !== undefined;
 
     const permissoes = resolveUserPermissions(session, operador);
     const podeAlterarAlojamento = hasPermission(
@@ -875,12 +1147,26 @@ export async function PUT(
     const tecnicosIds = validated.tecnicosReferenciaIds
       ? Array.from(new Set(validated.tecnicosReferenciaIds))
       : undefined;
+    let casoInfracionalAtualPersistencia = casoInfracionalAtual;
+    let casosInfracionaisHistoricosPersistencia = casosInfracionaisHistoricos;
+
+    if (casoInfracionalInformado || casosHistoricosInformados) {
+      const reconciliado = reconciliarPayloadCasosPorProcesso({
+        casoAtual: casoInfracionalAtualPersistencia,
+        casosHistoricos: casosInfracionaisHistoricosPersistencia,
+        statusDestino: novoStatus === "ATIVO" ? "ATUAL" : "HISTORICO",
+      });
+      casoInfracionalAtualPersistencia = reconciliado.casoAtual;
+      casosInfracionaisHistoricosPersistencia = reconciliado.casosHistoricos;
+    }
+
     const casoAtualExistente = toCasoEntradaFromDb(
       existente.casosInfracionais?.find((caso: any) => caso.status === "ATUAL") ??
         existente.casosInfracionais?.[0] ??
         null
     );
-    const casoAtualEfetivo = casoInfracionalAtual ?? casoAtualExistente;
+    const casoAtualEfetivo =
+      casoInfracionalAtualPersistencia ?? casoAtualExistente;
     const tipificacaoAtual =
       casoAtualEfetivo?.tipificacoes.find((tipificacao) => tipificacao.principal) ??
       casoAtualEfetivo?.tipificacoes[0] ??
@@ -1286,8 +1572,8 @@ export async function PUT(
       data.numeroInterno = numeroInternoParaSalvar;
     }
 
-    if (historicoNovos.length > 0) {
-      camposAlterados.push("historicoInfracional");
+    if (casosHistoricosInformados) {
+      camposAlterados.push("casosInfracionais");
     }
 
     if (validated.tatuagens !== undefined) {
@@ -1309,7 +1595,7 @@ export async function PUT(
       );
     }
 
-    const atualizado = await prisma.$transaction(
+    await prisma.$transaction(
       async (tx) => {
         if (
           novoStatus === "ATIVO" &&
@@ -1381,72 +1667,6 @@ export async function PUT(
         });
       }
 
-      const historicoExistentes =
-        await tx.adolescenteHistoricoInfracional.findMany({
-          where: { adolescenteId: id },
-          select: {
-            id: true,
-            atoInfracionalDescricao: true,
-            atoInfracionalAno: true,
-            atoInfracionalProcesso: true,
-            atoInfracionalGravidade: true,
-            atoInfracionalGravidadeObs: true,
-            atoInfracionalCatalogoId: true,
-            unidadeInternacao: true,
-            ano: true,
-            observacoes: true,
-          },
-        });
-
-      const historicoPorId = new Map(
-        historicoExistentes.map((registro) => [registro.id, registro])
-      );
-      const historicoChaves = new Set(
-        historicoExistentes.map((registroExistente) =>
-          buildHistoricoKey(toHistoricoEntradaFromDb(registroExistente))
-        )
-      );
-
-      const registrarEntrada = async (entrada: HistoricoEntrada) => {
-        const chave = buildHistoricoKey(entrada);
-        if (historicoChaves.has(chave)) {
-          return;
-        }
-        await tx.adolescenteHistoricoInfracional.create({
-          data: {
-            adolescenteId: id,
-            atoInfracionalDescricao: entrada.atoInfracionalDescricao,
-            atoInfracionalAno: entrada.atoInfracionalAno,
-            atoInfracionalProcesso: entrada.atoInfracionalProcesso,
-            atoInfracionalGravidade: entrada.atoInfracionalGravidade,
-            atoInfracionalGravidadeObs: entrada.atoInfracionalGravidadeObs,
-            atoInfracionalCatalogoId: entrada.catalogoId ?? undefined,
-            unidadeInternacao: entrada.unidadeInternacao,
-            ano: entrada.ano,
-            observacoes: entrada.observacoes,
-          },
-        });
-        historicoChaves.add(chave);
-      };
-
-      if (historicoParaCriar) {
-        await registrarEntrada({
-          atoInfracionalDescricao: historicoParaCriar.atoInfracionalDescricao,
-          atoInfracionalAno:
-            historicoParaCriar.atoInfracionalAno ?? historicoParaCriar.ano ?? null,
-          atoInfracionalProcesso:
-            historicoParaCriar.atoInfracionalProcesso ?? null,
-          atoInfracionalGravidade:
-            historicoParaCriar.atoInfracionalGravidade ?? false,
-          atoInfracionalGravidadeObs:
-            historicoParaCriar.atoInfracionalGravidadeObs ?? null,
-          unidadeInternacao: historicoParaCriar.unidadeInternacao ?? null,
-          ano: historicoParaCriar.ano ?? historicoParaCriar.atoInfracionalAno ?? null,
-          observacoes: historicoParaCriar.observacoes ?? null,
-          catalogoId: (historicoParaCriar as any).atoInfracionalCatalogoId ?? null,
-        });
-      }
-
       if (vinculosInformados) {
         await sincronizarVinculosInfracionais({
           tx,
@@ -1460,7 +1680,7 @@ export async function PUT(
         await sincronizarCasoInfracionalAtual({
           tx,
           adolescenteId: id,
-          casoPayload: casoInfracionalAtual,
+          casoPayload: casoInfracionalAtualPersistencia,
           statusCaso: novoStatus === "ATIVO" ? "ATUAL" : "HISTORICO",
         });
       } else if (saiuDeAtivo) {
@@ -1475,37 +1695,15 @@ export async function PUT(
         });
       }
 
-      const historicoParaAtualizar = historicoNovos.filter(
-        (entrada) => Boolean(entrada.id) && historicoPorId.has(entrada.id as string)
-      );
-      const historicoNovosParaCriar = historicoNovos.filter(
-        (entrada) => !entrada.id
-      );
-
-      for (const entrada of historicoParaAtualizar) {
-        const registroAtual = historicoPorId.get(entrada.id as string);
-        if (registroAtual) {
-          historicoChaves.delete(
-            buildHistoricoKey(toHistoricoEntradaFromDb(registroAtual))
-          );
-        }
-        await tx.adolescenteHistoricoInfracional.updateMany({
-          where: { id: entrada.id as string, adolescenteId: id },
-          data: {
-            atoInfracionalDescricao: entrada.atoInfracionalDescricao,
-            atoInfracionalAno: entrada.atoInfracionalAno,
-            atoInfracionalProcesso: entrada.atoInfracionalProcesso,
-            atoInfracionalCatalogoId: entrada.catalogoId ?? null,
-            unidadeInternacao: entrada.unidadeInternacao,
-            ano: entrada.ano,
-            observacoes: entrada.observacoes,
-          },
+      if (casosHistoricosInformados) {
+        await sincronizarCasosInfracionaisHistoricos({
+          tx,
+          adolescenteId: id,
+          casosPayload: casosInfracionaisHistoricosPersistencia ?? [],
         });
-        historicoChaves.add(buildHistoricoKey(entrada));
-      }
-
-      for (const entrada of historicoNovosParaCriar) {
-        await registrarEntrada(entrada);
+        await tx.adolescenteHistoricoInfracional.deleteMany({
+          where: { adolescenteId: id },
+        });
       }
 
       const contextoLogAlertas = {
@@ -1680,13 +1878,14 @@ export async function PUT(
         }
       }
 
-      return tx.adolescente.findUnique({
-        where: { id },
-        include: INCLUDE_ADOLESCENTE_DEFAULT as any,
-      });
     },
-      { timeout: 20000 }
+      { maxWait: 10000, timeout: 60000 }
     );
+
+    const atualizado = await prisma.adolescente.findUnique({
+      where: { id },
+      include: INCLUDE_ADOLESCENTE_DEFAULT as any,
+    });
 
     if (!atualizado) {
       throw new Error("Falha ao carregar adolescente apos atualizacao");

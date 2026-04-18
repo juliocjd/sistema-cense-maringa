@@ -227,6 +227,7 @@ export interface AdolescenteCasoInfracionalTipificacaoItem {
   catalogoId?: string | null;
   descricao?: string | null;
   principal?: boolean;
+  naturezaExecucao?: "CONSUMADO" | "TENTADO" | null;
   qualificadora?: string | null;
   majorante?: string | null;
   observacoes?: string | null;
@@ -238,6 +239,7 @@ export interface AdolescenteCasoInfracionalTipificacaoInput {
   catalogoId?: string | null;
   descricao?: string | null;
   principal?: boolean;
+  naturezaExecucao?: "CONSUMADO" | "TENTADO" | null;
   qualificadora?: string | null;
   majorante?: string | null;
   observacoes?: string | null;
@@ -429,6 +431,7 @@ export type AdolescenteCadastroPayload = Partial<
       Pick<AdolescenteAlertaEspecial, "tipo" | "descricao" | "nivelRisco">
     >;
     casoInfracionalAtual?: AdolescenteCasoInfracionalInput | null;
+    casosInfracionais?: AdolescenteCasoInfracionalInput[];
     historicoInfracional?: AdolescenteHistoricoRegistroInput[];
     atoInfracionalVinculos?: AdolescenteAtoInfracionalVinculoInput[];
     tatuagens?: Array<{
