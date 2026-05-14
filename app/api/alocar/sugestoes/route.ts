@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
   if (!adolescenteId) {
     return NextResponse.json(
       { erro: "adolescenteId é obrigatório" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -49,13 +49,13 @@ export async function GET(request: NextRequest) {
       diagnostico: diagnosticoCasa,
     });
   } catch (error) {
-    console.error("Erro ao gerar sugestoes de alocacao:", error);
+    console.error("Erro ao gerar sugestoes de alocação:", error);
     return NextResponse.json(
       {
         erro: "Falha ao gerar sugestoes",
         detalhes: error instanceof Error ? error.message : String(error),
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -66,10 +66,9 @@ export async function POST(request: NextRequest) {
     if (!body || (!body.adolescenteId && !body.bairroId && !body.faccaoId)) {
       return NextResponse.json(
         {
-          erro:
-            "Informe adolescenteId ou pelo menos bairroId/faccaoId para gerar sugestões.",
+          erro: "Informe adolescenteId ou pelo menos bairroId/faccaoId para gerar sugestões.",
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -78,9 +77,7 @@ export async function POST(request: NextRequest) {
       bairroId: body.bairroId ?? null,
       faccaoId: body.faccaoId ?? null,
       limite:
-        typeof body.limite === "number" && body.limite > 0
-          ? body.limite
-          : 3,
+        typeof body.limite === "number" && body.limite > 0 ? body.limite : 3,
       tipoInternacao:
         body.tipoInternacao === "PROVISORIA" ||
         body.tipoInternacao === "DEFINITIVA"
@@ -116,13 +113,13 @@ export async function POST(request: NextRequest) {
       diagnostico: diagnosticoCasa,
     });
   } catch (error) {
-    console.error("Erro ao gerar sugestoes de alocacao:", error);
+    console.error("Erro ao gerar sugestoes de alocação:", error);
     return NextResponse.json(
       {
         erro: "Falha ao gerar sugestoes",
         detalhes: error instanceof Error ? error.message : String(error),
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

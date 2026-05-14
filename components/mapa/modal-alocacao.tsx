@@ -1,7 +1,7 @@
 ﻿"use client";
 
-import { useState, useEffect, useMemo } from "react";
-import { X, AlertTriangle, Search, CheckCircle, XCircle } from "lucide-react";
+import { useCallback, useState, useEffect, useMemo } from "react";
+import { X, AlertTriangle, Search, CheckCircle } from "lucide-react";
 
 type Adolescente = any;
 type Alojamento = any;
@@ -43,6 +43,7 @@ interface ModalAlocacaoProps {
   onClose: () => void;
   alojamento: Alojamento | null;
   adolescentes: Adolescente[];
+  adolescenteInicialId?: string | null;
   onAlocar: (
     adolescenteId: string,
     alojamentoId: string,
@@ -64,6 +65,7 @@ export function ModalAlocacao({
   onClose,
   alojamento,
   adolescentes,
+  adolescenteInicialId,
   onAlocar,
 }: ModalAlocacaoProps) {
   const [busca, setBusca] = useState("");
@@ -177,21 +179,9 @@ export function ModalAlocacao({
     return !["LIVRE", "SEGURO", "MONITORAR"].includes(texto);
   };
 
-  useEffect(() => {
-    if (!isOpen) {
-      resetarEstado();
-    }
-  }, [isOpen, alojamento?.id]);
-
-  const handleFechar = () => {
-    resetarEstado();
-    onClose();
-  };
-
-  if (!isOpen || !alojamento) return null;
-
   const ocupanteDestino =
-    Array.isArray(alojamento.adolescentes) && alojamento.adolescentes.length > 0
+    Array.isArray(alojamento?.adolescentes) &&
+    alojamento.adolescentes.length > 0
       ? alojamento.adolescentes[0]
       : null;
   const destinoOcupado = Boolean(ocupanteDestino);
@@ -200,13 +190,17 @@ export function ModalAlocacao({
   const adolescentesDisponiveis = adolescentes.filter((a) => {
     const ativo = (a.statusUnidade ?? "").toUpperCase() === "ATIVO";
     const ocupanteAtualId =
-      Array.isArray(alojamento.adolescentes) && alojamento.adolescentes[0]
+      Array.isArray(alojamento?.adolescentes) && alojamento.adolescentes[0]
         ? alojamento.adolescentes[0].id
         : null;
     // Evita listar o mesmo ocupante do alojamento de destino
     const naoEhOcupanteDestino = a.id !== ocupanteAtualId;
     return ativo && naoEhOcupanteDestino;
   });
+
+  const adolescenteInicial = adolescenteInicialId
+    ? adolescentesDisponiveis.find((a) => a.id === adolescenteInicialId) ?? null
+    : null;
 
   const adolescentesFiltrados = adolescentesDisponiveis.filter(
     (a) => {
@@ -220,7 +214,11 @@ export function ModalAlocacao({
   );
 
   // Verificacao de conflitos com API REAL
-  const verificarConflitos = async (adolescente: Adolescente) => {
+  const verificarConflitos = useCallback(async (adolescente: Adolescente) => {
+    if (!alojamento) {
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -267,16 +265,45 @@ export function ModalAlocacao({
     } finally {
       setLoading(false);
     }
-  };
+  }, [alojamento]);
 
-  const handleSelecionarAdolescente = (adolescente: Adolescente) => {
+  const handleSelecionarAdolescente = useCallback((adolescente: Adolescente) => {
     setAdolescenteSelecionado(adolescente);
     setVerificacao(null);
     setJustificativa("");
     setMotivoTransferencia("");
     setMensagem(null);
     verificarConflitos(adolescente);
+  }, [verificarConflitos]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      resetarEstado();
+      return;
+    }
+
+    setBusca("");
+    setAdolescenteSelecionado(null);
+    setVerificacao(null);
+    setJustificativa("");
+    setMotivoTransferencia("");
+    setMensagem(null);
+  }, [isOpen, alojamento?.id]);
+
+  useEffect(() => {
+    if (!isOpen || !alojamento || !adolescenteInicial) {
+      return;
+    }
+
+    handleSelecionarAdolescente(adolescenteInicial);
+  }, [isOpen, alojamento, adolescenteInicial, handleSelecionarAdolescente]);
+
+  const handleFechar = () => {
+    resetarEstado();
+    onClose();
   };
+
+  if (!isOpen || !alojamento) return null;
 
   const handleConfirmarAlocacao = async () => {
     if (!adolescenteSelecionado) return;

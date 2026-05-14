@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Building2,
-  Home,
   Bed,
   AlertCircle,
   User,
@@ -12,8 +11,9 @@ import {
   AlertTriangle,
   Lock,
   Activity,
-  ChevronDown,
   Link2,
+  Move,
+  Users,
 } from "lucide-react";
 import { InicializarEstruturaButton } from "./inicializar-button";
 import { ModalAlocacao } from "@/components/mapa/modal-alocacao";
@@ -54,6 +54,14 @@ interface ModalDetalhesState {
   alojamento: (Alojamento & { casa?: Casa }) | null;
   avaliacao: (ResultadoRisco & { corClass: string }) | null;
 }
+
+type AdolescenteArrastado = {
+  id: string;
+  nome: string;
+  origemAlojamentoId: string | null;
+};
+
+const DRAG_ADOLESCENTE_MIME = "application/x-cense-adolescente";
 
 const VISIBILITY_REFRESH_COOLDOWN_MS = 60000;
 const IMPACTOS_EXTERNOS_TTL_MS = 120000;
@@ -183,9 +191,7 @@ const extrairIdsVinculosMesmoAto = (
   adolescente?: Pick<AdolescenteTipo, "atoInfracionalVinculos"> | null,
 ): string[] =>
   (adolescente?.atoInfracionalVinculos ?? [])
-    .map(
-      (item: any) => item?.id ?? item?.vinculoId ?? item?.vinculo?.id ?? "",
-    )
+    .map((item: any) => item?.id ?? item?.vinculoId ?? item?.vinculo?.id ?? "")
     .filter((id: string) => Boolean(id));
 
 const temInterseccaoVinculos = (idsA: Set<string>, idsB: Set<string>) => {
@@ -286,6 +292,13 @@ export function VisaoGeralTab({
   const [alojamentoSelecionado, setAlojamentoSelecionado] = useState<
     (Alojamento & { casa?: Casa }) | null
   >(null);
+  const [adolescenteInicialAlocacaoId, setAdolescenteInicialAlocacaoId] =
+    useState<string | null>(null);
+  const [adolescenteArrastado, setAdolescenteArrastado] =
+    useState<AdolescenteArrastado | null>(null);
+  const [alojamentoDropAtivoId, setAlojamentoDropAtivoId] = useState<
+    string | null
+  >(null);
   const modalAlocacaoAbertoRef = useRef(false);
   const modalDetalhesAbertoRef = useRef(false);
   const [modalDetalhes, setModalDetalhes] = useState<ModalDetalhesState>({
@@ -352,6 +365,11 @@ export function VisaoGeralTab({
         (item) => (item.statusUnidade ?? "").toUpperCase() === "ATIVO",
       ),
     [adolescentes],
+  );
+
+  const adolescentesAtivosSemAlojamento = useMemo(
+    () => adolescentesAtivos.filter((item) => !item.alojamentoAtualId),
+    [adolescentesAtivos],
   );
 
   const fetchComTimeout = useCallback(
@@ -471,15 +489,12 @@ export function VisaoGeralTab({
         if (!foiAbortTimeout) {
           console.error("Erro ao carregar dados:", erro);
         }
-        const mensagem =
-          foiAbortTimeout
-            ? "Tempo limite excedido ao carregar estrutura. Verifique a conexao e tente novamente."
-            : erro instanceof Error
-              ? erro.message
-              : "Erro ao carregar dados";
-        setError(
-          mensagem,
-        );
+        const mensagem = foiAbortTimeout
+          ? "Tempo limite excedido ao carregar estrutura. Verifique a conexao e tente novamente."
+          : erro instanceof Error
+            ? erro.message
+            : "Erro ao carregar dados";
+        setError(mensagem);
       } finally {
         if (ultimaRequisicaoIdRef.current === requestId) {
           setLoading(false);
@@ -751,7 +766,9 @@ export function VisaoGeralTab({
 
       for (let i = 0; i < moradores.length; i += 1) {
         for (let j = i + 1; j < moradores.length; j += 1) {
-          if (temInterseccaoVinculos(moradores[i].vinculos, moradores[j].vinculos)) {
+          if (
+            temInterseccaoVinculos(moradores[i].vinculos, moradores[j].vinculos)
+          ) {
             ids.add(moradores[i].adolescente.id);
             ids.add(moradores[j].adolescente.id);
           }
@@ -854,11 +871,15 @@ export function VisaoGeralTab({
     return mapa;
   }, [casasNormalizadas, avaliarRiscoAlojamento]);
 
-  const abrirModalAlocacao = (alojamento: Alojamento & { casa?: Casa }) => {
+  const abrirModalAlocacao = (
+    alojamento: Alojamento & { casa?: Casa },
+    adolescenteInicialId?: string | null,
+  ) => {
     if (!podeEditarEstrutura) {
       return;
     }
     setAlojamentoSelecionado(alojamento);
+    setAdolescenteInicialAlocacaoId(adolescenteInicialId ?? null);
     setModalAlocacaoAberto(true);
     modalAlocacaoAbertoRef.current = true;
   };
@@ -866,6 +887,7 @@ export function VisaoGeralTab({
   const fecharModalAlocacao = () => {
     setModalAlocacaoAberto(false);
     setAlojamentoSelecionado(null);
+    setAdolescenteInicialAlocacaoId(null);
     modalAlocacaoAbertoRef.current = false;
     if (refreshPendenteRef.current && !devePausarAtualizacao()) {
       refreshPendenteRef.current = false;
@@ -880,6 +902,112 @@ export function VisaoGeralTab({
       refreshPendenteRef.current = false;
       solicitarAtualizacao(consumirRefreshForcado());
     }
+  };
+
+  const lerAdolescenteArrastado = (
+    event: React.DragEvent<HTMLElement>,
+  ): AdolescenteArrastado | null => {
+    const payload =
+      event.dataTransfer.getData(DRAG_ADOLESCENTE_MIME) ||
+      event.dataTransfer.getData("text/plain");
+    if (!payload) {
+      return adolescenteArrastado;
+    }
+
+    try {
+      const parsed = JSON.parse(payload) as Partial<AdolescenteArrastado>;
+      if (parsed?.id) {
+        return {
+          id: parsed.id,
+          nome: parsed.nome ?? "",
+          origemAlojamentoId: parsed.origemAlojamentoId ?? null,
+        };
+      }
+    } catch {
+      return {
+        id: payload,
+        nome: "",
+        origemAlojamentoId: null,
+      };
+    }
+
+    return adolescenteArrastado;
+  };
+
+  const iniciarArrasteAdolescente = (
+    event: React.DragEvent<HTMLElement>,
+    adolescente: Pick<AdolescenteTipo, "id" | "nomeCompleto">,
+    origemAlojamentoId: string | null,
+  ) => {
+    if (!podeEditarEstrutura || loading) {
+      event.preventDefault();
+      return;
+    }
+
+    const payload: AdolescenteArrastado = {
+      id: adolescente.id,
+      nome: adolescente.nomeCompleto ?? "",
+      origemAlojamentoId,
+    };
+
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData(DRAG_ADOLESCENTE_MIME, JSON.stringify(payload));
+    event.dataTransfer.setData("text/plain", adolescente.id);
+    setAdolescenteArrastado(payload);
+  };
+
+  const limparArrasteAdolescente = () => {
+    setAdolescenteArrastado(null);
+    setAlojamentoDropAtivoId(null);
+  };
+
+  const handleDragOverAlojamento = (
+    event: React.DragEvent<HTMLButtonElement>,
+    alojamento: Alojamento,
+  ) => {
+    if (
+      !podeEditarEstrutura ||
+      loading ||
+      !adolescenteArrastado ||
+      alojamento.statusManutencao === "INTERDITADO"
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    if (alojamentoDropAtivoId !== alojamento.id) {
+      setAlojamentoDropAtivoId(alojamento.id);
+    }
+  };
+
+  const handleDropAlojamento = (
+    event: React.DragEvent<HTMLButtonElement>,
+    casa: Casa,
+    alojamento: Alojamento,
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const payload = lerAdolescenteArrastado(event);
+    limparArrasteAdolescente();
+
+    if (
+      !payload ||
+      !podeEditarEstrutura ||
+      loading ||
+      alojamento.statusManutencao === "INTERDITADO" ||
+      payload.origemAlojamentoId === alojamento.id
+    ) {
+      return;
+    }
+
+    const adolescente = adolescentesLookup.get(payload.id);
+    if (!adolescente || adolescente.statusUnidade !== "ATIVO") {
+      return;
+    }
+
+    abrirModalAlocacao({ ...alojamento, casa }, adolescente.id);
   };
 
   const handleCliqueAlojamento = (casa: Casa, alojamento: Alojamento) => {
@@ -1297,88 +1425,94 @@ export function VisaoGeralTab({
               )}
             </div>
 
-            {/* Adolescentes com conflitos não alocados */}
-            {/*
-            REGRA DE NEGÓCIO: Conflitos e status de internação
-
-            1. Apenas adolescentes com status ATIVO/INTERNADO devem aparecer em listas de conflitos
-            2. Adolescentes TRANSFERIDOS, LIBERADOS ou EVADIDOS não devem aparecer
-            3. Quando um adolescente é desinternado:
-               - O conflito direto com ele deixa de existir (não está mais no sistema)
-               - MAS o risco pode permanecer entre o adolescente que ainda está internado
-                 e os ALIADOS do adolescente desinternado (mesmo bairro/facção)
-            4. Conflitos internos: registros diretos na tabela Conflito
-            5. Conflitos externos: rivalidades de bairro/facção detectadas pela inteligência
-          */}
-            {(() => {
-              const adolescentesComConflitosNaoAlocados = adolescentes.filter(
-                (a) =>
-                  !a.alojamentoAtualId &&
-                  a.statusUnidade === "ATIVO" &&
-                  (conflitosInternos[a.id]?.length > 0 ||
-                    conflitosExternos[a.id]?.length > 0),
-              );
-
-              if (adolescentesComConflitosNaoAlocados.length === 0) return null;
-
-              return (
-                <div className="bg-gradient-to-r from-red-50 to-orange-50 border-2 border-red-200 rounded-xl p-6 shadow-lg">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center">
-                      <AlertTriangle className="text-red-600" size={24} />
+            {adolescentesAtivosSemAlojamento.length > 0 && (
+              <div className="rounded-xl border-2 border-amber-200 bg-amber-50 p-4 shadow">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-100">
+                      <Users className="text-amber-700" size={22} />
                     </div>
                     <div>
-                      <h3 className="font-bold text-xl text-red-900">
-                        Adolescentes com Conflitos Não Alocados
+                      <h3 className="text-base font-bold text-amber-950">
+                        Adolescentes ativos sem alojamento
                       </h3>
-                      <p className="text-sm text-red-700">
-                        {adolescentesComConflitosNaoAlocados.length}{" "}
-                        adolescente(s) aguardando alocação com conflitos ativos
+                      <p className="text-sm text-amber-800">
+                        {adolescentesAtivosSemAlojamento.length} pendente(s) de
+                        alocacao
                       </p>
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {adolescentesComConflitosNaoAlocados.map((adolescente) => (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-white px-3 py-1 text-xs font-semibold text-amber-800">
+                    <Move size={14} />
+                    Movimentação pendente
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  {adolescentesAtivosSemAlojamento.map((adolescente) => {
+                    const totalConflitosInternos =
+                      conflitosInternos[adolescente.id]?.length ?? 0;
+                    const totalConflitosExternos =
+                      conflitosExternos[adolescente.id]?.length ?? 0;
+                    const totalConflitos =
+                      totalConflitosInternos + totalConflitosExternos;
+
+                    return (
                       <button
+                        type="button"
                         key={adolescente.id}
-                        onClick={() =>
+                        draggable={podeEditarEstrutura && !loading}
+                        onDragStart={(event) =>
+                          iniciarArrasteAdolescente(event, adolescente, null)
+                        }
+                        onDragEnd={limparArrasteAdolescente}
+                        onClick={() => {
+                          if (totalConflitos === 0) return;
                           setModalAnaliseImpacto({
                             aberto: true,
                             adolescenteId: adolescente.id,
                             adolescenteNome:
                               adolescente.nomeCompleto || "Desconhecido",
-                            adolescenteAlocado: !!adolescente.alojamentoAtualId,
+                            adolescenteAlocado: false,
                             conflitos: conflitosInternos[adolescente.id] || [],
-                          })
+                          });
+                          modalAnaliseAbertoRef.current = true;
+                        }}
+                        className={`inline-flex max-w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm font-semibold shadow-sm transition-all ${
+                          totalConflitos > 0
+                            ? "border-red-300 bg-white text-red-800 hover:border-red-400"
+                            : "border-amber-300 bg-white text-amber-900 hover:border-amber-400"
+                        } ${
+                          podeEditarEstrutura && !loading
+                            ? "cursor-grab active:cursor-grabbing"
+                            : "cursor-default"
+                        }`}
+                        title={
+                          podeEditarEstrutura
+                            ? "Arraste para um alojamento"
+                            : "Acesso somente leitura"
                         }
-                        className="bg-white border-2 border-red-300 rounded-lg p-4 hover:shadow-lg hover:border-red-400 transition-all text-left"
                       >
-                        <div className="flex items-start justify-between mb-2">
-                          <div className="flex-1">
-                            <h4 className="font-bold text-gray-900">
-                              {adolescente.nomeCompleto}
-                            </h4>
-                            {adolescente.numeroSms && (
-                              <p className="text-xs text-gray-600">
-                                SMS: {adolescente.numeroSms}
-                              </p>
-                            )}
-                          </div>
-                          <span className="px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs font-semibold">
-                            {conflitosInternos[adolescente.id]?.length || 0}{" "}
-                            conflito(s)
+                        <Move size={14} className="shrink-0" />
+                        <span className="truncate">
+                          {adolescente.nomeCompleto}
+                        </span>
+                        {adolescente.numeroSms && (
+                          <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600">
+                            SMS {adolescente.numeroSms}
                           </span>
-                        </div>
-                        <div className="flex items-center gap-2 text-xs text-red-600">
-                          <AlertCircle size={14} />
-                          <span>Clique para analisar e sugerir alocação</span>
-                        </div>
+                        )}
+                        {totalConflitos > 0 && (
+                          <span className="shrink-0 rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-bold text-red-700">
+                            {totalConflitos}
+                          </span>
+                        )}
                       </button>
-                    ))}
-                  </div>
+                    );
+                  })}
                 </div>
-              );
-            })()}
+              </div>
+            )}
 
             <div className="grid gap-4">
               {casasNormalizadas.map((casa) => (
@@ -1392,35 +1526,36 @@ export function VisaoGeralTab({
                   }`}
                 >
                   {(() => {
-                    const etiquetaDestinacao = obterEtiquetaCasaOperacional(casa);
+                    const etiquetaDestinacao =
+                      obterEtiquetaCasaOperacional(casa);
                     const classesDestinacao = obterClassesDestinacao(
                       casa.destinacaoOperacional,
                     );
 
                     return (
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center">
-                      <Building2 className="text-indigo-600" size={24} />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-bold text-xl text-gray-800">
-                        {casa.nome}
-                      </h3>
-                      <p className="text-sm text-gray-600">
-                        {casa.alojamentos.length} alojamentos
-                        <span
-                          className={`ml-2 px-2 py-0.5 rounded-full text-xs font-semibold ${classesDestinacao}`}
-                        >
-                          {etiquetaDestinacao}
-                        </span>
-                        {casa.isolada && (
-                          <span className="ml-2 px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs font-semibold">
-                            Isolada
-                          </span>
-                        )}
-                      </p>
-                    </div>
-                  </div>
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center">
+                          <Building2 className="text-indigo-600" size={24} />
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="font-bold text-xl text-gray-800">
+                            {casa.nome}
+                          </h3>
+                          <p className="text-sm text-gray-600">
+                            {casa.alojamentos.length} alojamentos
+                            <span
+                              className={`ml-2 px-2 py-0.5 rounded-full text-xs font-semibold ${classesDestinacao}`}
+                            >
+                              {etiquetaDestinacao}
+                            </span>
+                            {casa.isolada && (
+                              <span className="ml-2 px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs font-semibold">
+                                Isolada
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                      </div>
                     );
                   })()}
 
@@ -1430,6 +1565,7 @@ export function VisaoGeralTab({
                       const ocupante = aloj.adolescentes[0];
                       const interditado =
                         aloj.statusManutencao === "INTERDITADO";
+                      const dropAtivo = alojamentoDropAtivoId === aloj.id;
                       const nomePreferencial =
                         ocupante?.nomeSocial || ocupante?.nomeCompleto || "";
                       const nomeResumido = obterNomeResumido(nomePreferencial);
@@ -1462,22 +1598,48 @@ export function VisaoGeralTab({
                         <button
                           key={aloj.id}
                           onClick={handleClick}
+                          draggable={
+                            podeEditarEstrutura && Boolean(ocupante) && !loading
+                          }
+                          onDragStart={(event) => {
+                            if (!ocupante) return;
+                            iniciarArrasteAdolescente(event, ocupante, aloj.id);
+                          }}
+                          onDragEnd={limparArrasteAdolescente}
+                          onDragOver={(event) =>
+                            handleDragOverAlojamento(event, aloj)
+                          }
+                          onDragLeave={() => {
+                            if (alojamentoDropAtivoId === aloj.id) {
+                              setAlojamentoDropAtivoId(null);
+                            }
+                          }}
+                          onDrop={(event) =>
+                            handleDropAlojamento(event, casa, aloj)
+                          }
                           disabled={loading}
                           className={`
                           relative p-3 rounded-lg text-xs font-bold
                           transition-all hover:scale-105 border-2 h-full
                           flex flex-col items-center justify-center gap-1
                           ${avaliacao.corClass}
+                          ${
+                            dropAtivo
+                              ? "ring-4 ring-indigo-400 ring-offset-2 scale-105"
+                              : ""
+                          }
                           ${loading ? "opacity-70 cursor-not-allowed" : "cursor-pointer"}
                         `}
                           title={
                             interditado
                               ? `Alojamento ${aloj.numeroAlojamento} - Interditado`
-                              : ocupante && temConflitos
-                                ? `${ocupante.nomeCompleto} - Clique para visualizar | Clique no í­cone vermelho para analisar conflitos`
-                                : ocupante
-                                  ? `${ocupante.nomeCompleto} - Clique para visualizar`
-                                  : `Alojamento ${aloj.numeroAlojamento} - Clique para alocar`
+                              : adolescenteArrastado
+                                ? `Soltar em alojamento ${aloj.numeroAlojamento}`
+                                : ocupante && temConflitos
+                                  ? `${ocupante.nomeCompleto} - Clique para visualizar | Clique no í­cone vermelho para analisar conflitos`
+                                  : ocupante
+                                    ? `${ocupante.nomeCompleto} - Clique para visualizar`
+                                    : `Alojamento ${aloj.numeroAlojamento} - Clique para alocar`
                           }
                         >
                           {renderIconesAlerta(
@@ -1585,6 +1747,7 @@ export function VisaoGeralTab({
         onClose={fecharModalAlocacao}
         alojamento={alojamentoSelecionado}
         adolescentes={adolescentes}
+        adolescenteInicialId={adolescenteInicialAlocacaoId}
         onAlocar={handleAlocar}
       />
 

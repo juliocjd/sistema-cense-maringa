@@ -115,7 +115,7 @@ export function RegistroConflito({
 
     if (conflitoViaCI) {
       alert(
-        "Para conflitos com origem em CI, crie o Comunicado em /comunicados e marque 'Gerar conflito'."
+        "Para conflitos com origem em CI, crie o Comunicado em /comunicados e marque 'Gerar conflito'.",
       );
       return;
     }
@@ -173,9 +173,12 @@ export function RegistroConflito({
         </Link>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-800">Registrar novo conflito</h1>
+            <h1 className="text-3xl font-bold text-gray-800">
+              Registrar novo conflito
+            </h1>
             <p className="mt-2 text-sm text-gray-600">
-              Selecione todos os adolescentes envolvidos e descreva a ocorrencia registrada.
+              Selecione todos os adolescentes envolvidos e descreva a ocorrencia
+              registrada.
             </p>
           </div>
           {null}
@@ -190,13 +193,13 @@ export function RegistroConflito({
               <div>
                 <p className="font-semibold text-orange-900">Atencao</p>
                 <p className="text-sm text-orange-800">
-                  Cada conflito registrado passa a gerar alertas nas verificacoes de alocacao
-                  e exige acompanhamento da equipe tecnica ate nova avaliacao.
+                  Cada conflito registrado passa a gerar alertas nas
+                  verificações de alocação e exige acompanhamento da equipe
+                  técnica até nova avaliação.
                 </p>
               </div>
             </div>
           </div>
-
 
           <div>
             <label className="mb-2 block text-sm font-semibold text-gray-700">
@@ -235,7 +238,10 @@ export function RegistroConflito({
             {origem === "CI" && (
               <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                 Para conflitos com origem em CI, cadastre o Comunicado em{" "}
-                <Link href="/comunicados/novo" className="font-semibold underline">
+                <Link
+                  href="/comunicados/novo"
+                  className="font-semibold underline"
+                >
                   /comunicados
                 </Link>{" "}
                 e marque “Gerar conflito”. Este formulário não cria CI.
@@ -243,12 +249,13 @@ export function RegistroConflito({
             )}
           </div>
 
-
           <div className="grid gap-6 md:grid-cols-2">
             <div className="rounded-2xl border border-gray-200 p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-base font-semibold text-gray-800">Lado 1</p>
+                  <p className="text-base font-semibold text-gray-800">
+                    Lado 1
+                  </p>
                   <p className="text-xs text-gray-500">
                     Integrantes deste lado não geram alertas entre si.
                   </p>
@@ -296,49 +303,53 @@ export function RegistroConflito({
                   </div>
                 )}
               </div>
-                {ladoA.length > 0 && (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {ladoA.map((item) => (
-                      <span
-                        key={item.id}
-                        className="inline-flex items-center gap-2 rounded-full bg-red-100 px-3 py-1 text-sm font-semibold text-red-700"
-                      >
-                        {item.fotoUrl ? (
-                          <span className="h-7 w-7 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-[10px] font-semibold">
-                            <img
-                              src={item.fotoUrl}
-                              alt={item.nomeCompleto}
-                              className="h-full w-full object-cover"
-                            />
-                          </span>
-                        ) : (
-                          <span
-                            title="Sem foto cadastrada"
-                            className="h-7 w-7 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-[10px] font-semibold"
-                          >
-                            {item.nomeCompleto?.trim().charAt(0) ?? "?"}
-                          </span>
-                        )}
-                        <span>{item.nomeCompleto}</span>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setLadoA((lista) => lista.filter((alvo) => alvo.id !== item.id))
-                          }
-                          className="text-red-600 hover:text-red-800"
+              {ladoA.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {ladoA.map((item) => (
+                    <span
+                      key={item.id}
+                      className="inline-flex items-center gap-2 rounded-full bg-red-100 px-3 py-1 text-sm font-semibold text-red-700"
+                    >
+                      {item.fotoUrl ? (
+                        <span className="h-7 w-7 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-[10px] font-semibold">
+                          <img
+                            src={item.fotoUrl}
+                            alt={item.nomeCompleto}
+                            className="h-full w-full object-cover"
+                          />
+                        </span>
+                      ) : (
+                        <span
+                          title="Sem foto cadastrada"
+                          className="h-7 w-7 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-[10px] font-semibold"
                         >
-                          <X size={14} />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
+                          {item.nomeCompleto?.trim().charAt(0) ?? "?"}
+                        </span>
+                      )}
+                      <span>{item.nomeCompleto}</span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setLadoA((lista) =>
+                            lista.filter((alvo) => alvo.id !== item.id),
+                          )
+                        }
+                        className="text-red-600 hover:text-red-800"
+                      >
+                        <X size={14} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="rounded-2xl border border-gray-200 p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-base font-semibold text-gray-800">Lado 2</p>
+                  <p className="text-base font-semibold text-gray-800">
+                    Lado 2
+                  </p>
                   <p className="text-xs text-gray-500">
                     Estes adolescentes são avaliados contra o lado 1.
                   </p>
@@ -386,43 +397,45 @@ export function RegistroConflito({
                   </div>
                 )}
               </div>
-                {ladoB.length > 0 && (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {ladoB.map((item) => (
-                      <span
-                        key={item.id}
-                        className="inline-flex items-center gap-2 rounded-full bg-indigo-100 px-3 py-1 text-sm font-semibold text-indigo-700"
-                      >
-                        {item.fotoUrl ? (
-                          <span className="h-7 w-7 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-[10px] font-semibold">
-                            <img
-                              src={item.fotoUrl}
-                              alt={item.nomeCompleto}
-                              className="h-full w-full object-cover"
-                            />
-                          </span>
-                        ) : (
-                          <span
-                            title="Sem foto cadastrada"
-                            className="h-7 w-7 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-[10px] font-semibold"
-                          >
-                            {item.nomeCompleto?.trim().charAt(0) ?? "?"}
-                          </span>
-                        )}
-                        <span>{item.nomeCompleto}</span>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setLadoB((lista) => lista.filter((alvo) => alvo.id !== item.id))
-                          }
-                          className="text-indigo-600 hover:text-indigo-800"
+              {ladoB.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {ladoB.map((item) => (
+                    <span
+                      key={item.id}
+                      className="inline-flex items-center gap-2 rounded-full bg-indigo-100 px-3 py-1 text-sm font-semibold text-indigo-700"
+                    >
+                      {item.fotoUrl ? (
+                        <span className="h-7 w-7 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-[10px] font-semibold">
+                          <img
+                            src={item.fotoUrl}
+                            alt={item.nomeCompleto}
+                            className="h-full w-full object-cover"
+                          />
+                        </span>
+                      ) : (
+                        <span
+                          title="Sem foto cadastrada"
+                          className="h-7 w-7 rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden flex items-center justify-center text-slate-500 text-[10px] font-semibold"
                         >
-                          <X size={14} />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
+                          {item.nomeCompleto?.trim().charAt(0) ?? "?"}
+                        </span>
+                      )}
+                      <span>{item.nomeCompleto}</span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setLadoB((lista) =>
+                            lista.filter((alvo) => alvo.id !== item.id),
+                          )
+                        }
+                        className="text-indigo-600 hover:text-indigo-800"
+                      >
+                        <X size={14} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
@@ -476,4 +489,3 @@ export function RegistroConflito({
     </div>
   );
 }
-

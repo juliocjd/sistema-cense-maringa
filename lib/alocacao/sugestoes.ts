@@ -139,7 +139,7 @@ async function carregarAdolescenteParaSugestoes(adolescenteId: string) {
     ? {
         ...resultado,
         alertaRiscoSuicidioNivel: extrairNivelRiscoSuicidio(
-          resultado.alertasAtivos
+          resultado.alertasAtivos,
         ),
       }
     : null;
@@ -190,7 +190,7 @@ async function carregarCasasComAlojamentos() {
         alojamento.adolescentes?.map((adolescente: any) => ({
           ...adolescente,
           alertaRiscoSuicidioNivel: extrairNivelRiscoSuicidio(
-            adolescente.alertasAtivos
+            adolescente.alertasAtivos,
           ),
         })) ?? [],
     })),
@@ -200,32 +200,30 @@ async function carregarCasasComAlojamentos() {
 const normalizarCasaParaCalculo = (
   casa: CasaComAlojamentos,
   candidato: AdolescenteComConflitos,
-  alvoAlojamentoId: string
+  alvoAlojamentoId: string,
 ): CasaRisco => ({
   id: casa.id,
   nome: casa.nome,
   numero: casa.numero ?? 0,
   isolada: Boolean(casa.isolada),
-  alojamentos: casa.alojamentos.map(
-    (aloj): any => ({
-      id: aloj.id,
-      casaId: casa.id,
-      numeroAlojamento: aloj.numeroAlojamento,
-      ala: aloj.ala,
-      statusManutencao: aloj.statusManutencao,
-      alojamentoFrontalId:
-        aloj.alojamentoFrontalId ?? aloj.alojamentoFrontal?.id ?? null,
-      localizacaoPreferencial: aloj.localizacaoPreferencial ?? false,
-      corRisco: (aloj as any).corRisco ?? undefined,
-      nivelRisco: (aloj as any).nivelRisco ?? undefined,
-      icones: (aloj as any).icones ?? [],
-      alertas: (aloj as any).alertas ?? [],
-      adolescentes:
-        aloj.id === alvoAlojamentoId
-          ? [preencherAdolescenteBasico(candidato)]
-          : aloj.adolescentes.map((ado) => preencherAdolescenteBasico(ado)),
-    })
-  ),
+  alojamentos: casa.alojamentos.map((aloj): any => ({
+    id: aloj.id,
+    casaId: casa.id,
+    numeroAlojamento: aloj.numeroAlojamento,
+    ala: aloj.ala,
+    statusManutencao: aloj.statusManutencao,
+    alojamentoFrontalId:
+      aloj.alojamentoFrontalId ?? aloj.alojamentoFrontal?.id ?? null,
+    localizacaoPreferencial: aloj.localizacaoPreferencial ?? false,
+    corRisco: (aloj as any).corRisco ?? undefined,
+    nivelRisco: (aloj as any).nivelRisco ?? undefined,
+    icones: (aloj as any).icones ?? [],
+    alertas: (aloj as any).alertas ?? [],
+    adolescentes:
+      aloj.id === alvoAlojamentoId
+        ? [preencherAdolescenteBasico(candidato)]
+        : aloj.adolescentes.map((ado) => preencherAdolescenteBasico(ado)),
+  })),
 });
 
 const toOptionalString = (valor: string | Date | null | undefined) => {
@@ -243,10 +241,10 @@ const toNullableString = (valor: string | Date | null | undefined) => {
 const preencherAdolescenteBasico = (
   adolescente:
     | CasaComAlojamentos["alojamentos"][number]["adolescentes"][number]
-    | AdolescenteComConflitos
+    | AdolescenteComConflitos,
 ): Adolescente => {
   if (!adolescente) {
-    throw new Error("Adolescente invalido para sugestoes de alocacao");
+    throw new Error("Adolescente inválido para sugestões de alocação");
   }
 
   const base = adolescente as unknown as Partial<Adolescente> & {
@@ -290,7 +288,7 @@ const preencherAdolescenteBasico = (
   const alertaSuicidioNivel =
     base.alertaRiscoSuicidioNivel ??
     extrairNivelRiscoSuicidio(
-      (base as any).alertasAtivos ?? (base as any).alertasEspeciais
+      (base as any).alertasAtivos ?? (base as any).alertasEspeciais,
     );
 
   return {
@@ -304,9 +302,7 @@ const preencherAdolescenteBasico = (
     vulgo: base.vulgo ?? null,
     alojamentoAtualId: base.alojamentoAtualId ?? null,
     faseInternacaoAtualId: base.faseInternacaoAtualId ?? null,
-    tecnicosReferencia:
-      (base as any).tecnicosReferencia ??
-      [],
+    tecnicosReferencia: (base as any).tecnicosReferencia ?? [],
     dataDesinternacao: toNullableString(base.dataDesinternacao),
     faccaoGrupoId: base.faccaoGrupoId ?? faccaoInfo?.id ?? null,
     faccaoFuncao: base.faccaoFuncao ?? null,
@@ -336,7 +332,7 @@ const criarCandidatoFallback = (
   adolescenteId: string | null | undefined,
   nomeFallback: string,
   bairroId: string | null,
-  faccaoId: string | null
+  faccaoId: string | null,
 ): AdolescenteComConflitos =>
   ({
     id: adolescenteId ?? "adolescente-temp",
@@ -379,14 +375,14 @@ const criarCandidatoFallback = (
     historicoInfracional: [],
     criadoEm: new Date().toISOString(),
     atualizadoEm: new Date().toISOString(),
-  } as unknown as AdolescenteComConflitos);
+  }) as unknown as AdolescenteComConflitos;
 
 const construirImpactosExternos = (
   adolescente: AdolescenteComConflitos,
   bairroReferencia: string | null,
   faccaoReferencia: string | null,
   mapaBairros: Map<string, BairroConflitoInfo>,
-  mapaFaccoes: Map<string, FaccaoConflitoInfo>
+  mapaFaccoes: Map<string, FaccaoConflitoInfo>,
 ): ConflitosExternosMapa => {
   const impactos: ImpactoConflitoExterno[] = [];
 
@@ -450,9 +446,7 @@ const construirImpactosExternos = (
         conflitoOrigem: {
           id: origem.id,
           nome:
-            adolescente.faccao?.nomeFaccao ??
-            origem.nome ??
-            "Faccao origem",
+            adolescente.faccao?.nomeFaccao ?? origem.nome ?? "Faccao origem",
         },
         conflitoDestino: {
           id: rival.id,
@@ -486,16 +480,16 @@ const avaliarCandidato = (
   casa: CasaComAlojamentos,
   alojamento: AlojamentoCasa,
   candidato: AdolescenteComConflitos,
-  conflitosExternos: ConflitosExternosMapa
+  conflitosExternos: ConflitosExternosMapa,
 ): SugestaoAlojamento => {
   const casaNormalizada = normalizarCasaParaCalculo(
     casa,
     candidato,
-    alojamento.id
+    alojamento.id,
   );
   const slots = criarMapaSlots([casaNormalizada]);
   const alvo = casaNormalizada.alojamentos.find(
-    (aloj) => aloj.id === alojamento.id
+    (aloj) => aloj.id === alojamento.id,
   );
 
   if (!alvo) {
@@ -541,14 +535,12 @@ export async function gerarSugestoesParaAlocacao({
     throw new Error("Adolescente nao encontrado");
   }
 
-  const bairroParaAnalise =
-    bairroId ?? adolescente?.bairroOrigemId ?? null;
-  const faccaoParaAnalise =
-    faccaoId ?? adolescente?.faccaoGrupoId ?? null;
+  const bairroParaAnalise = bairroId ?? adolescente?.bairroOrigemId ?? null;
+  const faccaoParaAnalise = faccaoId ?? adolescente?.faccaoGrupoId ?? null;
 
   if (!adolescente && !bairroParaAnalise && !faccaoParaAnalise) {
     throw new Error(
-      "Informe adolescenteId ou pelo menos bairroId/faccaoId para gerar sugestoes."
+      "Informe adolescenteId ou pelo menos bairroId/faccaoId para gerar sugestoes.",
     );
   }
 
@@ -557,7 +549,7 @@ export async function gerarSugestoesParaAlocacao({
       adolescenteId,
       "Adolescente em cadastro",
       bairroParaAnalise,
-      faccaoParaAnalise
+      faccaoParaAnalise,
     );
   }
 
@@ -587,7 +579,7 @@ export async function gerarSugestoesParaAlocacao({
     bairroParaAnalise,
     faccaoParaAnalise,
     mapaBairros,
-    mapaFaccoes
+    mapaFaccoes,
   );
 
   const candidatos: SugestaoAlojamento[] = [];
@@ -606,7 +598,7 @@ export async function gerarSugestoesParaAlocacao({
       if (
         alertaSuicidioExigeMonitoramento(
           adolescenteAvaliado.alertaRiscoSuicidio ?? false,
-          adolescenteAvaliado.alertaRiscoSuicidioNivel
+          adolescenteAvaliado.alertaRiscoSuicidioNivel,
         )
       ) {
         const vigilado = avaliarVigilanciaFrontal(alojamento, mapaAlojamentos);
@@ -620,7 +612,7 @@ export async function gerarSugestoesParaAlocacao({
         casa,
         alojamento,
         adolescenteAvaliado,
-        conflitosExternos
+        conflitosExternos,
       );
 
       if (
@@ -707,7 +699,7 @@ export async function gerarDiagnosticoCasaParaAlocacao({
 
   if (!adolescente && !bairroParaAnalise && !faccaoParaAnalise) {
     throw new Error(
-      "Informe adolescenteId ou pelo menos bairroId/faccaoId para diagnostico."
+      "Informe adolescenteId ou pelo menos bairroId/faccaoId para diagnostico.",
     );
   }
 
@@ -716,7 +708,7 @@ export async function gerarDiagnosticoCasaParaAlocacao({
       adolescenteId,
       "Adolescente em cadastro",
       bairroParaAnalise,
-      faccaoParaAnalise
+      faccaoParaAnalise,
     );
   }
 
@@ -758,12 +750,12 @@ export async function gerarDiagnosticoCasaParaAlocacao({
     bairroParaAnalise,
     faccaoParaAnalise,
     mapaBairros,
-    mapaFaccoes
+    mapaFaccoes,
   );
 
   const exigeVigilancia = alertaSuicidioExigeMonitoramento(
     adolescenteAvaliado.alertaRiscoSuicidio ?? false,
-    adolescenteAvaliado.alertaRiscoSuicidioNivel
+    adolescenteAvaliado.alertaRiscoSuicidioNivel,
   );
 
   let livres = 0;
@@ -801,10 +793,7 @@ export async function gerarDiagnosticoCasaParaAlocacao({
       }
 
       if (exigeVigilancia) {
-        const vigilado = avaliarVigilanciaFrontal(
-          alojamento,
-          mapaAlojamentos
-        );
+        const vigilado = avaliarVigilanciaFrontal(alojamento, mapaAlojamentos);
         if (!vigilado.valido) {
           bloqueadosVigilancia += 1;
           return {
@@ -822,14 +811,11 @@ export async function gerarDiagnosticoCasaParaAlocacao({
         casaSelecionada,
         alojamento,
         adolescenteAvaliado,
-        conflitosExternos
+        conflitosExternos,
       );
 
       if (exigeVigilancia) {
-        const vigilado = avaliarVigilanciaFrontal(
-          alojamento,
-          mapaAlojamentos
-        );
+        const vigilado = avaliarVigilanciaFrontal(alojamento, mapaAlojamentos);
         if (vigilado.avisos?.length) {
           const combinado = new Set(avaliacao.alertas);
           vigilado.avisos.forEach((aviso) => combinado.add(aviso));
@@ -850,7 +836,7 @@ export async function gerarDiagnosticoCasaParaAlocacao({
           ambientais: avaliacao.ambientais,
         },
       };
-    }
+    },
   );
 
   return {
