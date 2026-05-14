@@ -6,6 +6,35 @@ import { signIn, getCsrfToken } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Loader2, AlertCircle } from "lucide-react";
 
+const mensagemErroLogin = (error?: string, code?: string) => {
+  const erroNormalizado = (error ?? "").toLowerCase();
+  const codigoNormalizado = (code ?? "").toLowerCase();
+
+  if (codigoNormalizado === "inactive") {
+    return "Usuario inativo. Contate o administrador.";
+  }
+
+  if (
+    erroNormalizado === "credentialssignin" ||
+    codigoNormalizado === "credentials"
+  ) {
+    return "E-mail ou senha invalidos.";
+  }
+
+  if (erroNormalizado === "missingcsrf") {
+    return "Sessao de login expirada. Recarregue a pagina e tente novamente.";
+  }
+
+  if (
+    erroNormalizado === "callbackrouteerror" ||
+    erroNormalizado === "configuration"
+  ) {
+    return "Nao foi possivel concluir o login. Verifique os dados e tente novamente.";
+  }
+
+  return "Nao foi possivel fazer login. Tente novamente.";
+};
+
 export default function LoginForm() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -46,7 +75,7 @@ export default function LoginForm() {
       });
 
       if (result?.error) {
-        setErro(result.error);
+        setErro(mensagemErroLogin(result.error, result.code));
         setLoading(false);
         return;
       }

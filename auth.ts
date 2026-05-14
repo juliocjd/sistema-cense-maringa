@@ -1,7 +1,7 @@
 // auth.ts
 // Configuração central do NextAuth.js v5 com suporte a papéis e permissões
 
-import NextAuth from "next-auth";
+import NextAuth, { CredentialsSignin } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import bcrypt from "bcryptjs";
@@ -85,6 +85,10 @@ const carregarOperadorPorEmail = async (email: string) => {
   }
 };
 
+class OperadorInativoError extends CredentialsSignin {
+  code = "inactive";
+}
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
   trustHost: true,
   adapter: PrismaAdapter(prisma),
@@ -105,7 +109,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.senha) {
-          throw new Error("Email e senha são obrigatórios");
+          return null;
         }
 
         const operador = await carregarOperadorPorEmail(
@@ -113,11 +117,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         );
 
         if (!operador) {
-          throw new Error("Credenciais inválidas");
+          return null;
         }
 
         if (operador.status !== "ATIVO") {
-          throw new Error("Usuário inativo. Contate o administrador.");
+          throw new OperadorInativoError();
         }
 
         const senhaValida = await bcrypt.compare(
@@ -126,7 +130,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         );
 
         if (!senhaValida) {
-          throw new Error("Credenciais inválidas");
+          return null;
         }
 
         const { roles, permissions } = mapOperadorPermissions(operador);
